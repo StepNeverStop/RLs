@@ -1,9 +1,8 @@
 import platform
-from enum import Enum
-
 
 unity_file = {
     '3DBall': {
+
     },
     'RollerBall': {
         'OneFloor': r'C:/UnityBuild/RollerBall/OneFloor/RollerBall-custom.exe',
@@ -21,6 +20,6 @@ train_config = {
     'base_dir' : r'C:/RLData' if platform.system() == "Windows" else r'/RLData',
     'exe_file' : unity_file['RollerBall']['OneFloor'],
     'reset_config' : None,
-    'save_frequency':50,
-    'model_string':'0'
+    'save_frequency' : 50,
+    'model_string' : '0'
 }

@@ -12,10 +12,10 @@ Options:
     -p,--port=<n>               端口 [default: 5005]
     -u,--unity                  是否使用unity客户端 [default: False]
     -g,--graphic                是否显示图形界面 [default: False]
-    -m,--model-string=<name>    载入模型的路径 [default: None]
+    -m,--model-string=<name>    训练的名字/载入模型的路径 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
 Example:
-    python run.py -t -e C:/test.exe -p 5006
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -m test
 """
 import os
 import sys
