@@ -22,4 +22,4 @@ Example:
 ```
 I am very appreciate to my best friend - [BlueFisher](https://github.com/BlueFisher) - who always look down on my coding style and competence(Although he **is** right, at least for now, but will be **was**).
 
-Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLwithUnity/issues).
+Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
