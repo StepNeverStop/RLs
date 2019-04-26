@@ -9,6 +9,8 @@ from tensorflow.python.tools import freeze_graph
 
 
 class Policy(object):
+    _version_number_ = 2
+
     def __init__(self,
                  s_dim,
                  a_counts,
@@ -29,7 +31,7 @@ class Policy(object):
         self.policy_mode = policy_mode
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.possible_output_nodes = ['Action']
+        self.possible_output_nodes = ['action', 'version_number']
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_'])
         elif self.policy_mode == 'OFF':
@@ -38,9 +40,11 @@ class Policy(object):
             raise Exception('Please specific a mode of policy!')
 
         with self.graph.as_default():
-            self.s = tf.placeholder(tf.float32, [None, self.s_dim], 'state')
-            self.a = tf.placeholder(
-                tf.float32, [None, self.a_counts], 'action')
+            tf.Variable(self._version_number_, name='version_number',
+                        trainable=False, dtype=tf.int32)
+            self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'pl_state')
+            self.pl_a = tf.placeholder(
+                tf.float32, [None, self.a_counts], 'pl_action')
             self.init_step = self.get_init_step(
                 cp_dir=cp_dir)
             self.global_step = tf.get_variable('global_step', shape=(
@@ -111,6 +115,7 @@ class Policy(object):
         """
         all_nodes = [x.name for x in self.graph.as_graph_def().node]
         nodes = [x for x in all_nodes if x in self.possible_output_nodes]
+        print(nodes)
         return nodes
 
     def export_model(self):

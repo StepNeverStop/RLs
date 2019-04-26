@@ -44,10 +44,10 @@ class PPO(Policy):
             self.old_prob = tf.placeholder(
                 tf.float32, [None, self.a_counts], 'old_prob')
 
-            self.new_prob = self.norm_dist.prob(self.a)
+            self.new_prob = self.norm_dist.prob(self.pl_a)
 
             self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
-            self.action = tf.identity(self.sample_op, name='Action')
+            self.action = tf.identity(self.sample_op, name='action')
             self.entropy = self.norm_dist.entropy()
             self.mean_entropy = tf.reduce_mean(self.norm_dist.entropy())
             # ratio = tf.exp(self.new_prob - self.old_prob)
@@ -96,7 +96,7 @@ class PPO(Policy):
     def _build_net(self, name):
         with tf.variable_scope(name):
             share1 = tf.layers.dense(
-                inputs=self.s,
+                inputs=self.pl_s,
                 units=512,
                 activation=self.activation_fn,
                 name='share1',
@@ -171,7 +171,13 @@ class PPO(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.s: s,
+            self.pl_s: s,
+            self.sigma_offset: np.full(self.a_counts, 0.01)
+        })
+
+    def choose_inference_action(self, s):
+        return self.sess.run(self.action, feed_dict={
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -189,16 +195,16 @@ class PPO(Policy):
             's_': s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.s: s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'next_value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.s: s_,
+                self.pl_s: s_,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'prob': self.sess.run(self.new_prob, feed_dict={
-                self.s: s,
-                self.a: a,
+                self.pl_s: s,
+                self.pl_a: a,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
         }, ignore_index=True)
@@ -242,8 +248,8 @@ class PPO(Policy):
         for _ in range(self.epoch):
             s, a, dc_r, old_prob, advantage = self.get_sample_data()
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.s: s,
-                self.a: a,
+                self.pl_s: s,
+                self.pl_a: a,
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,
                 self.advantage: advantage,

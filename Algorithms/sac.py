@@ -45,9 +45,10 @@ class SAC(Policy):
 
             self.norm_dist, self.a_new, self.log_prob = self._build_actor_net(
                 'actor_net')
+            tf.identity(self.mu, 'action')
             self.entropy = self.norm_dist.entropy()
-            self.s_a = tf.concat((self.s, self.a), axis=1)
-            self.s_a_new = tf.concat((self.s, self.a_new), axis=1)
+            self.s_a = tf.concat((self.pl_s, self.pl_a), axis=1)
+            self.s_a_new = tf.concat((self.pl_s, self.a_new), axis=1)
             self.q1 = self._build_q_net('q1', self.s_a, False)
             self.q2 = self._build_q_net('q2', self.s_a, False)
             self.q1_anew = self._build_q_net('q1', self.s_a_new, True)
@@ -56,7 +57,7 @@ class SAC(Policy):
                 self.q1_anew, self.q2_anew) - self.alpha * self.log_prob
             self.v_from_q_stop = tf.stop_gradient(self.v_from_q)
             self.v, self.v_var = self._build_v_net(
-                'v', input_vector=self.s, trainable=True)
+                'v', input_vector=self.pl_s, trainable=True)
             self.v_target, self.v_target_var = self._build_v_net(
                 'v_target', input_vector=self.s_, trainable=False)
             self.dc_r = tf.stop_gradient(
@@ -135,7 +136,7 @@ class SAC(Policy):
     def _build_actor_net(self, name):
         with tf.variable_scope(name):
             actor1 = tf.layers.dense(
-                inputs=self.s,
+                inputs=self.pl_s,
                 units=128,
                 activation=self.activation_fn,
                 name='actor1',
@@ -236,13 +237,13 @@ class SAC(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.a_new, feed_dict={
-            self.s: s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.mu, feed_dict={
-            self.s: s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -258,15 +259,15 @@ class SAC(Policy):
     def learn(self):
         s, a, r, s_, _ = self.data.sample()
         # self.sess.run([self.assign_v_target, self.train_q1, self.train_q2, self.train_v, self.train_actor], feed_dict={
-        #     self.s: s,
-        #     self.a: a,
+        #     self.pl_s: s,
+        #     self.pl_a: a,
         #     self.r: r,
         #     self.s_: s_,
         #     self.sigma_offset: np.full(self.a_counts, 0.01)
         # })
         summaries, _ = self.sess.run([self.summaries, [self.assign_v_target, self.train_critic, self.train_actor, self.train_alpha]], feed_dict={
-            self.s: s,
-            self.a: a,
+            self.pl_s: s,
+            self.pl_a: a,
             self.r: r,
             self.s_: s_,
             self.sigma_offset: np.full(self.a_counts, 0.01)

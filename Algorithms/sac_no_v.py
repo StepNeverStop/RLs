@@ -44,15 +44,16 @@ class SAC_NO_V(Policy):
                 tf.float32, [self.a_counts, ], 'sigma_offset')
 
             self.norm_dist, self.mu, self.sigma, self.a_s, self.a_s_log_prob = self._build_actor_net(
-                'actor_net', self.s, reuse=False)
+                'actor_net', self.pl_s, reuse=False)
+            tf.identity(self.mu, 'action')
             _, _, _, self.a_s_, self.a_s_log_prob_ = self._build_actor_net(
                 'actor_net', self.s_, reuse=True)
             self.prob = self.norm_dist.prob(self.a_s)
-            self.new_log_prob = self.norm_dist.log_prob(self.a)
+            self.new_log_prob = self.norm_dist.log_prob(self.pl_a)
             self.entropy = self.norm_dist.entropy()
-            self.s_a = tf.concat((self.s, self.a), axis=1)
+            self.s_a = tf.concat((self.pl_s, self.pl_a), axis=1)
             self.s_a_ = tf.concat((self.s_, self.a_s_), axis=1)
-            self.s_a_s = tf.concat((self.s, self.a_s), axis=1)
+            self.s_a_s = tf.concat((self.pl_s, self.a_s), axis=1)
             self.q1, self.q1_vars = self._build_q_net(
                 'q1', self.s_a, trainable=True, reuse=False)
             self.q1_target, self.q1_target_vars = self._build_q_net(
@@ -224,13 +225,13 @@ class SAC_NO_V(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.a_s, feed_dict={
-            self.s: s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.mu, feed_dict={
-            self.s: s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -246,15 +247,15 @@ class SAC_NO_V(Policy):
     def learn(self):
         s, a, r, s_, _ = self.data.sample()
         # self.sess.run([self.train_q1, self.train_q2, self.train_actor, self.train_alpha, self.assign_q1_target, self.assign_q2_target], feed_dict={
-        #     self.s: s,
-        #     self.a: a,
+        #     self.pl_s: s,
+        #     self.pl_a: a,
         #     self.r: r,
         #     self.s_: s_,
         #     self.sigma_offset: np.full(self.a_counts, 0.01)
         # })
         summaries, _ = self.sess.run([self.summaries, [self.assign_q1_target, self.assign_q2_target, self.train_critic, self.train_actor, self.train_alpha]], feed_dict={
-            self.s: s,
-            self.a: a,
+            self.pl_s: s,
+            self.pl_a: a,
             self.r: r,
             self.s_: s_,
             self.sigma_offset: np.full(self.a_counts, 0.01)

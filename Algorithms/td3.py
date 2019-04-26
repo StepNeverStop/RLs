@@ -34,12 +34,13 @@ class TD3(Policy):
                 tf.float32, [None, self.s_dim], 'next_state')
 
             self.mu, self.action, self.actor_var = self._build_actor_net(
-                'actor', self.s, trainable=True)
+                'actor', self.pl_s, trainable=True)
+            tf.identity(self.mu, 'action')
             self.target_mu, self.action_target, self.actor_target_var = self._build_actor_net(
                 'actor_target', self.s_, trainable=False)
 
-            self.s_a = tf.concat((self.s, self.a), axis=1)
-            self.s_mu = tf.concat((self.s, self.mu), axis=1)
+            self.s_a = tf.concat((self.pl_s, self.pl_a), axis=1)
+            self.s_mu = tf.concat((self.pl_s, self.mu), axis=1)
             self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
 
             self.q1, self.q1_var = self._build_q_net(
@@ -185,12 +186,12 @@ class TD3(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.s: s
+            self.pl_s: s
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.mu, feed_dict={
-            self.s: s
+            self.pl_s: s
         })
 
     def store_data(self, s, a, r, s_, done):
@@ -205,14 +206,14 @@ class TD3(Policy):
     def learn(self):
         s, a, r, s_, _ = self.data.sample()
         self.sess.run(self.train_value, feed_dict={
-            self.s: s,
-            self.a: a,
+            self.pl_s: s,
+            self.pl_a: a,
             self.r: r,
             self.s_: s_,
         })
         summaries, _ = self.sess.run([self.summaries, [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]], feed_dict={
-            self.s: s,
-            self.a: a,
+            self.pl_s: s,
+            self.pl_a: a,
             self.r: r,
             self.s_: s_,
         })

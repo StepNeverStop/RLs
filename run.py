@@ -23,6 +23,7 @@ import _thread
 import Algorithms
 from docopt import docopt
 from config import train_config
+from utils.sth import sth
 from mlagents.envs import UnityEnvironment
 if sys.platform.startswith('win'):
     import win32api
@@ -93,13 +94,21 @@ def run():
     else:
         raise Exception("Don't have this algorithm.")
 
-    # if option['--config-file'] != 'None' and os.path.exists(option['--config-file']):
+    if options['--config-file'] != 'None':
+        _algorithm_config = sth.load_config(options['--config-file'])
+        try:
+            for key in _algorithm_config:
+                algorithm_config[key]=_algorithm_config[key]
+        except Exception as e:
+            print(e)
+            sys.exit()
 
     if 'Loop' not in locals().keys():
         from loop import Loop
     base_dir = train_config['base_dir'] + env_name + '/' + \
         options['--algorithm'] + '/' + name + '/'
 
+    print(algorithm_config)
     brain_names = env.external_brain_names
     brains = env.brains
     models = [model(
@@ -137,10 +146,6 @@ def run():
 
 
 def _win_handler(event, hook_sigint=_thread.interrupt_main):
-    """
-    This function gets triggered after ctrl-c or ctrl-break is pressed
-    under Windows platform.
-    """
     if event == 0:
         hook_sigint()
         return 1
@@ -148,4 +153,7 @@ def _win_handler(event, hook_sigint=_thread.interrupt_main):
 
 
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    finally:
+        sys.exit()
