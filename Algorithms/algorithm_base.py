@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 from utils.recorder import Recorder
 from utils.replay_buffer import ReplayBuffer
+from tensorflow.python.tools import freeze_graph
 
 
 class Policy(object):
@@ -28,7 +29,7 @@ class Policy(object):
         self.policy_mode = policy_mode
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.possible_output_nodes = ['out/Action']
+        self.possible_output_nodes = ['Action']
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_'])
         elif self.policy_mode == 'OFF':
@@ -116,8 +117,10 @@ class Policy(object):
         """
         Exports latest saved model to .nn format for Unity embedding.
         """
+        tf.train.write_graph(
+            self.graph, self.cp_dir, 'raw_graph_def.pb', as_text=False)
         with self.graph.as_default():
-            target_nodes = ','.join(self._process_graph(self.graph))
+            target_nodes = ','.join(self._process_graph())
             freeze_graph.freeze_graph(
                 input_graph=self.cp_dir + 'raw_graph_def.pb',
                 input_binary=True,
@@ -128,10 +131,13 @@ class Policy(object):
                 clear_devices=True, initializer_nodes='', input_saver='',
                 restore_op_name='save/restore_all',
                 filename_tensor_name='save/Const:0')
-        tf2bc.convert(self.cp_dir + 'frozen_graph_def.pb',
-                      self.cp_dir + '.nn')
+        # tf2bc.convert(self.cp_dir + 'frozen_graph_def.pb',
+        #               self.cp_dir + '.nn')
 
     def check_or_create(self, dicpath, name=''):
         if not os.path.exists(dicpath):
             os.makedirs(dicpath)
             print(f'create {name} directionary :', dicpath)
+
+    def close(self):
+        self.export_model()

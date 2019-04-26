@@ -1,16 +1,12 @@
 import sys
 import numpy as np
 
-if sys.platform.startswith('win'):
-    import win32api
-    import win32con
-
 
 class Loop(object):
     @staticmethod
     def inference(env, brain_names, models, reset_config):
         while True:
-            obs =env.reset(config=reset_config,train_mode=False)
+            obs = env.reset(config=reset_config, train_mode=False)
             while True:
                 for i, brain_name in enumerate(brain_names):
                     state[i] = obs[brain_name].vector_observations
