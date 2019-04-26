@@ -14,6 +14,7 @@ class PG(Policy):
         self,
         s_dim,
         a_counts,
+        action_type,
         lr=5.0e-4,
         gamma=0.99,
         max_episode=50000,
@@ -25,7 +26,7 @@ class PG(Policy):
         logger2file=False,
         out_graph=False
     ):
-        super().__init__(s_dim, a_counts, cp_dir, 'ON')
+        super().__init__(s_dim, a_counts,action_type, cp_dir, 'ON')
         self.epoch = epoch
         self.gamma = gamma
         self.batch_size = batch_size

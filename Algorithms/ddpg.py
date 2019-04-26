@@ -13,6 +13,7 @@ class DDPG(Policy):
     def __init__(self,
                  s_dim,
                  a_counts,
+                 action_type,
                  gamma=0.99,
                  ployak=0.995,
                  lr=5.0e-4,
@@ -24,7 +25,7 @@ class DDPG(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, a_counts, action_type,cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():

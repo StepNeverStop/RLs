@@ -14,6 +14,7 @@ class PPO(Policy):
     def __init__(self,
                  s_dim,
                  a_counts,
+                 action_type,
                  epsilon=0.2,
                  gamma=0.99,
                  beta=1.0e-3,
@@ -27,7 +28,7 @@ class PPO(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, cp_dir, 'ON')
+        super().__init__(s_dim, a_counts, action_type,cp_dir, 'ON')
         self.epsilon = epsilon
         self.gamma = gamma
         self.beta = beta
@@ -55,7 +56,7 @@ class PPO(Policy):
                     tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * self.advantage
                 ))
             self.value_loss = tf.reduce_mean(tf.squared_difference(self.dc_r, self.value))
-            self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * self.mean_entropy)
+            self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * tf.reduce_mean(self.entropy))
             self.lr = tf.train.polynomial_decay(lr, self.episode, max_episode, 1e-10, power=1.0)
             self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

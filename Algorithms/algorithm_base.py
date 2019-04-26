@@ -15,6 +15,7 @@ class Policy(object):
     def __init__(self,
                  s_dim,
                  a_counts,
+                 action_type,
                  cp_dir,
                  policy_mode=None,
                  batch_size=1,
@@ -42,7 +43,7 @@ class Policy(object):
 
         with self.graph.as_default():
             # continuous 1 discrete 0
-            tf.Variable(1, name='is_continuous_control', trainable=False, dtype=tf.int32)
+            tf.Variable(1 if action_type == 'continuous' else 0, name='is_continuous_control', trainable=False, dtype=tf.int32)
             tf.Variable(self.a_counts, name="action_output_shape", trainable=False, dtype=tf.int32)
             tf.Variable(self._version_number_, name='version_number', trainable=False, dtype=tf.int32)
             tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)
@@ -68,7 +69,7 @@ class Policy(object):
         self.data.drop(self.data.index, inplace=True)
 
     def get_init_step(self, cp_dir):
-        if os.path.exists(cp_dir + 'checkpoint'):
+        if os.path.exists(os.path.join(cp_dir,'checkpoint')):
             return int(tf.train.latest_checkpoint(cp_dir).split('-')[-1])
         else:
             return 0
@@ -85,7 +86,7 @@ class Policy(object):
         )
 
     def init_or_restore(self, cp_dir, sess):
-        if os.path.exists(cp_dir + 'checkpoint'):
+        if os.path.exists(os.path.join(cp_dir,'checkpoint')):
             try:
                 self.recorder.saver.restore(sess, tf.train.latest_checkpoint(cp_dir))
             except:
@@ -97,7 +98,7 @@ class Policy(object):
             self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
-        self.recorder.saver.save(self.sess, self.cp_dir + 'rb', global_step=global_step, write_meta_graph=False)
+        self.recorder.saver.save(self.sess, os.path.join(self.cp_dir,'rb'), global_step=global_step, write_meta_graph=False)
 
     def writer_summary(self, global_step, **kargs):
         self.recorder.writer_summary(
@@ -112,7 +113,6 @@ class Policy(object):
         """
         all_nodes = [x.name for x in self.graph.as_graph_def().node]
         nodes = [x for x in all_nodes if x in self.possible_output_nodes]
-        print(nodes)
         return nodes
 
     def export_model(self):
@@ -123,16 +123,16 @@ class Policy(object):
         with self.graph.as_default():
             target_nodes = ','.join(self._process_graph())
             freeze_graph.freeze_graph(
-                input_graph=self.cp_dir + 'raw_graph_def.pb',
+                input_graph=os.path.join(self.cp_dir,'raw_graph_def.pb'),
                 input_binary=True,
                 input_checkpoint=tf.train.latest_checkpoint(self.cp_dir),
                 output_node_names=target_nodes,
-                output_graph=(self.cp_dir + 'frozen_graph_def.pb'),
-                # output_graph=(self.cp_dir + 'model.bytes'),
+                output_graph=(os.path.join(self.cp_dir,'frozen_graph_def.pb')),
+                # output_graph=(os.path.join(self.cp_dir,'model.bytes')),
                 clear_devices=True, initializer_nodes='', input_saver='',
                 restore_op_name='save/restore_all',
                 filename_tensor_name='save/Const:0')
-        tf2bc.convert(self.cp_dir + 'frozen_graph_def.pb', self.cp_dir + 'model.nn')
+        tf2bc.convert(os.path.join(self.cp_dir,'frozen_graph_def.pb'), os.path.join(self.cp_dir,'model.nn'))
 
     def check_or_create(self, dicpath, name=''):
         if not os.path.exists(dicpath):
