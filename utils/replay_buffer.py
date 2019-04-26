@@ -29,8 +29,7 @@ class ReplayBuffer(object):
 
     def sample(self):
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        t = np.random.choice(
-            self._buffer[:self._size], size=n_sample, replace=False)
+        t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
         return [np.array(e) for e in zip(*t)]
 
     @property
@@ -155,11 +154,9 @@ class PrioritizedReplayBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     def sample(self):
         n_sample = self.batch_size if self.is_lg_batch_size else self.size
 
-        points, transitions, is_weights = np.empty((n_sample,), dtype=np.int32), np.empty(
-            (n_sample,), dtype=object), np.empty((n_sample, 1))
+        points, transitions, is_weights = np.empty((n_sample,), dtype=np.int32), np.empty((n_sample,), dtype=object), np.empty((n_sample, 1))
         pri_seg = self._tree.total_p / n_sample       # priority segment
-        self.beta = np.min(
-            [1., self.beta + self.beta_increment_per_sampling])  # max = 1
+        self.beta = np.min([1., self.beta + self.beta_increment_per_sampling])  # max = 1
 
         min_prob = self._tree.min / self._tree.total_p     # for later calculate ISweight
 
@@ -187,4 +184,3 @@ class PrioritizedReplayBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     @property
     def is_lg_batch_size(self):
         return self.size > self.batch_size
-

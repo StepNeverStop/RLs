@@ -11,8 +11,7 @@ class Loop(object):
                 for i, brain_name in enumerate(brain_names):
                     state[i] = obs[brain_name].vector_observations
                     action[i] = models[i].choose_inference_action(s=state[i])
-                actions = {f'{brain_name}': action[i]
-                           for i, brain_name in enumerate(brain_names)}
+                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 
     @staticmethod
@@ -38,8 +37,7 @@ class Loop(object):
                     state[i] = obs[brain_name].vector_observations
                     action[i] = models[i].choose_action(s=state[i])
 
-                actions = {f'{brain_name}': action[i]
-                           for i, brain_name in enumerate(brain_names)}
+                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 
                 for i, brain_name in enumerate(brain_names):
@@ -53,7 +51,7 @@ class Loop(object):
                     )
                 if all([all(dones_flag[i]) for i in range(brains_num)]):
                     for i in range(brains_num):
-                        models[i].learn()
+                        models[i].learn(episode)
                         models[i].writer_summary(episode)
                     break
             if episode % save_frequency == 0:
@@ -84,8 +82,7 @@ class Loop(object):
                     state[i] = obs[brain_name].vector_observations
                     action[i] = models[i].choose_action(s=state[i])
 
-                actions = {f'{brain_name}': action[i]
-                           for i, brain_name in enumerate(brain_names)}
+                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 
                 for i, brain_name in enumerate(brain_names):
@@ -98,7 +95,7 @@ class Loop(object):
                         done=np.array(obs[brain_name].local_done)[
                             :, np.newaxis]
                     )
-                    models[i].learn()
+                    models[i].learn(episode)
                 if all([all(dones_flag[i]) for i in range(brains_num)]):
                     break
             for i in range(brains_num):

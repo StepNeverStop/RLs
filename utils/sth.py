@@ -2,11 +2,12 @@ import os
 import yaml
 import numpy as np
 
+
 class sth(object):
     @staticmethod
     def discounted_sum(x, gamma, init_value, dones):
-        assert isinstance(x,np.ndarray)
-        assert isinstance(dones,np.ndarray)
+        assert isinstance(x, np.ndarray)
+        assert isinstance(dones, np.ndarray)
 
         y = []
         for i in reversed(range(len(x))):
@@ -16,22 +17,24 @@ class sth(object):
 
     @staticmethod
     def discounted_sum_minus(x, gamma, init_value, dones, z):
-        assert isinstance(x,np.ndarray)
-        assert isinstance(dones,np.ndarray)
-        assert isinstance(z,np.ndarray)
+        assert isinstance(x, np.ndarray)
+        assert isinstance(dones, np.ndarray)
+        assert isinstance(z, np.ndarray)
 
         y = []
         for i in reversed(range(len(x))):
             y.insert(0, gamma * (1 - dones[i]) * init_value + x[i] - z[i])
             init_value = z[i]
         return y
-    
+
     @staticmethod
-    def save_config(dir_name, config):
-        fw = open(os.path.join(dir_name, 'config.yaml'), 'w', encoding='utf-8')
+    def save_config(dicpath, config):
+        if not os.path.exists(dicpath):
+            os.makedirs(dicpath)
+        fw = open(os.path.join(dicpath, 'config.yaml'), 'w', encoding='utf-8')
         yaml.dump(config, fw)
         fw.close()
-        print(f'save config to {dir_name}')
+        print(f'save config to {dicpath}')
 
     @staticmethod
     def load_config(filename):

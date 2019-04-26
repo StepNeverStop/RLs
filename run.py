@@ -38,8 +38,7 @@ def run():
     options = docopt(__doc__)
     print(options)
     reset_config = train_config['reset_config']
-    save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(
-        options['--save-frequency'])
+    save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
     if options['--env'] != 'None':
         file_name = options['--env']
@@ -56,8 +55,7 @@ def run():
                 base_port=int(options['--port']),
                 no_graphics=False if options['--inference'] else not options['--graphic']
             )
-            env_dir = os.path.split(
-                options['--env'])[0]
+            env_dir = os.path.split(options['--env'])[0]
             env_name = env_dir.split('UnityBuild')[-1]
             sys.path.append(env_dir)
             if os.path.exists(env_dir + '/env_config.py'):
@@ -71,7 +69,11 @@ def run():
         env = UnityEnvironment()
         env_name = '/unity'
 
-    if options['--algorithm'] == 'ppo':
+    if options['--algorithm'] == 'pg':
+        algorithm_config = Algorithms.pg_config
+        model = Algorithms.PG
+        policy_mode = 'ON'
+    elif options['--algorithm'] == 'ppo':
         algorithm_config = Algorithms.ppo_config
         model = Algorithms.PPO
         policy_mode = 'ON'
@@ -105,16 +107,16 @@ def run():
 
     if 'Loop' not in locals().keys():
         from loop import Loop
-    base_dir = train_config['base_dir'] + env_name + '/' + \
-        options['--algorithm'] + '/' + name + '/'
+    base_dir = train_config['base_dir'] + env_name + '/' + options['--algorithm'] + '/' + name + '/'
 
     for key in algorithm_config:
-        print(str(key) + '\t' + str(algorithm_config[key]))
+        print('-' * 46)
+        print('|', str(key).ljust(20), str(algorithm_config[key]).rjust(20), '|')
+
     brain_names = env.external_brain_names
     brains = env.brains
     models = [model(
-        s_dim=brains[i].vector_observation_space_size *
-        brains[i].num_stacked_vector_observations,
+        s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
         a_counts=brains[i].vector_action_space_size[0],
         cp_dir=base_dir + f'{i}' + '/model/',
         log_dir=base_dir + f'{i}' + '/log/',
@@ -123,20 +125,18 @@ def run():
         out_graph=False,
         **algorithm_config
     ) for i in brain_names]
+    [sth.save_config(base_dir + f'{i}' + '/config/', algorithm_config) for i in brain_names]
 
-    begin_episode = models[0].get_init_step(
-        cp_dir=base_dir + brain_names[0] + '/model/')
+    begin_episode = models[0].get_init_step(cp_dir=base_dir + brain_names[0] + '/model/')
 
     if options['--inference']:
         Loop.inference(env, brain_names, models, reset_config=reset_config)
     else:
         try:
             if policy_mode == 'ON':
-                Loop.train_OnPolicy(env, brain_names, models,
-                                    begin_episode, save_frequency=save_frequency, reset_config=reset_config)
+                Loop.train_OnPolicy(env, brain_names, models, begin_episode, save_frequency=save_frequency, reset_config=reset_config)
             else:
-                Loop.train_OffPolicy(env, brain_names, models,
-                                     begin_episode, save_frequency=save_frequency, reset_config=reset_config)
+                Loop.train_OffPolicy(env, brain_names, models, begin_episode, save_frequency=save_frequency, reset_config=reset_config)
         finally:
             try:
                 [models[i].close() for i in range(len(models))]

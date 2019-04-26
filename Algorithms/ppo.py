@@ -35,41 +35,31 @@ class PPO(Policy):
         self.lambda_ = lambda_
         self.batch_size = batch_size
         with self.graph.as_default():
-            self.dc_r = tf.placeholder(
-                tf.float32, [None, 1], 'discounted_reward')
+            self.dc_r = tf.placeholder(tf.float32, [None, 1], 'discounted_reward')
             self.advantage = tf.placeholder(tf.float32, [None, 1], "advantage")
-            self.sigma_offset = tf.placeholder(
-                tf.float32, [self.a_counts, ], 'sigma_offset')
+            self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.norm_dist = self._build_net('ppo')
-            self.old_prob = tf.placeholder(
-                tf.float32, [None, self.a_counts], 'old_prob')
+            self.old_prob = tf.placeholder(tf.float32, [None, self.a_counts], 'old_prob')
 
             self.new_prob = self.norm_dist.prob(self.pl_a)
 
             self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.action = tf.identity(self.sample_op, name='action')
             self.entropy = self.norm_dist.entropy()
-            self.mean_entropy = tf.reduce_mean(self.norm_dist.entropy())
             # ratio = tf.exp(self.new_prob - self.old_prob)
             ratio = self.new_prob / self.old_prob
             surrogate = ratio * self.advantage
-            self.actor_loss = tf.reduce_mean(tf.minimum(
-                surrogate,
-                tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0
-                                 + self.epsilon) * self.advantage
-            ))
-            self.value_loss = tf.reduce_mean(
-                tf.squared_difference(self.dc_r, self.value))
-            self.loss = -(self.actor_loss - 1.0 * self.value_loss
-                          + self.beta * self.mean_entropy)
-            self.lr = tf.train.polynomial_decay(
-                lr, self.global_step, max_episode, 1e-10, power=1.0)
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss,
-                                                                     global_step=self.global_step)
-            tf.summary.scalar('LOSS/actor_loss',
-                              tf.reduce_mean(self.actor_loss))
-            tf.summary.scalar('LOSS/critic_loss',
-                              tf.reduce_mean(self.value_loss))
+            self.actor_loss = tf.reduce_mean(
+                tf.minimum(
+                    surrogate,
+                    tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * self.advantage
+                ))
+            self.value_loss = tf.reduce_mean(tf.squared_difference(self.dc_r, self.value))
+            self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * self.mean_entropy)
+            self.lr = tf.train.polynomial_decay(lr, self.episode, max_episode, 1e-10, power=1.0)
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=self.global_step)
+            tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
+            tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.value_loss))
             tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
@@ -165,8 +155,7 @@ class PPO(Policy):
                 name='value',
                 **initKernelAndBias
             )
-        norm_dist = tf.distributions.Normal(
-            loc=self.mu, scale=self.sigma + self.sigma_offset)
+        norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
         return norm_dist
 
     def choose_action(self, s):
@@ -210,10 +199,8 @@ class PPO(Policy):
         }, ignore_index=True)
 
     def calculate_statistics(self):
-        self.data['total_reward'] = sth.discounted_sum(
-            self.data.r.values, 1, 0, self.data.done.values)
-        self.data['discounted_reward'] = sth.discounted_sum(
-            self.data.r.values, self.gamma, self.data.next_value.values[-1], self.data.done.values)
+        self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
+        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, self.data.next_value.values[-1], self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
             self.data.r.values,
             self.gamma,
@@ -231,19 +218,15 @@ class PPO(Policy):
         # self.excel_writer.save()
 
     def get_sample_data(self):
-        i_data = self.data.sample(
-            n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
+        i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
         s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
         a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i]
-                          [:, np.newaxis] for i in range(i_data.shape[0])])
-        old_prob = np.vstack([i_data.prob.values[i]
-                              for i in range(i_data.shape[0])])
-        advantage = np.vstack(
-            [i_data.advantage.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        old_prob = np.vstack([i_data.prob.values[i] for i in range(i_data.shape[0])])
+        advantage = np.vstack([i_data.advantage.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
         return s, a, dc_r, old_prob, advantage
 
-    def learn(self):
+    def learn(self, episode):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, a, dc_r, old_prob, advantage = self.get_sample_data()
@@ -253,13 +236,12 @@ class PPO(Policy):
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,
                 self.advantage: advantage,
+                self.episode: episode,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
-            self.recorder.writer.add_summary(
-                summaries, self.sess.run(self.global_step))
-        global_step = self.get_saver_step()
+            self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
         self.recorder.writer_summary(
-            x=global_step,
+            x=episode,
             ys=[{
                 'tag': 'REWARD/discounted_reward',
                 'value': self.data.discounted_reward.values[0].mean()
@@ -269,7 +251,3 @@ class PPO(Policy):
                 'value': self.data.total_reward.values[0].mean()
             }])
         self.clear()
-
-    def get_saver_step(self):
-        return int((self.sess.run(self.global_step) -
-                    self.init_step) // self.epoch + self.init_step)

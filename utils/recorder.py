@@ -23,8 +23,7 @@ class Recorder(object):
         logger = logging.Logger(name)
         logger.setLevel(level=console_level)
         stdout_handle = logging.StreamHandler(stream=sys.stdout)
-        stdout_handle.setFormatter(logging.Formatter(
-            console_format if console_level > 20 else '%(message)s'))
+        stdout_handle.setFormatter(logging.Formatter(console_format if console_level > 20 else '%(message)s'))
         logger.addHandler(stdout_handle)
         if logger2file:
             logfile_handle = logging.FileHandler(file_name)

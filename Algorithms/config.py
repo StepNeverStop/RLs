@@ -1,4 +1,10 @@
-
+pg_config = {
+    'lr': 5.0e-4,
+    'gamma': 0.99,
+    'max_episode': 50000,
+    'batch_size': 100,
+    'epoch': 5
+}
 ppo_config = {
     'epsilon': 0.2,
     'gamma': 0.99,
