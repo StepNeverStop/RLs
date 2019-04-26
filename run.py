@@ -15,7 +15,7 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -m test
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml
 """
 import os
 import sys
@@ -98,7 +98,7 @@ def run():
         _algorithm_config = sth.load_config(options['--config-file'])
         try:
             for key in _algorithm_config:
-                algorithm_config[key]=_algorithm_config[key]
+                algorithm_config[key] = _algorithm_config[key]
         except Exception as e:
             print(e)
             sys.exit()
@@ -108,11 +108,13 @@ def run():
     base_dir = train_config['base_dir'] + env_name + '/' + \
         options['--algorithm'] + '/' + name + '/'
 
-    print(algorithm_config)
+    for key in algorithm_config:
+        print(str(key) + '\t' + str(algorithm_config[key]))
     brain_names = env.external_brain_names
     brains = env.brains
     models = [model(
-        s_dim=brains[i].vector_observation_space_size*brains[i].num_stacked_vector_observations,
+        s_dim=brains[i].vector_observation_space_size *
+        brains[i].num_stacked_vector_observations,
         a_counts=brains[i].vector_action_space_size[0],
         cp_dir=base_dir + f'{i}' + '/model/',
         log_dir=base_dir + f'{i}' + '/log/',
@@ -155,5 +157,6 @@ def _win_handler(event, hook_sigint=_thread.interrupt_main):
 if __name__ == "__main__":
     try:
         run()
-    finally:
+    except Exception as e:
+        print(e)
         sys.exit()

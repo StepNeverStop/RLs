@@ -6,6 +6,7 @@ import tensorflow as tf
 from utils.recorder import Recorder
 from utils.replay_buffer import ReplayBuffer
 from tensorflow.python.tools import freeze_graph
+from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
 
 class Policy(object):
@@ -31,7 +32,8 @@ class Policy(object):
         self.policy_mode = policy_mode
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.possible_output_nodes = ['action', 'version_number']
+        self.possible_output_nodes = [
+            'action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_'])
         elif self.policy_mode == 'OFF':
@@ -40,9 +42,16 @@ class Policy(object):
             raise Exception('Please specific a mode of policy!')
 
         with self.graph.as_default():
+            # continuous 1 discrete 0
+            tf.Variable(1, name='is_continuous_control',
+                        trainable=False, dtype=tf.int32)
+            tf.Variable(self.a_counts, name="action_output_shape",
+                        trainable=False, dtype=tf.int32)
             tf.Variable(self._version_number_, name='version_number',
                         trainable=False, dtype=tf.int32)
-            self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'pl_state')
+            tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)
+            self.pl_s = tf.placeholder(
+                tf.float32, [None, self.s_dim], 'vector_observation')
             self.pl_a = tf.placeholder(
                 tf.float32, [None, self.a_counts], 'pl_action')
             self.init_step = self.get_init_step(
@@ -132,12 +141,12 @@ class Policy(object):
                 input_checkpoint=tf.train.latest_checkpoint(self.cp_dir),
                 output_node_names=target_nodes,
                 output_graph=(self.cp_dir + 'frozen_graph_def.pb'),
-                # output_graph=(self.cp_dir + '/model.bytes'),
+                # output_graph=(self.cp_dir + 'model.bytes'),
                 clear_devices=True, initializer_nodes='', input_saver='',
                 restore_op_name='save/restore_all',
                 filename_tensor_name='save/Const:0')
-        # tf2bc.convert(self.cp_dir + 'frozen_graph_def.pb',
-        #               self.cp_dir + '.nn')
+        tf2bc.convert(self.cp_dir + 'frozen_graph_def.pb',
+                      self.cp_dir + 'model.nn')
 
     def check_or_create(self, dicpath, name=''):
         if not os.path.exists(dicpath):
