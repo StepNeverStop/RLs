@@ -14,8 +14,9 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    --max-step=<n>              每回合最大步长 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
 """
 import os
 import sys
@@ -56,11 +57,12 @@ def run():
                 no_graphics=False if options['--inference'] else not options['--graphic']
             )
             env_dir = os.path.split(options['--env'])[0]
-            env_name = os.path.join(*env_dir.replace('\\','/').replace(r'//',r'/').split('/')[-2:])
+            env_name = os.path.join(*env_dir.replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
             sys.path.append(env_dir)
             if os.path.exists(env_dir + '/env_config.py'):
                 import env_config
                 reset_config = env_config.reset_config
+                max_step = env_config.max_step
             if os.path.exists(env_dir + '/env_loop.py'):
                 from env_loop import Loop
         else:
@@ -68,6 +70,7 @@ def run():
     else:
         env = UnityEnvironment()
         env_name = 'unity'
+        max_step = train_config['max_step']
 
     if options['--algorithm'] == 'pg':
         algorithm_config = Algorithms.pg_config
@@ -107,11 +110,14 @@ def run():
 
     if 'Loop' not in locals().keys():
         from loop import Loop
-    base_dir = os.path.join(train_config['base_dir'],env_name,options['--algorithm'],name)
+    base_dir = os.path.join(train_config['base_dir'], env_name, options['--algorithm'], name)
 
     for key in algorithm_config:
         print('-' * 46)
         print('|', str(key).ljust(20), str(algorithm_config[key]).rjust(20), '|')
+
+    if options['--max-step'] != 'None':
+        max_step = int(options['--max-step'])
 
     brain_names = env.external_brain_names
     brains = env.brains
@@ -119,25 +125,34 @@ def run():
         s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
         a_counts=brains[i].vector_action_space_size[0],
         action_type=brains[i].vector_action_space_type,
-        cp_dir=os.path.join(base_dir,i,'model'),
-        log_dir=os.path.join(base_dir,i,'log'),
-        excel_dir=os.path.join(base_dir,i,'excel'),
+        cp_dir=os.path.join(base_dir, i, 'model'),
+        log_dir=os.path.join(base_dir, i, 'log'),
+        excel_dir=os.path.join(base_dir, i, 'excel'),
         logger2file=False,
         out_graph=False,
         **algorithm_config
     ) for i in brain_names]
-    [sth.save_config(os.path.join(base_dir,i,'config'), algorithm_config) for i in brain_names]
+    [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
 
-    begin_episode = models[0].get_init_step(cp_dir=os.path.join(base_dir,brain_names[0],'model'))
+    begin_episode = models[0].get_init_step(cp_dir=os.path.join(base_dir, brain_names[0], 'model'))
 
     if options['--inference']:
         Loop.inference(env, brain_names, models, reset_config=reset_config)
     else:
         try:
+            params = {
+                'env' : env,
+                'brain_names' : brain_names,
+                'models' : models,
+                'begin_episode' : begin_episode,
+                'save_frequency' : save_frequency,
+                'reset_config' : reset_config,
+                'max_step' : max_step
+            }
             if policy_mode == 'ON':
-                Loop.train_OnPolicy(env, brain_names, models, begin_episode, save_frequency=save_frequency, reset_config=reset_config)
+                Loop.train_OnPolicy(**params)
             else:
-                Loop.train_OffPolicy(env, brain_names, models, begin_episode, save_frequency=save_frequency, reset_config=reset_config)
+                Loop.train_OffPolicy(**params)
         except Exception as e:
             print(e)
         finally:

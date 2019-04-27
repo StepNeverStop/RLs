@@ -15,7 +15,7 @@ class Loop(object):
                 obs = env.step(vector_action=actions)
 
     @staticmethod
-    def train_OnPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config):
+    def train_OnPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step):
         brains_num = len(brain_names)
         state = [0] * brains_num
         action = [0] * brains_num
@@ -49,7 +49,7 @@ class Loop(object):
                         s_=obs[brain_name].vector_observations,
                         done=np.array(obs[brain_name].local_done)
                     )
-                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     for i in range(brains_num):
                         models[i].learn(episode)
                         models[i].writer_summary(episode)
@@ -60,7 +60,7 @@ class Loop(object):
             print(f'episode {episode} step {step}')
 
     @staticmethod
-    def train_OffPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config):
+    def train_OffPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step):
         brains_num = len(brain_names)
         state = [0] * brains_num
         action = [0] * brains_num
@@ -96,7 +96,7 @@ class Loop(object):
                             :, np.newaxis]
                     )
                     models[i].learn(episode)
-                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     break
             for i in range(brains_num):
                 models[i].writer_summary(episode)

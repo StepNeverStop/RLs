@@ -17,8 +17,9 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    --max-step=<n>              每回合最大步长 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
 ```
 I am very appreciate to my best friend - [BlueFisher](https://github.com/BlueFisher) - who always look down on my coding style and competence(Although he **is** right, at least for now, but will be **was**).
 
