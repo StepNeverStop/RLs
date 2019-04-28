@@ -26,7 +26,7 @@ class PG(Policy):
         logger2file=False,
         out_graph=False
     ):
-        super().__init__(s_dim, a_counts,action_type, cp_dir, 'ON')
+        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'ON')
         self.epoch = epoch
         self.gamma = gamma
         self.batch_size = batch_size
@@ -34,7 +34,7 @@ class PG(Policy):
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.norm_dist = self._build_net('pg')
-            self.lr = tf.train.polynomial_decay(lr, self.episode, max_episode, 1e-10, power=1.0)
+            self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.entropy = self.norm_dist.entropy()
             self.action = tf.identity(self.sample_op, name='action')

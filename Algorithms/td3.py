@@ -24,11 +24,11 @@ class TD3(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, action_type,cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
-            self.lr = tf.train.polynomial_decay(lr, self.episode, max_episode, 1e-10, power=1.0)
+            self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.r = tf.placeholder(tf.float32, [None, 1], 'reward')
             self.s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
 
@@ -75,8 +75,8 @@ class TD3(Policy):
             #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q2_target_var, self.q2_var)]
             # self.assign_actor_target = [
             #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.actor_target_var, self.actor_var)]
-            tf.summary.scalar('LOSS/actor_loss',tf.reduce_mean(self.actor_loss))
-            tf.summary.scalar('LOSS/critic_loss',tf.reduce_mean(self.critic_loss))
+            tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
+            tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.critic_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(

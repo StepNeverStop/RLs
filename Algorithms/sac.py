@@ -27,7 +27,7 @@ class SAC(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, action_type,cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
@@ -39,7 +39,7 @@ class SAC(Policy):
             self.log_alpha = tf.get_variable('log_alpha', dtype=tf.float32, initializer=0.0)
             self.alpha = alpha if not auto_adaption else tf.exp(self.log_alpha)
 
-            self.lr = tf.train.polynomial_decay(lr, self.episode, max_episode, 1e-10, power=1.0)
+            self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
 
             self.norm_dist, self.a_new, self.log_prob = self._build_actor_net('actor_net')
             tf.identity(self.mu, 'action')

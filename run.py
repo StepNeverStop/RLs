@@ -56,7 +56,7 @@ def run():
                 base_port=int(options['--port']),
                 no_graphics=False if options['--inference'] else not options['--graphic']
             )
-            env_dir = os.path.split(options['--env'])[0]
+            env_dir = os.path.split(file_name)[0]
             env_name = os.path.join(*env_dir.replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
             sys.path.append(env_dir)
             if os.path.exists(env_dir + '/env_config.py'):
@@ -134,20 +134,22 @@ def run():
     ) for i in brain_names]
     [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
 
-    begin_episode = models[0].get_init_step(cp_dir=os.path.join(base_dir, brain_names[0], 'model'))
+    begin_episode = models[0].get_init_step()
+    max_episode = models[0].get_max_episode()
 
     if options['--inference']:
         Loop.inference(env, brain_names, models, reset_config=reset_config)
     else:
         try:
             params = {
-                'env' : env,
-                'brain_names' : brain_names,
-                'models' : models,
-                'begin_episode' : begin_episode,
-                'save_frequency' : save_frequency,
-                'reset_config' : reset_config,
-                'max_step' : max_step
+                'env': env,
+                'brain_names': brain_names,
+                'models': models,
+                'begin_episode': begin_episode,
+                'save_frequency': save_frequency,
+                'reset_config': reset_config,
+                'max_step': max_step,
+                'max_episode': max_episode
             }
             if policy_mode == 'ON':
                 Loop.train_OnPolicy(**params)

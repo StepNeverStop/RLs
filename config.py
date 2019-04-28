@@ -21,6 +21,7 @@ train_config = {
     'exe_file': unity_file['RollerBall']['OneFloor'],
     'reset_config': None,
     'save_frequency': 50,
+    'max_episode': 50000,
     'max_step': 10000,
     'name': '0'
 }
