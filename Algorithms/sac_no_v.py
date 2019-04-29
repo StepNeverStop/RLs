@@ -108,7 +108,7 @@ class SAC_NO_V(Policy):
 　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘ　　　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　ｘ　　　
             ''')
-            self.init_or_restore(cp_dir, self.sess)
+            self.init_or_restore(cp_dir)
 
     def _build_actor_net(self, name, input_vector, reuse=False):
         with tf.variable_scope(name):

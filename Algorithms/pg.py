@@ -65,7 +65,7 @@ class PG(Policy):
 　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　
             ''')
-            self.init_or_restore(cp_dir, self.sess)
+            self.init_or_restore(cp_dir)
 
     def _build_net(self, name):
         with tf.variable_scope(name):

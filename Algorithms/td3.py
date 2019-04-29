@@ -97,7 +97,7 @@ class TD3(Policy):
 　　　　　　　ｘ　　　　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　
 　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　
             ''')
-            self.init_or_restore(cp_dir, self.sess)
+            self.init_or_restore(cp_dir)
 
     def _build_actor_net(self, name, input_vector, trainable):
         with tf.variable_scope(name):

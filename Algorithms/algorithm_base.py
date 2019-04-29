@@ -35,6 +35,7 @@ class Policy(object):
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
+        self.init_step = self.get_init_step()
 
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_'])
@@ -52,7 +53,6 @@ class Policy(object):
             self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'vector_observation')
             self.pl_a = tf.placeholder(tf.float32, [None, self.a_counts], 'pl_action')
             self.episode = tf.Variable(tf.constant(0))
-            self.init_step = self.get_init_step()
             self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
 
     def on_store(self, s, a, r, s_, done):
@@ -90,16 +90,16 @@ class Policy(object):
             graph=graph
         )
 
-    def init_or_restore(self, cp_dir, sess):
+    def init_or_restore(self, cp_dir):
         if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
             try:
-                self.recorder.saver.restore(sess, tf.train.latest_checkpoint(cp_dir))
+                self.recorder.saver.restore(self.sess, tf.train.latest_checkpoint(cp_dir))
             except:
                 self.recorder.logger.error('restore model from checkpoint FAILED.')
             else:
                 self.recorder.logger.info('restore model from checkpoint SUCCUESS.')
         else:
-            sess.run(tf.global_variables_initializer())
+            self.sess.run(tf.global_variables_initializer())
             self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
@@ -146,3 +146,9 @@ class Policy(object):
 
     def close(self):
         self.export_model()
+    
+    def get_global_step(self):
+        return self.sess.run(self.global_step)
+    def set_global_step(self, num):
+        self.init_step=num
+        self.sess.run(self.global_step.initializer())

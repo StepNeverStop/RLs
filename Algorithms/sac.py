@@ -106,7 +106,7 @@ class SAC(Policy):
 　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
 　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
             ''')
-            self.init_or_restore(cp_dir, self.sess)
+            self.init_or_restore(cp_dir)
 
     def _build_actor_net(self, name):
         with tf.variable_scope(name):

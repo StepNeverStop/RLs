@@ -82,7 +82,7 @@ class PPO(Policy):
 　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　
 　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　
             ''')
-            self.init_or_restore(cp_dir, self.sess)
+            self.init_or_restore(cp_dir)
 
     def _build_net(self, name):
         with tf.variable_scope(name):
