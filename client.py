@@ -11,42 +11,12 @@ from utils.sth import sth
 import pandas as pd
 import zipfile
 import numpy as np
+from threading import Timer
 
 _global_judge_flag = False
 _global_myid = 'None'
+_global_push_model = False
 
-# name = socket.getfqdn(socket.gethostname())
-# ip = socket.gethostbyname(name)
-
-
-# flag = True
-# while flag:
-#     # try:
-#     #     # hhh = rpyc.async_(conn.root.get_hhh)
-#     #     # aaa=hhh(2)
-#     #     # if not aaa.ready:
-#     #     while True:
-#     #         if not _global_judge_flag:
-#     #             break
-#     #         print(conn.root.get_ID(ip))
-#     # except Exception as e:
-#     #     print(e)
-#     # print(123)
-#     a = input()
-#     if(a == 'exit'):
-#         flag = False
-
-# start = time.time()
-# f_open = open(my_filepath, 'rb')
-# conn.root.get_file_from_client('root', my_filepath, f_open)
-# f_open.close()
-# for root, dirs, files in os.walk(os.path.split(my_filepath)[0].replace(r"\\", r'/')):
-#     for _file in files:
-#         _file_path = os.path.join(root, _file)
-#         f_open = open(_file_path, 'rb')
-#         conn.root.get_file_from_client(root, _file_path, f_open)
-#         f_open.close()
-# print(time.time()-start)
 
 def create_dir(_dir):
     if os.path.isdir(_dir):
@@ -55,11 +25,26 @@ def create_dir(_dir):
     os.makedirs(_dir)
 
 
+def change_judge_flag():
+    global _global_judge_flag
+    _global_judge_flag = True
+
+
+def change_push_model_flag():
+    global _global_push_model
+    _global_push_model = True
+
+
 class ClientServer(Service):
 
-    def exposed_change_judge_flag(self):
-        global _global_judge_flag
-        _global_judge_flag = True
+    def exposed_set_judge_flag(self, num=None):
+        if num:
+            Timer(num, change_judge_flag).start()
+        else:
+            change_judge_flag()
+
+    def exposed_set_push_model_flag(self):
+        change_push_model_flag()
 
     def exposed_set_id(self, _id):
         global _global_myid
@@ -89,6 +74,13 @@ class ClientServer(Service):
         filepath = fix_path(filename)
         if os.path.exists(filepath):
             return
+        create_dir(os.path.dirname(filepath))
+        local_file = open(filepath, 'wb')
+        chunk = _file.read(1024 * 1024)
+        while chunk:
+            local_file.write(chunk)
+            chunk = _file.read(1024 * 1024)
+        local_file.close()
         f = zipfile.ZipFile(filepath, 'r')
         for _file in f.namelist():
             print(_file)
@@ -159,7 +151,7 @@ def download_file(conn, remote_filename, local_filename):
         local_file.close()
 
 
-def initialize_env_model(filepath, algo, port, name):
+def initialize_env_model(filepath, algo, name, port):
     env = UnityEnvironment(
         file_name=filepath,
         base_port=port,
@@ -232,9 +224,12 @@ def run(conn):
                 pass
             else:
                 train_config = conn.root.get_train_config(train_option)
+                name = train_config.name
                 file_path = fix_path(train_config.path)
-                conn.root.get_env(myID, train_option)
-                conn.root.get_model(myID, train_option)
+                env_name = os.path.join(*os.path.split(file_path)[0].split('/')[-2:])
+                model_dir = os.path.join(base_dir, env_name, train_config.algo, name)
+                conn.root.get_env(myID, name)
+                conn.root.get_model(myID, name, False)
                 try:
                     env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(file_path, train_config.algo, train_config.name, port=6666)
                 except Exception as e:
@@ -242,36 +237,7 @@ def run(conn):
                 else:
                     begin_episode = 0
                     max_episode = models[0].get_max_episode()
-                    if policy_mode == 'ON':
-                        while True:
-                            begin_episode, models_global_step, ave_reward = on_train(
-                                env=env,
-                                brain_names=brain_names,
-                                models=models,
-                                begin_episode=begin_episode,
-                                save_frequency=save_frequency,
-                                reset_config=reset_config,
-                                max_step=max_step,
-                                max_episode=max_episode
-                            )
-                            for i, brain_name in enumerate(brain_names):
-                                models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
-                                models[i].set_global_step(models_global_step[i])
-                    else:
-                        while True:
-                            begin_episode, models_global_step, ave_reward = off_train(
-                                env=env,
-                                brain_names=brain_names,
-                                models=models,
-                                begin_episode=begin_episode,
-                                save_frequency=save_frequency,
-                                reset_config=reset_config,
-                                max_step=max_step,
-                                max_episode=max_episode
-                            )
-                            for i, brain_name in enumerate(brain_names):
-                                models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
-                                models[i].set_global_step(models_global_step[i])
+
         elif connect_option == 'new':
             my_filepath = input('Plz input the abs path of your .exe file: ')
             zip_filepath = os.path.split(my_filepath)[0] + '.zip'
@@ -279,56 +245,92 @@ def run(conn):
             f_open = open(zip_filepath, 'rb')
             zip_exist_flag = conn.root.push_zipfile(zip_filepath, f_open)
             f_open.close()
-            if zip_exist_flag:
-                raise Exception('this task is already exist.')
+            # if zip_exist_flag:
+            #     raise Exception('this task is already exist.')
             print(f'upload cost time: {time.time()-start}')
+
             algo = input('Upload success. plz input the algorithm name: ')
             port = int(input('plz input the training port: '))
             name = input('plz input the training name: ')
             save_frequency = int(input('plz input the save frequency: '))
             max_step = int(input('plz input the max_step: '))
-            judge_interval = int(input('plz input the judge interval(minutes): '))
+            judge_interval = int(input('plz input the judge interval(seconds): '))
+            # algo = 'sac'
+            # port = 5111
+            # name = 'testdis7'
+            # save_frequency = 10
+            # max_step = 200
+            # judge_interval = 20
             try:
-                env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(my_filepath, algo, port, name)
+                env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(my_filepath, algo, name, port)
             except Exception as e:
                 print(e)
             else:
                 conn.root.push_train_config(myID, name, my_filepath, algo, policy_mode, save_frequency, max_step, judge_interval)
                 env_name = os.path.join(*fix_path(os.path.split(my_filepath)[0]).split('/')[-2:])
-                model_dir = os.path.join(base_dir, env_name, algo)
+                model_dir = os.path.join(base_dir, env_name, algo, name)
                 push_model(conn, model_dir)
                 begin_episode = models[0].get_init_step()
                 max_episode = models[0].get_max_episode()
-                if policy_mode == 'ON':
-                    while True:
-                        begin_episode, models_global_step, ave_reward = on_train(
-                            env=env,
-                            brain_names=brain_names,
-                            models=models,
-                            begin_episode=begin_episode,
-                            save_frequency=save_frequency,
-                            reset_config=reset_config,
-                            max_step=max_step,
-                            max_episode=max_episode
-                        )
-                        for i, brain_name in enumerate(brain_names):
-                            models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
-                            models[i].set_global_step(models_global_step[i])
-                else:
-                    while True:
-                        begin_episode, models_global_step, ave_reward = off_train(
-                            env=env,
-                            brain_names=brain_names,
-                            models=models,
-                            begin_episode=begin_episode,
-                            save_frequency=save_frequency,
-                            reset_config=reset_config,
-                            max_step=max_step,
-                            max_episode=max_episode
-                        )
-                        for i, brain_name in enumerate(brain_names):
-                            models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
-                            models[i].set_global_step(models_global_step[i])
+        train(
+            policy_mode=policy_mode,
+            env=env,
+            brain_names=brain_names,
+            models=models,
+            begin_episode=begin_episode,
+            save_frequency=save_frequency,
+            reset_config=reset_config,
+            max_step=max_step,
+            max_episode=max_episode,
+            conn=conn,
+            myID=myID,
+            name=name,
+            model_dir=model_dir,
+        )
+
+
+def train(
+        policy_mode,
+        env,
+        brain_names,
+        models,
+        begin_episode,
+        save_frequency,
+        reset_config,
+        max_step,
+        max_episode,
+        conn,
+        myID,
+        name,
+        model_dir
+):
+
+    global _global_push_model
+    train_func = on_train if policy_mode == 'ON' else off_train
+    while True:
+        begin_episode, models_global_step, ave_reward = train_func(
+            env=env,
+            brain_names=brain_names,
+            models=models,
+            begin_episode=begin_episode,
+            save_frequency=save_frequency,
+            reset_config=reset_config,
+            max_step=max_step,
+            max_episode=max_episode
+        )
+        start = time.time()
+        conn.root.push_reward(myID, ave_reward)
+        while True:
+            if _global_push_model:
+                _global_push_model = False
+                print(True)
+                push_model(conn, model_dir)
+                break
+        conn.root.get_model(myID, name)
+        print(f'cost time: {time.time()-start}')
+        for i, brain_name in enumerate(brain_names):
+            models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
+            models[i].set_global_step(models_global_step[i])
 
 
 def on_train(
@@ -341,7 +343,6 @@ def on_train(
     max_step,
     max_episode
 ):
-    global _global_judge_flag
     ave_reward_list = []
     brains_num = len(brain_names)
     state = [0] * brains_num
@@ -351,6 +352,7 @@ def on_train(
     total_reward = [0] * brains_num
 
     for episode in range(begin_episode, max_episode):
+        global _global_judge_flag
         if _global_judge_flag:
             _global_judge_flag = False
             models_global_step = [models[i].get_global_step() for i in range(brains_num)]
@@ -418,11 +420,7 @@ def off_train(
     total_reward = [0] * brains_num
 
     for episode in range(begin_episode, max_episode):
-        if _global_judge_flag:
-            _global_judge_flag = False
-            models_global_step = [models[i].get_global_step() for i in range(brains_num)]
-            ave_reward = np.array(ave_reward_list[-(len(ave_reward_list) // 4):]).mean()
-            return episode, models_global_step, ave_reward
+
         obs = env.reset(config=reset_config, train_mode=True)
         for i, brain_name in enumerate(brain_names):
             agents_num[i] = len(obs[brain_name].agents)
@@ -433,6 +431,12 @@ def off_train(
 
         while True:
             step += 1
+
+            if _global_judge_flag:
+                _global_judge_flag = False
+                models_global_step = [models[i].get_global_step() for i in range(brains_num)]
+                ave_reward = np.array(ave_reward_list[-(len(ave_reward_list) // 4):]).mean()
+                return episode, models_global_step, float(ave_reward)
 
             for i, brain_name in enumerate(brain_names):
                 state[i] = obs[brain_name].vector_observations
@@ -464,12 +468,13 @@ def off_train(
 
 if __name__ == "__main__":
     conn = rpyc.connect(
-        host='127.0.0.1',
+        host='111.186.116.71',
         port=12345,
         keepalive=True,
         service=ClientServer,
         config={
-            'allow_public_attrs': True
+            'allow_public_attrs': True,
+            'sync_request_timeout': 120
         }
     )
     try:

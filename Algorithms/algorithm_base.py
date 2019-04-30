@@ -91,16 +91,17 @@ class Policy(object):
         )
 
     def init_or_restore(self, cp_dir):
-        if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
-            try:
-                self.recorder.saver.restore(self.sess, tf.train.latest_checkpoint(cp_dir))
-            except:
-                self.recorder.logger.error('restore model from checkpoint FAILED.')
+        with self.graph.as_default():
+            if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
+                try:
+                    self.recorder.saver.restore(self.sess, tf.train.latest_checkpoint(cp_dir))
+                except:
+                    self.recorder.logger.error('restore model from checkpoint FAILED.')
+                else:
+                    self.recorder.logger.info('restore model from checkpoint SUCCUESS.')
             else:
-                self.recorder.logger.info('restore model from checkpoint SUCCUESS.')
-        else:
-            self.sess.run(tf.global_variables_initializer())
-            self.recorder.logger.info('initialize model SUCCUESS.')
+                self.sess.run(tf.global_variables_initializer())
+                self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
         self.recorder.saver.save(self.sess, os.path.join(self.cp_dir, 'rb'), global_step=global_step, write_meta_graph=False)
@@ -146,9 +147,10 @@ class Policy(object):
 
     def close(self):
         self.export_model()
-    
+
     def get_global_step(self):
         return self.sess.run(self.global_step)
+
     def set_global_step(self, num):
-        self.init_step=num
-        self.sess.run(self.global_step.initializer())
+        with self.graph.as_default():
+            self.global_step.load(num, self.sess)
