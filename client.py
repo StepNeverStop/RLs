@@ -223,11 +223,10 @@ def run(conn):
             if train_option == 'back':
                 pass
             else:
-                train_config = conn.root.get_train_config(train_option)
-                name = train_config.name
-                file_path = fix_path(train_config.path)
+                name, _file_path, algo = conn.root.get_train_config(train_option)
+                file_path = fix_path(_file_path)
                 env_name = os.path.join(*os.path.split(file_path)[0].split('/')[-2:])
-                model_dir = os.path.join(base_dir, env_name, train_config.algo, name)
+                model_dir = os.path.join(base_dir, env_name, algo, name)
                 conn.root.get_env(myID, name)
                 conn.root.get_model(myID, name, False)
                 try:
