@@ -16,6 +16,7 @@ from threading import Timer
 _global_judge_flag = False
 _global_myid = 'None'
 _global_push_model = False
+_global_go_on = False
 
 
 def create_dir(_dir):
@@ -35,16 +36,21 @@ def change_push_model_flag():
     _global_push_model = True
 
 
+def change_go_on_flag():
+    global _global_go_on
+    _global_go_on = True
+
+
 class ClientServer(Service):
 
-    def exposed_set_judge_flag(self, num=None):
-        if num:
-            Timer(num, change_judge_flag).start()
-        else:
-            change_judge_flag()
+    def exposed_set_judge_flag(self, num):
+        Timer(num, change_judge_flag).start()
 
     def exposed_set_push_model_flag(self):
         change_push_model_flag()
+
+    def exposed_set_go_on_flag(self):
+        change_go_on_flag()
 
     def exposed_set_id(self, _id):
         global _global_myid
@@ -188,7 +194,7 @@ def initialize_env_model(filepath, algo, name, port):
     import env_config
     reset_config = env_config.reset_config
     max_step = env_config.max_step
-    env_name = os.path.join(*env_dir.replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
+    env_name = os.path.join(*fix_path(env_dir).split('/')[-2:])
     base_dir = os.path.join(r'C:/RLData'if platform.system() == "Windows" else r'/RLData', env_name, algo, name)
     brain_names = env.external_brain_names
     brains = env.brains
@@ -223,14 +229,14 @@ def run(conn):
             if train_option == 'back':
                 pass
             else:
-                name, _file_path, algo = conn.root.get_train_config(train_option)
+                name, _file_path, algo, save_frequency, max_step = conn.root.get_train_config(train_option)
                 file_path = fix_path(_file_path)
-                env_name = os.path.join(*os.path.split(file_path)[0].split('/')[-2:])
+                env_name = os.path.join(*os.path.dirname(file_path).split('/')[-2:])
                 model_dir = os.path.join(base_dir, env_name, algo, name)
                 conn.root.get_env(myID, name)
                 conn.root.get_model(myID, name, False)
                 try:
-                    env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(file_path, train_config.algo, train_config.name, port=6666)
+                    env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(file_path, algo, name, port=6666)
                 except Exception as e:
                     print(e)
                 else:
@@ -248,18 +254,18 @@ def run(conn):
             #     raise Exception('this task is already exist.')
             print(f'upload cost time: {time.time()-start}')
 
-            algo = input('Upload success. plz input the algorithm name: ')
-            port = int(input('plz input the training port: '))
-            name = input('plz input the training name: ')
-            save_frequency = int(input('plz input the save frequency: '))
-            max_step = int(input('plz input the max_step: '))
-            judge_interval = int(input('plz input the judge interval(seconds): '))
-            # algo = 'sac'
-            # port = 5111
-            # name = 'testdis7'
-            # save_frequency = 10
-            # max_step = 200
-            # judge_interval = 20
+            # algo = input('Upload success. plz input the algorithm name: ')
+            # port = int(input('plz input the training port: '))
+            # name = input('plz input the training name: ')
+            # save_frequency = int(input('plz input the save frequency: '))
+            # max_step = int(input('plz input the max_step: '))
+            # judge_interval = int(input('plz input the judge interval(seconds): '))
+            algo = 'sac'
+            port = 5111
+            name = 'testdis7'
+            save_frequency = 10
+            max_step = 200
+            judge_interval = 20
             try:
                 env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(my_filepath, algo, name, port)
             except Exception as e:
@@ -305,6 +311,7 @@ def train(
 ):
 
     global _global_push_model
+    global _global_go_on
     train_func = on_train if policy_mode == 'ON' else off_train
     while True:
         begin_episode, models_global_step, ave_reward = train_func(
@@ -319,12 +326,14 @@ def train(
         )
         start = time.time()
         conn.root.push_reward(myID, ave_reward)
-        while True:
+        while _global_go_on:
             if _global_push_model:
                 _global_push_model = False
-                print(True)
+                print('Change Success.')
                 push_model(conn, model_dir)
+                conn.set_go_on_flag(name)
                 break
+        _global_go_on = False
         conn.root.get_model(myID, name)
         print(f'cost time: {time.time()-start}')
         for i, brain_name in enumerate(brain_names):
