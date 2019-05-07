@@ -2,7 +2,6 @@ import rpyc
 import sys
 import os
 import time
-import socket
 from rpyc import Service
 import platform
 import Algorithms
@@ -12,11 +11,13 @@ import pandas as pd
 import zipfile
 import numpy as np
 from threading import Timer
+import threading
+import shutil
 
 _global_judge_flag = False
 _global_myid = 'None'
 _global_push_model = False
-_global_go_on = False
+_global_go_on_flag = False
 
 
 def create_dir(_dir):
@@ -31,26 +32,10 @@ def change_judge_flag():
     _global_judge_flag = True
 
 
-def change_push_model_flag():
-    global _global_push_model
-    _global_push_model = True
-
-
-def change_go_on_flag():
-    global _global_go_on
-    _global_go_on = True
-
-
 class ClientServer(Service):
 
     def exposed_set_judge_flag(self, num):
         Timer(num, change_judge_flag).start()
-
-    def exposed_set_push_model_flag(self):
-        change_push_model_flag()
-
-    def exposed_set_go_on_flag(self):
-        change_go_on_flag()
 
     def exposed_set_id(self, _id):
         global _global_myid
@@ -93,7 +78,7 @@ class ClientServer(Service):
             f.extract(_file, os.path.split(filepath)[0])
 
 
-def push_model(conn, model_dir):
+def push_model(conn, job_name, model_dir):
     conn.root.create_dir(model_dir)
     for root, dirs, files in os.walk(model_dir):
         for _file in files:
@@ -101,6 +86,7 @@ def push_model(conn, model_dir):
             f_open = open(_file_path, 'rb')
             conn.root.get_file_from_client(root, _file_path, f_open)
             f_open.close()
+    conn.root.set_push_done_flag(job_name)
 
 
 def get_connect_option(conn):
@@ -128,7 +114,7 @@ def get_train_option(conn):
 def fix_path(filename):
     if platform.system() == "Windows":
         if ':' in filename:
-            return filename.replace('\\', '/').replace(r'//', r'/')
+            return filename.replace('\\', '/').replace(r'//', r'/').replace('C:/server', 'C:')
         else:
             return 'C:' + filename
     else:
@@ -234,7 +220,7 @@ def run(conn):
                 env_name = os.path.join(*os.path.dirname(file_path).split('/')[-2:])
                 model_dir = os.path.join(base_dir, env_name, algo, name)
                 conn.root.get_env(myID, name)
-                conn.root.get_model(myID, name, False)
+                conn.root.get_model(myID, name)
                 try:
                     env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(file_path, algo, name, port=6666)
                 except Exception as e:
@@ -262,10 +248,10 @@ def run(conn):
             # judge_interval = int(input('plz input the judge interval(seconds): '))
             algo = 'sac'
             port = 5111
-            name = 'testdis7'
+            name = 'testdis'
             save_frequency = 10
             max_step = 200
-            judge_interval = 20
+            judge_interval = 60
             try:
                 env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(my_filepath, algo, name, port)
             except Exception as e:
@@ -274,24 +260,42 @@ def run(conn):
                 conn.root.push_train_config(myID, name, my_filepath, algo, policy_mode, save_frequency, max_step, judge_interval)
                 env_name = os.path.join(*fix_path(os.path.split(my_filepath)[0]).split('/')[-2:])
                 model_dir = os.path.join(base_dir, env_name, algo, name)
-                push_model(conn, model_dir)
+                push_model(conn, name, os.path.join(model_dir, brain_names[0], 'model'))
                 begin_episode = models[0].get_init_step()
                 max_episode = models[0].get_max_episode()
-        train(
-            policy_mode=policy_mode,
-            env=env,
-            brain_names=brain_names,
-            models=models,
-            begin_episode=begin_episode,
-            save_frequency=save_frequency,
-            reset_config=reset_config,
-            max_step=max_step,
-            max_episode=max_episode,
-            conn=conn,
-            myID=myID,
-            name=name,
-            model_dir=model_dir,
-        )
+
+        threading.Thread(target=train, args=(
+            policy_mode,
+            env,
+            brain_names,
+            models,
+            begin_episode,
+            save_frequency,
+            reset_config,
+            max_step,
+            max_episode,
+            conn,
+            myID,
+            name,
+            model_dir,
+            connect_option
+        )).start()
+        # train(
+        #     policy_mode=policy_mode,
+        #     env=env,
+        #     brain_names=brain_names,
+        #     models=models,
+        #     begin_episode=begin_episode,
+        #     save_frequency=save_frequency,
+        #     reset_config=reset_config,
+        #     max_step=max_step,
+        #     max_episode=max_episode,
+        #     conn=conn,
+        #     myID=myID,
+        #     name=name,
+        #     model_dir=model_dir,
+        #     connect_option=connect_option
+        # )
 
 
 def train(
@@ -307,11 +311,14 @@ def train(
         conn,
         myID,
         name,
-        model_dir
+        model_dir,
+        connect_option
 ):
 
     global _global_push_model
-    global _global_go_on
+    global _global_go_on_flag
+    conn.root.register_train_task(myID, name)
+    conn.root.set_timer(myID, name, False if connect_option == 'train' else True)
     train_func = on_train if policy_mode == 'ON' else off_train
     while True:
         begin_episode, models_global_step, ave_reward = train_func(
@@ -326,16 +333,28 @@ def train(
         )
         start = time.time()
         conn.root.push_reward(myID, ave_reward)
-        while _global_go_on:
-            if _global_push_model:
-                _global_push_model = False
-                print('Change Success.')
-                push_model(conn, model_dir)
-                conn.set_go_on_flag(name)
+        print('Push Reward Success.')
+        while True:
+            need_push_id = int(conn.root.get_need_push_id(name))
+            print(need_push_id)
+            print(type(need_push_id))
+            if need_push_id == myID:
+                push_model(conn, name, os.path.join(model_dir, brain_names[0], 'model'))
+                print('Push Model Success.')
                 break
-        _global_go_on = False
-        conn.root.get_model(myID, name)
+            elif need_push_id != 0:
+                break
+        while True:
+            if conn.root.get_model_flag(name):
+                try:
+                    shutil.rmtree(os.path.join(model_dir, brain_names[0], 'model'))
+                except:
+                    pass
+                finally:
+                    conn.root.get_model(myID, name)
+                    break
         print(f'cost time: {time.time()-start}')
+        conn.root.set_timer(myID, name)
         for i, brain_name in enumerate(brain_names):
             models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
             models[i].set_global_step(models_global_step[i])
@@ -351,7 +370,8 @@ def on_train(
     max_step,
     max_episode
 ):
-    ave_reward_list = []
+    global _global_judge_flag
+    ave_reward_list = [0]
     brains_num = len(brain_names)
     state = [0] * brains_num
     action = [0] * brains_num
@@ -360,12 +380,6 @@ def on_train(
     total_reward = [0] * brains_num
 
     for episode in range(begin_episode, max_episode):
-        global _global_judge_flag
-        if _global_judge_flag:
-            _global_judge_flag = False
-            models_global_step = [models[i].get_global_step() for i in range(brains_num)]
-            ave_reward = np.array(ave_reward_list[-(len(ave_reward_list) // 4):]).mean()
-            return episode, models_global_step, ave_reward
 
         obs = env.reset(config=reset_config, train_mode=True)
         for i, brain_name in enumerate(brain_names):
@@ -376,6 +390,12 @@ def on_train(
         step = 0
 
         while True:
+
+            if _global_judge_flag:
+                _global_judge_flag = False
+                models_global_step = [models[i].get_global_step() for i in range(brains_num)]
+                ave_reward = np.array(ave_reward_list[-(len(ave_reward_list) // 4):]).mean()
+                return episode, models_global_step, ave_reward
             step += 1
 
             for i, brain_name in enumerate(brain_names):
@@ -419,7 +439,7 @@ def off_train(
     max_episode
 ):
     global _global_judge_flag
-    ave_reward_list = []
+    ave_reward_list = [0]
     brains_num = len(brain_names)
     state = [0] * brains_num
     action = [0] * brains_num
@@ -462,13 +482,14 @@ def off_train(
                     s_=obs[brain_name].vector_observations,
                     done=np.array(obs[brain_name].local_done)[:, np.newaxis]
                 )
+                total_reward[i] += np.array(obs[brain_name].rewards)
                 models[i].learn(episode)
             if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                 break
         ave_reward_list.append(np.array([total_reward[i].mean() for i in range(brains_num)]).mean())
         print(f'episode {episode} step {step}')
         for i in range(brains_num):
-            models[i].writer_summary(episode)
+            models[i].writer_summary(episode, reward=total_reward[i].mean())
         if episode % save_frequency == 0:
             for i in range(brains_num):
                 models[i].save_checkpoint(episode)
@@ -476,8 +497,8 @@ def off_train(
 
 if __name__ == "__main__":
     conn = rpyc.connect(
-        host='111.186.116.71',
-        port=12345,
+        host='10.0.4.227',
+        port=32643,
         keepalive=True,
         service=ClientServer,
         config={
