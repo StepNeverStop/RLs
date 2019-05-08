@@ -16,15 +16,28 @@ import shutil
 
 _global_judge_flag = False
 _global_myid = 'None'
-_global_push_model = False
-_global_go_on_flag = False
 
 
-def create_dir(_dir):
-    if os.path.isdir(_dir):
-        return
-    create_dir(os.path.dirname(_dir))
-    os.makedirs(_dir)
+def fix_path(filename):
+    if platform.system() == "Windows":
+        if ':' in filename:
+            return filename.replace('\\', '/').replace(r'//', r'/').replace('C:/server', 'C:')
+        else:
+            return 'C:' + filename.replace('/server', '')
+    else:
+        if ':' in filename:
+            return filename.replace('\\', '/').replace(r'//', r'/').split(':/server')[-1]
+        else:
+            return filename.replace('/server', '')
+
+
+def clear_model(model_dir):
+    for i in os.listdir(model_dir):
+        path_file = os.path.join(model_dir, i)
+        if os.path.isfile(path_file):
+            os.remove(path_file)
+        else:
+            clear_model(path_file)
 
 
 def change_judge_flag():
@@ -46,26 +59,18 @@ class ClientServer(Service):
         root = fix_path(_root)
         if not os.path.isdir(root):
             os.makedirs(root)
-
-        if os.path.exists(filepath):
-            return
-        else:
-            local_file = open(filepath, 'wb')
+        local_file = open(filepath, 'wb')
+        chunk = _file.read(1024 * 1024)
+        while chunk:
+            local_file.write(chunk)
             chunk = _file.read(1024 * 1024)
-            while chunk:
-                local_file.write(chunk)
-                chunk = _file.read(1024 * 1024)
-            local_file.close()
-
-    def exposed_create_dir(self, _dir):
-        dirpath = fix_path(_dir)
-        create_dir(dirpath)
+        local_file.close()
 
     def exposed_get_zipfile(self, filename, _file):
         filepath = fix_path(filename)
         if os.path.exists(filepath):
             return
-        create_dir(os.path.dirname(filepath))
+        os.makedirs(os.path.dirname(filepath))
         local_file = open(filepath, 'wb')
         chunk = _file.read(1024 * 1024)
         while chunk:
@@ -79,7 +84,7 @@ class ClientServer(Service):
 
 
 def push_model(conn, job_name, model_dir):
-    conn.root.create_dir(model_dir)
+    conn.root.clear_model(model_dir)
     for root, dirs, files in os.walk(model_dir):
         for _file in files:
             _file_path = os.path.join(root, _file)
@@ -109,38 +114,6 @@ def get_train_option(conn):
             return 'back'
         elif int(item) >= 0:
             return int(item)
-
-
-def fix_path(filename):
-    if platform.system() == "Windows":
-        if ':' in filename:
-            return filename.replace('\\', '/').replace(r'//', r'/').replace('C:/server', 'C:')
-        else:
-            return 'C:' + filename
-    else:
-        if ':' in filename:
-            return filename.replace('\\', '/').replace(r'//', r'/').split(':')[-1]
-        else:
-            return filename
-
-
-def download_file(conn, remote_filename, local_filename):
-    for i, j in zip(remote_filename, local_filename):
-        block_size = 1024 * 1024
-        file_size, remote_file = conn.root.open(i)
-        print(str(file_size // block_size) + 'M')
-        local_file = open(j.replace('test2', 'test'), 'wb')
-        start = time.time()
-        chunk = remote_file.read(block_size)
-        acc_size = block_size
-        while chunk:
-            local_file.write(chunk)
-            print(f'download: {acc_size/file_size:.2%}', end='\r')
-            chunk = remote_file.read(block_size)
-            acc_size += block_size
-        print(f'cost time: {time.time()-start}')
-        remote_file.close()
-        local_file.close()
 
 
 def initialize_env_model(filepath, algo, name, port):
@@ -203,7 +176,7 @@ def initialize_env_model(filepath, algo, name, port):
 
 
 def run(conn):
-    base_dir = r'C:/RLdata' if platform.system() == "Windows" else r'/RLData'
+    base_dir = r'C:/RLData' if platform.system() == "Windows" else r'/RLData'
     while True:
         connect_option = get_connect_option(conn)
         global _global_myid
@@ -213,7 +186,7 @@ def run(conn):
         if connect_option == 'train':
             train_option = get_train_option(conn)
             if train_option == 'back':
-                pass
+                continue
             else:
                 name, _file_path, algo, save_frequency, max_step = conn.root.get_train_config(train_option)
                 file_path = fix_path(_file_path)
@@ -240,18 +213,15 @@ def run(conn):
             #     raise Exception('this task is already exist.')
             print(f'upload cost time: {time.time()-start}')
 
-            # algo = input('Upload success. plz input the algorithm name: ')
-            # port = int(input('plz input the training port: '))
-            # name = input('plz input the training name: ')
-            # save_frequency = int(input('plz input the save frequency: '))
-            # max_step = int(input('plz input the max_step: '))
-            # judge_interval = int(input('plz input the judge interval(seconds): '))
-            algo = 'sac'
-            port = 5111
-            name = 'testdis'
-            save_frequency = 10
-            max_step = 200
-            judge_interval = 60
+            algo = input('Upload success. plz input the algorithm name: ')
+            port = int(input('plz input the training port: '))
+            name = input('plz input the training name: ')
+            judge_interval = int(input('plz input the judge interval(seconds): '))
+            # algo = 'sac'
+            # port = 5111
+            # name = 'testdis'
+            # judge_interval = 60
+            save_frequency = 0
             try:
                 env, brain_names, models, policy_mode, reset_config, max_step = initialize_env_model(my_filepath, algo, name, port)
             except Exception as e:
@@ -263,7 +233,6 @@ def run(conn):
                 push_model(conn, name, os.path.join(model_dir, brain_names[0], 'model'))
                 begin_episode = models[0].get_init_step()
                 max_episode = models[0].get_max_episode()
-
         threading.Thread(target=train, args=(
             policy_mode,
             env,
@@ -280,22 +249,6 @@ def run(conn):
             model_dir,
             connect_option
         )).start()
-        # train(
-        #     policy_mode=policy_mode,
-        #     env=env,
-        #     brain_names=brain_names,
-        #     models=models,
-        #     begin_episode=begin_episode,
-        #     save_frequency=save_frequency,
-        #     reset_config=reset_config,
-        #     max_step=max_step,
-        #     max_episode=max_episode,
-        #     conn=conn,
-        #     myID=myID,
-        #     name=name,
-        #     model_dir=model_dir,
-        #     connect_option=connect_option
-        # )
 
 
 def train(
@@ -314,13 +267,12 @@ def train(
         model_dir,
         connect_option
 ):
-
-    global _global_push_model
-    global _global_go_on_flag
+    brains_num=len(brain_names)
     conn.root.register_train_task(myID, name)
-    conn.root.set_timer(myID, name, False if connect_option == 'train' else True)
     train_func = on_train if policy_mode == 'ON' else off_train
+    model_dirs = [os.path.join(model_dir, brain_name, 'model') for brain_name in brain_names]
     while True:
+        conn.root.set_timer(myID, name)
         begin_episode, models_global_step, ave_reward = train_func(
             env=env,
             brain_names=brain_names,
@@ -331,32 +283,29 @@ def train(
             max_step=max_step,
             max_episode=max_episode
         )
+        for i in range(brains_num):
+            clear_model(model_dirs[i])
+            models[i].save_checkpoint(begin_episode)
         start = time.time()
         conn.root.push_reward(myID, ave_reward)
         print('Push Reward Success.')
         while True:
             need_push_id = int(conn.root.get_need_push_id(name))
             print(need_push_id)
-            print(type(need_push_id))
             if need_push_id == myID:
-                push_model(conn, name, os.path.join(model_dir, brain_names[0], 'model'))
+                for model_dir in model_dirs:
+                    push_model(conn, name, model_dir)
                 print('Push Model Success.')
                 break
             elif need_push_id != 0:
                 break
         while True:
             if conn.root.get_model_flag(name):
-                try:
-                    shutil.rmtree(os.path.join(model_dir, brain_names[0], 'model'))
-                except:
-                    pass
-                finally:
-                    conn.root.get_model(myID, name)
-                    break
+                conn.root.get_model(myID, name)
+                break
         print(f'cost time: {time.time()-start}')
-        conn.root.set_timer(myID, name)
-        for i, brain_name in enumerate(brain_names):
-            models[i].init_or_restore(os.path.join(model_dir, brain_name, 'model'))
+        for i in range(brains_num):
+            models[i].init_or_restore(model_dirs[i])
             models[i].set_global_step(models_global_step[i])
 
 
@@ -423,9 +372,9 @@ def on_train(
                 break
         ave_reward_list.append(np.array([total_reward[i].mean() for i in range(brains_num)]).mean())
         print(f'episode {episode} step {step}')
-        if episode % save_frequency == 0:
-            for i in range(brains_num):
-                models[i].save_checkpoint(episode)
+        # if episode % save_frequency == 0:
+        #     for i in range(brains_num):
+        #         models[i].save_checkpoint(episode)
 
 
 def off_train(
@@ -490,9 +439,9 @@ def off_train(
         print(f'episode {episode} step {step}')
         for i in range(brains_num):
             models[i].writer_summary(episode, reward=total_reward[i].mean())
-        if episode % save_frequency == 0:
-            for i in range(brains_num):
-                models[i].save_checkpoint(episode)
+        # if episode % save_frequency == 0:
+        #     for i in range(brains_num):
+        #         models[i].save_checkpoint(episode)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ unity_file = {
 
 train_config = {
     'base_dir': r'C:/RLData' if platform.system() == "Windows" else r'/RLData',
-    'exe_file': unity_file['RollerBall']['OneFloor'],
+    'exe_file': unity_file['Boat']['second'],
     'reset_config': None,
     'save_frequency': 50,
     'max_episode': 50000,
