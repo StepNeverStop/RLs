@@ -1,3 +1,12 @@
+dqn_config = {
+    'lr':5.0e-4,
+    'gamma':0.99,
+    'epsilon':0.2,
+    'max_episode':50000,
+    'batch_size':100,
+    'buffer_size':10000,
+    'assign_interval':5
+}
 pg_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,

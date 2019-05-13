@@ -96,6 +96,10 @@ def run():
         algorithm_config = Algorithms.sac_no_v_config
         model = Algorithms.SAC_NO_V
         policy_mode = 'OFF'
+    elif options['--algorithm'] == 'dqn':
+        algorithm_config = Algorithms.dqn_config
+        model = Algorithms.DQN
+        policy_mode = 'OFF' 
     else:
         raise Exception("Don't have this algorithm.")
 

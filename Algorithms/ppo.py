@@ -29,11 +29,11 @@ class PPO(Policy):
                  logger2file=False,
                  out_graph=False):
         super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'ON')
-        self.epsilon = epsilon
-        self.gamma = gamma
         self.beta = beta
+        self.gamma = gamma
         self.epoch = epoch
         self.lambda_ = lambda_
+        self.epsilon = epsilon
         self.batch_size = batch_size
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], 'discounted_reward')
