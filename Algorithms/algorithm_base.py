@@ -1,6 +1,7 @@
 import os
 import sys
 sys.path.append('..')
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 from utils.recorder import Recorder
@@ -14,7 +15,7 @@ class Policy(object):
 
     def __init__(self,
                  s_dim,
-                 a_counts,
+                 a_dim_or_list,
                  action_type,
                  max_episode,
                  cp_dir,
@@ -27,7 +28,8 @@ class Policy(object):
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
         self.s_dim = s_dim
-        self.a_counts = a_counts
+        self.a_dim_or_list=a_dim_or_list
+        self.a_counts = np.array(a_dim_or_list).prod()
         self.max_episode = max_episode
         self.cp_dir = cp_dir
         self.activation_fn = tf.nn.tanh
@@ -56,6 +58,9 @@ class Policy(object):
             self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
 
     def on_store(self, s, a, r, s_, done):
+        """
+        for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
+        """
         self.data = self.data.append({
             's': s,
             'a': a,
@@ -65,21 +70,36 @@ class Policy(object):
         }, ignore_index=True)
 
     def off_store(self, s, a, r, s_, done):
+        """
+        for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
+        """
         self.data.add(s, a, r, s_, done)
 
     def clear(self):
+        """
+        clear the DataFrame.
+        """
         self.data.drop(self.data.index, inplace=True)
 
     def get_init_step(self):
+        """
+        get the initial training step. use for continue train from last training step.
+        """
         if os.path.exists(os.path.join(self.cp_dir, 'checkpoint')):
             return int(tf.train.latest_checkpoint(self.cp_dir).split('-')[-1])
         else:
             return 0
 
     def get_max_episode(self):
+        """
+        get the max episode of this training model.
+        """
         return self.max_episode
 
     def generate_recorder(self, cp_dir, log_dir, excel_dir, logger2file, graph):
+        """
+        create model/log/data dictionary and define writer to record training data.
+        """
         self.check_or_create(cp_dir, 'checkpoints')
         self.check_or_create(log_dir, 'logs(summaries)')
         self.check_or_create(excel_dir, 'excel')
@@ -91,6 +111,9 @@ class Policy(object):
         )
 
     def init_or_restore(self, cp_dir):
+        """
+        check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
+        """
         with self.graph.as_default():
             if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
                 try:
@@ -104,9 +127,15 @@ class Policy(object):
                 self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
+        """
+        save the training model 
+        """
         self.recorder.saver.save(self.sess, os.path.join(self.cp_dir, 'rb'), global_step=global_step, write_meta_graph=False)
 
     def writer_summary(self, global_step, **kargs):
+        """
+        record the data used to show in the tensorboard
+        """
         self.recorder.writer_summary(
             x=global_step,
             ys=[{'tag': 'MAIN/' + key, 'value': kargs[key]} for key in kargs]
@@ -146,11 +175,20 @@ class Policy(object):
             print(f'create {name} directionary :', dicpath)
 
     def close(self):
+        """
+        end training, and export the training model
+        """
         self.export_model()
 
     def get_global_step(self):
+        """
+        get the current trianing step.
+        """
         return self.sess.run(self.global_step)
 
     def set_global_step(self, num):
+        """
+        set the start training step.
+        """
         with self.graph.as_default():
             self.global_step.load(num, self.sess)

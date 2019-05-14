@@ -13,7 +13,7 @@ initKernelAndBias = {
 class PPO(Policy):
     def __init__(self,
                  s_dim,
-                 a_counts,
+                 a_dim_or_list,
                  action_type,
                  epsilon=0.2,
                  gamma=0.99,
@@ -28,7 +28,7 @@ class PPO(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
         self.beta = beta
         self.gamma = gamma
         self.epoch = epoch

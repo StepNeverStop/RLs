@@ -122,12 +122,12 @@ def run():
 
     if options['--max-step'] != 'None':
         max_step = int(options['--max-step'])
-
     brain_names = env.external_brain_names
     brains = env.brains
+    
     models = [model(
         s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
-        a_counts=brains[i].vector_action_space_size[0],
+        a_dim_or_list=brains[i].vector_action_space_size,
         action_type=brains[i].vector_action_space_type,
         cp_dir=os.path.join(base_dir, i, 'model'),
         log_dir=os.path.join(base_dir, i, 'log'),

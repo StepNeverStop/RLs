@@ -19,7 +19,9 @@ unity_file = {
 train_config = {
     'base_dir': r'C:/RLData' if platform.system() == "Windows" else r'/RLData',
     'exe_file': unity_file['Boat']['second'],
-    'reset_config': None,
+    'reset_config': {
+        'copy':10
+    },
     'save_frequency': 50,
     'max_episode': 50000,
     'max_step': 10000,

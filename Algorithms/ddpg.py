@@ -12,7 +12,7 @@ initKernelAndBias = {
 class DDPG(Policy):
     def __init__(self,
                  s_dim,
-                 a_counts,
+                 a_dim_or_list,
                  action_type,
                  gamma=0.99,
                  ployak=0.995,
@@ -25,7 +25,7 @@ class DDPG(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():

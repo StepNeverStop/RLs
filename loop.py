@@ -71,10 +71,8 @@ class Loop(object):
                 for i, brain_name in enumerate(brain_names):
                     state[i] = obs[brain_name].vector_observations
                     action[i] = models[i].choose_action(s=state[i])
-
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
-
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
                     models[i].store_data(

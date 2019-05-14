@@ -46,3 +46,31 @@ class sth(object):
         f.close()
         print(f'load config from {filename}')
         return x
+
+    @staticmethod
+    def int2action(x, action_list):
+        assert isinstance(x, np.ndarray)
+        y = []
+        for i in action_list:
+            y.append(x // i)
+            x = x % i
+        return np.stack(y, axis=1)
+
+    @staticmethod
+    def get_action_multiplication_factor(action_list):
+        x = []
+        y = 1
+        for i in list(reversed(action_list)):
+            x.insert(0, y)
+            y *= i
+        return np.array(x)
+
+    @staticmethod
+    def get_batch_one_hot(action, action_multiplication_factor, cols):
+        assert isinstance(action, np.ndarray)
+        assert isinstance(action_multiplication_factor, np.ndarray)
+        ints = action.dot(action_multiplication_factor)
+        x = np.zeros([action.shape[0], cols])
+        for i, j in enumerate(ints):
+            x[i, j] = 1
+        return x

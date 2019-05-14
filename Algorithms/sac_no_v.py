@@ -12,7 +12,7 @@ initKernelAndBias = {
 class SAC_NO_V(Policy):
     def __init__(self,
                  s_dim,
-                 a_counts,
+                 a_dim_or_list,
                  action_type,
                  alpha=0.2,
                  auto_adaption=True,
@@ -27,7 +27,7 @@ class SAC_NO_V(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_counts, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
