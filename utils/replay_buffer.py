@@ -13,9 +13,9 @@ class ReplayBuffer(object):
         self._buffer = np.empty(capacity, dtype=object)
 
     def add(self, *args):
-        for arg in args:
-            assert len(arg.shape) == 2
-            assert len(arg) == len(args[0])
+        # for arg in args:
+        #     assert len(arg.shape) == 2
+        #     assert len(arg) == len(args[0])
 
         for i in range(len(args[0])):
             self._buffer[self._data_pointer] = tuple(arg[i] for arg in args)

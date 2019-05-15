@@ -12,6 +12,8 @@ initKernelAndBias = {
 class DDPG(Policy):
     def __init__(self,
                  s_dim,
+                 visual_sources,
+                 visual_resolutions,
                  a_dim_or_list,
                  action_type,
                  gamma=0.99,
@@ -25,26 +27,24 @@ class DDPG(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.r = tf.placeholder(tf.float32, [None, 1], 'reward')
-            self.s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
 
-            self.mu, self.action, self.actor_var = self._build_actor_net('actor', self.pl_s, True)
+            self.mu, self.action, self.actor_var = self._build_actor_net('actor', self.s, True)
             tf.identity(self.mu, 'action')
             self.target_mu, self.action_target, self.actor_target_var = self._build_actor_net('actor_target', self.s_, False)
 
-            self.s_a = tf.concat((self.pl_s, self.pl_a), axis=1)
-            self.s_mu = tf.concat((self.pl_s, self.mu), axis=1)
+            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
+            self.s_mu = tf.concat((self.s, self.mu), axis=1)
             self.s_a_target = tf.concat((self.s_, self.target_mu), axis=1)
 
             self.q, self.q_var = self._build_q_net('q', self.s_a, True, reuse=False)
             self.q_actor, _ = self._build_q_net('q', self.s_mu, True, reuse=True)
             self.q_target, self.q_target_var = self._build_q_net('q_target', self.s_a_target, False, reuse=False)
-            self.dc_r = tf.stop_gradient(self.r + self.gamma * self.q_target)
+            self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
             self.actor_loss = -tf.reduce_mean(self.q_actor)
@@ -152,31 +152,29 @@ class DDPG(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_s: s
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.mu, feed_dict={
-            self.pl_s: s
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
         })
 
     def store_data(self, s, a, r, s_, done):
-        assert isinstance(s, np.ndarray)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(s_, np.ndarray)
-        assert isinstance(done, np.ndarray)
-
         self.off_store(s, a, r, s_, done)
 
     def learn(self, episode):
         s, a, r, s_, _ = self.data.sample()
 
         summaries, _ = self.sess.run([self.summaries, [self.train_q, self.train_actor, self.assign_q_target, self.assign_actor_target]], feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.pl_a: a,
-            self.r: r,
-            self.s_: s_,
+            self.pl_r: r,
+            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
+            self.pl_s_: np.array(list(x[0] for x in s_)),
             self.episode: episode
         })
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))

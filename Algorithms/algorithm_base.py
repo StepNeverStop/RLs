@@ -9,12 +9,18 @@ from utils.replay_buffer import ReplayBuffer
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
+initKernelAndBias = {
+    'kernel_initializer': tf.random_normal_initializer(0., .1),
+    'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
+}
 
 class Policy(object):
     _version_number_ = 2
 
     def __init__(self,
                  s_dim,
+                 visual_sources,
+                 visual_resolutions,
                  a_dim_or_list,
                  action_type,
                  max_episode,
@@ -28,6 +34,13 @@ class Policy(object):
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
         self.s_dim = s_dim
+        self.visual_sources=visual_sources
+        self.visual_dim = [
+                visual_sources, 
+                visual_resolutions[0]['height'],
+                visual_resolutions[0]['width'], 
+                1 if visual_resolutions[0]['blackAndWhite'] else 3
+                ] if visual_sources else [0]
         self.a_dim_or_list=a_dim_or_list
         self.a_counts = np.array(a_dim_or_list).prod()
         self.max_episode = max_episode
@@ -54,13 +67,67 @@ class Policy(object):
             tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)
             self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'vector_observation')
             self.pl_a = tf.placeholder(tf.float32, [None, self.a_counts], 'pl_action')
+            self.pl_r = tf.placeholder(tf.float32, [None, 1], 'reward')
+            self.pl_s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
+            self.pl_done = tf.placeholder(tf.float32, [None, 1], 'done')
+            self.pl_visual_s = tf.placeholder(tf.float32, [None]+self.visual_dim, 'visual_observation_')
+            self.pl_visual_s_ = tf.placeholder(tf.float32, [None]+self.visual_dim, 'next_visual_observation')
             self.episode = tf.Variable(tf.constant(0))
             self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
+            if visual_sources:
+                self.s = tf.concat((self._built_visual_feature_net('visual_net',self.pl_visual_s), self.pl_s), axis=1)
+                self.s_=tf.concat((self._built_visual_feature_net('visual_net',self.pl_visual_s_), self.pl_s_), axis=1)
+            else:
+                self.s = self.pl_s
+                self.s_=self.pl_s_
 
+    def _built_visual_feature_net(self, name, input_visual):
+        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
+            conv1 = tf.layers.conv3d(
+                inputs=input_visual,
+                filters=32,
+                kernel_size=[1, 8, 8],
+                strides=[1, 4, 4],
+                padding='valid',
+                activation=self.activation_fn,
+                name='conv1',
+                **initKernelAndBias
+            )
+            conv2 = tf.layers.conv3d(
+                inputs=conv1,
+                filters=64,
+                kernel_size=[1, 4, 4],
+                strides=[1, 2, 2],
+                padding='valid',
+                activation=self.activation_fn,
+                name='conv2',
+                **initKernelAndBias
+            )
+            conv3 = tf.layers.conv3d(
+                inputs=conv2,
+                filters=64,
+                kernel_size=[1, 3, 3],
+                strides=[1, 1, 1],
+                padding='valid',
+                activation=self.activation_fn,
+                name='conv3',
+                **initKernelAndBias
+            )
+            fc1 = tf.layers.dense(
+                inputs=tf.layers.flatten(conv3),
+                units=256,
+                activation=self.activation_fn,
+                name='fc1',
+                **initKernelAndBias
+            )
+            return fc1
     def on_store(self, s, a, r, s_, done):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
         """
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
         self.data = self.data.append({
             's': s,
             'a': a,
@@ -73,6 +140,9 @@ class Policy(object):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
         self.data.add(s, a, r, s_, done)
 
     def clear(self):

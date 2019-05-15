@@ -48,16 +48,11 @@ class sth(object):
         return x
 
     @staticmethod
-    def int2action(x, action_list):
-        assert isinstance(x, np.ndarray)
-        y = []
-        for i in action_list:
-            y.append(x // i)
-            x = x % i
-        return np.stack(y, axis=1)
-
-    @staticmethod
     def get_action_multiplication_factor(action_list):
+        """
+        input: [3, 2, 2]
+        output: [4, 2, 1]
+        """
         x = []
         y = 1
         for i in list(reversed(action_list)):
@@ -66,7 +61,25 @@ class sth(object):
         return np.array(x)
 
     @staticmethod
+    def int2action_index(x, action_multiplication_factor):
+        """
+        input: [7], [3,1]
+        output: [2,1]
+        """
+        assert isinstance(x, np.ndarray)
+        y = []
+        for i in action_multiplication_factor[:-1]:
+            y.append(x // i)
+            x %= i
+        y.append(x)
+        return np.stack(y, axis=1)
+
+    @staticmethod
     def get_batch_one_hot(action, action_multiplication_factor, cols):
+        """
+        input: [2, 1], [3, 1], 9
+        output: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+        """
         assert isinstance(action, np.ndarray)
         assert isinstance(action_multiplication_factor, np.ndarray)
         ints = action.dot(action_multiplication_factor)
@@ -74,3 +87,13 @@ class sth(object):
         for i, j in enumerate(ints):
             x[i, j] = 1
         return x
+
+    @staticmethod
+    def index2action(action_index, action_list):
+        """
+        input: [0, 2], [3, 3]
+        output: [-1, 1]
+        """
+        assert isinstance(action, np.ndarray)
+        assert 1 not in action_list
+        return 2 / (np.array([action_list]) - 1) * action_index - 1

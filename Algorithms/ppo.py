@@ -13,6 +13,8 @@ initKernelAndBias = {
 class PPO(Policy):
     def __init__(self,
                  s_dim,
+                 visual_sources,
+                 visual_resolutions,
                  a_dim_or_list,
                  action_type,
                  epsilon=0.2,
@@ -28,7 +30,7 @@ class PPO(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
         self.beta = beta
         self.gamma = gamma
         self.epoch = epoch
@@ -87,7 +89,7 @@ class PPO(Policy):
     def _build_net(self, name):
         with tf.variable_scope(name):
             share1 = tf.layers.dense(
-                inputs=self.pl_s,
+                inputs=self.s,
                 units=512,
                 activation=self.activation_fn,
                 name='share1',
@@ -161,21 +163,21 @@ class PPO(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def store_data(self, s, a, r, s_, done):
-        assert isinstance(s, np.ndarray)
         assert isinstance(a, np.ndarray)
         assert isinstance(r, np.ndarray)
-        assert isinstance(s_, np.ndarray)
         assert isinstance(done, np.ndarray)
 
         self.data = self.data.append({
@@ -185,15 +187,18 @@ class PPO(Policy):
             's_': s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_s: s,
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s)),
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'next_value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_s: s_,
+                self.pl_visual_s: np.array(list(x[-1] for x in s_)),
+                self.pl_s: np.array(list(x[0] for x in s_)),
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'prob': self.sess.run(self.new_prob, feed_dict={
-                self.pl_s: s,
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s)),
                 self.pl_a: a,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
@@ -232,7 +237,8 @@ class PPO(Policy):
         for _ in range(self.epoch):
             s, a, dc_r, old_prob, advantage = self.get_sample_data()
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.pl_s: s,
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s)),
                 self.pl_a: a,
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,

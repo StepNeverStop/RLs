@@ -10,42 +10,40 @@ initKernelAndBias = {
 
 
 class DQN(Policy):
-    def __init__(
-        self,
-        s_dim,
-        a_dim_or_list,
-        action_type,
+    def __init__(self,
+                s_dim,
+                visual_sources,
+                visual_resolutions,
+                a_dim_or_list,
+                action_type,
 
-        lr=5.0e-4,
-        gamma=0.99,
-        epsilon=0.2,
-        max_episode=50000,
-        batch_size=100,
-        buffer_size=10000,
-        assign_interval=2,
+                lr=5.0e-4,
+                gamma=0.99,
+                epsilon=0.2,
+                max_episode=50000,
+                batch_size=100,
+                buffer_size=10000,
+                assign_interval=2,
 
-        cp_dir=None,
-        log_dir=None,
-        excel_dir=None,
-        logger2file=False,
-        out_graph=False
-    ):
-        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
+                cp_dir=None,
+                log_dir=None,
+                excel_dir=None,
+                logger2file=False,
+                out_graph=False):
+        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
         self.gamma = gamma
         self.epsilon = epsilon
         self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
         self.assign_interval = assign_interval
         with self.graph.as_default():
-            self.r = tf.placeholder(tf.float32, [None, 1], 'reward')
-            self.s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
-            self.done = tf.placeholder(tf.float32, [None, 1], 'done')
+            
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.q, self.q_var = self._build_q_net('q', self.pl_s, trainable=True)
+            self.q, self.q_var = self._build_q_net('q', self.s, trainable=True)
             self.q_next, self.q_target_var = self._build_q_net('q_target', self.s_, trainable=False)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)
-            self.q_target = self.r + self.gamma * (1 - self.done) * tf.reduce_max(self.q_next, axis=1)
+            self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1))
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
             q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
@@ -109,38 +107,38 @@ class DQN(Policy):
 
     def choose_action(self, s):
         if np.random.uniform() < self.epsilon:
-            a = np.random.randint(0, self.a_counts, s.shape[0])
+            a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self.sess.run(self.action, feed_dict={
-                self.pl_s: s
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s))
             })
-        return sth.int2action(a, self.a_dim_or_list)
+        print(a)
+        return sth.int2action_index(a, self.action_multiplication_factor)
 
     def choose_inference_action(self, s):
-        return sth.int2action(
+        return sth.int2action_index(
             self.sess.run(self.action, feed_dict={
-                self.pl_s: s
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s))
             }),
-            self.a_dim_or_list
+            self.action_multiplication_factor
         )
 
     def store_data(self, s, a, r, s_, done):
-        assert isinstance(s, np.ndarray)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(s_, np.ndarray)
-        assert isinstance(done, np.ndarray)
         self.off_store(s, a, r, s_, done)
 
     def learn(self, episode):
         s, a, r, s_, done = self.data.sample()
         _a = sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts)
         summaries, _ = self.sess.run([self.summaries, self.train_q], feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.pl_a: _a,
-            self.r: r,
-            self.s_: s_,
-            self.done: done,
+            self.pl_r: r,
+            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
+            self.pl_s_: np.array(list(x[0] for x in s_)),
+            self.pl_done: done,
             self.episode: episode
         })
         if self.sess.run(self.global_step) % self.assign_interval == 0:

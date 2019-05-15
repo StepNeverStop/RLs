@@ -10,23 +10,23 @@ initKernelAndBias = {
 
 
 class PG(Policy):
-    def __init__(
-        self,
-        s_dim,
-        a_dim_or_list,
-        action_type,
-        lr=5.0e-4,
-        gamma=0.99,
-        max_episode=50000,
-        batch_size=100,
-        epoch=5,
-        cp_dir=None,
-        log_dir=None,
-        excel_dir=None,
-        logger2file=False,
-        out_graph=False
-    ):
-        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
+    def __init__(self,
+                s_dim,
+                visual_sources,
+                visual_resolutions,
+                a_dim_or_list,
+                action_type,
+                lr=5.0e-4,
+                gamma=0.99,
+                max_episode=50000,
+                batch_size=100,
+                epoch=5,
+                cp_dir=None,
+                log_dir=None,
+                excel_dir=None,
+                logger2file=False,
+                out_graph=False):
+        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
         self.epoch = epoch
         self.gamma = gamma
         self.batch_size = batch_size
@@ -70,7 +70,7 @@ class PG(Policy):
     def _build_net(self, name):
         with tf.variable_scope(name):
             actor1 = tf.layers.dense(
-                inputs=self.pl_s,
+                inputs=self.s,
                 units=128,
                 activation=self.activation_fn,
                 name='actor1',
@@ -109,22 +109,19 @@ class PG(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def store_data(self, s, a, r, s_, done):
-        assert isinstance(s, np.ndarray)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(s_, np.ndarray)
-        assert isinstance(done, np.ndarray)
         self.on_store(s, a, r, s_, done)
 
     def calculate_statistics(self):
@@ -143,7 +140,8 @@ class PG(Policy):
         for _ in range(self.epoch):
             s, a, dc_r = self.get_sample_data()
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.pl_s: s,
+                self.pl_visual_s: np.array(list(x[-1] for x in s)),
+                self.pl_s: np.array(list(x[0] for x in s)),
                 self.pl_a: a,
                 self.dc_r: dc_r,
                 self.episode: episode,

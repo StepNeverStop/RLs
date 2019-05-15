@@ -24,7 +24,13 @@ class Loop(object):
                 step += 1
 
                 for i, brain_name in enumerate(brain_names):
-                    state[i] = obs[brain_name].vector_observations
+                    ss = []
+                    for j in range(agents_num[i]):
+                        s = []
+                        for k in range(models[i].visual_sources):
+                            s.append(obs[brain_name].visual_observations[k][j])
+                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
+                    state[i] = ss
                     action[i] = models[i].choose_action(s=state[i])
 
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
@@ -32,11 +38,17 @@ class Loop(object):
 
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
+                    ss = []
+                    for j in range(agents_num[i]):
+                        s = []
+                        for k in range(models[i].visual_sources):
+                            s.append(obs[brain_name].visual_observations[k][j])
+                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
                     models[i].store_data(
                         s=state[i],
                         a=action[i],
                         r=np.array(obs[brain_name].rewards),
-                        s_=obs[brain_name].vector_observations,
+                        s_=ss,
                         done=np.array(obs[brain_name].local_done)
                     )
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
@@ -69,17 +81,29 @@ class Loop(object):
                 step += 1
 
                 for i, brain_name in enumerate(brain_names):
-                    state[i] = obs[brain_name].vector_observations
+                    ss = []
+                    for j in range(agents_num[i]):
+                        s = []
+                        for k in range(models[i].visual_sources):
+                            s.append(obs[brain_name].visual_observations[k][j])
+                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
+                    state[i] = ss
                     action[i] = models[i].choose_action(s=state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
+                    ss = []
+                    for j in range(agents_num[i]):
+                        s = []
+                        for k in range(models[i].visual_sources):
+                            s.append(obs[brain_name].visual_observations[k][j])
+                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
                     models[i].store_data(
                         s=state[i],
                         a=action[i],
                         r=np.array(obs[brain_name].rewards)[:, np.newaxis],
-                        s_=obs[brain_name].vector_observations,
+                        s_=ss,
                         done=np.array(obs[brain_name].local_done)[:, np.newaxis]
                     )
                     models[i].learn(episode)
@@ -94,6 +118,9 @@ class Loop(object):
 
     @staticmethod
     def inference(env, brain_names, models, reset_config):
+        brains_num = len(brain_names)
+        state = [0] * brains_num
+        action = [0] * brains_num
         while True:
             obs = env.reset(config=reset_config, train_mode=False)
             while True:

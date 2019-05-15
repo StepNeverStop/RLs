@@ -127,6 +127,8 @@ def run():
     
     models = [model(
         s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
+        visual_sources=brains[i].number_visual_observations,
+        visual_resolutions=brains[i].camera_resolutions,
         a_dim_or_list=brains[i].vector_action_space_size,
         action_type=brains[i].vector_action_space_type,
         cp_dir=os.path.join(base_dir, i, 'model'),

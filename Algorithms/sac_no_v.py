@@ -12,6 +12,8 @@ initKernelAndBias = {
 class SAC_NO_V(Policy):
     def __init__(self,
                  s_dim,
+                 visual_sources,
+                 visual_resolutions,
                  a_dim_or_list,
                  action_type,
                  alpha=0.2,
@@ -27,7 +29,7 @@ class SAC_NO_V(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
@@ -35,19 +37,17 @@ class SAC_NO_V(Policy):
             self.alpha = alpha if not auto_adaption else tf.exp(self.log_alpha)
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.r = tf.placeholder(tf.float32, [None, 1], 'reward')
-            self.s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
 
-            self.norm_dist, self.mu, self.sigma, self.a_s, self.a_s_log_prob = self._build_actor_net('actor_net', self.pl_s, reuse=False)
+            self.norm_dist, self.mu, self.sigma, self.a_s, self.a_s_log_prob = self._build_actor_net('actor_net', self.s, reuse=False)
             tf.identity(self.mu, 'action')
             _, _, _, self.a_s_, self.a_s_log_prob_ = self._build_actor_net('actor_net', self.s_, reuse=True)
             self.prob = self.norm_dist.prob(self.a_s)
             self.new_log_prob = self.norm_dist.log_prob(self.pl_a)
             self.entropy = self.norm_dist.entropy()
-            self.s_a = tf.concat((self.pl_s, self.pl_a), axis=1)
+            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_a_ = tf.concat((self.s_, self.a_s_), axis=1)
-            self.s_a_s = tf.concat((self.pl_s, self.a_s), axis=1)
+            self.s_a_s = tf.concat((self.s, self.a_s), axis=1)
             self.q1, self.q1_vars = self._build_q_net('q1', self.s_a, trainable=True, reuse=False)
             self.q1_target, self.q1_target_vars = self._build_q_net('q1_target', self.s_a_, trainable=False, reuse=False)
             self.q2, self.q2_vars = self._build_q_net('q2', self.s_a, trainable=True, reuse=False)
@@ -55,8 +55,8 @@ class SAC_NO_V(Policy):
             self.q1_s_a, _ = self._build_q_net('q1', self.s_a_s, trainable=True, reuse=True)
             self.q2_s_a, _ = self._build_q_net('q2', self.s_a_s, trainable=True, reuse=True)
 
-            self.dc_r_q1 = tf.stop_gradient(self.r + self.gamma * (self.q1_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
-            self.dc_r_q2 = tf.stop_gradient(self.r + self.gamma * (self.q2_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
+            self.dc_r_q1 = tf.stop_gradient(self.pl_r + self.gamma * (self.q1_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
+            self.dc_r_q2 = tf.stop_gradient(self.pl_r + self.gamma * (self.q2_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
             self.q1_loss = tf.reduce_mean(tf.squared_difference(self.q1, self.dc_r_q1))
             self.q2_loss = tf.reduce_mean(tf.squared_difference(self.q2, self.dc_r_q2))
             self.critic_loss = 0.5 * self.q1_loss + 0.5 * self.q2_loss
@@ -192,40 +192,40 @@ class SAC_NO_V(Policy):
 
     def choose_action(self, s):
         return self.sess.run(self.a_s, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
         return self.sess.run(self.mu, feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def store_data(self, s, a, r, s_, done):
-        assert isinstance(s, np.ndarray)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(s_, np.ndarray)
-        assert isinstance(done, np.ndarray)
-
         self.off_store(s, a, r, s_, done)
 
     def learn(self, episode):
         s, a, r, s_, _ = self.data.sample()
         # self.sess.run([self.train_q1, self.train_q2, self.train_actor, self.train_alpha, self.assign_q1_target, self.assign_q2_target], feed_dict={
-        #     self.pl_s: s,
+        #     self.pl_visual_s: np.array(list(x[-1] for x in s)),
+        #     self.pl_s: np.array(list(x[0] for x in s)),
         #     self.pl_a: a,
-        #     self.r: r,
-        #     self.s_: s_,
+        #     self.pl_r: r,
+        #     self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
+        #     self.pl_s_: np.array(list(x[0] for x in s_)),
         #     self.episode: episode,
         #     self.sigma_offset: np.full(self.a_counts, 0.01)
         # })
         summaries, _ = self.sess.run([self.summaries, [self.assign_q1_target, self.assign_q2_target, self.train_critic, self.train_actor, self.train_alpha]], feed_dict={
-            self.pl_s: s,
+            self.pl_visual_s: np.array(list(x[-1] for x in s)),
+            self.pl_s: np.array(list(x[0] for x in s)),
             self.pl_a: a,
-            self.r: r,
-            self.s_: s_,
+            self.pl_r: r,
+            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
+            self.pl_s_: np.array(list(x[0] for x in s_)),
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
