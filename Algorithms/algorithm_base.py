@@ -14,6 +14,7 @@ initKernelAndBias = {
     'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
 }
 
+
 class Policy(object):
     _version_number_ = 2
 
@@ -34,14 +35,14 @@ class Policy(object):
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
         self.s_dim = s_dim
-        self.visual_sources=visual_sources
+        self.visual_sources = visual_sources
         self.visual_dim = [
-                visual_sources, 
-                visual_resolutions[0]['height'],
-                visual_resolutions[0]['width'], 
-                1 if visual_resolutions[0]['blackAndWhite'] else 3
-                ] if visual_sources else [0]
-        self.a_dim_or_list=a_dim_or_list
+            visual_sources,
+            visual_resolutions[0]['height'],
+            visual_resolutions[0]['width'],
+            1 if visual_resolutions[0]['blackAndWhite'] else 3
+        ] if visual_sources else [0]
+        self.a_dim_or_list = a_dim_or_list
         self.a_counts = np.array(a_dim_or_list).prod()
         self.max_episode = max_episode
         self.cp_dir = cp_dir
@@ -70,16 +71,18 @@ class Policy(object):
             self.pl_r = tf.placeholder(tf.float32, [None, 1], 'reward')
             self.pl_s_ = tf.placeholder(tf.float32, [None, self.s_dim], 'next_state')
             self.pl_done = tf.placeholder(tf.float32, [None, 1], 'done')
-            self.pl_visual_s = tf.placeholder(tf.float32, [None]+self.visual_dim, 'visual_observation_')
-            self.pl_visual_s_ = tf.placeholder(tf.float32, [None]+self.visual_dim, 'next_visual_observation')
+            self.pl_visual_s = tf.placeholder(tf.float32, [None] + self.visual_dim, 'visual_observation_')
+            self.pl_visual_s_ = tf.placeholder(tf.float32, [None] + self.visual_dim, 'next_visual_observation')
             self.episode = tf.Variable(tf.constant(0))
             self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
             if visual_sources:
-                self.s = tf.concat((self._built_visual_feature_net('visual_net',self.pl_visual_s), self.pl_s), axis=1)
-                self.s_=tf.concat((self._built_visual_feature_net('visual_net',self.pl_visual_s_), self.pl_s_), axis=1)
+                self.s = tf.concat((self._built_visual_feature_net('visual_net', self.pl_visual_s), self.pl_s), axis=1)
+                self.s_ = tf.concat((self._built_visual_feature_net('visual_net', self.pl_visual_s_), self.pl_s_), axis=1)
+                self.conv_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='visual_net')
             else:
                 self.s = self.pl_s
-                self.s_=self.pl_s_
+                self.s_ = self.pl_s_
+                self.conv_vars = []
 
     def _built_visual_feature_net(self, name, input_visual):
         with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
@@ -121,6 +124,7 @@ class Policy(object):
                 **initKernelAndBias
             )
             return fc1
+
     def on_store(self, s, a, r, s_, done):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
@@ -240,6 +244,9 @@ class Policy(object):
         tf2bc.convert(os.path.join(self.cp_dir, 'frozen_graph_def.pb'), os.path.join(self.cp_dir, 'model.nn'))
 
     def check_or_create(self, dicpath, name=''):
+        """
+        check dictionary whether existing, if not then create it.
+        """
         if not os.path.exists(dicpath):
             os.makedirs(dicpath)
             print(f'create {name} directionary :', dicpath)
@@ -262,3 +269,9 @@ class Policy(object):
         """
         with self.graph.as_default():
             self.global_step.load(num, self.sess)
+
+    def get_visual_and_vector_input(self, s):
+        """
+        split the visual input and vector input, combine all cameras input into one np.array.
+        """
+        return np.array(list(x[-1] for x in s)), np.array(list(x[0] for x in s))

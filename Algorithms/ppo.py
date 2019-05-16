@@ -30,7 +30,7 @@ class PPO(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
         self.beta = beta
         self.gamma = gamma
         self.epoch = epoch
@@ -52,6 +52,8 @@ class PPO(Policy):
             # ratio = tf.exp(self.new_prob - self.old_prob)
             ratio = self.new_prob / self.old_prob
             surrogate = ratio * self.advantage
+
+            net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='ppo')
             self.actor_loss = tf.reduce_mean(
                 tf.minimum(
                     surrogate,
@@ -60,7 +62,7 @@ class PPO(Policy):
             self.value_loss = tf.reduce_mean(tf.squared_difference(self.dc_r, self.value))
             self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * tf.reduce_mean(self.entropy))
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=self.global_step)
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, var_list=net_vars + self.conv_vars, global_step=self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.value_loss))
             tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
@@ -162,16 +164,18 @@ class PPO(Policy):
         return norm_dist
 
     def choose_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -180,6 +184,8 @@ class PPO(Policy):
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
 
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         self.data = self.data.append({
             's': s,
             'a': a,
@@ -187,18 +193,18 @@ class PPO(Policy):
             's_': s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: np.array(list(x[-1] for x in s)),
-                self.pl_s: np.array(list(x[0] for x in s)),
+                self.pl_visual_s: npl_visual_s,
+                self.pl_s: pl_s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'next_value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: np.array(list(x[-1] for x in s_)),
-                self.pl_s: np.array(list(x[0] for x in s_)),
+                self.pl_visual_s: pl_visual_s_,
+                self.pl_s: pl_s_,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'prob': self.sess.run(self.new_prob, feed_dict={
-                self.pl_visual_s: np.array(list(x[-1] for x in s)),
-                self.pl_s: np.array(list(x[0] for x in s)),
+                self.pl_visual_s: pl_visual_s,
+                self.pl_s: pl_s,
                 self.pl_a: a,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
@@ -236,9 +242,10 @@ class PPO(Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, a, dc_r, old_prob, advantage = self.get_sample_data()
+            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.pl_visual_s: np.array(list(x[-1] for x in s)),
-                self.pl_s: np.array(list(x[0] for x in s)),
+                self.pl_visual_s: pl_visual_s,
+                self.pl_s: pl_s,
                 self.pl_a: a,
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,

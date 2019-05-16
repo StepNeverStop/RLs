@@ -29,7 +29,7 @@ class SAC(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
@@ -76,9 +76,9 @@ class SAC(Policy):
             self.assign_v_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.v_target_var, self.v_var)])
             # self.assign_v_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.v_target_var, self.v_var)]
             with tf.control_dependencies([self.assign_v_target]):
-                self.train_critic = optimizer.minimize(self.critic_loss, global_step=self.global_step)
+                self.train_critic = optimizer.minimize(self.critic_loss, var_list=q1_vars + q2_vars + value_vars + self.conv_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars + self.conv_vars)
             with tf.control_dependencies([self.train_actor]):
                 self.train_alpha = optimizer.minimize(self.alpha_loss, var_list=[self.log_alpha])
 
@@ -208,16 +208,18 @@ class SAC(Policy):
         return v, var
 
     def choose_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.a_new, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.mu, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -226,23 +228,25 @@ class SAC(Policy):
 
     def learn(self, episode):
         s, a, r, s_, _ = self.data.sample()
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         # self.sess.run([self.assign_v_target, self.train_q1, self.train_q2, self.train_v, self.train_actor], feed_dict={
-        #     self.pl_visual_s: np.array(list(x[-1] for x in s)),
-        #     self.pl_s: np.array(list(x[0] for x in s)),
+        #     self.pl_visual_s: pl_visual_s,
+        #     self.pl_s: pl_s,
         #     self.pl_a: a,
         #     self.pl_r: r,
-        #     self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
-        #     self.pl_s_: np.array(list(x[0] for x in s_)),
+        #     self.pl_visual_s_: pl_visual_s_,
+        #     self.pl_s_: pl_s_,
         #     self.episode: episode,
         #     self.sigma_offset: np.full(self.a_counts, 0.01)
         # })
         summaries, _ = self.sess.run([self.summaries, [self.assign_v_target, self.train_critic, self.train_actor, self.train_alpha]], feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
-            self.pl_s_: np.array(list(x[0] for x in s_)),
+            self.pl_visual_s_: pl_visual_s_,
+            self.pl_s_: pl_s_,
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })

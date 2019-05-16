@@ -11,22 +11,22 @@ initKernelAndBias = {
 
 class PG(Policy):
     def __init__(self,
-                s_dim,
-                visual_sources,
-                visual_resolutions,
-                a_dim_or_list,
-                action_type,
-                lr=5.0e-4,
-                gamma=0.99,
-                max_episode=50000,
-                batch_size=100,
-                epoch=5,
-                cp_dir=None,
-                log_dir=None,
-                excel_dir=None,
-                logger2file=False,
-                out_graph=False):
-        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
+                 s_dim,
+                 visual_sources,
+                 visual_resolutions,
+                 a_dim_or_list,
+                 action_type,
+                 lr=5.0e-4,
+                 gamma=0.99,
+                 max_episode=50000,
+                 batch_size=100,
+                 epoch=5,
+                 cp_dir=None,
+                 log_dir=None,
+                 excel_dir=None,
+                 logger2file=False,
+                 out_graph=False):
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
         self.epoch = epoch
         self.gamma = gamma
         self.batch_size = batch_size
@@ -39,8 +39,9 @@ class PG(Policy):
             self.entropy = self.norm_dist.entropy()
             self.action = tf.identity(self.sample_op, name='action')
             log_act_prob = self.norm_dist.log_prob(self.pl_a)
+            net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pg')
             self.loss = tf.reduce_mean(log_act_prob * self.dc_r)
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, global_step=self.global_step)
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=net_vars + self.conv_vars, global_step=self.global_step)
 
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(self.loss))
             tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
@@ -108,16 +109,18 @@ class PG(Policy):
         return norm_dist
 
     def choose_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
     def choose_inference_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
@@ -139,9 +142,10 @@ class PG(Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, a, dc_r = self.get_sample_data()
+            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.pl_visual_s: np.array(list(x[-1] for x in s)),
-                self.pl_s: np.array(list(x[0] for x in s)),
+                self.pl_visual_s: pl_visual_s,
+                self.pl_s: pl_s,
                 self.pl_a: a,
                 self.dc_r: dc_r,
                 self.episode: episode,

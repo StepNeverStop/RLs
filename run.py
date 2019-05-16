@@ -99,7 +99,7 @@ def run():
     elif options['--algorithm'] == 'dqn':
         algorithm_config = Algorithms.dqn_config
         model = Algorithms.DQN
-        policy_mode = 'OFF' 
+        policy_mode = 'OFF'
     else:
         raise Exception("Don't have this algorithm.")
 
@@ -124,7 +124,7 @@ def run():
         max_step = int(options['--max-step'])
     brain_names = env.external_brain_names
     brains = env.brains
-    
+
     models = [model(
         s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
         visual_sources=brains[i].number_visual_observations,
@@ -135,7 +135,7 @@ def run():
         log_dir=os.path.join(base_dir, i, 'log'),
         excel_dir=os.path.join(base_dir, i, 'excel'),
         logger2file=False,
-        out_graph=False,
+        out_graph=True,
         **algorithm_config
     ) for i in brain_names]
     [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]

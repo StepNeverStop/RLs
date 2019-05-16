@@ -26,7 +26,7 @@ class TD3(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim,visual_sources,visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.gamma = gamma
         self.ployak = ployak
         with self.graph.as_default():
@@ -62,9 +62,9 @@ class TD3(Policy):
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_q1 = optimizer.minimize(self.q1_loss, var_list=q1_var)
             self.train_q2 = optimizer.minimize(self.q2_loss, var_list=q2_var)
-            self.train_value = optimizer.minimize(self.critic_loss)
+            self.train_value = optimizer.minimize(self.critic_loss, var_list=q1_var + q2_var + self.conv_vars)
             with tf.control_dependencies([self.train_value]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars, global_step=self.global_step)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars + self.conv_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_actor]):
                 self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_var, self.q1_var)])
                 self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_var, self.q2_var)])
@@ -163,15 +163,17 @@ class TD3(Policy):
         return q1, var
 
     def choose_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s))
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s
         })
 
     def choose_inference_action(self, s):
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         return self.sess.run(self.mu, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s))
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s
         })
 
     def store_data(self, s, a, r, s_, done):
@@ -179,22 +181,24 @@ class TD3(Policy):
 
     def learn(self, episode):
         s, a, r, s_, _ = self.data.sample()
+        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         self.sess.run(self.train_value, feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
-            self.pl_s_: np.array(list(x[0] for x in s_)),
+            self.pl_visual_s_: pl_visual_s_,
+            self.pl_s_: pl_s_,
             self.episode: episode
         })
         summaries, _ = self.sess.run([self.summaries, [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]], feed_dict={
-            self.pl_visual_s: np.array(list(x[-1] for x in s)),
-            self.pl_s: np.array(list(x[0] for x in s)),
+            self.pl_visual_s: pl_visual_s,
+            self.pl_s: pl_s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: np.array(list(x[-1] for x in s_)),
-            self.pl_s_: np.array(list(x[0] for x in s_)),
+            self.pl_visual_s_: pl_visual_s_,
+            self.pl_s_: pl_s_,
             self.episode: episode
         })
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
