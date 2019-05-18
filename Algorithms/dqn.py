@@ -42,8 +42,8 @@ class DQN(Policy):
             self.q_next, self.q_target_var = self._build_q_net('q_target', self.s_, trainable=False)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
-            self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)
-            self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1))
+            self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
+            self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
             q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')

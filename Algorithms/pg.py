@@ -33,18 +33,25 @@ class PG(Policy):
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
-            self.norm_dist = self._build_net('pg')
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
-            self.entropy = self.norm_dist.entropy()
+            if self.action_type == 'continuous':
+                self.norm_dist = self._build_continuous_net('pg')
+                self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
+                log_act_prob = self.norm_dist.log_prob(self.pl_a)
+                self.entropy = self.norm_dist.entropy()
+                tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
+            else:
+                self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
+                self._build_discrete_net('pg')
+                log_act_prob = tf.log(tf.reduce_max(self.action_probs, axis=1))[:, np.newaxis]
+                self.sample_op = tf.argmax(self.action_probs, axis=1)
+
             self.action = tf.identity(self.sample_op, name='action')
-            log_act_prob = self.norm_dist.log_prob(self.pl_a)
             net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pg')
             self.loss = tf.reduce_mean(log_act_prob * self.dc_r)
             self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=net_vars + self.conv_vars, global_step=self.global_step)
 
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(self.loss))
-            tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
@@ -68,7 +75,31 @@ class PG(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def _build_net(self, name):
+    def _build_discrete_net(self, name):
+        with tf.variable_scope(name):
+            actor1 = tf.layers.dense(
+                inputs=self.s,
+                units=128,
+                activation=self.activation_fn,
+                name='actor1',
+                **initKernelAndBias
+            )
+            actor2 = tf.layers.dense(
+                inputs=actor1,
+                units=64,
+                activation=self.activation_fn,
+                name='actor2',
+                **initKernelAndBias
+            )
+            self.action_probs = tf.layers.dense(
+                inputs=actor2,
+                units=self.a_counts,
+                activation=tf.nn.softmax,
+                name='action_probs',
+                **initKernelAndBias
+            )
+
+    def _build_continuous_net(self, name):
         with tf.variable_scope(name):
             actor1 = tf.layers.dense(
                 inputs=self.s,
@@ -109,20 +140,32 @@ class PG(Policy):
         return norm_dist
 
     def choose_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
-            self.sigma_offset: np.full(self.a_counts, 0.01)
-        })
+        if self.action_type == 'continuous':
+            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+            return self.sess.run(self.action, feed_dict={
+                self.pl_visual_s: pl_visual_s,
+                self.pl_s: pl_s,
+                self.sigma_offset: np.full(self.a_counts, 0.01)
+            })
+        else:
+            if np.random.uniform() < 0.2:
+                a = np.random.randint(0, self.a_counts, len(s))
+            else:
+                pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+                a = self.sess.run(self.action, feed_dict={
+                    self.pl_visual_s: pl_visual_s,
+                    self.pl_s: pl_s
+                })
+            return sth.int2action_index(a, self.action_multiplication_factor)
 
     def choose_inference_action(self, s):
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        return self.sess.run(self.action, feed_dict={
+        a = self.sess.run(self.action, feed_dict={
             self.pl_visual_s: pl_visual_s,
             self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.action_multiplication_factor)
 
     def store_data(self, s, a, r, s_, done):
         self.on_store(s, a, r, s_, done)
@@ -146,7 +189,7 @@ class PG(Policy):
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
                 self.pl_visual_s: pl_visual_s,
                 self.pl_s: pl_s,
-                self.pl_a: a,
+                self.pl_a: a if self.action_type == 'continuous' else sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts),
                 self.dc_r: dc_r,
                 self.episode: episode,
                 self.sigma_offset: np.full(self.a_counts, 0.01)

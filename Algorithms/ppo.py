@@ -41,14 +41,20 @@ class PPO(Policy):
             self.dc_r = tf.placeholder(tf.float32, [None, 1], 'discounted_reward')
             self.advantage = tf.placeholder(tf.float32, [None, 1], "advantage")
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
-            self.norm_dist = self._build_net('ppo')
-            self.old_prob = tf.placeholder(tf.float32, [None, self.a_counts], 'old_prob')
+            self.old_prob = tf.placeholder(tf.float32, [None, 1], 'old_prob')
+            if self.action_type == 'continuous':
+                self.norm_dist = self._build_continuous_net('ppo')
+                self.new_prob = tf.reduce_mean(self.norm_dist.prob(self.pl_a), axis=1)[:, np.newaxis]
+                self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
+                self.entropy = self.norm_dist.entropy()
+                tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
+            else:
+                self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
+                self._build_discrete_net('ppo')
+                self.new_prob = tf.reduce_max(self.action_probs, axis=1)[:, np.newaxis]
+                self.sample_op = tf.argmax(self.action_probs, axis=1)
 
-            self.new_prob = self.norm_dist.prob(self.pl_a)
-
-            self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.action = tf.identity(self.sample_op, name='action')
-            self.entropy = self.norm_dist.entropy()
             # ratio = tf.exp(self.new_prob - self.old_prob)
             ratio = self.new_prob / self.old_prob
             surrogate = ratio * self.advantage
@@ -60,12 +66,14 @@ class PPO(Policy):
                     tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * self.advantage
                 ))
             self.value_loss = tf.reduce_mean(tf.squared_difference(self.dc_r, self.value))
-            self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * tf.reduce_mean(self.entropy))
+            if self.action_type == 'continuous':
+                self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * tf.reduce_mean(self.entropy))
+            else:
+                self.loss = self.value_loss - self.actor_loss
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, var_list=net_vars + self.conv_vars, global_step=self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.value_loss))
-            tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
@@ -88,7 +96,66 @@ class PPO(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def _build_net(self, name):
+    def _build_discrete_net(self, name):
+        with tf.variable_scope(name):
+            share1 = tf.layers.dense(
+                inputs=self.s,
+                units=512,
+                activation=self.activation_fn,
+                name='share1',
+                **initKernelAndBias
+            )
+            share2 = tf.layers.dense(
+                inputs=share1,
+                units=256,
+                activation=self.activation_fn,
+                name='share2',
+                **initKernelAndBias
+            )
+            actor1 = tf.layers.dense(
+                inputs=share2,
+                units=128,
+                activation=self.activation_fn,
+                name='actor1',
+                **initKernelAndBias
+            )
+            actor2 = tf.layers.dense(
+                inputs=actor1,
+                units=64,
+                activation=self.activation_fn,
+                name='actor2',
+                **initKernelAndBias
+            )
+            self.action_probs = tf.layers.dense(
+                inputs=actor2,
+                units=self.a_counts,
+                activation=tf.nn.softmax,
+                name='action_probs',
+                **initKernelAndBias
+            )
+            critic1 = tf.layers.dense(
+                inputs=share2,
+                units=128,
+                activation=self.activation_fn,
+                name='critic1',
+                **initKernelAndBias
+            )
+            critic2 = tf.layers.dense(
+                inputs=critic1,
+                units=64,
+                activation=self.activation_fn,
+                name='critic2',
+                **initKernelAndBias
+            )
+            self.value = tf.layers.dense(
+                inputs=critic2,
+                units=1,
+                activation=None,
+                name='value',
+                **initKernelAndBias
+            )
+
+    def _build_continuous_net(self, name):
         with tf.variable_scope(name):
             share1 = tf.layers.dense(
                 inputs=self.s,
@@ -164,20 +231,32 @@ class PPO(Policy):
         return norm_dist
 
     def choose_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
-            self.sigma_offset: np.full(self.a_counts, 0.01)
-        })
+        if self.action_type == 'continuous':
+            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+            return self.sess.run(self.action, feed_dict={
+                self.pl_visual_s: pl_visual_s,
+                self.pl_s: pl_s,
+                self.sigma_offset: np.full(self.a_counts, 0.01)
+            })
+        else:
+            if np.random.uniform() < self.epsilon:
+                a = np.random.randint(0, self.a_counts, len(s))
+            else:
+                pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+                a = self.sess.run(self.action, feed_dict={
+                    self.pl_visual_s: pl_visual_s,
+                    self.pl_s: pl_s
+                })
+            return sth.int2action_index(a, self.action_multiplication_factor)
 
     def choose_inference_action(self, s):
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        return self.sess.run(self.action, feed_dict={
+        a = self.sess.run(self.action, feed_dict={
             self.pl_visual_s: pl_visual_s,
             self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.action_multiplication_factor)
 
     def store_data(self, s, a, r, s_, done):
         assert isinstance(a, np.ndarray)
@@ -193,7 +272,7 @@ class PPO(Policy):
             's_': s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: npl_visual_s,
+                self.pl_visual_s: pl_visual_s,
                 self.pl_s: pl_s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
@@ -205,7 +284,7 @@ class PPO(Policy):
             'prob': self.sess.run(self.new_prob, feed_dict={
                 self.pl_visual_s: pl_visual_s,
                 self.pl_s: pl_s,
-                self.pl_a: a,
+                self.pl_a: a if self.action_type == 'continuous' else sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts),
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
         }, ignore_index=True)
@@ -246,7 +325,7 @@ class PPO(Policy):
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
                 self.pl_visual_s: pl_visual_s,
                 self.pl_s: pl_s,
-                self.pl_a: a,
+                self.pl_a: a if self.action_type == 'continuous' else sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts),
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,
                 self.advantage: advantage,

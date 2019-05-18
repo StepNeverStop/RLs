@@ -43,6 +43,7 @@ class Policy(object):
             1 if visual_resolutions[0]['blackAndWhite'] else 3
         ] if visual_sources else [0]
         self.a_dim_or_list = a_dim_or_list
+        self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
         self.max_episode = max_episode
         self.cp_dir = cp_dir
