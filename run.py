@@ -39,6 +39,7 @@ def run():
     options = docopt(__doc__)
     print(options)
     reset_config = train_config['reset_config']
+    max_step = train_config['max_step']
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
     if options['--env'] != 'None':
@@ -70,7 +71,6 @@ def run():
     else:
         env = UnityEnvironment()
         env_name = 'unity'
-        max_step = train_config['max_step']
 
     if options['--algorithm'] == 'pg':
         algorithm_config = Algorithms.pg_config
@@ -135,10 +135,9 @@ def run():
         log_dir=os.path.join(base_dir, i, 'log'),
         excel_dir=os.path.join(base_dir, i, 'excel'),
         logger2file=False,
-        out_graph=True,
+        out_graph=False,
         **algorithm_config
     ) for i in brain_names]
-    [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
 
     begin_episode = models[0].get_init_step()
     max_episode = models[0].get_max_episode()
@@ -146,6 +145,7 @@ def run():
     if options['--inference']:
         Loop.inference(env, brain_names, models, reset_config=reset_config)
     else:
+        [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
         try:
             params = {
                 'env': env,

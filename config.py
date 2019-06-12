@@ -6,6 +6,7 @@ unity_file = {
     },
     'RollerBall': {
         'OneFloor': r'C:/UnityBuild/RollerBall/OneFloor/RollerBall-custom.exe',
+        'PureCamera': r'C:\UnityBuild\RollerBall\PureCamera\train.exe'
     },
     'Boat': {
         'first': r'C:/UnityBuild/Boat/first/BoatTrain.exe',
@@ -18,11 +19,11 @@ unity_file = {
 
 train_config = {
     'base_dir': r'C:/RLData' if platform.system() == "Windows" else r'/RLData',
-    'exe_file': unity_file['Boat']['second'],
+    'exe_file': unity_file['RollerBall']['PureCamera'],
     'reset_config': {
-        'copy':10
+        'copy': 5
     },
-    'save_frequency': 50,
+    'save_frequency': 20,
     'max_episode': 50000,
     'max_step': 10000,
     'name': '0'
