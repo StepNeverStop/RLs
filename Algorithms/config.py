@@ -11,8 +11,19 @@ pg_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'max_episode': 50000,
-    'batch_size': 100,
-    'epoch': 5
+    'batch_size': 500,
+    'epoch': 1
+}
+ac_config={
+    'lr': 5.0e-4,
+    'gamma': 0.99,
+    'max_episode': 50000
+}
+a2c_config = {
+    'lr': 5.0e-4,
+    'gamma': 0.99,
+    'max_episode': 50000,
+    'batch_size': 500,
 }
 ppo_config = {
     'epsilon': 0.2,
@@ -47,8 +58,8 @@ sac_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 100,
-    'buffer_size': 10000
+    'batch_size': 1000,
+    'buffer_size': 100000
 }
 sac_no_v_config = {
     'alpha': 0.2,

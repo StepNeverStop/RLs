@@ -77,8 +77,9 @@ class sth(object):
     @staticmethod
     def get_batch_one_hot(action, action_multiplication_factor, cols):
         """
-        input: [2, 1], [3, 1], 9
-        output: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+        input: [[2, 1],[2, 0]], [3, 1], 9
+        output: [[0, 0, 0, 0, 0, 0, 0, 1, 0],
+                 [0, 0, 0, 0, 0, 0, 1, 0, 0]]
         """
         assert isinstance(action, np.ndarray)
         assert isinstance(action_multiplication_factor, np.ndarray)
@@ -91,6 +92,7 @@ class sth(object):
     @staticmethod
     def index2action(action_index, action_list):
         """
+        let actions' value between -1 and 1, if action_lict is [3,3], means that every dimension has 3 actions average from -1 to 1, like [-1, 0, 1], so index [0, 2] means action value [-1, 1]
         input: [0, 2], [3, 3]
         output: [-1, 1]
         """

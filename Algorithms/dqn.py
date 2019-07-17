@@ -127,7 +127,7 @@ class DQN(Policy):
         )
 
     def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r, s_, done)
+        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
 
     def learn(self, episode):
         s, a, r, s_, done = self.data.sample()

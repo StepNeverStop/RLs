@@ -60,8 +60,8 @@ class TD3(Policy):
             actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=q1_var)
-            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=q2_var)
+            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=q1_var + self.conv_vars)
+            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=q2_var + self.conv_vars)
             self.train_value = optimizer.minimize(self.critic_loss, var_list=q1_var + q2_var + self.conv_vars)
             with tf.control_dependencies([self.train_value]):
                 self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars + self.conv_vars, global_step=self.global_step)
@@ -177,7 +177,7 @@ class TD3(Policy):
         })
 
     def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r, s_, done)
+        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
 
     def learn(self, episode):
         s, a, r, s_, _ = self.data.sample()

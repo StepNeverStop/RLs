@@ -6,3 +6,5 @@ from .sac_no_v import SAC_NO_V
 from .td3 import TD3
 from .pg import PG
 from .dqn import DQN
+from .ac import AC
+from .a2c import A2C

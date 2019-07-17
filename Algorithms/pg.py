@@ -37,14 +37,14 @@ class PG(Policy):
             if self.action_type == 'continuous':
                 self.norm_dist = self._build_continuous_net('pg')
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
-                log_act_prob = self.norm_dist.log_prob(self.pl_a)
+                log_act_prob = tf.reduce_mean(self.norm_dist.log_prob(self.pl_a), axis=1)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
                 self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
                 self._build_discrete_net('pg')
-                log_act_prob = tf.log(tf.reduce_max(self.action_probs, axis=1))[:, np.newaxis]
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
+                log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
 
             self.action = tf.identity(self.sample_op, name='action')
             net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pg')
@@ -172,7 +172,10 @@ class PG(Policy):
 
     def calculate_statistics(self):
         self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
-        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, 0, self.data.done.values)
+        a = np.array(sth.discounted_sum(self.data.r.values, self.gamma, 0, self.data.done.values))
+        a -= np.mean(a)
+        a /= np.std(a)
+        self.data['discounted_reward'] = list(a)
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data

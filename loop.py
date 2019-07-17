@@ -5,7 +5,10 @@ import numpy as np
 class Loop(object):
 
     @staticmethod
-    def train_OnPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+    def train_perEpisode(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+        """
+        usually on-policy algorithms, i.e. pg, ppo
+        """
         brains_num = len(brain_names)
         state = [0] * brains_num
         action = [0] * brains_num
@@ -57,6 +60,7 @@ class Loop(object):
                         models[i].writer_summary(
                             episode,
                             total_reward=rewards[i].mean(),
+                            step=step
                         )
                     break
             print(f'episode {episode} step {step}')
@@ -65,7 +69,11 @@ class Loop(object):
                     models[i].save_checkpoint(episode)
 
     @staticmethod
-    def train_OffPolicy(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+    def train_perStep(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+        """
+        usually off-policy algorithms with replay buffer, i.e. dqn, ddpg, td3, sac
+        also used for some on-policy algorithms, i.e. ac, a2c
+        """
         brains_num = len(brain_names)
         state = [0] * brains_num
         action = [0] * brains_num
@@ -105,9 +113,9 @@ class Loop(object):
                     models[i].store_data(
                         s=state[i],
                         a=action[i],
-                        r=np.array(obs[brain_name].rewards)[:, np.newaxis],
+                        r=np.array(obs[brain_name].rewards),
                         s_=ss,
-                        done=np.array(obs[brain_name].local_done)[:, np.newaxis]
+                        done=np.array(obs[brain_name].local_done)
                     )
                     state[i] = ss
                     models[i].learn(episode)
@@ -118,7 +126,8 @@ class Loop(object):
             for i in range(brains_num):
                 models[i].writer_summary(
                     episode,
-                    total_reward=rewards[i].mean()
+                    total_reward=rewards[i].mean(),
+                    step=step
                 )
             if episode % save_frequency == 0:
                 for i in range(brains_num):
@@ -126,6 +135,9 @@ class Loop(object):
 
     @staticmethod
     def inference(env, brain_names, models, reset_config):
+        """
+        inference mode. algorithm model will not be train, only used to show agents' behavior
+        """
         brains_num = len(brain_names)
         state = [0] * brains_num
         action = [0] * brains_num

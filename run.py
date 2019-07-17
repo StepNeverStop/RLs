@@ -75,31 +75,48 @@ def run():
     if options['--algorithm'] == 'pg':
         algorithm_config = Algorithms.pg_config
         model = Algorithms.PG
-        policy_mode = 'ON'
+        policy_mode = 'on-policy'
+        train_mode = 'perEpisode'
+    elif options['--algorithm'] == 'ac':
+        algorithm_config = Algorithms.ac_config
+        model = Algorithms.AC
+        policy_mode = 'on-policy'
+        train_mode = 'perStep'
+    elif options['--algorithm'] == 'a2c':
+        algorithm_config = Algorithms.a2c_config
+        model = Algorithms.A2C
+        policy_mode = 'on-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'ppo':
         algorithm_config = Algorithms.ppo_config
         model = Algorithms.PPO
-        policy_mode = 'ON'
+        policy_mode = 'on-policy'
+        train_mode = 'perEpisode'
     elif options['--algorithm'] == 'ddpg':
         algorithm_config = Algorithms.ddpg_config
         model = Algorithms.DDPG
-        policy_mode = 'OFF'
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'td3':
         algorithm_config = Algorithms.td3_config
         model = Algorithms.TD3
-        policy_mode = 'OFF'
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'sac':
         algorithm_config = Algorithms.sac_config
         model = Algorithms.SAC
-        policy_mode = 'OFF'
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'sac_no_v':
         algorithm_config = Algorithms.sac_no_v_config
         model = Algorithms.SAC_NO_V
-        policy_mode = 'OFF'
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'dqn':
         algorithm_config = Algorithms.dqn_config
         model = Algorithms.DQN
-        policy_mode = 'OFF'
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     else:
         raise Exception("Don't have this algorithm.")
 
@@ -135,7 +152,7 @@ def run():
         log_dir=os.path.join(base_dir, i, 'log'),
         excel_dir=os.path.join(base_dir, i, 'excel'),
         logger2file=False,
-        out_graph=False,
+        out_graph=True,
         **algorithm_config
     ) for i in brain_names]
 
@@ -157,10 +174,10 @@ def run():
                 'max_step': max_step,
                 'max_episode': max_episode
             }
-            if policy_mode == 'ON':
-                Loop.train_OnPolicy(**params)
+            if train_mode == 'perEpisode':
+                Loop.train_perEpisode(**params)
             else:
-                Loop.train_OffPolicy(**params)
+                Loop.train_perStep(**params)
         except Exception as e:
             print(e)
         finally:

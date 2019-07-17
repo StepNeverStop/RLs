@@ -54,8 +54,14 @@ class Policy(object):
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
         self.init_step = self.get_init_step()
 
+        '''
+        the biggest diffenernce between policy_modes(ON and OFF) is 'OFF' mode need raise the dimension
+        of 'r' and 'done'.
+        'ON' mode means program will call on_store function and use pandas dataframe to store data.
+        'OFF' mode will call off_store function and use replay buffer to store data.
+        '''
         if self.policy_mode == 'ON':
-            self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_'])
+            self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
         elif self.policy_mode == 'OFF':
             self.data = ReplayBuffer(self.batch_size, self.buffer_size)
         else:
