@@ -22,4 +22,18 @@ Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
 ```
 
+For now, those algorithms are available:
+- continuous and discrete
+- - Policy Gradient, PG, continuous and discrete
+- - Actor Critic, AC, continuous and discrete
+- - Advantage Actor Critic, A2C, continuous and discrete
+- - Proximal Policy Optimization, PPO, continuous and discrete
+- continuous
+- - Soft Actor Critic, SAC, continuous
+- - Twin Delayed Deep Deterministic Policy Gradient, TD3, continuous
+- discrete
+- Deep Q-learning Network, DQN, discrete
+- Deep Deterministic Policy Gradient, DDPG, discrete
+
+
 Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).

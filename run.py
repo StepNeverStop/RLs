@@ -77,6 +77,11 @@ def run():
         model = Algorithms.PG
         policy_mode = 'on-policy'
         train_mode = 'perEpisode'
+    elif options['--algorithm'] == 'offpg':
+        algorithm_config = Algorithms.offpg_config
+        model = Algorithms.OFFPG
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
     elif options['--algorithm'] == 'ac':
         algorithm_config = Algorithms.ac_config
         model = Algorithms.AC
@@ -110,6 +115,11 @@ def run():
     elif options['--algorithm'] == 'sac_no_v':
         algorithm_config = Algorithms.sac_no_v_config
         model = Algorithms.SAC_NO_V
+        policy_mode = 'off-policy'
+        train_mode = 'perStep'
+    elif options['--algorithm'] == 'std':
+        algorithm_config = Algorithms.std_config
+        model = Algorithms.STD
         policy_mode = 'off-policy'
         train_mode = 'perStep'
     elif options['--algorithm'] == 'dqn':

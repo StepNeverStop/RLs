@@ -8,3 +8,5 @@ from .pg import PG
 from .dqn import DQN
 from .ac import AC
 from .a2c import A2C
+from .offpg import OFFPG
+from .std import STD

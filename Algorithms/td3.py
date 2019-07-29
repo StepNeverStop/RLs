@@ -1,11 +1,7 @@
 import numpy as np
 import tensorflow as tf
+import Nn
 from Algorithms.algorithm_base import Policy
-
-initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0., .1),
-    'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
-}
 
 
 class TD3(Policy):
@@ -32,49 +28,54 @@ class TD3(Policy):
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
 
-            self.mu, self.action, self.actor_var = self._build_actor_net('actor', self.s, trainable=True)
+            self.mu, self.action = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True)
             tf.identity(self.mu, 'action')
-            self.target_mu, self.action_target, self.actor_target_var = self._build_actor_net('actor_target', self.s_, trainable=False)
+            self.target_mu, self.action_target = Nn.actor_dpg('actor_target', self.s_, self.a_counts, trainable=False)
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
             self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
 
-            self.q1, self.q1_var = self._build_q_net('q1', self.s_a, True, reuse=False)
-            self.q1_actor, _ = self._build_q_net('q1', self.s_mu, True, reuse=True)
-            self.q1_target, self.q1_target_var = self._build_q_net('q1_target', self.s_a_target, False, reuse=False)
+            self.q1 = Nn.critic_q_one('q1', self.s_a, True, reuse=False)
+            self.q1_actor = Nn.critic_q_one('q1', self.s_mu, True, reuse=True)
+            self.q1_target = Nn.critic_q_one('q1_target', self.s_a_target, False, reuse=False)
 
-            self.q2, self.q2_var = self._build_q_net('q2', self.s_a, True, reuse=False)
-            self.q2_target, self.q2_target_var = self._build_q_net('q2_target', self.s_a_target, False, reuse=False)
+            self.q2 = Nn.critic_q_one('q2', self.s_a, True, reuse=False)
+            self.q2_target = Nn.critic_q_one('q2_target', self.s_a_target, False, reuse=False)
 
             self.q_target = tf.minimum(self.q1_target, self.q2_target)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
 
             self.q1_loss = tf.reduce_mean(tf.squared_difference(self.q1, self.dc_r))
             self.q2_loss = tf.reduce_mean(tf.squared_difference(self.q2, self.dc_r))
-            self.critic_loss = 0.5 * self.q1_loss + 0.5 * self.q2_loss
+            self.critic_loss = 0.5 * (self.q1_loss + self.q2_loss)
             self.actor_loss = -tf.reduce_mean(self.q1_actor)
 
-            q1_var = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
-            q2_var = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
-            actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
+            self.q1_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1')
+            self.q1_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1_target')
+            self.q2_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2')
+            self.q2_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2_target')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
+            self.actor_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_target')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=q1_var + self.conv_vars)
-            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=q2_var + self.conv_vars)
-            self.train_value = optimizer.minimize(self.critic_loss, var_list=q1_var + q2_var + self.conv_vars)
+            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars + self.conv_vars)
+            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars + self.conv_vars)
+            self.train_value = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.conv_vars)
             with tf.control_dependencies([self.train_value]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=actor_vars + self.conv_vars, global_step=self.global_step)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_actor]):
-                self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_var, self.q1_var)])
-                self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_var, self.q2_var)])
-                self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_var, self.actor_var)])
+                self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
+                self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])
+                self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
+            self.train_sequence = [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]
             # self.assign_q1_target = [
-            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q1_target_var, self.q1_var)]
+            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)]
             # self.assign_q2_target = [
-            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q2_target_var, self.q2_var)]
+            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)]
             # self.assign_actor_target = [
-            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.actor_target_var, self.actor_var)]
+            #     tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)]
+
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.critic_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
@@ -98,69 +99,6 @@ class TD3(Policy):
 　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　
             ''')
             self.init_or_restore(cp_dir)
-
-    def _build_actor_net(self, name, input_vector, trainable):
-        with tf.variable_scope(name):
-            actor1 = tf.layers.dense(
-                inputs=input_vector,
-                units=128,
-                activation=self.activation_fn,
-                name='actor1',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            actor2 = tf.layers.dense(
-                inputs=actor1,
-                units=64,
-                activation=self.activation_fn,
-                name='actor2',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            mu = tf.layers.dense(
-                inputs=actor2,
-                units=self.a_counts,
-                activation=tf.nn.tanh,
-                name='mu',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            e = tf.random_normal(tf.shape(mu))
-            action = tf.clip_by_value(mu + e, -1, 1)
-            var = tf.get_variable_scope().global_variables()
-        return mu, action, var
-
-    def _build_q_net(self, name, input_vector, trainable, reuse=False):
-        with tf.variable_scope(name):
-            layer1 = tf.layers.dense(
-                inputs=input_vector,
-                units=256,
-                activation=self.activation_fn,
-                name='layer1',
-                trainable=trainable,
-                reuse=reuse,
-                **initKernelAndBias
-            )
-            layer2 = tf.layers.dense(
-                inputs=layer1,
-                units=256,
-                activation=self.activation_fn,
-                name='layer2',
-                trainable=trainable,
-                reuse=reuse,
-                **initKernelAndBias
-            )
-            q1 = tf.layers.dense(
-                inputs=layer2,
-                units=1,
-                activation=None,
-                name='q_value',
-                trainable=trainable,
-                reuse=reuse,
-                **initKernelAndBias
-            )
-            var = tf.get_variable_scope().global_variables()
-        return q1, var
 
     def choose_action(self, s):
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
@@ -192,7 +130,7 @@ class TD3(Policy):
             self.pl_s_: pl_s_,
             self.episode: episode
         })
-        summaries, _ = self.sess.run([self.summaries, [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]], feed_dict={
+        summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
             self.pl_visual_s: pl_visual_s,
             self.pl_s: pl_s,
             self.pl_a: a,

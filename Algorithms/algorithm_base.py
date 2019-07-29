@@ -4,16 +4,11 @@ sys.path.append('..')
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import Nn
 from utils.recorder import Recorder
 from utils.replay_buffer import ReplayBuffer
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
-
-initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0., .1),
-    'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
-}
-
 
 class Policy(object):
     _version_number_ = 2
@@ -47,7 +42,6 @@ class Policy(object):
         self.a_counts = np.array(a_dim_or_list).prod()
         self.max_episode = max_episode
         self.cp_dir = cp_dir
-        self.activation_fn = tf.nn.tanh
         self.policy_mode = policy_mode
         self.batch_size = batch_size
         self.buffer_size = buffer_size
@@ -83,8 +77,8 @@ class Policy(object):
             self.episode = tf.Variable(tf.constant(0))
             self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
             if visual_sources:
-                self.s = tf.concat((self._built_visual_feature_net('visual_net', self.pl_visual_s), self.pl_s), axis=1)
-                self.s_ = tf.concat((self._built_visual_feature_net('visual_net', self.pl_visual_s_), self.pl_s_), axis=1)
+                self.s = tf.concat((Nn.visual_nn('visual_net', self.pl_visual_s), self.pl_s), axis=1)
+                self.s_ = tf.concat((Nn.visual_nn('visual_net', self.pl_visual_s_), self.pl_s_), axis=1)
                 self.conv_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='visual_net')
             else:
                 self.s = self.pl_s

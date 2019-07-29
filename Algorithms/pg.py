@@ -1,12 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import Nn
 from utils.sth import sth
 from Algorithms.algorithm_base import Policy
-
-initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0., .1),
-    'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
-}
 
 
 class PG(Policy):
@@ -35,21 +31,22 @@ class PG(Policy):
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             if self.action_type == 'continuous':
-                self.norm_dist = self._build_continuous_net('pg')
+                self.mu, self.sigma = Nn.actor_continuous('pg', self.s, self.a_counts)
+                self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 log_act_prob = tf.reduce_mean(self.norm_dist.log_prob(self.pl_a), axis=1)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
                 self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
-                self._build_discrete_net('pg')
+                self.action_probs = Nn.actor_discrete('pg', self.s, self.a_counts)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
 
             self.action = tf.identity(self.sample_op, name='action')
-            net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pg')
+            self.net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='pg')
             self.loss = tf.reduce_mean(log_act_prob * self.dc_r)
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=net_vars + self.conv_vars, global_step=self.global_step)
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=self.net_vars + self.conv_vars, global_step=self.global_step)
 
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(self.loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
@@ -74,70 +71,6 @@ class PG(Policy):
 　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　
             ''')
             self.init_or_restore(cp_dir)
-
-    def _build_discrete_net(self, name):
-        with tf.variable_scope(name):
-            actor1 = tf.layers.dense(
-                inputs=self.s,
-                units=128,
-                activation=self.activation_fn,
-                name='actor1',
-                **initKernelAndBias
-            )
-            actor2 = tf.layers.dense(
-                inputs=actor1,
-                units=64,
-                activation=self.activation_fn,
-                name='actor2',
-                **initKernelAndBias
-            )
-            self.action_probs = tf.layers.dense(
-                inputs=actor2,
-                units=self.a_counts,
-                activation=tf.nn.softmax,
-                name='action_probs',
-                **initKernelAndBias
-            )
-
-    def _build_continuous_net(self, name):
-        with tf.variable_scope(name):
-            actor1 = tf.layers.dense(
-                inputs=self.s,
-                units=128,
-                activation=self.activation_fn,
-                name='actor1',
-                **initKernelAndBias
-            )
-            actor2 = tf.layers.dense(
-                inputs=actor1,
-                units=64,
-                activation=self.activation_fn,
-                name='actor2',
-                **initKernelAndBias
-            )
-            self.mu = tf.layers.dense(
-                inputs=actor2,
-                units=self.a_counts,
-                activation=tf.nn.tanh,
-                name='mu',
-                **initKernelAndBias
-            )
-            sigma1 = tf.layers.dense(
-                inputs=actor1,
-                units=64,
-                activation=self.activation_fn,
-                name='sigma1',
-                **initKernelAndBias
-            )
-            self.sigma = tf.layers.dense(
-                inputs=sigma1,
-                units=self.a_counts,
-                activation=tf.nn.sigmoid,
-                name='sigma',
-                **initKernelAndBias
-            )
-        norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
-        return norm_dist
 
     def choose_action(self, s):
         if self.action_type == 'continuous':

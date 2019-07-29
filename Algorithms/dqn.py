@@ -1,13 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import Nn
 from utils.sth import sth
 from Algorithms.algorithm_base import Policy
-
-initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0., .1),
-    'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
-}
-
 
 class DQN(Policy):
     def __init__(self,
@@ -16,7 +11,6 @@ class DQN(Policy):
                  visual_resolutions,
                  a_dim_or_list,
                  action_type,
-
                  lr=5.0e-4,
                  gamma=0.99,
                  epsilon=0.2,
@@ -24,7 +18,6 @@ class DQN(Policy):
                  batch_size=100,
                  buffer_size=10000,
                  assign_interval=2,
-
                  cp_dir=None,
                  log_dir=None,
                  excel_dir=None,
@@ -38,17 +31,18 @@ class DQN(Policy):
         with self.graph.as_default():
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.q, self.q_var = self._build_q_net('q', self.s, trainable=True)
-            self.q_next, self.q_target_var = self._build_q_net('q_target', self.s_, trainable=False)
+            self.q = Nn.critic_q_all('q', self.s, self.a_counts,trainable=True)
+            self.q_next= Nn.critic_q_all('q_target', self.s_, self.a_counts,trainable=False)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
             self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
-            q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
-            self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=q_vars + self.conv_vars, global_step=self.global_step)
-            self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_var, self.q_var)])
+            self.q_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q')
+            self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
+            self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
+            self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_vars, self.q_vars)])
 
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(self.q_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
@@ -75,35 +69,6 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
             ''')
             self.init_or_restore(cp_dir)
-
-    def _build_q_net(self, name, input_vector, trainable):
-        with tf.variable_scope(name):
-            layer1 = tf.layers.dense(
-                inputs=input_vector,
-                units=256,
-                activation=self.activation_fn,
-                name='layer1',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            layer2 = tf.layers.dense(
-                inputs=layer1,
-                units=256,
-                activation=self.activation_fn,
-                name='layer2',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            q = tf.layers.dense(
-                inputs=layer2,
-                units=self.a_counts,
-                activation=None,
-                name='value',
-                trainable=trainable,
-                **initKernelAndBias
-            )
-            var = tf.get_variable_scope().global_variables()
-        return q, var
 
     def choose_action(self, s):
         if np.random.uniform() < self.epsilon:
