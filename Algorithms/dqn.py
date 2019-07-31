@@ -39,7 +39,7 @@ class DQN(Policy):
             self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
-            self.q_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q')
+            self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
             self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
             self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_vars, self.q_vars)])

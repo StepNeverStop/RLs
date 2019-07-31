@@ -67,11 +67,11 @@ class SAC_NO_V(Policy):
 
             self.alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(self.a_s_log_prob - self.a_counts))
 
-            self.q1_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1')
+            self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
             self.q1_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1_target')
-            self.q2_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2')
+            self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
             self.q2_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2_target')
-            self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_net')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars)

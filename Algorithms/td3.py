@@ -51,11 +51,11 @@ class TD3(Policy):
             self.critic_loss = 0.5 * (self.q1_loss + self.q2_loss)
             self.actor_loss = -tf.reduce_mean(self.q1_actor)
 
-            self.q1_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1')
+            self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
             self.q1_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1_target')
-            self.q2_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2')
+            self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
             self.q2_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2_target')
-            self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.actor_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_target')
 
             optimizer = tf.train.AdamOptimizer(self.lr)

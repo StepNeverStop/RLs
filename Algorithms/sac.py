@@ -42,10 +42,10 @@ class SAC(Policy):
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_a_new = tf.concat((self.s, self.a_new), axis=1)
-            self.q1 = Nn.critic_q_one('q1', self.s_a, False)
-            self.q2 = Nn.critic_q_one('q2', self.s_a, False)
-            self.q1_anew = Nn.critic_q_one('q1', self.s_a_new, True)
-            self.q2_anew = Nn.critic_q_one('q2', self.s_a_new, True)
+            self.q1 = Nn.critic_q_one('q1', self.s_a, True, False)
+            self.q2 = Nn.critic_q_one('q2', self.s_a, True, False)
+            self.q1_anew = Nn.critic_q_one('q1', self.s_a_new, True, True)
+            self.q2_anew = Nn.critic_q_one('q2', self.s_a_new, True, True)
             self.v_from_q = tf.minimum(self.q1_anew, self.q2_anew) - self.alpha * self.log_prob
             self.v_from_q_stop = tf.stop_gradient(self.v_from_q)
             self.v = Nn.critic_v('v', input_vector=self.s, trainable=True)
@@ -62,8 +62,8 @@ class SAC(Policy):
 
             self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
             self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
-            self.v_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='v')
-            self.V_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='v_target')
+            self.v_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='v')
+            self.v_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='v_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
 
             optimizer = tf.train.AdamOptimizer(self.lr)

@@ -44,9 +44,9 @@ class DDPG(Policy):
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
             self.actor_loss = -tf.reduce_mean(self.q_actor)
 
-            self.q_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q')
+            self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
-            self.actor_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.actor_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_target')
 
             optimizer = tf.train.AdamOptimizer(self.lr)

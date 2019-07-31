@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0., .1),
+    'kernel_initializer': tf.random_normal_initializer(0.0, .1),
     'bias_initializer': tf.constant_initializer(0.1, dtype=tf.float32)
 }
 

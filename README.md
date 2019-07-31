@@ -23,17 +23,17 @@ Example:
 ```
 
 For now, those algorithms are available:
-- continuous and discrete
-- - Policy Gradient, PG, continuous and discrete
-- - Actor Critic, AC, continuous and discrete
-- - Advantage Actor Critic, A2C, continuous and discrete
-- - Proximal Policy Optimization, PPO, continuous and discrete
-- continuous
-- - Soft Actor Critic, SAC, continuous
-- - Twin Delayed Deep Deterministic Policy Gradient, TD3, continuous
-- discrete
-- Deep Q-learning Network, DQN, discrete
-- Deep Deterministic Policy Gradient, DDPG, discrete
+- CONTINUOUS AND DISCRETE
+- - Policy Gradient, PG
+- - Actor Critic, AC
+- - Advantage Actor Critic, A2C
+- - Proximal Policy Optimization, PPO
+- CONTINUOUS
+- - :fire:​Soft Actor Critic, SAC
+- - :fire:​Twin Delayed Deep Deterministic Policy Gradient, TD3
+- DISCRETE
+- - Deep Q-learning Network, DQN
+- - Deep Deterministic Policy Gradient, DDPG
 
 
 Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
