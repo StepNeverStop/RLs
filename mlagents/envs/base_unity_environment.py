@@ -6,11 +6,15 @@ from mlagents.envs import AllBrainInfo, BrainParameters
 
 class BaseUnityEnvironment(ABC):
     @abstractmethod
-    def step(self, vector_action=None, memory=None, text_action=None, value=None) -> AllBrainInfo:
+    def step(
+        self, vector_action=None, memory=None, text_action=None, value=None
+    ) -> AllBrainInfo:
         pass
 
     @abstractmethod
-    def reset(self, config=None, train_mode=True) -> AllBrainInfo:
+    def reset(
+        self, config=None, train_mode=True, custom_reset_parameters=None
+    ) -> AllBrainInfo:
         pass
 
     @property
@@ -25,7 +29,7 @@ class BaseUnityEnvironment(ABC):
 
     @property
     @abstractmethod
-    def reset_parameters(self) -> Dict[str, str]:
+    def reset_parameters(self) -> Dict[str, float]:
         pass
 
     @abstractmethod

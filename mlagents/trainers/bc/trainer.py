@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from mlagents.envs import AllBrainInfo
+from mlagents.trainers import ActionInfoOutputs
 from mlagents.trainers.bc.policy import BCPolicy
 from mlagents.trainers.buffer import Buffer
 from mlagents.trainers.trainer import Trainer
@@ -18,27 +19,27 @@ logger = logging.getLogger("mlagents.trainers")
 class BCTrainer(Trainer):
     """The BCTrainer is an implementation of Behavioral Cloning."""
 
-    def __init__(self, brain, trainer_parameters, training, load, seed,
-                 run_id):
+    def __init__(self, brain, trainer_parameters, training, load, seed, run_id):
         """
         Responsible for collecting experiences and training PPO model.
         :param  trainer_parameters: The parameters for the trainer (dictionary).
         :param training: Whether the trainer is set for training.
         :param load: Whether the model should be loaded.
         :param seed: The seed the model will be initialized with
-        :param run_id: The The identifier of the current run
+        :param run_id: The identifier of the current run
         """
-        super(BCTrainer, self).__init__(brain, trainer_parameters, training,
-                                        run_id)
+        super(BCTrainer, self).__init__(brain, trainer_parameters, training, run_id)
         self.policy = BCPolicy(seed, brain, trainer_parameters, load)
         self.n_sequences = 1
         self.cumulative_rewards = {}
         self.episode_steps = {}
-        self.stats = {'Losses/Cloning Loss': [], 'Environment/Episode Length': [],
-                      'Environment/Cumulative Reward': []}
+        self.stats = {
+            "Losses/Cloning Loss": [],
+            "Environment/Episode Length": [],
+            "Environment/Cumulative Reward": [],
+        }
 
-        self.batches_per_epoch = trainer_parameters['batches_per_epoch']
-
+        self.batches_per_epoch = trainer_parameters["batches_per_epoch"]
 
         self.demonstration_buffer = Buffer()
         self.evaluation_buffer = Buffer()
@@ -56,7 +57,7 @@ class BCTrainer(Trainer):
         Returns the maximum number of steps. Is used to know when the trainer should be stopped.
         :return: The maximum number of steps of the trainer
         """
-        return float(self.trainer_parameters['max_steps'])
+        return float(self.trainer_parameters["max_steps"])
 
     @property
     def get_step(self):
@@ -66,26 +67,19 @@ class BCTrainer(Trainer):
         """
         return self.policy.get_current_step()
 
-    @property
-    def get_last_reward(self):
+    def increment_step(self):
         """
-        Returns the last reward the trainer has had
-        :return: the new last reward
-        """
-        if len(self.stats['Environment/Cumulative Reward']) > 0:
-            return np.mean(self.stats['Environment/Cumulative Reward'])
-        else:
-            return 0
-
-    def increment_step_and_update_last_reward(self):
-        """
-        Increment the step count of the trainer and Updates the last reward
+        Increment the step count of the trainer
         """
         self.policy.increment_step()
         return
 
-    def add_experiences(self, curr_info: AllBrainInfo, next_info: AllBrainInfo,
-                        take_action_outputs):
+    def add_experiences(
+        self,
+        curr_info: AllBrainInfo,
+        next_info: AllBrainInfo,
+        take_action_outputs: ActionInfoOutputs,
+    ) -> None:
         """
         Adds experiences to each agent's experience history.
         :param curr_info: Current AllBrainInfo (Dictionary of all current brains and corresponding BrainInfo).
@@ -113,7 +107,9 @@ class BCTrainer(Trainer):
                         self.episode_steps[agent_id] = 0
                     self.episode_steps[agent_id] += 1
 
-    def process_experiences(self, current_info: AllBrainInfo, next_info: AllBrainInfo):
+    def process_experiences(
+        self, current_info: AllBrainInfo, next_info: AllBrainInfo
+    ) -> None:
         """
         Checks agent histories for processing condition, and processes them as necessary.
         Processing involves calculating value and advantage targets for model updating step.
@@ -124,10 +120,13 @@ class BCTrainer(Trainer):
         for l in range(len(info_student.agents)):
             if info_student.local_done[l]:
                 agent_id = info_student.agents[l]
-                self.stats['Environment/Cumulative Reward'].append(
-                    self.cumulative_rewards.get(agent_id, 0))
-                self.stats['Environment/Episode Length'].append(
-                    self.episode_steps.get(agent_id, 0))
+                self.stats["Environment/Cumulative Reward"].append(
+                    self.cumulative_rewards.get(agent_id, 0)
+                )
+                self.stats["Environment/Episode Length"].append(
+                    self.episode_steps.get(agent_id, 0)
+                )
+                self.reward_buffer.appendleft(self.cumulative_rewards.get(agent_id, 0))
                 self.cumulative_rewards[agent_id] = 0
                 self.episode_steps[agent_id] = 0
 
@@ -147,7 +146,9 @@ class BCTrainer(Trainer):
         Returns whether or not the trainer has enough elements to run update model
         :return: A boolean corresponding to whether or not update_model() can be run
         """
-        return len(self.demonstration_buffer.update_buffer['actions']) > self.n_sequences
+        return (
+            len(self.demonstration_buffer.update_buffer["actions"]) > self.n_sequences
+        )
 
     def update_policy(self):
         """
@@ -155,17 +156,19 @@ class BCTrainer(Trainer):
         """
         self.demonstration_buffer.update_buffer.shuffle()
         batch_losses = []
-        num_batches = min(len(self.demonstration_buffer.update_buffer['actions']) //
-                          self.n_sequences, self.batches_per_epoch)
+        num_batches = min(
+            len(self.demonstration_buffer.update_buffer["actions"]) // self.n_sequences,
+            self.batches_per_epoch,
+        )
         for i in range(num_batches):
             update_buffer = self.demonstration_buffer.update_buffer
             start = i * self.n_sequences
             end = (i + 1) * self.n_sequences
             mini_batch = update_buffer.make_mini_batch(start, end)
             run_out = self.policy.update(mini_batch, self.n_sequences)
-            loss = run_out['policy_loss']
+            loss = run_out["policy_loss"]
             batch_losses.append(loss)
         if len(batch_losses) > 0:
-            self.stats['Losses/Cloning Loss'].append(np.mean(batch_losses))
+            self.stats["Losses/Cloning Loss"].append(np.mean(batch_losses))
         else:
-            self.stats['Losses/Cloning Loss'].append(0)
+            self.stats["Losses/Cloning Loss"].append(0)

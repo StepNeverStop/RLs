@@ -89,6 +89,7 @@ class SAC_NO_V(Policy):
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.critic_loss))
+            tf.summary.scalar('LOSS/alpha', self.alpha)
             tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
