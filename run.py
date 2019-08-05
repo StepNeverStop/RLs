@@ -15,6 +15,7 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
     --max-step=<n>              每回合最大步长 [default: None]
+    --sampler=<file>            指定随机采样器的文件路径 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
 """
@@ -26,10 +27,24 @@ from docopt import docopt
 from config import train_config
 from utils.sth import sth
 from mlagents.envs import UnityEnvironment
+from utils.sampler import create_sampler_manager
 if sys.platform.startswith('win'):
     import win32api
     import win32con
 
+algos = {
+    'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
+    'offpg': [Algorithms.offpg_config, Algorithms.OFFPG, 'off-policy', 'perStep'],
+    'ac': [Algorithms.ac_config, Algorithms.AC, 'on-policy', 'perStep'],
+    'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
+    'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
+    'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],
+    'td3': [Algorithms.td3_config, Algorithms.TD3, 'off-policy', 'perStep'],
+    'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],
+    'sac_no_v': [Algorithms.sac_no_v_config, Algorithms.SAC_NO_V, 'off-policy', 'perStep'],
+    'std': [Algorithms.std_config, Algorithms.STD, 'off-policy', 'perStep'],
+    'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep']
+}
 
 def run():
     if sys.platform.startswith('win'):
@@ -72,62 +87,13 @@ def run():
         env = UnityEnvironment()
         env_name = 'unity'
 
-    if options['--algorithm'] == 'pg':
-        algorithm_config = Algorithms.pg_config
-        model = Algorithms.PG
-        policy_mode = 'on-policy'
-        train_mode = 'perEpisode'
-    elif options['--algorithm'] == 'offpg':
-        algorithm_config = Algorithms.offpg_config
-        model = Algorithms.OFFPG
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'ac':
-        algorithm_config = Algorithms.ac_config
-        model = Algorithms.AC
-        policy_mode = 'on-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'a2c':
-        algorithm_config = Algorithms.a2c_config
-        model = Algorithms.A2C
-        policy_mode = 'on-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'ppo':
-        algorithm_config = Algorithms.ppo_config
-        model = Algorithms.PPO
-        policy_mode = 'on-policy'
-        train_mode = 'perEpisode'
-    elif options['--algorithm'] == 'ddpg':
-        algorithm_config = Algorithms.ddpg_config
-        model = Algorithms.DDPG
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'td3':
-        algorithm_config = Algorithms.td3_config
-        model = Algorithms.TD3
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'sac':
-        algorithm_config = Algorithms.sac_config
-        model = Algorithms.SAC
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'sac_no_v':
-        algorithm_config = Algorithms.sac_no_v_config
-        model = Algorithms.SAC_NO_V
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'std':
-        algorithm_config = Algorithms.std_config
-        model = Algorithms.STD
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    elif options['--algorithm'] == 'dqn':
-        algorithm_config = Algorithms.dqn_config
-        model = Algorithms.DQN
-        policy_mode = 'off-policy'
-        train_mode = 'perStep'
-    else:
+    sampler_manager, resampling_interval = create_sampler_manager(
+        options['--sampler'], env.reset_parameters
+    )
+    
+    try:
+        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
+    except KeyError:
         raise Exception("Don't have this algorithm.")
 
     if options['--config-file'] != 'None':
@@ -170,7 +136,7 @@ def run():
     max_episode = models[0].get_max_episode()
 
     if options['--inference']:
-        Loop.inference(env, brain_names, models, reset_config=reset_config)
+        Loop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
     else:
         [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
         try:
@@ -182,7 +148,9 @@ def run():
                 'save_frequency': save_frequency,
                 'reset_config': reset_config,
                 'max_step': max_step,
-                'max_episode': max_episode
+                'max_episode': max_episode,
+                'sampler_manager': sampler_manager,
+                'resampling_interval': resampling_interval
             }
             if train_mode == 'perEpisode':
                 Loop.train_perEpisode(**params)

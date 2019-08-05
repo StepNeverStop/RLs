@@ -85,47 +85,6 @@ class Policy(object):
                 self.s_ = self.pl_s_
                 self.conv_vars = []
 
-    def _built_visual_feature_net(self, name, input_visual):
-        with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
-            conv1 = tf.layers.conv3d(
-                inputs=input_visual,
-                filters=32,
-                kernel_size=[1, 8, 8],
-                strides=[1, 4, 4],
-                padding='valid',
-                activation=self.activation_fn,
-                name='conv1',
-                **initKernelAndBias
-            )
-            conv2 = tf.layers.conv3d(
-                inputs=conv1,
-                filters=64,
-                kernel_size=[1, 4, 4],
-                strides=[1, 2, 2],
-                padding='valid',
-                activation=self.activation_fn,
-                name='conv2',
-                **initKernelAndBias
-            )
-            conv3 = tf.layers.conv3d(
-                inputs=conv2,
-                filters=64,
-                kernel_size=[1, 3, 3],
-                strides=[1, 1, 1],
-                padding='valid',
-                activation=self.activation_fn,
-                name='conv3',
-                **initKernelAndBias
-            )
-            fc1 = tf.layers.dense(
-                inputs=tf.layers.flatten(conv3),
-                units=256,
-                activation=self.activation_fn,
-                name='fc1',
-                **initKernelAndBias
-            )
-            return fc1
-
     def on_store(self, s, a, r, s_, done):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.

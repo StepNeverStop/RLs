@@ -5,7 +5,7 @@ import numpy as np
 class Loop(object):
 
     @staticmethod
-    def train_perEpisode(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+    def train_perEpisode(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
         """
         usually on-policy algorithms, i.e. pg, ppo
         """
@@ -16,6 +16,9 @@ class Loop(object):
         agents_num = [0] * brains_num
         rewards = [0] * brains_num
         for episode in range(begin_episode, max_episode):
+            if episode % resampling_interval == 0:
+                sampled_reset_param = sampler_manager.sample_all()
+            reset_config.update(sampled_reset_param)
             obs = env.reset(config=reset_config, train_mode=True)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)
@@ -69,7 +72,7 @@ class Loop(object):
                     models[i].save_checkpoint(episode)
 
     @staticmethod
-    def train_perStep(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode):
+    def train_perStep(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
         """
         usually off-policy algorithms with replay buffer, i.e. dqn, ddpg, td3, sac
         also used for some on-policy algorithms, i.e. ac, a2c
@@ -82,12 +85,15 @@ class Loop(object):
         rewards = [0] * brains_num
 
         for episode in range(begin_episode, max_episode):
+            if episode % resampling_interval == 0:
+                sampled_reset_param = sampler_manager.sample_all()
+            reset_config.update(sampled_reset_param)
             obs = env.reset(config=reset_config, train_mode=True)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-                
+
                 ss = []
                 for j in range(agents_num[i]):
                     s = []
@@ -134,7 +140,7 @@ class Loop(object):
                     models[i].save_checkpoint(episode)
 
     @staticmethod
-    def inference(env, brain_names, models, reset_config):
+    def inference(env, brain_names, models, reset_config, sampler_manager, resampling_interval):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
@@ -143,6 +149,9 @@ class Loop(object):
         action = [0] * brains_num
         agents_num = [0] * brains_num
         while True:
+            if episode % resampling_interval == 0:
+                sampled_reset_param = sampler_manager.sample_all()
+            reset_config.update(sampled_reset_param)
             obs = env.reset(config=reset_config, train_mode=False)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)
