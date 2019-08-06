@@ -99,6 +99,15 @@ def critic_q_all(name, input_vector, out_shape, trainable=True, reuse=False):
         q = tf.layers.dense(layer2, out_shape, None, name='value', trainable=trainable, reuse=reuse, **initKernelAndBias)
         return q
 
+def critic_dueling(name, input_vector, out_shape, trainable=True, reuse=False):
+    with tf.variable_scope(name):
+        layer1 = tf.layers.dense(input_vector, 256, activation_fn, name='layer1', trainable=trainable, reuse=reuse, **initKernelAndBias)
+        layer2 = tf.layers.dense(layer1, 256, activation_fn, name='layer2', trainable=trainable, reuse=reuse, **initKernelAndBias)
+        layer3 = tf.layers.dense(layer1, 256, activation_fn, name='layer3', trainable=trainable, reuse=reuse, **initKernelAndBias)
+        v = tf.layers.dense(layer2, 1, None, name='value', trainable=trainable, reuse=reuse, **initKernelAndBias)
+        a = tf.layers.dense(layer3, out_shape, None, name='advantage', trainable=trainable, reuse=reuse, **initKernelAndBias)
+        return v, a
+
 
 def a_c_v_discrete(name, input_vector, out_shape, trainable=True, reuse=False):
     '''

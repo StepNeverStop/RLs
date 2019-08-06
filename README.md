@@ -1,8 +1,8 @@
 # RLs
 
-This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0.
+:evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0.
 
-```
+"""
 Usage:
     python [options]
 
@@ -18,21 +18,24 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
     --max-step=<n>              每回合最大步长 [default: None]
+    --sampler=<file>            指定随机采样器的文件路径 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
-```
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
+"""
 
 For now, those algorithms are available:
 - CONTINUOUS AND DISCRETE
-- - Policy Gradient, PG
-- - Actor Critic, AC
+- - :bug:Policy Gradient, PG
+- - :bug:Actor Critic, AC
 - - Advantage Actor Critic, A2C
-- - Proximal Policy Optimization, PPO
+- - :boom:Proximal Policy Optimization, PPO
 - CONTINUOUS
-- - :fire:​Soft Actor Critic, SAC
-- - :fire:​Twin Delayed Deep Deterministic Policy Gradient, TD3
+- - :fire:Soft Actor Critic, SAC​​
+- - :fire:Twin Delayed Deep Deterministic Policy Gradient, TD3
 - DISCRETE
 - - Deep Q-learning Network, DQN
+- - Double Deep Q-learning Network, DDQN
+- - Dueling Double Deep Q-learning Network, DDDQN
 - - Deep Deterministic Policy Gradient, DDPG
 
 

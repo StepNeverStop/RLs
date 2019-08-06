@@ -38,7 +38,6 @@ class PG(Policy):
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
                 self.action_probs = Nn.actor_discrete('pg', self.s, self.a_counts)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
@@ -89,7 +88,7 @@ class PG(Policy):
                     self.pl_visual_s: pl_visual_s,
                     self.pl_s: pl_s
                 })
-            return sth.int2action_index(a, self.action_multiplication_factor)
+            return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s):
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
@@ -98,7 +97,7 @@ class PG(Policy):
             self.pl_s: pl_s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.action_multiplication_factor)
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def store_data(self, s, a, r, s_, done):
         self.on_store(s, a, r, s_, done)
@@ -125,7 +124,7 @@ class PG(Policy):
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
                 self.pl_visual_s: pl_visual_s,
                 self.pl_s: pl_s,
-                self.pl_a: a if self.action_type == 'continuous' else sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts),
+                self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
                 self.dc_r: dc_r,
                 self.episode: episode,
                 self.sigma_offset: np.full(self.a_counts, 0.01)

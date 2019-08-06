@@ -17,7 +17,7 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
 """
 import os
 import sys
@@ -43,7 +43,9 @@ algos = {
     'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],
     'sac_no_v': [Algorithms.sac_no_v_config, Algorithms.SAC_NO_V, 'off-policy', 'perStep'],
     'std': [Algorithms.std_config, Algorithms.STD, 'off-policy', 'perStep'],
-    'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep']
+    'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
+    'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
+    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep']
 }
 
 def run():

@@ -4,7 +4,10 @@ import Nn
 from utils.sth import sth
 from Algorithms.algorithm_base import Policy
 
-class DQN(Policy):
+class DDQN(Policy):
+    '''
+    Double DQN
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -31,11 +34,17 @@ class DQN(Policy):
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.q = Nn.critic_q_all('q', self.s, self.a_counts,trainable=True)
-            self.q_next= Nn.critic_q_all('q_target', self.s_, self.a_counts,trainable=False)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
+
+            self.q_next= Nn.critic_q_all('q', self.s_, self.a_counts,trainable=True, reuse=True)
+            self.next_max_action = tf.argmax(self.q_next, axis=1)
+            self.next_max_action_one_hot=tf.one_hot(tf.squeeze(self.next_max_action), self.a_counts,1.,0.,dtype=tf.float32)
+            self.q_target_next= Nn.critic_q_all('q_target', self.s_, self.a_counts,trainable=False)
+
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
-            self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
+            self.q_target_next_max = tf.reduce_sum(tf.multiply(self.q_target_next, self.next_max_action_one_hot), axis=1)[:, np.newaxis]
+            self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * self.q_target_next_max)
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
@@ -54,18 +63,18 @@ class DQN(Policy):
                 graph=self.graph if out_graph else None
             )
             self.recorder.logger.info('''
-    　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
-    　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘｘｘｘｘ　　ｘ　　　
-    　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　　　ｘ　ｘｘｘｘ　ｘ　　　
-    　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　ｘｘｘｘｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　　ｘｘｘｘ　　　
-    　　　　ｘｘ　　　ｘｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘ　　　　ｘｘｘ　　　
-    　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　　　ｘｘ　　　
-    　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
-    　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
-    　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
+　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
+　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
+　　　　ｘｘ　　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘ　　　
+　　　　ｘｘ　　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘｘｘｘｘ　　ｘ　　　
+　　　　ｘｘ　　　　　ｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　　　ｘ　ｘｘｘｘ　ｘ　　　
+　　　　ｘｘ　　　　　ｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　ｘｘｘｘｘ　　　
+　　　　ｘｘ　　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　　ｘｘｘｘ　　　
+　　　　ｘｘ　　　ｘｘｘｘ　　　　　　ｘｘ　　　ｘｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘ　　　　ｘｘｘ　　　
+　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　　　ｘｘ　　　
+　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　
             ''')
             self.init_or_restore(cp_dir)
 

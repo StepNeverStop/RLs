@@ -17,8 +17,7 @@ class Loop(object):
         rewards = [0] * brains_num
         for episode in range(begin_episode, max_episode):
             if episode % resampling_interval == 0:
-                sampled_reset_param = sampler_manager.sample_all()
-            reset_config.update(sampled_reset_param)
+                reset_config.update(sampler_manager.sample_all())
             obs = env.reset(config=reset_config, train_mode=True)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)
@@ -86,8 +85,7 @@ class Loop(object):
 
         for episode in range(begin_episode, max_episode):
             if episode % resampling_interval == 0:
-                sampled_reset_param = sampler_manager.sample_all()
-            reset_config.update(sampled_reset_param)
+                reset_config.update(sampler_manager.sample_all())
             obs = env.reset(config=reset_config, train_mode=True)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)
@@ -149,9 +147,8 @@ class Loop(object):
         action = [0] * brains_num
         agents_num = [0] * brains_num
         while True:
-            if episode % resampling_interval == 0:
-                sampled_reset_param = sampler_manager.sample_all()
-            reset_config.update(sampled_reset_param)
+            if np.random.uniform() < 0.2:   # the environment has probability below 0.2 to change its parameters while running in the inference mode.
+                reset_config.update(sampler_manager.sample_all())
             obs = env.reset(config=reset_config, train_mode=False)
             for i, brain_name in enumerate(brain_names):
                 agents_num[i] = len(obs[brain_name].agents)

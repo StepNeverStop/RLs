@@ -39,7 +39,6 @@ class AC(Policy):
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_multiplication_factor = sth.get_action_multiplication_factor(self.a_dim_or_list)
                 # self.pl_a_hot = tf.squeeze(
                 #     tf.one_hot(
                 #         tf.matmul(
@@ -113,7 +112,7 @@ class AC(Policy):
                     self.pl_visual_s: pl_visual_s,
                     self.pl_s: pl_s
                 })
-            return sth.int2action_index(a, self.action_multiplication_factor)
+            return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s):
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
@@ -129,7 +128,7 @@ class AC(Policy):
                 self.pl_s: pl_s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
-            return sth.int2action_index(a, self.action_multiplication_factor)
+            return sth.int2action_index(a, self.a_dim_or_list)
 
     def store_data(self, s, a, r, s_, done):
         self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
@@ -141,7 +140,7 @@ class AC(Policy):
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
             self.pl_visual_s: pl_visual_s,
             self.pl_s: pl_s,
-            self.pl_a: a if self.action_type == 'continuous' else sth.get_batch_one_hot(a, self.action_multiplication_factor, self.a_counts),
+            self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.pl_r: r,
             self.pl_visual_s_: pl_visual_s_,
             self.pl_s_: pl_s_,

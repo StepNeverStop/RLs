@@ -48,31 +48,115 @@ class sth(object):
         return x
 
     @staticmethod
-    def get_action_multiplication_factor(action_list):
+    def int2action_index(x, action_dim_list):
         """
-        input: [3, 2, 2]
-        output: [4, 2, 1]
+        input: [0,1,2,3,4,5,6,7,8,9,10,11], [3, 2, 2]
+        output: 
+           [[0 0 0]
+            [0 0 1]
+            [0 1 0]
+            [0 1 1]
+            [1 0 0]
+            [1 0 1]
+            [1 1 0]
+            [1 1 1]
+            [2 0 0]
+            [2 0 1]
+            [2 1 0]
+            [2 1 1]]
         """
-        x = []
-        y = 1
-        for i in list(reversed(action_list)):
-            x.insert(0, y)
-            y *= i
-        return np.array(x)
+        y = []
+        x=np.squeeze(x)
+        for i in reversed(action_dim_list):
+            y.insert(0, x%i)
+            x//=i
+        return np.array(y).T
 
     @staticmethod
-    def int2action_index(x, action_multiplication_factor):
-        """
-        input: [7], [3,1]
-        output: [2,1]
-        """
-        assert isinstance(x, np.ndarray)
-        y = []
-        for i in action_multiplication_factor[:-1]:
-            y.append(x // i)
-            x %= i
-        y.append(x)
-        return np.stack(y, axis=1)
+    def action_index2int(z, action_dim_list):
+        '''
+        input: [[0 0 0]
+                [0 0 1]
+                [0 1 0]
+                [0 1 1]
+                [1 0 0]
+                [1 0 1]
+                [1 1 0]
+                [1 1 1]
+                [2 0 0]
+                [2 0 1]
+                [2 1 0]
+                [2 1 1]], [3, 2, 2]
+        output: [ 0  1  2  3  4  5  6  7  8  9 10 11]
+        '''
+        assert isinstance(z, np.ndarray) 
+        if len(z.shape) == 1:
+            z=z[np.newaxis,:]
+        x = []
+        y = 1
+        for i in list(reversed(action_dim_list)):
+            x.insert(0, y)
+            y *= i
+        return z.dot(np.array(x))
+
+    @staticmethod
+    def int2one_hot(x, action_dim_prod):
+        '''
+        input: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12
+        output: [[1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
+        '''
+        if hasattr(x, '__len__'):
+            a=np.zeros([len(x), action_dim_prod])
+            for i in range(len(x)):
+                a[i, x[i]] = 1
+        else:
+            a=np.zeros(action_dim_prod)
+            a[x]=1
+        return a
+
+    @staticmethod
+    def action_index2one_hot(index, action_dim_list):
+        '''
+        input: [[0 0 0]
+                [0 0 1]
+                [0 1 0]
+                [0 1 1]
+                [1 0 0]
+                [1 0 1]
+                [1 1 0]
+                [1 1 1]
+                [2 0 0]
+                [2 0 1]
+                [2 1 0]
+                [2 1 1]], [3, 2, 2]
+        output: [[1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
+                [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
+        '''
+        assert isinstance(index, np.ndarray)
+        if len(index.shape) == 1:
+            index = index[:, np.newaxis]
+        return sth.int2one_hot(sth.action_index2int(index, action_dim_list),np.array(action_dim_list).prod())
 
     @staticmethod
     def get_batch_one_hot(action, action_multiplication_factor, cols):
@@ -90,12 +174,12 @@ class sth(object):
         return x
 
     @staticmethod
-    def index2action(action_index, action_list):
+    def action_index2action_value(action_index, action_dim_list):
         """
         let actions' value between -1 and 1, if action_lict is [3,3], means that every dimension has 3 actions average from -1 to 1, like [-1, 0, 1], so index [0, 2] means action value [-1, 1]
         input: [0, 2], [3, 3]
         output: [-1, 1]
         """
         assert isinstance(action, np.ndarray)
-        assert 1 not in action_list
-        return 2 / (np.array([action_list]) - 1) * action_index - 1
+        assert 1 not in action_dim_list
+        return 2 / (np.array([action_dim_list]) - 1) * action_index - 1

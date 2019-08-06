@@ -1,5 +1,6 @@
 import yaml
 from mlagents.envs.sampler_class import SamplerManager
+from mlagents.envs.exception import UnityEnvironmentException, SamplerException
 from typing import Any, Callable, Dict, Optional
 
 def create_sampler_manager(sampler_file_path, env_reset_params):
@@ -7,8 +8,8 @@ def create_sampler_manager(sampler_file_path, env_reset_params):
     resample_interval refer to episodes between last param and next one.
     '''
     sampler_config = None
-    resample_interval = None
-    if sampler_file_path is not None:
+    resample_interval = float("inf")
+    if sampler_file_path != 'None':
         sampler_config = load_config(sampler_file_path)
         if ("resampling-interval") in sampler_config:
             # Filter arguments that do not exist in the environment
