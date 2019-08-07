@@ -5,7 +5,9 @@ dqn_config = {
     'max_episode': 50000,
     'batch_size': 1000,
     'buffer_size': 100000,
-    'assign_interval': 1000
+    'assign_interval': 1000,
+    'use_priority': False,
+    'n_step': False
 }
 ddqn_config = {
     'lr': 5.0e-4,

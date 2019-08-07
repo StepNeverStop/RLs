@@ -63,8 +63,9 @@ class Sum_Tree(object):
     def _retrieve(self, tree_index, seg_p_total):
         left = 2 * tree_index
         right = left + 1
-#         left = 2 * tree_index + 1
-#         right = 2 * (tree_index + 1)
+        # if index 0 is the root node
+        # left = 2 * tree_index + 1
+        # right = 2 * (tree_index + 1)
         if left >= self.tree[0]:
             return tree_index
         return self._retrieve(left, seg_p_total) if seg_p_total <= self.tree[left] else self._retrieve(right, seg_p_total - self.tree[left])

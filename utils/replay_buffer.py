@@ -4,6 +4,13 @@ from abc import ABC, abstractmethod
 
 
 class ReplayBuffer(ABC):
+    def __init__(self, batch_size, capacity):
+        assert type(batch_size) == int and batch_size > 0
+        assert type(capacity) == int and capacity > 0
+        self.batch_size = batch_size
+        self.capacity = capacity
+        self._size = 0
+
     @abstractmethod
     def sample(self) -> list:
         pass
@@ -12,13 +19,16 @@ class ReplayBuffer(ABC):
     def add(self, *args) -> None: 
         pass
 
+    def is_empty(self):
+        return self._size == 0
+
+    def update(self, *args) -> None:
+        pass
 
 class ExperienceReplay(ReplayBuffer):
     def __init__(self, batch_size, capacity):
-        self.batch_size = batch_size
-        self.capacity = capacity
+        super().__init__(batch_size, capacity)
         self._data_pointer = 0
-        self._size = 0
         self._buffer = np.empty(capacity, dtype=object)
 
     def add(self, *args):
@@ -27,11 +37,13 @@ class ExperienceReplay(ReplayBuffer):
         '''
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
-                self._buffer[self._data_pointer] = tuple(arg[i] for arg in args)
-                self.update_rb_after_add()
+                self._store_op(list(arg[i] for arg in args))
         else:
-            self._buffer[self._data_pointer] = args
-            self.update_rb_after_add()
+            self._store_op(args)
+
+    def _store_op(self, data):
+        self._buffer[self._data_pointer] = data
+        self.update_rb_after_add()
 
     def sample(self):
         '''
@@ -66,20 +78,14 @@ class ExperienceReplay(ReplayBuffer):
         print('RB capacity: ', self.capacity)
         print(self._buffer[:, np.newaxis])
 
-    @property
-    def is_empty(self):
-        return self._size == 0
-
 
 class PrioritizedExperienceReplay(ReplayBuffer):
     '''
     This PER will introduce some bias, 'cause when the experience with the minimum probability has been collected, the min_p that be updated may become inaccuracy.
     '''
-    def __init__(self, batch_size, capacity, alpha, beta, epsilon, max_episode):
+    def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon):
         assert epsilon > 0
-        self.batch_size = batch_size
-        self.capacity = capacity
-        self._size = 0
+        super().__init__(batch_size, capacity)
         self.alpha = alpha
         self.beta = beta
         self.beta_interval=(1-beta)/max_episode
@@ -94,13 +100,15 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
-                self.tree.add(self.max_p, tuple(arg[i] for arg in args))
-                if self._size < self.capacity:
-                    self._size += 1
+                self._store_op(list(arg[i] for arg in args))
         else:
-            self.tree.add(self.max_p, args)
-            if self._size < self.capacity:
-                self._size += 1
+            self._store_op(args)
+
+    def _store_op(self, data):
+        self.tree.add(self.max_p, data)
+        if self._size < self.capacity:
+            self._size += 1
+
 
     def sample(self):
         '''
@@ -119,7 +127,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     def is_lg_batch_size(self):
         return self._size > self.batch_size
 
-    def update_priority(self, priority, episode):
+    def update(self, priority, episode):
         '''
         input: priorities
         '''
@@ -135,16 +143,13 @@ class PrioritizedExperienceReplay(ReplayBuffer):
             self.max_p = max_p
         for i in range(len(priority)):
             self.tree._updatetree(self.last_indexs[i], priority[i])
-    
-    @property
-    def is_empty(self):
-        return self._size == 0
+
 
 class NStepExperienceReplay(ExperienceReplay):
     '''
     [s, a, r, s_, done] must be this format.
     '''
-    def __init__(self, batch_size, capacity, agents_num, n, gamma):
+    def __init__(self, batch_size, capacity, gamma, n, agents_num):
         super().__init__(batch_size, capacity)
         self.n = n
         self.gamma = gamma
@@ -203,7 +208,7 @@ class NStepExperiencePrioritizedReplay(PrioritizedExperienceReplay):
     '''
     [s, a, r, s_, done] must be this format.
     '''
-    def __init__(self, batch_size, capacity, alpha, beta, epsilon, max_episode, agents_num, n, gamma):
+    def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n):
         super().__init__(batch_size, capacity, alpha, beta, epsilon, max_episode)
         self.n = n
         self.gamma = gamma

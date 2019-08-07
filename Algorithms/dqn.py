@@ -18,13 +18,14 @@ class DQN(Policy):
                  batch_size=100,
                  buffer_size=10000,
                  assign_interval=2,
+                 use_priority=False,
+                 n_step=False,
                  cp_dir=None,
                  log_dir=None,
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
-        self.gamma = gamma
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():
@@ -37,7 +38,7 @@ class DQN(Policy):
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
             self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
             
-            # self.td_error = self.q_eval-self.q_target
+            self.td_error = self.q_eval-self.q_target
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
@@ -99,7 +100,7 @@ class DQN(Policy):
         _a = sth.action_index2one_hot(a, self.a_dim_or_list)
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
-        summaries, _ = self.sess.run([self.summaries, self.train_q], feed_dict={
+        summaries, td_error, _ = self.sess.run([self.summaries,self.td_error, self.train_q], feed_dict={
             self.pl_visual_s: pl_visual_s,
             self.pl_s: pl_s,
             self.pl_a: _a,
@@ -112,3 +113,4 @@ class DQN(Policy):
         if self.sess.run(self.global_step) % self.assign_interval == 0:
             self.sess.run(self.assign_q_target)
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
+        self.data.update(td_error)
