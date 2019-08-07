@@ -2,6 +2,12 @@
 
 :evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0.
 
+This project support:
+- MultiAgent training. One brain controls multiple agents.
+- MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
+- MultiImage input. Images should have the same input format, like `[84, 84, 3]`.
+- Four types of ReplayBuffer: RB, n-step RB, PER, n-step PER. Default is RB, using other RBs need to modify the code a little.
+
 ```python
 """
 Usage:
