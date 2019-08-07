@@ -6,7 +6,7 @@ import pandas as pd
 import tensorflow as tf
 import Nn
 from utils.recorder import Recorder
-from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer, NStepPrioritizedReplayBuffer
+from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepExperiencePrioritizedReplay
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
@@ -24,7 +24,7 @@ class Policy(object):
                  policy_mode=None,
                  batch_size=1,
                  buffer_size=1,
-                 use_priority=False
+                 use_priority=False # TODO(and n-step)
                  ):
         self.graph = tf.Graph()
         gpu_options = tf.GPUOptions(allow_growth=True)
@@ -57,10 +57,11 @@ class Policy(object):
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
         elif self.policy_mode == 'OFF':
-            self.data = ReplayBuffer(self.batch_size, self.buffer_size)
-            # self.data = NStepReplayBuffer(self.batch_size, self.buffer_size,  agents_num=1, n=4, gamma=0.5)
-            # self.data =PrioritizedReplayBuffer(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode)
-            # self.data = NStepPrioritizedReplayBuffer(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode, agents_num=1, n=4, gamma=0.5)
+            # TODO: gamma and agents_num are not passed on, for now, need to be set manually. After a short while, the initialization of ReplayBuffer will be placed in another file.
+            self.data = ExperienceReplay(self.batch_size, self.buffer_size)
+            # self.data = NStepExperienceReplay(self.batch_size, self.buffer_size,  agents_num=1, n=4, gamma=0.5)
+            # self.data =PrioritizedExperienceReplay(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode)
+            # self.data = NStepExperiencePrioritizedReplay(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode, agents_num=1, n=4, gamma=0.5)
         else:
             raise Exception('Please specific a mode of policy!')
 

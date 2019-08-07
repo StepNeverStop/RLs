@@ -6,7 +6,7 @@ This project support:
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]`.
-- Four types of ReplayBuffer: RB, n-step RB, PER, n-step PER. Default is RB, using other RBs need to modify the code a little.
+- Four types of ReplayBuffer: ER, n-step ER, PER, n-step PER. Default is ER, using other RBs need to modify the code a little.
 
 ```python
 """
@@ -28,6 +28,9 @@ Options:
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
+    python run.py -a ppo -u -n train_in_unity
+    python run.py -ui -a td3 -n inference_in_unity
+    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
 """
 ```
 
