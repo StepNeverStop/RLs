@@ -6,7 +6,7 @@ import pandas as pd
 import tensorflow as tf
 import Nn
 from utils.recorder import Recorder
-from utils.replay_buffer import ReplayBuffer
+from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer, NStepPrioritizedReplayBuffer
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
@@ -58,6 +58,9 @@ class Policy(object):
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
         elif self.policy_mode == 'OFF':
             self.data = ReplayBuffer(self.batch_size, self.buffer_size)
+            # self.data = NStepReplayBuffer(self.batch_size, self.buffer_size,  agents_num=1, n=4, gamma=0.5)
+            # self.data =PrioritizedReplayBuffer(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode)
+            # self.data = NStepPrioritizedReplayBuffer(self.batch_size,self.buffer_size,alpha=0.6, beta=0.8, epsilon=0.01, max_episode=self.max_episode, agents_num=1, n=4, gamma=0.5)
         else:
             raise Exception('Please specific a mode of policy!')
 
