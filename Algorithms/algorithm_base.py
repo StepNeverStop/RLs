@@ -6,7 +6,7 @@ import pandas as pd
 import tensorflow as tf
 import Nn
 from utils.recorder import Recorder
-from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepExperiencePrioritizedReplay
+from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepPrioritizedExperienceReplay
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
@@ -62,13 +62,17 @@ class Policy(object):
         elif self.policy_mode == 'OFF':
             if use_priority:
                 if n_step:
-                    self.data = NStepExperiencePrioritizedReplay(self.batch_size,self.buffer_size, max_episode=self.max_episode, gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
+                    print('N-Step PER')
+                    self.data = NStepPrioritizedExperienceReplay(self.batch_size,self.buffer_size, max_episode=self.max_episode, gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
                 else:
+                    print('PER')
                     self.data = PrioritizedExperienceReplay(self.batch_size,self.buffer_size,max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
             else:
                 if n_step:
+                    print('N-Step ER')
                     self.data = NStepExperienceReplay(self.batch_size, self.buffer_size, gamma=self.gamma, agents_num=20, n=4)
                 else:
+                    print('ER')
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)
             
             

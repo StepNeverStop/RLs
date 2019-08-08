@@ -204,7 +204,7 @@ class NStepExperienceReplay(ExperienceReplay):
             # 如果没done，临时经验池也没满，就把指针后移
             self.exps_pointer[i]+=1
 
-class NStepExperiencePrioritizedReplay(PrioritizedExperienceReplay):
+class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
     '''
     [s, a, r, s_, done] must be this format.
     '''

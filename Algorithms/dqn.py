@@ -25,7 +25,7 @@ class DQN(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size, use_priority=use_priority, n_step=n_step)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():
@@ -113,4 +113,4 @@ class DQN(Policy):
         if self.sess.run(self.global_step) % self.assign_interval == 0:
             self.sess.run(self.assign_q_target)
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
-        self.data.update(td_error)
+        # self.data.update(td_error, episode)
