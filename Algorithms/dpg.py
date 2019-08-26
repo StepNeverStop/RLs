@@ -27,7 +27,7 @@ class DPG(Policy):
 
             self.mu, self.action = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True, reuse=False)
             tf.identity(self.mu, 'action')
-            self.action_target = Nn.actor_dpg('actor', self.s_, self.a_counts, trainable=True, reuse=True)
+            self.target_mu, self.action_target = Nn.actor_dpg('actor', self.s_, self.a_counts, trainable=True, reuse=True)
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
