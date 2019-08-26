@@ -163,7 +163,6 @@ class Loop(object):
         agents_num = [0] * brains_num
         action = [0] * brains_num
         obs = env.reset(train_mode=False)
-        input()
 
         for i, brain_name in enumerate(brain_names):
             agents_num[i] = len(obs[brain_name].agents)
@@ -181,8 +180,6 @@ class Loop(object):
             for i, brain_name in enumerate(brain_names):
                 ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                 
-                print(np.array(obs[brain_name].rewards))
-                input()
                 models[i].no_op_store(
                     s=state[i],
                     a=action[i],

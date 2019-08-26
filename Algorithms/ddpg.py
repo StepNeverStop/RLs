@@ -33,12 +33,12 @@ class DDPG(Policy):
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
-            self.s_a_target = tf.concat((self.s_, self.target_mu), axis=1)
+            self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
 
             self.q = Nn.critic_q_one('q', self.s_a, True, reuse=False)
             self.q_actor = Nn.critic_q_one('q', self.s_mu, True, reuse=True)
             self.q_target = Nn.critic_q_one('q_target', self.s_a_target, False, reuse=False)
-            self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
+            self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target * (1 - self.pl_done))
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
             self.actor_loss = -tf.reduce_mean(self.q_actor)
@@ -103,7 +103,7 @@ class DDPG(Policy):
         self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, r, s_, _ = self.data.sample()
+        s, a, r, s_, done = self.data.sample()
         pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
         pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
@@ -113,6 +113,7 @@ class DDPG(Policy):
             self.pl_r: r,
             self.pl_visual_s_: pl_visual_s_,
             self.pl_s_: pl_s_,
+            self.pl_done: done,
             self.episode: episode
         })
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))

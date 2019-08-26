@@ -38,6 +38,7 @@ algos = {
     'offpg': [Algorithms.offpg_config, Algorithms.OFFPG, 'off-policy', 'perStep'],
     'ac': [Algorithms.ac_config, Algorithms.AC, 'on-policy', 'perStep'],
     'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
+    'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
     'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],
     'td3': [Algorithms.td3_config, Algorithms.TD3, 'off-policy', 'perStep'],
     'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],

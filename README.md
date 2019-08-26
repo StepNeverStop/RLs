@@ -47,6 +47,7 @@ For now, those algorithms are available:
 - - Deep Q-learning Network, DQN
 - - Double Deep Q-learning Network, DDQN
 - - Dueling Double Deep Q-learning Network, DDDQN
+- - Deterministic Policy Gradient, DPG
 - - Deep Deterministic Policy Gradient, DDPG
 
 
