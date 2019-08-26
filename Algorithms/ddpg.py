@@ -33,6 +33,7 @@ class DDPG(Policy):
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
+            # must be action_target, not target_mu
             self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
 
             self.q = Nn.critic_q_one('q', self.s_a, True, reuse=False)

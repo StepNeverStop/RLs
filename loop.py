@@ -179,7 +179,6 @@ class Loop(object):
             obs = env.step(vector_action=actions)
             for i, brain_name in enumerate(brain_names):
                 ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
-                
                 models[i].no_op_store(
                     s=state[i],
                     a=action[i],

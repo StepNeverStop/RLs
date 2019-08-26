@@ -34,12 +34,6 @@ pg_config = {
     'batch_size': 500,
     'epoch': 1
 }
-offpg_config = {
-    'lr': 5.0e-4,
-    'max_episode': 50000,
-    'batch_size': 100,
-    'buffer_size': 10000
-}
 ac_config={
     'lr': 5.0e-4,
     'gamma': 0.99,
@@ -91,16 +85,6 @@ sac_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 1000,
-    'buffer_size': 100000
-}
-std_config = {
-    'alpha': 0.2,
-    'auto_adaption': True,
-    'gamma': 0.99,
-    'ployak': 0.995,
-    'lr': 5.0e-4,
-    'max_episode': 500000,
     'batch_size': 1000,
     'buffer_size': 100000
 }

@@ -103,10 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+test/
 test.py
 server.py
 .vscode/
 s.py
 c.py
-offpg.py
-std.py

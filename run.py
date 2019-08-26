@@ -35,7 +35,6 @@ if sys.platform.startswith('win'):
 algos = {
     'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
     'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
-    'offpg': [Algorithms.offpg_config, Algorithms.OFFPG, 'off-policy', 'perStep'],
     'ac': [Algorithms.ac_config, Algorithms.AC, 'on-policy', 'perStep'],
     'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
     'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
@@ -43,10 +42,9 @@ algos = {
     'td3': [Algorithms.td3_config, Algorithms.TD3, 'off-policy', 'perStep'],
     'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],
     'sac_no_v': [Algorithms.sac_no_v_config, Algorithms.SAC_NO_V, 'off-policy', 'perStep'],
-    'std': [Algorithms.std_config, Algorithms.STD, 'off-policy', 'perStep'],
     'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
     'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
-    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep']
+    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
 }
 
 def run():
