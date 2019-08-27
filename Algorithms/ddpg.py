@@ -26,15 +26,18 @@ class DDPG(Policy):
         self.ployak = ployak
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-
-            self.mu, self.action = Nn.actor_dpg('actor', self.s, self.a_counts, True)
+            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
+            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
+            self.mu = Nn.actor_dpg('actor', self.s, self.a_counts, True)
             tf.identity(self.mu, 'action')
-            self.target_mu, self.action_target = Nn.actor_dpg('actor_target', self.s_, self.a_counts, False)
+            self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
+
+            self.target_mu = Nn.actor_dpg('actor_target', self.s_, self.a_counts, False)
+            self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
-            # must be action_target, not target_mu
-            self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
+            self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)            # must be action_target, not target_mu
 
             self.q = Nn.critic_q_one('q', self.s_a, True, reuse=False)
             self.q_actor = Nn.critic_q_one('q', self.s_mu, True, reuse=True)
@@ -84,6 +87,7 @@ class DDPG(Policy):
 　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
             ''')
+            self.recorder.logger.info(self.action_noise)
             self.init_or_restore(cp_dir)
 
     def choose_action(self, s):

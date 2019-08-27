@@ -24,10 +24,13 @@ class DPG(Policy):
         super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-
-            self.mu, self.action = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True, reuse=False)
+            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
+            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
+            self.mu = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True, reuse=False)
             tf.identity(self.mu, 'action')
-            self.target_mu, self.action_target = Nn.actor_dpg('actor', self.s_, self.a_counts, trainable=True, reuse=True)
+            self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
+            self.target_mu = Nn.actor_dpg('actor', self.s_, self.a_counts, trainable=True, reuse=True)
+            self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
@@ -74,6 +77,7 @@ class DPG(Policy):
 　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
             ''')
+            self.recorder.logger.info(self.action_noise)
             self.init_or_restore(cp_dir)
 
     def choose_action(self, s):

@@ -59,9 +59,7 @@ def actor_dpg(name, input_vector, out_shape, trainable=True, reuse=False):
         actor1 = tf.layers.dense(input_vector, 128, activation_fn, name='actor1', trainable=trainable, reuse=reuse, **initKernelAndBias)
         actor2 = tf.layers.dense(actor1, 64, activation_fn, name='actor2', trainable=trainable, reuse=reuse, **initKernelAndBias)
         mu = tf.layers.dense(actor2, out_shape, tf.nn.tanh, name='mu', trainable=trainable, reuse=reuse, **initKernelAndBias)
-        e = tf.random_normal(tf.shape(mu))
-        action = tf.clip_by_value(mu + e, -1, 1)
-        return mu, action
+        return mu
 
 
 def critic_q_one(name, input_vector, trainable=True, reuse=False):
