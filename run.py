@@ -34,18 +34,17 @@ if sys.platform.startswith('win'):
 
 algos = {
     'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
-    'offpg': [Algorithms.offpg_config, Algorithms.OFFPG, 'off-policy', 'perStep'],
+    'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
     'ac': [Algorithms.ac_config, Algorithms.AC, 'on-policy', 'perStep'],
     'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
-    'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
+    'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
     'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],
     'td3': [Algorithms.td3_config, Algorithms.TD3, 'off-policy', 'perStep'],
     'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],
     'sac_no_v': [Algorithms.sac_no_v_config, Algorithms.SAC_NO_V, 'off-policy', 'perStep'],
-    'std': [Algorithms.std_config, Algorithms.STD, 'off-policy', 'perStep'],
     'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
     'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
-    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep']
+    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
 }
 
 def run():
@@ -114,7 +113,8 @@ def run():
     for key in algorithm_config:
         print('-' * 46)
         print('|', str(key).ljust(20), str(algorithm_config[key]).rjust(20), '|')
-
+    print('-' * 46)
+    
     if options['--max-step'] != 'None':
         max_step = int(options['--max-step'])
     brain_names = env.external_brain_names
@@ -154,6 +154,7 @@ def run():
                 'sampler_manager': sampler_manager,
                 'resampling_interval': resampling_interval
             }
+            Loop.no_op(env, brain_names, models, brains, 30)
             if train_mode == 'perEpisode':
                 Loop.train_perEpisode(**params)
             else:

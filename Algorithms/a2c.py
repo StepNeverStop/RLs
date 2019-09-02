@@ -20,8 +20,7 @@ class A2C(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
-        self.gamma = gamma
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
         self.batch_size = batch_size
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")

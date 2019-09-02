@@ -1,32 +1,49 @@
 import numpy as np
+from .sum_tree import Sum_Tree
 from abc import ABC, abstractmethod
 
 
-class Buffer(ABC):
+class ReplayBuffer(ABC):
+    def __init__(self, batch_size, capacity):
+        assert type(batch_size) == int and batch_size > 0
+        assert type(capacity) == int and capacity > 0
+        self.batch_size = batch_size
+        self.capacity = capacity
+        self._size = 0
+
     @abstractmethod
     def sample(self) -> list:
         pass
 
+    @abstractmethod
+    def add(self, *args) -> None: 
+        pass
 
-class ReplayBuffer(Buffer):
+    def is_empty(self):
+        return self._size == 0
+
+    def update(self, *args) -> None:
+        pass
+
+class ExperienceReplay(ReplayBuffer):
     def __init__(self, batch_size, capacity):
-        self.batch_size = batch_size
-        self.capacity = capacity
+        super().__init__(batch_size, capacity)
         self._data_pointer = 0
-        self._size = 0
         self._buffer = np.empty(capacity, dtype=object)
 
     def add(self, *args):
         '''
-        change [[s, s],[a, a],[r, r]] to [[s, a, r],[s, a, r]] and store every item in it.
+        change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
-                self._buffer[self._data_pointer] = tuple(arg[i] for arg in args)
-                self.update_rb_after_add()
+                self._store_op(list(arg[i] for arg in args))
         else:
-            self._buffer[self._data_pointer] = args
-            self.update_rb_after_add()
+            self._store_op(args)
+
+    def _store_op(self, data):
+        self._buffer[self._data_pointer] = data
+        self.update_rb_after_add()
 
     def sample(self):
         '''
@@ -62,114 +79,36 @@ class ReplayBuffer(Buffer):
         print(self._buffer[:, np.newaxis])
 
 
-class Sum_Tree(object):
-    def __init__(self, capacity):
-        """
-        capacity = 5，设置经验池大小
-        tree = [0,1,2,3,4,5,6,7,8,9,10,11,12] 8-12存放叶子结点p值，1-7存放父节点、根节点p值的和，0存放树节点的数量
-        data = [0,1,2,3,4,5] 1-5存放数据， 0存放capacity
-        Tree structure and array storage:
-        Tree index:
-                    1         -> storing priority sum
-              /          \ 
-             2            3
-            / \          / \
-          4     5       6   7
-         / \   / \     / \  / \
-        8   9 10   11 12                   -> storing priority for transitions
-        """
-        assert capacity > 0
-        self.now = 0
-        self.parent_node_count = self.get_parent_node_count(capacity)
-        print(self.parent_node_count)
-        self.tree = np.zeros(self.parent_node_count + capacity + 1)
-        self.tree[0] = len(self.tree) - 1
-        self.data = np.zeros(capacity + 1, dtype=object)
-        self.data[0] = capacity
-
-    def add(self, p, data):
-        """
-        p : property
-        data : [s, a, r, s_, done]
-        """
-        tree_index = self.now + self.parent_node_count + 1
-        self.data[self.now + 1] = data
-        self._updatetree(tree_index, p)
-        self.now += 1
-        if self.now > self.data[0]:
-            self.now = 0
-
-    def _updatetree(self, tree_index, p):
-        diff = p - self.tree[tree_index]
-        self._propagate(tree_index, diff)
-        self.tree[tree_index] = p
-
-    def _propagate(self, tree_index, diff):
-        parent = tree_index // 2
-        self.tree[parent] += diff
-        if parent != 1:
-            self._propagate(parent, diff)
-
-    @property
-    def total(self):
-        return self.tree[1]
-
-    def get(self, seg_p_total):
-        """
-        seg_p_total : The value of priority to sample
-        """
-        tree_index = self._retrieve(1, seg_p_total)
-        data_index = tree_index - self.parent_node_count
-        return (tree_index, data_index, self.tree[tree_index], self.data[data_index])
-
-    def _retrieve(self, tree_index, seg_p_total):
-        left = 2 * tree_index
-        right = left + 1
-#         left = 2 * tree_index + 1
-#         right = 2 * (tree_index + 1)
-        if left >= self.tree[0]:
-            return tree_index
-        return self._retrieve(left, seg_p_total) if seg_p_total <= self.tree[left] else self._retrieve(right, seg_p_total - self.tree[left])
-
-    def pp(self):
-        print(self.tree, self.data)
-
-    def get_parent_node_count(self, capacity):
-        i = 0
-        while True:
-            if pow(2, i) < capacity <= pow(2, i + 1):
-                return pow(2, i + 1) - 1
-            i += 1
-
-
-class PrioritizedReplayBuffer(Buffer):
-    def __init__(self, batch_size, capacity, alpha, beta, epsilon):
-        self.batch_size = batch_size
-        self.capacity = capacity
-        self._size = 0
+class PrioritizedExperienceReplay(ReplayBuffer):
+    '''
+    This PER will introduce some bias, 'cause when the experience with the minimum probability has been collected, the min_p that be updated may become inaccuracy.
+    '''
+    def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon):
+        assert epsilon > 0
+        super().__init__(batch_size, capacity)
         self.alpha = alpha
         self.beta = beta
+        self.beta_interval=(1-beta)/max_episode
         self.tree = Sum_Tree(capacity)
         self.epsilon = epsilon
-        self.min_p = np.inf
+        self.min_p = epsilon
+        self.max_p = epsilon
 
-    def add(self, p, *args):
+    def add(self, *args):
         '''
-        input: priorities, [ss, as, rs, _ss, dones]
+        input: [ss, as, rs, _ss, dones]
         '''
-        p = np.power(np.abs(p) + self.epsilon, self.alpha)
-        min_p = p.min()
-        if min_p < self.min_p:
-            self.min_p = min_p
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
-                self.tree.add(p[i], tuple(arg[i] for arg in args))
-                if self._size < self.capacity:
-                    self._size += 1
+                self._store_op(list(arg[i] for arg in args))
         else:
-            self.tree.add(p, args)
-            if self._size < self.capacity:
-                self._size += 1
+            self._store_op(args)
+
+    def _store_op(self, data):
+        self.tree.add(self.max_p, data)
+        if self._size < self.capacity:
+            self._size += 1
+
 
     def sample(self):
         '''
@@ -180,18 +119,148 @@ class PrioritizedReplayBuffer(Buffer):
         segment = [self.tree.total - i * interval for i in range(n_sample + 1)]
         t = [self.tree.get(np.random.uniform(segment[i], segment[i + 1], 1)) for i in range(n_sample)]
         t = [np.array(e) for e in zip(*t)]
+        d = [np.array(e) for e in zip(*t[-1])]
         self.last_indexs = t[0]
-        return np.power(self.min_p / t[-2], self.beta), t[-1]
+        return np.power(self.min_p / t[-2], self.beta), d
 
     @property
     def is_lg_batch_size(self):
         return self._size > self.batch_size
 
-    def update_priority(self, priority):
+    def update(self, priority, episode):
         '''
         input: priorities
         '''
         assert hasattr(priority, '__len__')
         assert len(priority) == len(self.last_indexs)
+        self.beta+=self.beta_interval*episode
+        priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
+        min_p = priority.min()
+        max_p = priority.max()
+        if min_p < self.min_p:
+            self.min_p = min_p
+        if max_p > self.max_p:
+            self.max_p = max_p
         for i in range(len(priority)):
             self.tree._updatetree(self.last_indexs[i], priority[i])
+
+
+class NStepExperienceReplay(ExperienceReplay):
+    '''
+    [s, a, r, s_, done] must be this format.
+    '''
+    def __init__(self, batch_size, capacity, gamma, n, agents_num):
+        super().__init__(batch_size, capacity)
+        self.n = n
+        self.gamma = gamma
+        self.exps_pointer=np.zeros(agents_num,dtype=np.int32)
+        self.exps = [[()]*n for i in range(agents_num)]
+
+    def add(self, *args):
+        '''
+        change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
+        '''
+        if hasattr(args[0], '__len__'):
+            for i in range(len(args[0])):
+                self._store_op(list(arg[i] for arg in args), i)
+                
+        else:
+            self._store_op(args)
+    
+    def _store_op(self, data, i=0):
+        '''
+        这段代码真是烂透了啊啊啊啊！！！！
+        '''
+        if self.exps_pointer[i]>0 and self.exps[i][self.exps_pointer[i]-1][3]!=data[0]:
+            # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
+            # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
+            for k in range(self.exps_pointer[i]):
+                self.exps[i][k][-2:] = self.exps[i][self.exps_pointer[i]-1][-2:]
+                self._buffer[self._data_pointer] = self.exps[i][k]
+                self.update_rb_after_add()
+            self.exps[i]=[()]*self.n
+            self.exps_pointer[i]=0
+        self.exps[i][self.exps_pointer[i]]=data # 存入临时经验池
+        for j in range(self.exps_pointer[i]):
+            # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
+            self.exps[i][j][2]+=pow(self.gamma, self.exps_pointer[i]-j)*data[2]
+        if data[-1]:
+            # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
+            # 把临时经验池中所有的经验都存入
+            for k in range(self.exps_pointer[i]+1):
+                self.exps[i][k][-2:] = data[-2:]
+                self._buffer[self._data_pointer] = self.exps[i][k]
+                self.update_rb_after_add()
+            self.exps[i]=[()]*self.n
+            self.exps_pointer[i]=0
+        elif self.exps_pointer[i]==self.n-1:
+            # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
+            self.exps[i][0][-2:] = data[-2:]
+            self._buffer[self._data_pointer] = self.exps[i][0]
+            self.update_rb_after_add()
+            del self.exps[i][0]
+            self.exps[i].append(())
+        else:
+            # 如果没done，临时经验池也没满，就把指针后移
+            self.exps_pointer[i]+=1
+
+class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
+    '''
+    [s, a, r, s_, done] must be this format.
+    '''
+    def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n):
+        super().__init__(batch_size, capacity, alpha, beta, epsilon, max_episode)
+        self.n = n
+        self.gamma = gamma
+        self.exps_pointer=np.zeros(agents_num,dtype=np.int32)
+        self.exps = [[()]*n for i in range(agents_num)]
+
+    def add(self, *args):
+        '''
+        input: [ss, as, rs, _ss, dones]
+        '''
+        if hasattr(args[0], '__len__'):
+            for i in range(len(args[0])):
+                self._store_op(list(arg[i] for arg in args), i)
+        else:
+            self._store_op(args)
+                
+    def _store_op(self, data, i=0):
+        '''
+        这段代码真是烂透了啊啊啊啊！！！！
+        '''
+        if self.exps_pointer[i]>0 and self.exps[i][self.exps_pointer[i]-1][3]!=data[0]:
+            # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
+            # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
+            for k in range(self.exps_pointer[i]):
+                self.exps[i][k][-2:] = self.exps[i][self.exps_pointer[i]-1][-2:]
+                self.tree.add(self.max_p, self.exps[i][k])
+                if self._size < self.capacity:
+                    self._size += 1
+            self.exps[i]=[()]*self.n
+            self.exps_pointer[i]=0
+        self.exps[i][self.exps_pointer[i]]=data # 存入临时经验池
+        for j in range(self.exps_pointer[i]):
+            # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
+            self.exps[i][j][2]+=pow(self.gamma, self.exps_pointer[i]-j)*data[2]
+        if data[-1]:
+            # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
+            # 把临时经验池中所有的经验都存入
+            for k in range(self.exps_pointer[i]+1):
+                self.exps[i][k][-2:] = data[-2:]
+                self.tree.add(self.max_p, self.exps[i][k])
+                if self._size < self.capacity:
+                    self._size += 1
+            self.exps[i]=[()]*self.n
+            self.exps_pointer[i]=0
+        elif self.exps_pointer[i]==self.n-1:
+            # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
+            self.exps[i][0][-2:] = data[-2:]
+            self.tree.add(self.max_p, self.exps[i][0])
+            if self._size < self.capacity:
+                self._size += 1
+            del self.exps[i][0]
+            self.exps[i].append(())
+        else:
+            # 如果没done，临时经验池也没满，就把指针后移
+            self.exps_pointer[i]+=1

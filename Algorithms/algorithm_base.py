@@ -6,7 +6,7 @@ import pandas as pd
 import tensorflow as tf
 import Nn
 from utils.recorder import Recorder
-from utils.replay_buffer import ReplayBuffer
+from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepPrioritizedExperienceReplay
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
@@ -19,12 +19,14 @@ class Policy(object):
                  visual_resolutions,
                  a_dim_or_list,
                  action_type,
+                 gamma,
                  max_episode,
                  cp_dir,
                  policy_mode=None,
                  batch_size=1,
                  buffer_size=1,
-                 use_priority=False
+                 use_priority=False,
+                 n_step=False
                  ):
         self.graph = tf.Graph()
         gpu_options = tf.GPUOptions(allow_growth=True)
@@ -40,6 +42,7 @@ class Policy(object):
         self.a_dim_or_list = a_dim_or_list
         self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
+        self.gamma = gamma
         self.max_episode = max_episode
         self.cp_dir = cp_dir
         self.policy_mode = policy_mode
@@ -57,7 +60,22 @@ class Policy(object):
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
         elif self.policy_mode == 'OFF':
-            self.data = ReplayBuffer(self.batch_size, self.buffer_size)
+            if use_priority:
+                if n_step:
+                    print('N-Step PER')
+                    self.data = NStepPrioritizedExperienceReplay(self.batch_size,self.buffer_size, max_episode=self.max_episode, gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
+                else:
+                    print('PER')
+                    self.data = PrioritizedExperienceReplay(self.batch_size,self.buffer_size,max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
+            else:
+                if n_step:
+                    print('N-Step ER')
+                    self.data = NStepExperienceReplay(self.batch_size, self.buffer_size, gamma=self.gamma, agents_num=20, n=4)
+                else:
+                    print('ER')
+                    self.data = ExperienceReplay(self.batch_size, self.buffer_size)
+            
+            
         else:
             raise Exception('Please specific a mode of policy!')
 
@@ -108,6 +126,13 @@ class Policy(object):
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
         self.data.add(s, a, r, s_, done)
+    
+    def no_op_store(self, s, a, r, s_, done):
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
+        if self.policy_mode == 'OFF':
+            self.data.add(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
 
     def clear(self):
         """

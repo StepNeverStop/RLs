@@ -25,9 +25,8 @@ class PPO(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
         self.beta = beta
-        self.gamma = gamma
         self.epoch = epoch
         self.lambda_ = lambda_
         self.epsilon = epsilon

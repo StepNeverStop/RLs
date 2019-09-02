@@ -2,6 +2,12 @@
 
 :evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0.
 
+This project support:
+- MultiAgent training. One brain controls multiple agents.
+- MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
+- MultiImage input. Images should have the same input format, like `[84, 84, 3]`.
+- Four types of ReplayBuffer: ER, n-step ER, PER, n-step PER. Default is ER, using other RBs need to modify the code a little.
+
 ```python
 """
 Usage:
@@ -22,6 +28,9 @@ Options:
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
+    python run.py -a ppo -u -n train_in_unity
+    python run.py -ui -a td3 -n inference_in_unity
+    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
 """
 ```
 
@@ -38,6 +47,7 @@ For now, those algorithms are available:
 - - Deep Q-learning Network, DQN
 - - Double Deep Q-learning Network, DDQN
 - - Dueling Double Deep Q-learning Network, DDDQN
+- - Deterministic Policy Gradient, DPG
 - - Deep Deterministic Policy Gradient, DDPG
 
 

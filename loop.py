@@ -1,6 +1,22 @@
 import sys
 import numpy as np
 
+def combined_input(n, cameras, brain_obs):
+    '''
+    inputs:
+        n: agents number
+        cameras: camera number
+        brain_obs: observations of specified brain, include visual and vector observation.
+    output:
+        [vector_information, [visual_info0, visual_info1, visual_info2, ...]]
+    '''
+    ss = []
+    for j in range(n):
+        s = []
+        for k in range(cameras):
+            s.append(brain_obs.visual_observations[k][j])
+        ss.append([brain_obs.vector_observations[j], np.array(s)])
+    return ss
 
 class Loop(object):
 
@@ -23,14 +39,7 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-
-                ss = []
-                for j in range(agents_num[i]):
-                    s = []
-                    for k in range(models[i].visual_sources):
-                        s.append(obs[brain_name].visual_observations[k][j])
-                    ss.append([obs[brain_name].vector_observations[j], np.array(s)])
-                state[i] = ss
+                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             step = 0
             while True:
                 step += 1
@@ -41,12 +50,7 @@ class Loop(object):
 
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
-                    ss = []
-                    for j in range(agents_num[i]):
-                        s = []
-                        for k in range(models[i].visual_sources):
-                            s.append(obs[brain_name].visual_observations[k][j])
-                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
+                    ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     models[i].store_data(
                         s=state[i],
                         a=action[i],
@@ -91,14 +95,7 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-
-                ss = []
-                for j in range(agents_num[i]):
-                    s = []
-                    for k in range(models[i].visual_sources):
-                        s.append(obs[brain_name].visual_observations[k][j])
-                    ss.append([obs[brain_name].vector_observations[j], np.array(s)])
-                state[i] = ss
+                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             step = 0
             while True:
                 step += 1
@@ -108,12 +105,7 @@ class Loop(object):
                 obs = env.step(vector_action=actions)
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
-                    ss = []
-                    for j in range(agents_num[i]):
-                        s = []
-                        for k in range(models[i].visual_sources):
-                            s.append(obs[brain_name].visual_observations[k][j])
-                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
+                    ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     models[i].store_data(
                         s=state[i],
                         a=action[i],
@@ -154,13 +146,43 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
             while True:
                 for i, brain_name in enumerate(brain_names):
-                    ss = []
-                    for j in range(agents_num[i]):
-                        s = []
-                        for k in range(models[i].visual_sources):
-                            s.append(obs[brain_name].visual_observations[k][j])
-                        ss.append([obs[brain_name].vector_observations[j], np.array(s)])
-                    state[i] = ss
+                    state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     action[i] = models[i].choose_inference_action(s=state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
+
+    @staticmethod
+    def no_op(env, brain_names, models, brains, steps):
+        '''
+        Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
+        Make sure steps is greater than n-step if using any n-step ReplayBuffer.
+        '''
+        assert type(steps) == int and steps > 0
+        brains_num = len(brain_names)
+        state = [0] * brains_num
+        agents_num = [0] * brains_num
+        action = [0] * brains_num
+        obs = env.reset(train_mode=False)
+
+        for i, brain_name in enumerate(brain_names):
+            agents_num[i] = len(obs[brain_name].agents)
+            if brains[brain_name].vector_action_space_type == 'continuous':
+                action[i] = np.zeros((agents_num[i], brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
+            else:
+                action[i] = np.zeros((agents_num[i], len(brains[brain_name].vector_action_space_size)), dtype=np.int32)
+        actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
+
+        for step in range(steps):
+            print(f'no op step {step}')
+            for i, brain_name in enumerate(brain_names):
+                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+            obs = env.step(vector_action=actions)
+            for i, brain_name in enumerate(brain_names):
+                ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                models[i].no_op_store(
+                    s=state[i],
+                    a=action[i],
+                    r=np.array(obs[brain_name].rewards),
+                    s_=ss,
+                    done=np.array(obs[brain_name].local_done)
+                )

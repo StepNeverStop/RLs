@@ -26,8 +26,7 @@ class DDQN(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
-        self.gamma = gamma
+        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():

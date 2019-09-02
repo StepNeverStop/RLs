@@ -1,4 +1,5 @@
 from .config import *
+from .dpg import DPG
 from .ddpg import DDPG
 from .ppo import PPO
 from .sac import SAC
@@ -10,5 +11,3 @@ from .ddqn import DDQN
 from .duelingdqn import DDDQN
 from .ac import AC
 from .a2c import A2C
-from .offpg import OFFPG
-from .std import STD
