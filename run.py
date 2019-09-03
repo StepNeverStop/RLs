@@ -35,7 +35,7 @@ if sys.platform.startswith('win'):
 algos = {
     'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
     'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
-    'ac': [Algorithms.ac_config, Algorithms.AC, 'on-policy', 'perStep'],
+    'ac': [Algorithms.ac_config, Algorithms.AC, 'off-policy', 'perStep'], # could be on-policy, but also doesn't work well.
     'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
     'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
     'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],

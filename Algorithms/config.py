@@ -37,7 +37,9 @@ pg_config = {
 ac_config={
     'lr': 5.0e-4,
     'gamma': 0.99,
-    'max_episode': 50000
+    'max_episode': 50000,
+    'batch_size': 1000,
+    'buffer_size': 100000,
 }
 a2c_config = {
     'lr': 5.0e-4,

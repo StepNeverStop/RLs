@@ -5,6 +5,7 @@ from Algorithms.algorithm_base import Policy
 
 
 class DPG(Policy):
+    # off-policy DPG
     def __init__(self,
                  s_dim,
                  visual_sources,
