@@ -27,6 +27,7 @@ class ReplayBuffer(ABC):
 
 
 class EpisodeExperienceReplay(ReplayBuffer):
+    # TODO: implement padding so that makes each episode has the same length.
     def __init__(self, batch_size, capacity):
         super().__init__(batch_size, capacity)
         self._data_pointer = 0
@@ -36,7 +37,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
             self._buffer[i] = ExperienceReplay(1000, 1000)
 
     def done(self):
-        self._data_pointer += self.agents_num % self.capacity
+        self._data_pointer = (self._data_pointer + self.agents_num) % self.capacity
         for i in range(self.agents_num):
             self._buffer[(self._data_pointer + i) % self.capacity] = ExperienceReplay(1000, 1000)
         self._size += self.agents_num
@@ -60,11 +61,13 @@ class EpisodeExperienceReplay(ReplayBuffer):
 
     def sample(self):
         '''
-        change [[s, a, r],[s, a, r]] to [[s, s],[a, a],[r, r]]
+        return [[[s,s,...],[a,a,...],[r,r,...]],
+                [[s,s,...],[a,a,...],[r,r,...]],
+                ...]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        return [i.sample() for i in t]
+        return [i.get_all() for i in t]
 
     @property
     def is_full(self):
@@ -113,6 +116,9 @@ class ExperienceReplay(ReplayBuffer):
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
         return [np.array(e) for e in zip(*t)]
+
+    def get_all(self):
+        return [np.array(e) for e in zip(*self._buffer[:self._size])]
 
     def update_rb_after_add(self):
         self._data_pointer += 1

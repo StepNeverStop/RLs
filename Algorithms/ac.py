@@ -57,7 +57,7 @@ class AC(Policy):
                     axis=0, keepdims=True))
 
             self.action = tf.identity(self.sample_op, name='action')
-            self.ratio = self.prob / self.old_prob
+            self.ratio = tf.stop_gradient(self.prob / self.old_prob)
 
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
