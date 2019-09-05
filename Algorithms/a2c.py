@@ -4,6 +4,7 @@ import Nn
 from utils.sth import sth
 from Algorithms.algorithm_base import Policy
 
+
 class A2C(Policy):
     def __init__(self,
                  s_dim,
@@ -77,66 +78,63 @@ class A2C(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
+    def choose_action(self, s, visual_s):
         if self.action_type == 'continuous':
-            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             return self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
             if np.random.uniform() < 0.2:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
-                pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
                 a = self.sess.run(self.action, feed_dict={
-                    self.pl_visual_s: pl_visual_s,
-                    self.pl_s: pl_s
+                    self.pl_visual_s: visual_s,
+                    self.pl_s: s
                 })
             return sth.int2action_index(a, self.a_dim_or_list)
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         if self.action_type == 'continuous':
             return self.sess.run(self.mu, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
             a = self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
             return sth.int2action_index(a, self.a_dim_or_list)
 
-    def store_data(self, s, a, r, s_, done):
-        self.on_store(s, a, r, s_, done)
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        self.on_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def calculate_statistics(self):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(self.data.s_.values[-1])
+        s, visual_s = self.data.s_.values[-1], self.data.visual_s_.values[-1]
         init_value = np.squeeze(self.sess.run(self.v, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
         }))
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
         s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
+        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
         a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
         dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
-        return s, a, dc_r
+        return s, visual_s, a, dc_r
 
     def learn(self, episode):
         self.calculate_statistics()
-        s, a, dc_r = self.get_sample_data()
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+        s, visual_s, a, dc_r = self.get_sample_data()
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.dc_r: dc_r,
             self.episode: episode,

@@ -66,10 +66,10 @@ class sth(object):
             [2 1 1]]
         """
         y = []
-        x=np.squeeze(x)
+        x = np.squeeze(x)
         for i in reversed(action_dim_list):
-            y.insert(0, x%i)
-            x//=i
+            y.insert(0, x % i)
+            x //= i
         return np.array(y).T
 
     @staticmethod
@@ -89,9 +89,9 @@ class sth(object):
                 [2 1 1]], [3, 2, 2]
         output: [ 0  1  2  3  4  5  6  7  8  9 10 11]
         '''
-        assert isinstance(z, np.ndarray) 
+        assert isinstance(z, np.ndarray)
         if len(z.shape) == 1:
-            z=z[np.newaxis,:]
+            z = z[np.newaxis, :]
         x = []
         y = 1
         for i in list(reversed(action_dim_list)):
@@ -117,12 +117,12 @@ class sth(object):
                 [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
         '''
         if hasattr(x, '__len__'):
-            a=np.zeros([len(x), action_dim_prod])
+            a = np.zeros([len(x), action_dim_prod])
             for i in range(len(x)):
                 a[i, x[i]] = 1
         else:
-            a=np.zeros(action_dim_prod)
-            a[x]=1
+            a = np.zeros(action_dim_prod)
+            a[x] = 1
         return a
 
     @staticmethod
@@ -156,7 +156,7 @@ class sth(object):
         assert isinstance(index, np.ndarray)
         if len(index.shape) == 1:
             index = index[:, np.newaxis]
-        return sth.int2one_hot(sth.action_index2int(index, action_dim_list),np.array(action_dim_list).prod())
+        return sth.int2one_hot(sth.action_index2int(index, action_dim_list), np.array(action_dim_list).prod())
 
     @staticmethod
     def get_batch_one_hot(action, action_multiplication_factor, cols):

@@ -113,46 +113,32 @@ class SAC_NO_V(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_action(self, s, visual_s):
         return self.sess.run(self.a_s, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         return self.sess.run(self.mu, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
-    def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, r, s_, _ = self.data.sample()
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
-        # self.sess.run([self.train_q1, self.train_q2, self.train_actor, self.train_alpha, self.assign_q1_target, self.assign_q2_target], feed_dict={
-        #     self.pl_visual_s: pl_visual_s,
-        #     self.pl_s: pl_s,
-        #     self.pl_a: a,
-        #     self.pl_r: r,
-        #     self.pl_visual_s_: pl_visual_s_,
-        #     self.pl_s_: pl_s_,
-        #     self.episode: episode,
-        #     self.sigma_offset: np.full(self.a_counts, 0.01)
-        # })
+        s, visual_s, a, r, s_, visual_s_, _ = self.data.sample()
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })

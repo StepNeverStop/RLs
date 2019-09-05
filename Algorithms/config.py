@@ -34,7 +34,7 @@ pg_config = {
     'batch_size': 500,
     'epoch': 1
 }
-ac_config={
+ac_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'max_episode': 50000,

@@ -10,6 +10,7 @@ from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, Priorit
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
+
 class Policy(object):
     _version_number_ = 2
 
@@ -26,7 +27,7 @@ class Policy(object):
                  batch_size=1,
                  buffer_size=1,
                  use_priority=False,
-                 n_step=False
+                 n_step=False,
                  ):
         self.graph = tf.Graph()
         gpu_options = tf.GPUOptions(allow_growth=True)
@@ -63,10 +64,11 @@ class Policy(object):
             if use_priority:
                 if n_step:
                     print('N-Step PER')
-                    self.data = NStepPrioritizedExperienceReplay(self.batch_size,self.buffer_size, max_episode=self.max_episode, gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
+                    self.data = NStepPrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode,
+                                                                 gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
                 else:
                     print('PER')
-                    self.data = PrioritizedExperienceReplay(self.batch_size,self.buffer_size,max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
+                    self.data = PrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
             else:
                 if n_step:
                     print('N-Step ER')
@@ -74,8 +76,7 @@ class Policy(object):
                 else:
                     print('ER')
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)
-            
-            
+
         else:
             raise Exception('Please specific a mode of policy!')
 
@@ -103,7 +104,7 @@ class Policy(object):
                 self.s_ = self.pl_s_
                 self.conv_vars = []
 
-    def on_store(self, s, a, r, s_, done):
+    def on_store(self, s, visual_s, a, r, s_, visual_s_, done):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
         """
@@ -112,27 +113,29 @@ class Policy(object):
         assert isinstance(done, np.ndarray)
         self.data = self.data.append({
             's': s,
+            'visual_s': visual_s,
             'a': a,
             'r': r,
             's_': s_,
+            'visual_s_': visual_s_,
             'done': done
         }, ignore_index=True)
 
-    def off_store(self, s, a, r, s_, done):
+    def off_store(self, s, visual_s, a, r, s_, visual_s_, done):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
         assert isinstance(a, np.ndarray)
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
-        self.data.add(s, a, r, s_, done)
-    
-    def no_op_store(self, s, a, r, s_, done):
+        self.data.add(s, visual_s, a, r, s_, visual_s_, done)
+
+    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray)
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
         if self.policy_mode == 'OFF':
-            self.data.add(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
+            self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def clear(self):
         """
@@ -254,9 +257,3 @@ class Policy(object):
         """
         with self.graph.as_default():
             self.global_step.load(num, self.sess)
-
-    def get_visual_and_vector_input(self, s):
-        """
-        split the visual input and vector input, combine all cameras input into one np.array.
-        """
-        return np.array(list(x[-1] for x in s)), np.array(list(x[0] for x in s))

@@ -267,7 +267,7 @@ def train(
         model_dir,
         connect_option
 ):
-    brains_num=len(brain_names)
+    brains_num = len(brain_names)
     conn.root.register_train_task(myID, name)
     train_func = on_train if policy_mode == 'ON' else off_train
     model_dirs = [os.path.join(model_dir, brain_name, 'model') for brain_name in brain_names]

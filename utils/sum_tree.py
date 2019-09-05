@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Sum_Tree(object):
     def __init__(self, capacity):
         """

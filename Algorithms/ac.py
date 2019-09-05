@@ -95,75 +95,68 @@ class AC(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
+    def choose_action(self, s, visual_s):
         if self.action_type == 'continuous':
-            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             return self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
             if np.random.uniform() < 0.2:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
-                pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
                 a = self.sess.run(self.action, feed_dict={
-                    self.pl_visual_s: pl_visual_s,
-                    self.pl_s: pl_s
+                    self.pl_visual_s: visual_s,
+                    self.pl_s: s
                 })
             return sth.int2action_index(a, self.a_dim_or_list)
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         if self.action_type == 'continuous':
             return self.sess.run(self.mu, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
             a = self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
             return sth.int2action_index(a, self.a_dim_or_list)
 
-    def store_data(self, s, a, r, s_, done):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         old_prob = self.sess.run(self.prob, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
         assert isinstance(a, np.ndarray)
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
-        self.data.add(s, a, old_prob, r[:, np.newaxis], s_, done[:, np.newaxis])
-        # self.off_store(s, a, old_prob, r[:, np.newaxis], s_, done[:, np.newaxis])
+        self.data.add(s, visual_s, a, old_prob, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def no_op_store(self, s, a, r, s_, done):
+    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         old_prob = np.ones_like(r)
         assert isinstance(a, np.ndarray)
         assert isinstance(r, np.ndarray)
         assert isinstance(done, np.ndarray)
         if self.policy_mode == 'OFF':
-            self.data.add(s, a, old_prob[:, np.newaxis], r[:, np.newaxis], s_, done[:, np.newaxis])
+            self.data.add(s, visual_s, a, old_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, old_prob, r, s_, done = self.data.sample()
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
+        s, visual_s, a, old_prob, r, s_, visual_s_, done = self.data.sample()
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.old_prob: old_prob,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.pl_done: done,
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
