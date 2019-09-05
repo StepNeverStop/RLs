@@ -69,14 +69,15 @@ class Loop(object):
                     visual_state[i] = next_visual_state
                     rewards[i] += np.array(obs[brain_name].rewards)
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
-                    for i in range(brains_num):
-                        models[i].learn(episode)
-                        models[i].writer_summary(
-                            episode,
-                            total_reward=rewards[i].mean(),
-                            step=step
-                        )
                     break
+            for i in range(brains_num):
+                models[i].learn(episode)
+            for i in range(brains_num):
+                models[i].writer_summary(
+                    episode,
+                    total_reward=rewards[i].mean(),
+                    step=step
+                )
             print(f'episode {episode} step {step}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
@@ -128,8 +129,9 @@ class Loop(object):
                     )
                     state[i] = next_state
                     visual_state[i] = next_visual_state
-                    models[i].learn(episode)
                     rewards[i] += np.array(obs[brain_name].rewards)
+                for i in range(brains_num):
+                    models[i].learn(episode)
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     break
             print(f'episode {episode} step {step}')

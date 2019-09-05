@@ -17,7 +17,7 @@ class Policy(object):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  gamma,
@@ -36,9 +36,7 @@ class Policy(object):
         self.visual_sources = visual_sources
         self.visual_dim = [
             visual_sources,
-            visual_resolutions[0]['height'],
-            visual_resolutions[0]['width'],
-            1 if visual_resolutions[0]['blackAndWhite'] else 3
+            *visual_resolution
         ] if visual_sources else [0]
         self.a_dim_or_list = a_dim_or_list
         self.action_type = action_type
