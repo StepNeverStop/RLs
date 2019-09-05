@@ -48,14 +48,13 @@ For now, those algorithms are available:
 - - Advantage Actor Critic, A2C
 - - :boom:Proximal Policy Optimization, PPO
 - CONTINUOUS
+- - Deterministic Policy Gradient, DPG
+- - Deep Deterministic Policy Gradient, DDPG
 - - :fire:Soft Actor Critic, SAC​​
 - - :fire:Twin Delayed Deep Deterministic Policy Gradient, TD3
 - DISCRETE
 - - Deep Q-learning Network, DQN
 - - Double Deep Q-learning Network, DDQN
 - - Dueling Double Deep Q-learning Network, DDDQN
-- - Deterministic Policy Gradient, DPG
-- - Deep Deterministic Policy Gradient, DDPG
-
 
 Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
