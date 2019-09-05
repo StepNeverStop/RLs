@@ -4,10 +4,12 @@ import Nn
 from utils.sth import sth
 from Algorithms.algorithm_base import Policy
 
+
 class DDQN(Policy):
     '''
     Double DQN
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -32,14 +34,14 @@ class DDQN(Policy):
         with self.graph.as_default():
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.q = Nn.critic_q_all('q', self.s, self.a_counts,trainable=True)
+            self.q = Nn.critic_q_all('q', self.s, self.a_counts, trainable=True)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
 
-            self.q_next= Nn.critic_q_all('q', self.s_, self.a_counts,trainable=True, reuse=True)
+            self.q_next = Nn.critic_q_all('q', self.s_, self.a_counts, trainable=True, reuse=True)
             self.next_max_action = tf.argmax(self.q_next, axis=1)
-            self.next_max_action_one_hot=tf.one_hot(tf.squeeze(self.next_max_action), self.a_counts,1.,0.,dtype=tf.float32)
-            self.q_target_next= Nn.critic_q_all('q_target', self.s_, self.a_counts,trainable=False)
+            self.next_max_action_one_hot = tf.one_hot(tf.squeeze(self.next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
+            self.q_target_next = Nn.critic_q_all('q_target', self.s_, self.a_counts, trainable=False)
 
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
             self.q_target_next_max = tf.reduce_sum(tf.multiply(self.q_target_next, self.next_max_action_one_hot), axis=1)[:, np.newaxis]
@@ -77,42 +79,38 @@ class DDQN(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
+    def choose_action(self, s, visual_s):
         if np.random.uniform() < self.epsilon:
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             a = self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s
+                self.pl_visual_s: visual_s,
+                self.pl_s: s
             })
         return sth.int2action_index(a, self.a_dim_or_list)
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         return sth.int2action_index(
             self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s
+                self.pl_visual_s: visual_s,
+                self.pl_s: s
             }),
             self.a_dim_or_list
         )
 
-    def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, r, s_, done = self.data.sample()
+        s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
         _a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         summaries, _ = self.sess.run([self.summaries, self.train_q], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: _a,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.pl_done: done,
             self.episode: episode
         })

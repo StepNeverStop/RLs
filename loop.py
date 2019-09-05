@@ -1,7 +1,8 @@
 import sys
 import numpy as np
 
-def combined_input(n, cameras, brain_obs):
+
+def get_visual_input(n, cameras, brain_obs):
     '''
     inputs:
         n: agents number
@@ -15,8 +16,9 @@ def combined_input(n, cameras, brain_obs):
         s = []
         for k in range(cameras):
             s.append(brain_obs.visual_observations[k][j])
-        ss.append([brain_obs.vector_observations[j], np.array(s)])
+        ss.append(np.array(s))
     return ss
+
 
 class Loop(object):
 
@@ -27,6 +29,7 @@ class Loop(object):
         """
         brains_num = len(brain_names)
         state = [0] * brains_num
+        visual_state = [0] * brains_num
         action = [0] * brains_num
         dones_flag = [0] * brains_num
         agents_num = [0] * brains_num
@@ -39,26 +42,31 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                state[i] = obs[brain_name].vector_observations
+                visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             step = 0
             while True:
                 step += 1
                 for i, brain_name in enumerate(brain_names):
-                    action[i] = models[i].choose_action(s=state[i])
+                    action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
-                    ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                    next_state = obs[brain_name].vector_observations
+                    next_visual_state = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     models[i].store_data(
                         s=state[i],
+                        visual_s=visual_state[i],
                         a=action[i],
                         r=np.array(obs[brain_name].rewards),
-                        s_=ss,
+                        s_=next_state,
+                        visual_s_=next_visual_state,
                         done=np.array(obs[brain_name].local_done)
                     )
-                    state[i] = ss
+                    state[i] = next_state
+                    visual_state[i] = next_visual_state
                     rewards[i] += np.array(obs[brain_name].rewards)
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     for i in range(brains_num):
@@ -82,6 +90,7 @@ class Loop(object):
         """
         brains_num = len(brain_names)
         state = [0] * brains_num
+        visual_state = [0] * brains_num
         action = [0] * brains_num
         dones_flag = [0] * brains_num
         agents_num = [0] * brains_num
@@ -95,25 +104,30 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                state[i] = obs[brain_name].vector_observations
+                visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             step = 0
             while True:
                 step += 1
                 for i, brain_name in enumerate(brain_names):
-                    action[i] = models[i].choose_action(s=state[i])
+                    action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
                 for i, brain_name in enumerate(brain_names):
                     dones_flag[i] += obs[brain_name].local_done
-                    ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                    next_state = obs[brain_name].vector_observations
+                    next_visual_state = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     models[i].store_data(
                         s=state[i],
+                        visual_s=visual_state[i],
                         a=action[i],
                         r=np.array(obs[brain_name].rewards),
-                        s_=ss,
+                        s_=next_state,
+                        visual_s_=next_visual_state,
                         done=np.array(obs[brain_name].local_done)
                     )
-                    state[i] = ss
+                    state[i] = next_state
+                    visual_state[i] = next_visual_state
                     models[i].learn(episode)
                     rewards[i] += np.array(obs[brain_name].rewards)
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
@@ -136,6 +150,7 @@ class Loop(object):
         """
         brains_num = len(brain_names)
         state = [0] * brains_num
+        visual_state = [0] * brains_num
         action = [0] * brains_num
         agents_num = [0] * brains_num
         while True:
@@ -146,8 +161,9 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
             while True:
                 for i, brain_name in enumerate(brain_names):
-                    state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
-                    action[i] = models[i].choose_inference_action(s=state[i])
+                    state[i] = obs[brain_name].vector_observations
+                    visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                    action[i] = models[i].choose_inference_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 
@@ -160,6 +176,7 @@ class Loop(object):
         assert type(steps) == int and steps > 0
         brains_num = len(brain_names)
         state = [0] * brains_num
+        visual_state = [0] * brains_num
         agents_num = [0] * brains_num
         action = [0] * brains_num
         obs = env.reset(train_mode=False)
@@ -175,14 +192,18 @@ class Loop(object):
         for step in range(steps):
             print(f'no op step {step}')
             for i, brain_name in enumerate(brain_names):
-                state[i] = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                state[i] = obs[brain_name].vector_observations
+                visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             obs = env.step(vector_action=actions)
             for i, brain_name in enumerate(brain_names):
-                ss = combined_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                next_state = obs[brain_name].vector_observations
+                next_visual_state = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                 models[i].no_op_store(
                     s=state[i],
+                    visual_s=visual_state[i],
                     a=action[i],
                     r=np.array(obs[brain_name].rewards),
-                    s_=ss,
+                    s_=next_state,
+                    visual_s_=next_visual_state,
                     done=np.array(obs[brain_name].local_done)
                 )

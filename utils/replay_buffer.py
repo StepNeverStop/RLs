@@ -2,6 +2,8 @@ import numpy as np
 from .sum_tree import Sum_Tree
 from abc import ABC, abstractmethod
 
+# [s, visual_s, a, r, s_, visual_s_, done] must be this format.
+
 
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):
@@ -164,7 +166,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
 
     def add(self, *args):
         '''
-        input: [ss, as, rs, _ss, dones]
+        input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
@@ -179,7 +181,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
 
     def sample(self):
         '''
-        output: weights, [ss, as, rs, _ss, dones]
+        output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         interval = self.tree.total / n_sample
@@ -214,7 +216,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
 
 class NStepExperienceReplay(ExperienceReplay):
     '''
-    [s, a, r, s_, done] must be this format.
+    [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
     def __init__(self, batch_size, capacity, gamma, n, agents_num):
@@ -240,11 +242,12 @@ class NStepExperienceReplay(ExperienceReplay):
         这段代码真是烂透了啊啊啊啊！！！！
         '''
         # if self.exps_pointer[i] > 0 and self.exps[i][self.exps_pointer[i] - 1][3] != data[0]:
-        if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.array, np.array]组成，所以比较这样一个列表十分麻烦
+        if self.exps_pointer[i] > 0 and ((data[0] != self.exps[i][self.exps_pointer[i] - 1][4]).any() or data[1] != self.exps[i][self.exps_pointer[i] - 1][5]):
+            # if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.array, np.array]组成，所以比较这样一个列表十分麻烦
             # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
             # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
             for k in range(self.exps_pointer[i]):
-                self.exps[i][k][-2:] = self.exps[i][self.exps_pointer[i] - 1][-2:]
+                self.exps[i][k][-3:] = self.exps[i][self.exps_pointer[i] - 1][-3:]
                 self._buffer[self._data_pointer] = self.exps[i][k]
                 self.update_rb_after_add()
             self.exps[i] = [()] * self.n
@@ -252,19 +255,19 @@ class NStepExperienceReplay(ExperienceReplay):
         self.exps[i][self.exps_pointer[i]] = data  # 存入临时经验池
         for j in range(self.exps_pointer[i]):
             # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
-            self.exps[i][j][2] += pow(self.gamma, self.exps_pointer[i] - j) * data[2]
+            self.exps[i][j][3] += pow(self.gamma, self.exps_pointer[i] - j) * data[3]
         if data[-1]:
             # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
             # 把临时经验池中所有的经验都存入
             for k in range(self.exps_pointer[i] + 1):
-                self.exps[i][k][-2:] = data[-2:]
+                self.exps[i][k][-3:] = data[-3:]
                 self._buffer[self._data_pointer] = self.exps[i][k]
                 self.update_rb_after_add()
             self.exps[i] = [()] * self.n
             self.exps_pointer[i] = 0
         elif self.exps_pointer[i] == self.n - 1:
             # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
-            self.exps[i][0][-2:] = data[-2:]
+            self.exps[i][0][-3:] = data[-3:]
             self._buffer[self._data_pointer] = self.exps[i][0]
             self.update_rb_after_add()
             del self.exps[i][0]
@@ -276,7 +279,7 @@ class NStepExperienceReplay(ExperienceReplay):
 
 class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
     '''
-    [s, a, r, s_, done] must be this format.
+    [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
     def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n):
@@ -288,7 +291,7 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
 
     def add(self, *args):
         '''
-        input: [ss, as, rs, _ss, dones]
+        input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         if hasattr(args[0], '__len__'):
             for i in range(len(args[0])):
@@ -300,12 +303,11 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
         '''
         这段代码真是烂透了啊啊啊啊！！！！
         '''
-        # if self.exps_pointer[i] > 0 and self.exps[i][self.exps_pointer[i] - 1][3] != data[0]:
-        if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.array, np.array]组成，所以比较这样一个列表十分麻烦
+        if self.exps_pointer[i] > 0 and ((data[0] != self.exps[i][self.exps_pointer[i] - 1][4]).any() or data[1] != self.exps[i][self.exps_pointer[i] - 1][5]):
             # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
             # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
             for k in range(self.exps_pointer[i]):
-                self.exps[i][k][-2:] = self.exps[i][self.exps_pointer[i] - 1][-2:]
+                self.exps[i][k][-3:] = self.exps[i][self.exps_pointer[i] - 1][-3:]
                 self.tree.add(self.max_p, self.exps[i][k])
                 if self._size < self.capacity:
                     self._size += 1
@@ -314,12 +316,12 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
         self.exps[i][self.exps_pointer[i]] = data  # 存入临时经验池
         for j in range(self.exps_pointer[i]):
             # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
-            self.exps[i][j][2] += pow(self.gamma, self.exps_pointer[i] - j) * data[2]
+            self.exps[i][j][3] += pow(self.gamma, self.exps_pointer[i] - j) * data[3]
         if data[-1]:
             # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
             # 把临时经验池中所有的经验都存入
             for k in range(self.exps_pointer[i] + 1):
-                self.exps[i][k][-2:] = data[-2:]
+                self.exps[i][k][-3:] = data[-3:]
                 self.tree.add(self.max_p, self.exps[i][k])
                 if self._size < self.capacity:
                     self._size += 1
@@ -327,7 +329,7 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
             self.exps_pointer[i] = 0
         elif self.exps_pointer[i] == self.n - 1:
             # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
-            self.exps[i][0][-2:] = data[-2:]
+            self.exps[i][0][-3:] = data[-3:]
             self.tree.add(self.max_p, self.exps[i][0])
             if self._size < self.capacity:
                 self._size += 1

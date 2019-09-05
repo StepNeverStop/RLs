@@ -35,7 +35,7 @@ if sys.platform.startswith('win'):
 algos = {
     'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
     'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
-    'ac': [Algorithms.ac_config, Algorithms.AC, 'off-policy', 'perStep'], # could be on-policy, but also doesn't work well.
+    'ac': [Algorithms.ac_config, Algorithms.AC, 'off-policy', 'perStep'],  # could be on-policy, but also doesn't work well.
     'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perStep'],
     'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
     'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],
@@ -46,6 +46,7 @@ algos = {
     'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
     'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
 }
+
 
 def run():
     if sys.platform.startswith('win'):
@@ -91,7 +92,7 @@ def run():
     sampler_manager, resampling_interval = create_sampler_manager(
         options['--sampler'], env.reset_parameters
     )
-    
+
     try:
         algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
     except KeyError:
@@ -114,7 +115,7 @@ def run():
         print('-' * 46)
         print('|', str(key).ljust(20), str(algorithm_config[key]).rjust(20), '|')
     print('-' * 46)
-    
+
     if options['--max-step'] != 'None':
         max_step = int(options['--max-step'])
     brain_names = env.external_brain_names

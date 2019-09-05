@@ -27,9 +27,13 @@ class TD3(Policy):
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
 
-            self.mu, self.action = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True)
+            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
+            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
+            self.mu = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True)
+            self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
             tf.identity(self.mu, 'action')
-            self.target_mu, self.action_target = Nn.actor_dpg('actor_target', self.s_, self.a_counts, trainable=False)
+            self.target_mu = Nn.actor_dpg('actor_target', self.s_, self.a_counts, trainable=False)
+            self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
             self.s_a = tf.concat((self.s, self.pl_a), axis=1)
             self.s_mu = tf.concat((self.s, self.mu), axis=1)
@@ -99,44 +103,40 @@ class TD3(Policy):
             ''')
             self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_action(self, s, visual_s):
         return self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s
+            self.pl_visual_s: visual_s,
+            self.pl_s: s
         })
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         return self.sess.run(self.mu, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s
+            self.pl_visual_s: visual_s,
+            self.pl_s: s
         })
 
-    def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, r, s_, done = self.data.sample()
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
+        s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
         self.sess.run(self.train_value, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.pl_done: done,
             self.episode: episode
         })
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.pl_done: done,
             self.episode: episode
         })
