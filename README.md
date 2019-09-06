@@ -4,7 +4,11 @@
 
 This project support:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`.
+- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 90% environment settings of Gym. 
+- - Discrete -> Discrete
+- - Discrete -> Box
+- - Box -> Discrete
+- - Box -> Box
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]`.
@@ -30,12 +34,13 @@ Options:
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
+    --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
     python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ddpg -n train_using_gym --gym-env=MountainCar-v0
+    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000
 """
 ```
 

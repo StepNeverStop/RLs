@@ -18,10 +18,16 @@ Options:
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
+    --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
+    python run.py -a ppo -u -n train_in_unity
+    python run.py -ui -a td3 -n inference_in_unity
+    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
+    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000
 """
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import sys
 import _thread
 import Algorithms
@@ -55,6 +61,7 @@ def _win_handler(event, hook_sigint=_thread.interrupt_main):
         return 1
     return 0
 
+
 def run():
     if sys.platform.startswith('win'):
         # Add the _win_handler function to the windows console's handler function list
@@ -62,7 +69,7 @@ def run():
 
     options = docopt(__doc__)
     print(options)
-    
+
     max_step = int(options['--max-step']) if options['--max-step'] != 'None' else train_config['max_step']
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
@@ -74,6 +81,7 @@ def run():
         'name': name
     }
     gym_run(**run_params) if options['--gym'] else unity_run(**run_params)
+
 
 def unity_run(options, max_step, save_frequency, name):
     from mlagents.envs import UnityEnvironment
@@ -111,11 +119,11 @@ def unity_run(options, max_step, save_frequency, name):
 
     if 'Loop' not in locals().keys():
         from loop import Loop
-        
+
     sampler_manager, resampling_interval = create_sampler_manager(
         options['--sampler'], env.reset_parameters
     )
-    
+
     try:
         algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
     except KeyError:
@@ -128,7 +136,7 @@ def unity_run(options, max_step, save_frequency, name):
 
     brain_names = env.external_brain_names
     brains = env.brains
-    
+
     visual_resolutions = {}
     for i in brain_names:
         if brains[i].number_visual_observations:
@@ -136,7 +144,7 @@ def unity_run(options, max_step, save_frequency, name):
                 brains[i].camera_resolutions[0]['height'],
                 brains[i].camera_resolutions[0]['width'],
                 1 if brains[i].camera_resolutions[0]['blackAndWhite'] else 3
-                ]
+            ]
         else:
             visual_resolutions[f'{i}'] = []
 
@@ -156,7 +164,7 @@ def unity_run(options, max_step, save_frequency, name):
 
     begin_episode = models[0].get_init_step()
     max_episode = models[0].get_max_episode()
-    
+
     params = {
         'env': env,
         'brain_names': brain_names,
@@ -166,6 +174,7 @@ def unity_run(options, max_step, save_frequency, name):
         'reset_config': reset_config,
         'max_step': max_step,
         'max_episode': max_episode,
+        'train_mode': train_mode,
         'sampler_manager': sampler_manager,
         'resampling_interval': resampling_interval
     }
@@ -175,10 +184,7 @@ def unity_run(options, max_step, save_frequency, name):
         [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
         try:
             Loop.no_op(env, brain_names, models, brains, 30)
-            if train_mode == 'perEpisode':
-                Loop.train_perEpisode(**params)
-            else:
-                Loop.train_perStep(**params)
+            Loop.train(**params)
         except Exception as e:
             print(e)
         finally:
@@ -190,12 +196,16 @@ def unity_run(options, max_step, save_frequency, name):
                 env.close()
                 sys.exit()
 
+
 def gym_run(options, max_step, save_frequency, name):
     import gym
     from gym_loop import Loop
     from gym.spaces import Box, Discrete
 
     available_type = [Box, Discrete]
+
+    render = train_config['gym_render']
+    render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else train_config['gym_render_episode']
 
     try:
         env = gym.make(options['--gym-env'])
@@ -204,7 +214,7 @@ def gym_run(options, max_step, save_frequency, name):
         assert env.observation_space in available_type and env.action_space in available_type
     except Exception as e:
         print(e)
-        
+
     try:
         algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
     except KeyError:
@@ -216,8 +226,10 @@ def gym_run(options, max_step, save_frequency, name):
     show_config(algorithm_config)
 
     if type(env.observation_space) == Box:
-        assert len(env.observation_space.shape) == 1
-        s_dim = env.observation_space.shape[0] 
+        if len(env.observation_space.shape) == 1:
+            s_dim = env.observation_space.shape[0]
+        else:
+            s_dim = 0
     else:
         s_dim = env.observation_space.n
     if len(env.observation_space.shape) == 3:
@@ -252,21 +264,22 @@ def gym_run(options, max_step, save_frequency, name):
     params = {
         'env': env,
         'gym_model': gym_model,
+        'action_type': action_type,
         'begin_episode': begin_episode,
         'save_frequency': save_frequency,
         'max_step': max_step,
-        'max_episode': max_episode
+        'max_episode': max_episode,
+        'render': render,
+        'render_episode': render_episode,
+        'train_mode': train_mode
     }
     if options['--inference']:
-        Loop.inference(env, gym_model)
+        Loop.inference(env, gym_model, action_type)
     else:
         sth.save_config(os.path.join(base_dir, 'config'), algorithm_config)
         try:
             Loop.no_op(env, gym_model, action_type, 30)
-            if train_mode == 'perEpisode':
-                Loop.train_perEpisode(**params)
-            else:
-                Loop.train_perStep(**params)
+            Loop.train(**params)
         except Exception as e:
             print(e)
         finally:
@@ -278,6 +291,7 @@ def gym_run(options, max_step, save_frequency, name):
                 env.close()
                 sys.exit()
 
+
 def update_config(config):
     _config = sth.load_config(options['--config-file'])
     try:
@@ -288,11 +302,13 @@ def update_config(config):
         sys.exit()
     return config
 
+
 def show_config(config):
     for key in config:
         print('-' * 46)
         print('|', str(key).ljust(20), str(config[key]).rjust(20), '|')
     print('-' * 46)
+
 
 if __name__ == "__main__":
     try:

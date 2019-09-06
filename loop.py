@@ -23,7 +23,7 @@ def get_visual_input(n, cameras, brain_obs):
 class Loop(object):
 
     @staticmethod
-    def train_perEpisode(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
+    def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, train_mode, sampler_manager, resampling_interval):
         """
         usually on-policy algorithms, i.e. pg, ppo
         """
@@ -68,79 +68,25 @@ class Loop(object):
                     state[i] = next_state
                     visual_state[i] = next_visual_state
                     rewards[i] += np.array(obs[brain_name].rewards)
+
+                    if train_mode == 'perStep':
+                        for i in range(brains_num):
+                            models[i].learn(episode)
+
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     break
-            for i in range(brains_num):
-                models[i].learn(episode)
-            for i in range(brains_num):
-                models[i].writer_summary(
-                    episode,
-                    total_reward=rewards[i].mean(),
-                    step=step
-                )
-            print(f'episode {episode} step {step}')
-            if episode % save_frequency == 0:
-                for i in range(brains_num):
-                    models[i].save_checkpoint(episode)
 
-    @staticmethod
-    def train_perStep(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
-        """
-        usually off-policy algorithms with replay buffer, i.e. dqn, ddpg, td3, sac
-        also used for some on-policy algorithms, i.e. ac, a2c
-        """
-        brains_num = len(brain_names)
-        state = [0] * brains_num
-        visual_state = [0] * brains_num
-        action = [0] * brains_num
-        dones_flag = [0] * brains_num
-        agents_num = [0] * brains_num
-        rewards = [0] * brains_num
-
-        for episode in range(begin_episode, max_episode):
-            if episode % resampling_interval == 0:
-                reset_config.update(sampler_manager.sample_all())
-            obs = env.reset(config=reset_config, train_mode=True)
-            for i, brain_name in enumerate(brain_names):
-                agents_num[i] = len(obs[brain_name].agents)
-                dones_flag[i] = np.zeros(agents_num[i])
-                rewards[i] = np.zeros(agents_num[i])
-                state[i] = obs[brain_name].vector_observations
-                visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
-            step = 0
-            while True:
-                step += 1
-                for i, brain_name in enumerate(brain_names):
-                    action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
-                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
-                obs = env.step(vector_action=actions)
-                for i, brain_name in enumerate(brain_names):
-                    dones_flag[i] += obs[brain_name].local_done
-                    next_state = obs[brain_name].vector_observations
-                    next_visual_state = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
-                    models[i].store_data(
-                        s=state[i],
-                        visual_s=visual_state[i],
-                        a=action[i],
-                        r=np.array(obs[brain_name].rewards),
-                        s_=next_state,
-                        visual_s_=next_visual_state,
-                        done=np.array(obs[brain_name].local_done)
-                    )
-                    state[i] = next_state
-                    visual_state[i] = next_visual_state
-                    rewards[i] += np.array(obs[brain_name].rewards)
+            if train_mode == 'perEpisode':
                 for i in range(brains_num):
                     models[i].learn(episode)
-                if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
-                    break
-            print(f'episode {episode} step {step}')
+
             for i in range(brains_num):
                 models[i].writer_summary(
                     episode,
                     total_reward=rewards[i].mean(),
                     step=step
                 )
+            print(f'episode {episode} step {step}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)
