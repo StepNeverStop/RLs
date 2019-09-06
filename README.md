@@ -4,7 +4,7 @@
 
 This project support:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 90% environment settings of Gym. 
+- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 90% environment settings of Gym. **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
 - - Discrete -> Discrete
 - - Discrete -> Box
 - - Box -> Discrete
@@ -33,6 +33,7 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
+    --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
@@ -40,7 +41,7 @@ Example:
     python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000
+    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
 """
 ```
 

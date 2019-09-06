@@ -17,6 +17,7 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
+    --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
@@ -24,7 +25,7 @@ Example:
     python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000
+    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
 """
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -198,9 +199,9 @@ def unity_run(options, max_step, save_frequency, name):
 
 
 def gym_run(options, max_step, save_frequency, name):
-    import gym
     from gym_loop import Loop
     from gym.spaces import Box, Discrete
+    from gym_wrapper import gym_envs
 
     available_type = [Box, Discrete]
 
@@ -208,7 +209,7 @@ def gym_run(options, max_step, save_frequency, name):
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else train_config['gym_render_episode']
 
     try:
-        env = gym.make(options['--gym-env'])
+        env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
         print('obs: ', env.observation_space)
         print('a: ', env.action_space)
         assert env.observation_space in available_type and env.action_space in available_type
