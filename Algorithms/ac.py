@@ -10,7 +10,7 @@ class AC(Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  lr=5.0e-4,
@@ -23,7 +23,7 @@ class AC(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')

@@ -8,7 +8,7 @@ class SAC(Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  alpha=0.2,
@@ -24,7 +24,8 @@ class SAC(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        assert action_type == 'continuous'
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')

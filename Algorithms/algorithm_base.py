@@ -17,7 +17,7 @@ class Policy(object):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  gamma,
@@ -34,12 +34,7 @@ class Policy(object):
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
-        self.visual_dim = [
-            visual_sources,
-            visual_resolutions[0]['height'],
-            visual_resolutions[0]['width'],
-            1 if visual_resolutions[0]['blackAndWhite'] else 3
-        ] if visual_sources else [0]
+        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
         self.a_dim_or_list = a_dim_or_list
         self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
@@ -76,13 +71,12 @@ class Policy(object):
                 else:
                     print('ER')
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)
-
         else:
             raise Exception('Please specific a mode of policy!')
 
         with self.graph.as_default():
-            # continuous 1 discrete 0
-            tf.Variable(1 if action_type == 'continuous' else 0, name='is_continuous_control', trainable=False, dtype=tf.int32)
+            tf.set_random_seed(-1)  # variables initialization consistent.
+            tf.Variable(1 if action_type == 'continuous' else 0, name='is_continuous_control', trainable=False, dtype=tf.int32)  # continuous 1 discrete 0
             tf.Variable(self.a_counts, name="action_output_shape", trainable=False, dtype=tf.int32)
             tf.Variable(self._version_number_, name='version_number', trainable=False, dtype=tf.int32)
             tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)

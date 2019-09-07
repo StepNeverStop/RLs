@@ -50,7 +50,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        if hasattr(args[0], '__len__'):
+        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             self.agents_num = len(args[0])
             for i in range(len(args[0])):
                 self._store_op(i, list(arg[i] for arg in args))
@@ -101,7 +101,7 @@ class ExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        if hasattr(args[0], '__len__'):
+        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             for i in range(len(args[0])):
                 self._store_op(list(arg[i] for arg in args))
         else:
@@ -168,7 +168,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        if hasattr(args[0], '__len__'):
+        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             for i in range(len(args[0])):
                 self._store_op(list(arg[i] for arg in args))
         else:
@@ -230,7 +230,7 @@ class NStepExperienceReplay(ExperienceReplay):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        if hasattr(args[0], '__len__'):
+        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             for i in range(len(args[0])):
                 self._store_op(list(arg[i] for arg in args), i)
 
@@ -293,7 +293,7 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        if hasattr(args[0], '__len__'):
+        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             for i in range(len(args[0])):
                 self._store_op(list(arg[i] for arg in args), i)
         else:

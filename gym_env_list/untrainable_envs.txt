@@ -1,0 +1,9 @@
+|Copy-v0                                           Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|RepeatCopy-v0                                     Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|ReversedAddition-v0                               Discrete(4)                                                                                                         Tuple(Discrete(4), Discrete(2), Discrete(3))|
+|ReversedAddition3-v0                              Discrete(4)                                                                                                         Tuple(Discrete(4), Discrete(2), Discrete(3))|
+|DuplicatedInput-v0                                Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|Reverse-v0                                        Discrete(3)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(2))|
+|Blackjack-v0                                      Tuple(Discrete(32), Discrete(11), Discrete(2))                                                                                                       Discrete(2)|
+|KellyCoinflip-v0                                  Tuple(Box(1,), Discrete(301))                                                                                                                    Discrete(25000)|
+|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(308), Discrete(308), Discrete(308), Box(1,))                                                                             Discrete(20000)|

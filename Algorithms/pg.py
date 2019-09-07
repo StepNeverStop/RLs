@@ -9,7 +9,7 @@ class PG(Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  lr=5.0e-4,
@@ -22,7 +22,7 @@ class PG(Policy):
                  excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
         self.epoch = epoch
         self.batch_size = batch_size
         with self.graph.as_default():
