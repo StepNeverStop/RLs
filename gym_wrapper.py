@@ -27,9 +27,13 @@ class gym_envs(object):
         self.envs = [gym.make(gym_env_name) for _ in range(self.n)]
         self.observation_space = self.envs[0].observation_space
         self.obs_type = 'visual' if len(self.observation_space.shape) == 3 else 'vector'
-        self.a_type = 'discrete' if type(self.envs[0].action_space) == gym.spaces.discrete.Discrete else 'continuous'
+        if type(self.envs[0].action_space) == gym.spaces.box.Box:
+            self.a_type = 'continuous'
+        elif type(self.envs[0].action_space) == gym.spaces.tuple.Tuple:
+            self.a_type = 'Tuple(Discrete)'
+        else:
+            self.a_type = 'discrete'
         self.action_space = self.envs[0].action_space
-        print(self.action_space)
 
     def render(self):
         self.envs[0].render()
@@ -54,6 +58,8 @@ class gym_envs(object):
     def step(self, actions):
         if self.a_type == 'discrete':
             actions = actions.reshape(-1,)
+        elif self.a_type == 'Tuple(Discrete)':
+            actions = actions.reshape(self.n, -1).tolist()
         threadpool = []
         for i in range(self.n):
             th = MyThread(self.envs[i].step, args=(actions[i], ))

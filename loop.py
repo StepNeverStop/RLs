@@ -25,7 +25,24 @@ class Loop(object):
     @staticmethod
     def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, train_mode, sampler_manager, resampling_interval):
         """
-        usually on-policy algorithms, i.e. pg, ppo
+        Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
+        Inputs:
+            env:                    Environment for interaction.
+            models:                 all models for this trianing task.
+            save_frequency:         how often to save checkpoints.
+            reset_config:           configuration to reset for Unity environment.
+            max_step:               maximum number of steps for an episode.
+            train_mode:             train or inference.
+            sampler_manager:        sampler configuration parameters for 'reset_config'.
+            resampling_interval:    how often to resample parameters for env reset.
+        Variables:
+            brain_names:    a list of brain names set in Unity.
+            state: store    a list of states for each brain. each item contain a list of states for each agents that controlled by the same brain.
+            visual_state:   store a list of visual state information for each brain.
+            action:         store a list of actions for each brain.
+            dones_flag:     store a list of 'done' for each brain. use for judge whether an episode is finished for every agents.
+            agents_num:     use to record 'number' of agents for each brain.
+            rewards:        use to record rewards of agents for each brain.
         """
         brains_num = len(brain_names)
         state = [0] * brains_num

@@ -1,3 +1,9 @@
+|Copy-v0                                           Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|RepeatCopy-v0                                     Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|ReversedAddition-v0                               Discrete(4)                                                                                                         Tuple(Discrete(4), Discrete(2), Discrete(3))|
+|ReversedAddition3-v0                              Discrete(4)                                                                                                         Tuple(Discrete(4), Discrete(2), Discrete(3))|
+|DuplicatedInput-v0                                Discrete(6)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(5))|
+|Reverse-v0                                        Discrete(3)                                                                                                         Tuple(Discrete(2), Discrete(2), Discrete(2))|
 |CartPole-v0                                       Box(4,)                                                                                                                                              Discrete(2)|
 |CartPole-v1                                       Box(4,)                                                                                                                                              Discrete(2)|
 |MountainCar-v0                                    Box(2,)                                                                                                                                              Discrete(3)|

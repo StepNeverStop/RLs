@@ -4,11 +4,12 @@
 
 This project support:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 90% environment settings of Gym. **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
+- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
 - - Discrete -> Discrete
 - - Discrete -> Box
 - - Box -> Discrete
 - - Box -> Box
+- - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]`.
@@ -41,7 +42,7 @@ Example:
     python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
+    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
 """
 ```
 

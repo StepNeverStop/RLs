@@ -25,7 +25,7 @@ Example:
     python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ddpg -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
+    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
 """
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -200,7 +200,7 @@ def unity_run(options, max_step, save_frequency, name):
 
 def gym_run(options, max_step, save_frequency, name):
     from gym_loop import Loop
-    from gym.spaces import Box, Discrete
+    from gym.spaces import Box, Discrete, Tuple
     from gym_wrapper import gym_envs
 
     available_type = [Box, Discrete]
@@ -239,10 +239,15 @@ def gym_run(options, max_step, save_frequency, name):
     else:
         visual_sources = 0
         visual_resolution = []
+
     if type(env.action_space) == Box:
         assert len(env.action_space.shape) == 1
         a_dim_or_list = env.action_space.shape
         action_type = 'continuous'
+    elif type(env.action_space) == Tuple:
+        assert all([type(i) == Discrete for i in env.action_space]) == True
+        a_dim_or_list = [i.n for i in env.action_space]
+        action_type = 'discrete'
     else:
         a_dim_or_list = [env.action_space.n]
         action_type = 'discrete'
