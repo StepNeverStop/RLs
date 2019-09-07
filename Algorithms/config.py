@@ -100,3 +100,11 @@ sac_no_v_config = {
     'batch_size': 100,
     'buffer_size': 10000
 }
+maddpg_config = {
+    'gamma': 0.99,
+    'ployak': 0.995,
+    'lr': 5.0e-4,
+    'max_episode': 50000,
+    'batch_size': 100,
+    'buffer_size': 10000
+}

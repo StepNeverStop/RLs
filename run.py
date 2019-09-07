@@ -34,6 +34,7 @@ import _thread
 import Algorithms
 from docopt import docopt
 from config import train_config
+from utils.replay_buffer import ExperienceReplay
 from utils.sth import sth
 
 if sys.platform.startswith('win'):
@@ -53,6 +54,7 @@ algos = {
     'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
     'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
     'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
+    'maddpg': [Algorithms.maddpg_config, Algorithms.MADDPG, 'off-policy', 'perStep']
 }
 
 
@@ -119,7 +121,7 @@ def unity_run(options, max_step, save_frequency, name):
         env_name = 'unity'
 
     if 'Loop' not in locals().keys():
-        from loop import Loop
+        from loop import Loop, MaLoop
 
     sampler_manager, resampling_interval = create_sampler_manager(
         options['--sampler'], env.reset_parameters
@@ -149,19 +151,38 @@ def unity_run(options, max_step, save_frequency, name):
         else:
             visual_resolutions[f'{i}'] = []
 
-    models = [model(
-        s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
-        visual_sources=brains[i].number_visual_observations,
-        visual_resolution=visual_resolutions[f'{i}'],
-        a_dim_or_list=brains[i].vector_action_space_size,
-        action_type=brains[i].vector_action_space_type,
-        cp_dir=os.path.join(base_dir, i, 'model'),
-        log_dir=os.path.join(base_dir, i, 'log'),
-        excel_dir=os.path.join(base_dir, i, 'excel'),
-        logger2file=False,
-        out_graph=True,
-        **algorithm_config
-    ) for i in brain_names]
+    if options['--algorithm'] == 'maddpg':
+        data = ExperienceReplay(10, 10000)
+        extra_params = {'data': data}
+        models = [model(
+            s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
+            a_dim_or_list=brains[i].vector_action_space_size,
+            action_type=brains[i].vector_action_space_type,
+            cp_dir=os.path.join(base_dir, i, 'model'),
+            log_dir=os.path.join(base_dir, i, 'log'),
+            excel_dir=os.path.join(base_dir, i, 'excel'),
+            logger2file=False,
+            out_graph=True,
+            n=len(brain_names),
+            i=j,
+            **algorithm_config
+        ) for j, i in enumerate(brain_names)]
+    else:
+        extra_params = {}
+        models = [model(
+            s_dim=brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
+            visual_sources=brains[i].number_visual_observations,
+            visual_resolution=visual_resolutions[f'{i}'],
+            a_dim_or_list=brains[i].vector_action_space_size,
+            action_type=brains[i].vector_action_space_type,
+            cp_dir=os.path.join(base_dir, i, 'model'),
+            log_dir=os.path.join(base_dir, i, 'log'),
+            excel_dir=os.path.join(base_dir, i, 'excel'),
+            logger2file=False,
+            out_graph=True,
+            **algorithm_config
+        ) for i in brain_names]
+        
 
     begin_episode = models[0].get_init_step()
     max_episode = models[0].get_max_episode()
@@ -179,23 +200,43 @@ def unity_run(options, max_step, save_frequency, name):
         'sampler_manager': sampler_manager,
         'resampling_interval': resampling_interval
     }
-    if options['--inference']:
-        Loop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
-    else:
-        [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
-        try:
-            Loop.no_op(env, brain_names, models, brains, 30)
-            Loop.train(**params)
-        except Exception as e:
-            print(e)
-        finally:
+    params.update(extra_params)
+    if options['--algorithm'] == 'maddpg':
+        if options['--inference']:
+            MaLoop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
+        else:
+            [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
             try:
-                [models[i].close() for i in range(len(models))]
+                MaLoop.maddpg_no_op(env, brain_names, models, data, brains, data.batch_size)
+                MaLoop.maddpg_train(**params)
             except Exception as e:
                 print(e)
             finally:
-                env.close()
-                sys.exit()
+                try:
+                    [models[i].close() for i in range(len(models))]
+                except Exception as e:
+                    print(e)
+                finally:
+                    env.close()
+                    sys.exit()
+    else:
+        if options['--inference']:
+            Loop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
+        else:
+            [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
+            try:
+                Loop.no_op(env, brain_names, models, brains, 30)
+                Loop.train(**params)
+            except Exception as e:
+                print(e)
+            finally:
+                try:
+                    [models[i].close() for i in range(len(models))]
+                except Exception as e:
+                    print(e)
+                finally:
+                    env.close()
+                    sys.exit()
 
 
 def gym_run(options, max_step, save_frequency, name):

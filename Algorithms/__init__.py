@@ -11,3 +11,4 @@ from .ddqn import DDQN
 from .duelingdqn import DDDQN
 from .ac import AC
 from .a2c import A2C
+from .maddpg import MADDPG
