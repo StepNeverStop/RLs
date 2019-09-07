@@ -75,7 +75,7 @@ class Policy(object):
             raise Exception('Please specific a mode of policy!')
 
         with self.graph.as_default():
-            # tf.set_random_seed(-1)  # variables initialization consistent.
+            tf.set_random_seed(-1)  # variables initialization consistent.
             tf.Variable(1 if action_type == 'continuous' else 0, name='is_continuous_control', trainable=False, dtype=tf.int32)  # continuous 1 discrete 0
             tf.Variable(self.a_counts, name="action_output_shape", trainable=False, dtype=tf.int32)
             tf.Variable(self._version_number_, name='version_number', trainable=False, dtype=tf.int32)
