@@ -125,7 +125,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 ### Dependencies
 
 - python>3.6, <3.7
-- tensorflow>1.7.0, <1.12.0
+- tensorflow>=1.7.0, <=1.12.0
 - pandas
 - numpy
 - pywin32=224
