@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import Nn
-from Algorithms.algorithm_base import Policy
+from Algorithms.policy import Policy
 
 
 class DDPG(Policy):

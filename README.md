@@ -64,7 +64,9 @@ For now, those algorithms are available:
 - - Double Deep Q-learning Network, DDQN
 - - Dueling Double Deep Q-learning Network, DDDQN
 
-MultiAgent training algorithms:
-- Multi-Agent Deep Deterministic Policy Gradient, MADDPG (*not support visual input yet.*)
+Multi-Agent training algorithms(*not support visual input yet*):
+- Multi-Agent Deep Deterministic Policy Gradient, MADDPG
+- Multi-Agent Deterministic Policy Gradient, MADPG
+- Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
 Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).

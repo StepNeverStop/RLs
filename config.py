@@ -27,5 +27,7 @@ train_config = {
     'max_step': 10000,
     'name': '0',
     'gym_render': False,
-    'gym_render_episode': 50000
+    'gym_render_episode': 50000,
+    'ma_batch_size': 10,
+    'ma_capacity': 1000
 }
