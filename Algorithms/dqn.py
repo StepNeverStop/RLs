@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import Nn
 from utils.sth import sth
-from Algorithms.algorithm_base import Policy
+from Algorithms.policy import Policy
 
 
 class DQN(Policy):

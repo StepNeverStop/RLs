@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 
 
@@ -25,7 +24,24 @@ class Loop(object):
     @staticmethod
     def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, train_mode, sampler_manager, resampling_interval):
         """
-        usually on-policy algorithms, i.e. pg, ppo
+        Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
+        Inputs:
+            env:                    Environment for interaction.
+            models:                 all models for this trianing task.
+            save_frequency:         how often to save checkpoints.
+            reset_config:           configuration to reset for Unity environment.
+            max_step:               maximum number of steps for an episode.
+            train_mode:             train or inference.
+            sampler_manager:        sampler configuration parameters for 'reset_config'.
+            resampling_interval:    how often to resample parameters for env reset.
+        Variables:
+            brain_names:    a list of brain names set in Unity.
+            state: store    a list of states for each brain. each item contain a list of states for each agents that controlled by the same brain.
+            visual_state:   store a list of visual state information for each brain.
+            action:         store a list of actions for each brain.
+            dones_flag:     store a list of 'done' for each brain. use for judge whether an episode is finished for every agents.
+            agents_num:     use to record 'number' of agents for each brain.
+            rewards:        use to record rewards of agents for each brain.
         """
         brains_num = len(brain_names)
         state = [0] * brains_num
@@ -42,12 +58,12 @@ class Loop(object):
                 agents_num[i] = len(obs[brain_name].agents)
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
-                state[i] = obs[brain_name].vector_observations
-                visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
             step = 0
             while True:
                 step += 1
                 for i, brain_name in enumerate(brain_names):
+                    state[i] = obs[brain_name].vector_observations
+                    visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
                     action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
@@ -65,13 +81,11 @@ class Loop(object):
                         visual_s_=next_visual_state,
                         done=np.array(obs[brain_name].local_done)
                     )
-                    state[i] = next_state
-                    visual_state[i] = next_visual_state
                     rewards[i] += np.array(obs[brain_name].rewards)
 
-                    if train_mode == 'perStep':
-                        for i in range(brains_num):
-                            models[i].learn(episode)
+                if train_mode == 'perStep':
+                    for i in range(brains_num):
+                        models[i].learn(episode)
 
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
                     break

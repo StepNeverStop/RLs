@@ -33,6 +33,16 @@ def maybe_one_hot(obs, obs_space, n):
 
 
 def init_variables(env, action_type, n):
+    """
+    inputs:
+        env: Environment
+        action_type: discrete or continuous
+        n: number of state array
+    outputs:
+        i: specify which item of state should be modified
+        mu: action bias
+        sigma: action scale
+    """
     i = 1 if len(env.observation_space.shape) == 3 else 0
     mu, sigma = get_action_normalize_factor(env.action_space, action_type)
     if n == 2:
@@ -45,6 +55,19 @@ class Loop(object):
 
     @staticmethod
     def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, render, render_episode, train_mode):
+        """
+        Inputs:
+            env:                gym environment
+            gym_model:          algorithm model
+            action_type:        specify action type, discrete action space or continuous action space
+            begin_episode:      initial episode
+            save_frequency:     how often to save checkpoints
+            max_step:           maximum number of steps in an episode
+            max_episode:        maximum number of episodes in this training task
+            render:             specify whether render the env or not
+            render_episode:     if 'render' is false, specify from which episode to render the env
+            train_mode:         perStep or perEpisode
+        """
         i, mu, sigma, [state, new_state] = init_variables(env, action_type, 2)
         for episode in range(begin_episode, max_episode):
             obs = env.reset()
@@ -112,8 +135,8 @@ class Loop(object):
         if action_type == 'continuous':
             action = np.zeros((env.n,) + env.action_space.shape, dtype=np.int32)
         else:
-            action = np.zeros((env.n,), dtype=np.int32)
-
+            tmp = (len(env.action_space),) if hasattr(env.action_space, '__len__') else ()
+            action = np.zeros((env.n,) + tmp, dtype=np.int32)
         for step in range(steps):
             print(f'no op step {step}')
             obs, reward, done, info = env.step(action * sigma + mu)
