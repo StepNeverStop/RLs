@@ -26,7 +26,6 @@ train_config = {
         
     },
     'save_frequency': 20,
-    'max_episode': 50000,
     'max_step': 10000,
     'name': '0',
     'gym_render': False,

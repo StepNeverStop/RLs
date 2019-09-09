@@ -89,7 +89,7 @@ class Loop(object):
 
     @staticmethod
     def no_op(env, brain_names, models, data, brains, steps):
-        assert type(steps) == int and steps >= data.batch_size, 'multi-agent no_op.steps must have type of int and larger than/equal batch_size of replay_buffer'
+        assert type(steps) == int, 'multi-agent no_op.steps must have type of int'
         if steps < data.batch_size:
             steps = data.batch_size
         brains_num = len(brain_names)

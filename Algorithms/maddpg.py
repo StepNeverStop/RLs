@@ -13,8 +13,6 @@ class MADDPG(Base):
                  ployak=0.995,
                  lr=5.0e-4,
                  max_episode=50000,
-                 batch_size=100,
-                 buffer_size=10000,
                  n=1,
                  i=0,
                  base_dir=None,
@@ -28,8 +26,6 @@ class MADDPG(Base):
         self.a_dim_or_list = a_dim_or_list
         self.gamma = gamma
         self.max_episode = max_episode
-        self.batch_size = batch_size
-        self.buffer_size = buffer_size
         self.ployak = ployak
 
         with self.graph.as_default():
