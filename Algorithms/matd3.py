@@ -20,7 +20,7 @@ class MATD3(Base):
                  base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous'
+        assert action_type == 'continuous', 'matd3 only support continuous action space'
         super().__init__(a_dim_or_list, action_type, base_dir)
         self.n = n
         self.i = i

@@ -112,9 +112,9 @@ class PPO(Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
 
         self.data = self.data.append({
             's': s,

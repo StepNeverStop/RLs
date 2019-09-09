@@ -1,6 +1,6 @@
 # RLs
 
-:evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0 or through [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+:evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-the-art or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ## About
 
@@ -18,7 +18,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 ### Supports
 
-This project support:
+This project supports:
 - Unity3D ml-agents.
 - Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
     - Discrete -> Discrete
@@ -101,7 +101,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 - Multi-Agent Deterministic Policy Gradient, MADPG
 - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
-## Something need to know
+## Notes
 
 1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `/RLdata` for Linux/OSX
 2. need to use command `su` or `sudo` to run on a Linux/OSX
@@ -109,7 +109,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. maddpg doesn't support visual input for now
 6. need 3 steps to implement a new algorithm
-    1. write `.py` in `Algorithms` directory and make the policy inherit from class `Base`, add `from .[name] import [name]`
+    1. write `.py` in `Algorithms` directory and make the policy inherit from class `Base`, add `from .[name] import [name]` in `Algorithms/__init__.py`
     2. write default configuration in `Algorithms/config.py`
     3. register new algorithm in `algos` of `run.py`
 7. set algorithms' hyper-parameters in [Algorithms/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/config.py)

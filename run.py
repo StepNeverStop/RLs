@@ -171,7 +171,7 @@ def unity_run(options, max_step, save_frequency, name):
     } for i in brain_names]
 
     if ma:
-        assert brain_num > 1
+        assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
         data = ExperienceReplay(train_config['ma_batch_size'], train_config['ma_capacity'])
         extra_params = {'data': data}
         models = [model(
@@ -249,7 +249,7 @@ def gym_run(options, max_step, save_frequency, name):
         env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
         print('obs: ', env.observation_space)
         print('a: ', env.action_space)
-        assert env.observation_space in available_type and env.action_space in available_type
+        assert env.observation_space in available_type and env.action_space in available_type, 'action_space and observation_space must be one of available_type'
     except Exception as e:
         print(e)
 
@@ -279,11 +279,11 @@ def gym_run(options, max_step, save_frequency, name):
         visual_resolution = []
 
     if type(env.action_space) == Box:
-        assert len(env.action_space.shape) == 1
+        assert len(env.action_space.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
         a_dim_or_list = env.action_space.shape
         action_type = 'continuous'
     elif type(env.action_space) == Tuple:
-        assert all([type(i) == Discrete for i in env.action_space]) == True
+        assert all([type(i) == Discrete for i in env.action_space]) == True, 'if action space is Tuple, each item in it must have type Discrete'
         a_dim_or_list = [i.n for i in env.action_space]
         action_type = 'discrete'
     else:

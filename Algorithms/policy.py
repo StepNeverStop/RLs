@@ -81,9 +81,9 @@ class Policy(Base):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
         """
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "on_store need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "on_store need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "on_store need done type is np.ndarray"
         self.data = self.data.append({
             's': s,
             'visual_s': visual_s,
@@ -98,15 +98,15 @@ class Policy(Base):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "off_store need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "off_store need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "off_store need done type is np.ndarray"
         self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
         if self.policy_mode == 'OFF':
             self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 

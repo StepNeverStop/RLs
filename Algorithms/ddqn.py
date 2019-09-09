@@ -26,7 +26,7 @@ class DDQN(Policy):
                  base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'discrete'
+        assert action_type == 'discrete', 'double dqn only support discrete action space'
         super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval

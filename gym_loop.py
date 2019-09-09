@@ -126,7 +126,7 @@ class Loop(object):
 
     @staticmethod
     def no_op(env, gym_model, action_type, steps):
-        assert type(steps) == int and steps >= 0
+        assert type(steps) == int and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
         i, mu, sigma, [state, new_state] = init_variables(env, action_type, 2)
 
         obs = env.reset()

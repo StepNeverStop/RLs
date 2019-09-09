@@ -129,16 +129,16 @@ class AC(Policy):
             self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self.data.add(s, visual_s, a, old_prob, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         old_prob = np.ones_like(r)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         if self.policy_mode == 'OFF':
             self.data.add(s, visual_s, a, old_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
