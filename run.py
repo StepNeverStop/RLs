@@ -16,14 +16,13 @@ Options:
     -s,--save-frequency=<n>     保存频率 [default: None]
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
-    --load=<name>               指定载入model的训练名称 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
-    python run.py -a ppo -u -n train_in_unity --load last_train_name
+    python run.py -a ppo -u -n train_in_unity
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
@@ -79,7 +78,6 @@ def run():
     max_step = int(options['--max-step']) if options['--max-step'] != 'None' else train_config['max_step']
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
-
     # gym > unity > unity_env
     run_params = {
         'options': options,
@@ -142,8 +140,7 @@ def unity_run(options, max_step, save_frequency, name):
 
     if options['--config-file'] != 'None':
         algorithm_config = update_config(algorithm_config, options['--config-file'])
-    _base_dir = os.path.join(train_config['base_dir'], env_name, options['--algorithm'])
-    base_dir = os.path.join(_base_dir, name)
+    base_dir = os.path.join(train_config['base_dir'], env_name, options['--algorithm'], name)
     show_config(algorithm_config)
 
     brain_names = env.external_brain_names
@@ -165,13 +162,15 @@ def unity_run(options, max_step, save_frequency, name):
         's_dim': brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
         'a_dim_or_list': brains[i].vector_action_space_size,
         'action_type': brains[i].vector_action_space_type,
-        'base_dir': os.path.join(base_dir, i),
-        'logger2file': train_config['logger2file'],
-        'out_graph': train_config['out_graph'],
+        'cp_dir': os.path.join(base_dir, i, 'model'),
+        'log_dir': os.path.join(base_dir, i, 'log'),
+        'excel_dir': os.path.join(base_dir, i, 'excel'),
+        'logger2file': False,
+        'out_graph': True,
     } for i in brain_names]
 
     if ma:
-        assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
+        assert brain_num > 1
         data = ExperienceReplay(train_config['ma_batch_size'], train_config['ma_capacity'])
         extra_params = {'data': data}
         models = [model(
@@ -189,7 +188,6 @@ def unity_run(options, max_step, save_frequency, name):
             **algorithm_config
         ) for index, i in enumerate(brain_names)]
 
-    [models[index].init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load'], i)) for index, i in enumerate(brain_names)]
     begin_episode = models[0].get_init_step()
     max_episode = models[0].get_max_episode()
 
@@ -249,7 +247,7 @@ def gym_run(options, max_step, save_frequency, name):
         env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
         print('obs: ', env.observation_space)
         print('a: ', env.action_space)
-        assert env.observation_space in available_type and env.action_space in available_type, 'action_space and observation_space must be one of available_type'
+        assert env.observation_space in available_type and env.action_space in available_type
     except Exception as e:
         print(e)
 
@@ -260,8 +258,7 @@ def gym_run(options, max_step, save_frequency, name):
 
     if options['--config-file'] != 'None':
         algorithm_config = update_config(algorithm_config, options['--config-file'])
-    _base_dir = os.path.join(train_config['base_dir'], options['--gym-env'], options['--algorithm'])
-    base_dir = os.path.join(_base_dir, name)
+    base_dir = os.path.join(train_config['base_dir'], options['--gym-env'], options['--algorithm'], name)
     show_config(algorithm_config)
 
     if type(env.observation_space) == Box:
@@ -279,11 +276,11 @@ def gym_run(options, max_step, save_frequency, name):
         visual_resolution = []
 
     if type(env.action_space) == Box:
-        assert len(env.action_space.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
+        assert len(env.action_space.shape) == 1
         a_dim_or_list = env.action_space.shape
         action_type = 'continuous'
     elif type(env.action_space) == Tuple:
-        assert all([type(i) == Discrete for i in env.action_space]) == True, 'if action space is Tuple, each item in it must have type Discrete'
+        assert all([type(i) == Discrete for i in env.action_space]) == True
         a_dim_or_list = [i.n for i in env.action_space]
         action_type = 'discrete'
     else:
@@ -296,12 +293,13 @@ def gym_run(options, max_step, save_frequency, name):
         visual_resolution=visual_resolution,
         a_dim_or_list=a_dim_or_list,
         action_type=action_type,
-        base_dir=base_dir,
-        logger2file=train_config['logger2file'],
-        out_graph=train_config['out_graph'],
+        cp_dir=os.path.join(base_dir, 'model'),
+        log_dir=os.path.join(base_dir, 'log'),
+        excel_dir=os.path.join(base_dir, 'excel'),
+        logger2file=False,
+        out_graph=True,
         **algorithm_config
     )
-    gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
     begin_episode = gym_model.get_init_step()
     max_episode = gym_model.get_max_episode()
     params = {

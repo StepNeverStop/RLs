@@ -16,10 +16,12 @@ class A2C(Policy):
                  gamma=0.99,
                  max_episode=50000,
                  batch_size=100,
-                 base_dir=None,
+                 cp_dir=None,
+                 log_dir=None,
+                 excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'ON')
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
         self.batch_size = batch_size
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")
@@ -39,13 +41,13 @@ class A2C(Policy):
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
             self.action = tf.identity(self.sample_op, name='action')
-            self.advantage = tf.stop_gradient(self.dc_r - self.v)
-            self.actor_loss = tf.reduce_mean(log_act_prob * self.advantage)
-            self.critic_loss = tf.reduce_mean(tf.squared_difference(self.v, self.dc_r))
 
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 
+            self.advantage = tf.stop_gradient(self.dc_r - self.v)
+            self.actor_loss = tf.reduce_mean(log_act_prob * self.advantage)
+            self.critic_loss = tf.reduce_mean(tf.squared_difference(self.v, self.dc_r))
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars + self.conv_vars)
             with tf.control_dependencies([self.train_critic]):
@@ -57,6 +59,9 @@ class A2C(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
+                cp_dir=cp_dir,
+                log_dir=log_dir,
+                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -71,6 +76,7 @@ class A2C(Policy):
 　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
 　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
             ''')
+            self.init_or_restore(cp_dir)
 
     def choose_action(self, s, visual_s):
         if self.action_type == 'continuous':

@@ -6,8 +6,8 @@ import numpy as np
 class sth(object):
     @staticmethod
     def discounted_sum(x, gamma, init_value, dones):
-        assert isinstance(x, np.ndarray), 'type of sth.discounted_sum.x must be np.ndarray'
-        assert isinstance(dones, np.ndarray), 'type of sth.discounted_sum.done must be np.ndarray'
+        assert isinstance(x, np.ndarray)
+        assert isinstance(dones, np.ndarray)
 
         y = []
         for i in reversed(range(len(x))):
@@ -17,9 +17,9 @@ class sth(object):
 
     @staticmethod
     def discounted_sum_minus(x, gamma, init_value, dones, z):
-        assert isinstance(x, np.ndarray), 'type of sth.discounted_sum_minus.x must be np.ndarray'
-        assert isinstance(dones, np.ndarray), 'type of sth.discounted_sum_minus.dones must be np.ndarray'
-        assert isinstance(z, np.ndarray), 'type of sth.discounted_sum_minus.z must be np.ndarray'
+        assert isinstance(x, np.ndarray)
+        assert isinstance(dones, np.ndarray)
+        assert isinstance(z, np.ndarray)
 
         y = []
         for i in reversed(range(len(x))):
@@ -89,7 +89,7 @@ class sth(object):
                 [2 1 1]], [3, 2, 2]
         output: [ 0  1  2  3  4  5  6  7  8  9 10 11]
         '''
-        assert isinstance(z, np.ndarray), 'type of sth.action_index2int.z must be np.ndarray'
+        assert isinstance(z, np.ndarray)
         if len(z.shape) == 1:
             z = z[np.newaxis, :]
         x = []
@@ -153,7 +153,7 @@ class sth(object):
                 [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
                 [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
         '''
-        assert isinstance(index, np.ndarray), 'type of sth.action_index2one_hot.index must be np.ndarray'
+        assert isinstance(index, np.ndarray)
         if len(index.shape) == 1:
             index = index[:, np.newaxis]
         return sth.int2one_hot(sth.action_index2int(index, action_dim_list), np.array(action_dim_list).prod())
@@ -165,8 +165,8 @@ class sth(object):
         output: [[0, 0, 0, 0, 0, 0, 0, 1, 0],
                  [0, 0, 0, 0, 0, 0, 1, 0, 0]]
         """
-        assert isinstance(action, np.ndarray), 'type of sth.get_batch_one_hot.action must be np.ndarray'
-        assert isinstance(action_multiplication_factor, np.ndarray), 'type of sth.get_batch_one_hot.action_multiplication_factor must be np.ndarray'
+        assert isinstance(action, np.ndarray)
+        assert isinstance(action_multiplication_factor, np.ndarray)
         ints = action.dot(action_multiplication_factor)
         x = np.zeros([action.shape[0], cols])
         for i, j in enumerate(ints):
@@ -180,6 +180,6 @@ class sth(object):
         input: [0, 2], [3, 3]
         output: [-1, 1]
         """
-        assert isinstance(action, np.ndarray), 'type of sth.action_index2action_value.action must be np.ndarray'
-        assert 1 not in action_dim_list, 'sth.action_index2action_value.action_dim_list must not include 1'
+        assert isinstance(action, np.ndarray)
+        assert 1 not in action_dim_list
         return 2 / (np.array([action_dim_list]) - 1) * action_index - 1

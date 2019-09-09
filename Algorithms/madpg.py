@@ -17,11 +17,13 @@ class MADPG(Base):
                  buffer_size=10000,
                  n=1,
                  i=0,
-                 base_dir=None,
+                 cp_dir=None,
+                 log_dir=None,
+                 excel_dir=None,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous', 'madpg only support continuous action space'
-        super().__init__(a_dim_or_list, action_type, base_dir)
+        assert action_type == 'continuous'
+        super().__init__(a_dim_or_list, action_type, cp_dir)
         self.n = n
         self.i = i
         self.s_dim = s_dim
@@ -76,6 +78,9 @@ class MADPG(Base):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
+                cp_dir=cp_dir,
+                log_dir=log_dir,
+                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -92,6 +97,7 @@ class MADPG(Base):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
             ''')
             self.recorder.logger.info(self.action_noise)
+            self.init_or_restore(cp_dir)
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={

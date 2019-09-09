@@ -15,14 +15,14 @@ class Policy(Base):
                  action_type,
                  gamma,
                  max_episode,
-                 base_dir,
+                 cp_dir,
                  policy_mode=None,
                  batch_size=1,
                  buffer_size=1,
                  use_priority=False,
                  n_step=False,
                  ):
-        super().__init__(a_dim_or_list, action_type, base_dir)
+        super().__init__(a_dim_or_list, action_type, cp_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
         self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
@@ -81,9 +81,9 @@ class Policy(Base):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
         """
-        assert isinstance(a, np.ndarray), "on_store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "on_store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "on_store need done type is np.ndarray"
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
         self.data = self.data.append({
             's': s,
             'visual_s': visual_s,
@@ -98,15 +98,15 @@ class Policy(Base):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        assert isinstance(a, np.ndarray), "off_store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "off_store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "off_store need done type is np.ndarray"
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
         self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
+        assert isinstance(a, np.ndarray)
+        assert isinstance(r, np.ndarray)
+        assert isinstance(done, np.ndarray)
         if self.policy_mode == 'OFF':
             self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
