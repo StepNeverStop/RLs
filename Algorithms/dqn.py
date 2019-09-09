@@ -21,14 +21,12 @@ class DQN(Policy):
                  assign_interval=2,
                  use_priority=False,
                  n_step=False,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'discrete'
+        assert action_type == 'discrete', 'dqn only support discrete action space'
         super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode,
-                         cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size, use_priority=use_priority, n_step=n_step)
+                         base_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size, use_priority=use_priority, n_step=n_step)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():
@@ -40,11 +38,13 @@ class DQN(Policy):
             tf.identity(self.action, 'action')
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
             self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * tf.reduce_max(self.q_next, axis=1)[:, np.newaxis])
-
             self.td_error = self.q_eval - self.q_target
+
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
+
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
+
             self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
             self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_vars, self.q_vars)])
 
@@ -52,9 +52,6 @@ class DQN(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -72,7 +69,6 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
             ''')
-            self.init_or_restore(cp_dir)
 
     def choose_action(self, s, visual_s):
         if np.random.uniform() < self.epsilon:

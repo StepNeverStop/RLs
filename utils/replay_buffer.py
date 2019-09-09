@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):
-        assert type(batch_size) == int and batch_size > 0
-        assert type(capacity) == int and capacity > 0
+        assert type(batch_size) == int and batch_size > 0, 'batch_size must be int and larger than 0'
+        assert type(capacity) == int and capacity > 0,'capacity must be int and larger than 0'
         self.batch_size = batch_size
         self.capacity = capacity
         self._size = 0
@@ -154,7 +154,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     '''
 
     def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon):
-        assert epsilon > 0
+        assert epsilon > 0, 'episode must larger than zero'
         super().__init__(batch_size, capacity)
         self.alpha = alpha
         self.beta = beta
@@ -200,8 +200,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: priorities
         '''
-        assert hasattr(priority, '__len__')
-        assert len(priority) == len(self.last_indexs)
+        assert hasattr(priority, '__len__'), 'priority must have attribute of len()'
+        assert len(priority) == len(self.last_indexs), 'length between priority and last_indexs must equal'
         self.beta += self.beta_interval * episode
         priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
         min_p = priority.min()

@@ -18,12 +18,10 @@ class AC(Policy):
                  max_episode=50000,
                  batch_size=100,
                  buffer_size=10000,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size, buffer_size)
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
@@ -58,13 +56,14 @@ class AC(Policy):
 
             self.action = tf.identity(self.sample_op, name='action')
             self.ratio = tf.stop_gradient(self.prob / self.old_prob)
+            self.q_value = tf.stop_gradient(self.q)
+
+            self.actor_loss = tf.reduce_mean(self.ratio * log_act_prob * self.q_value)
+            self.critic_loss = tf.reduce_mean(tf.squared_difference(self.q, self.pl_r + self.gamma * (1 - self.pl_done) * self.max_q_next))
 
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 
-            self.q_value = tf.stop_gradient(self.q)
-            self.actor_loss = tf.reduce_mean(self.ratio * log_act_prob * self.q_value)
-            self.critic_loss = tf.reduce_mean(tf.squared_difference(self.q, self.pl_r + self.gamma * (1 - self.pl_done) * self.max_q_next))
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars + self.conv_vars)
             with tf.control_dependencies([self.train_critic]):
@@ -76,9 +75,6 @@ class AC(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -93,7 +89,6 @@ class AC(Policy):
 　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
 　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　
             ''')
-            self.init_or_restore(cp_dir)
 
     def choose_action(self, s, visual_s):
         if self.action_type == 'continuous':
@@ -134,16 +129,16 @@ class AC(Policy):
             self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self.data.add(s, visual_s, a, old_prob, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         old_prob = np.ones_like(r)
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         if self.policy_mode == 'OFF':
             self.data.add(s, visual_s, a, old_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 

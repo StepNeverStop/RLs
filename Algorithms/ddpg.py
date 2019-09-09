@@ -17,13 +17,11 @@ class DDPG(Policy):
                  max_episode=50000,
                  batch_size=100,
                  buffer_size=10000,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous'
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        assert action_type == 'continuous', 'ddpg only support continuous action space'
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size, buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
@@ -70,9 +68,6 @@ class DDPG(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -89,7 +84,6 @@ class DDPG(Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
             ''')
             self.recorder.logger.info(self.action_noise)
-            self.init_or_restore(cp_dir)
 
     def choose_action(self, s, visual_s):
         return self.sess.run(self.action, feed_dict={

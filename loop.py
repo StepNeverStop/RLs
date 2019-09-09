@@ -135,7 +135,7 @@ class Loop(object):
         Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
         Make sure steps is greater than n-step if using any n-step ReplayBuffer.
         '''
-        assert type(steps) == int and steps >= 0
+        assert type(steps) == int and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
         brains_num = len(brain_names)
         state = [0] * brains_num
         visual_state = [0] * brains_num
