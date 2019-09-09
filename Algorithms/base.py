@@ -5,22 +5,23 @@ from utils.recorder import Recorder
 from tensorflow.python.tools import freeze_graph
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
 
+
 class Base(object):
     _version_number_ = 2
 
-    def __init__(self, a_dim_or_list, action_type, cp_dir):
+    def __init__(self, a_dim_or_list, action_type, base_dir):
 
         self.graph = tf.Graph()
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
 
-        self.cp_dir = cp_dir
+        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
 
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
         self.init_step = self.get_init_step()
-        
+
         with self.graph.as_default():
             tf.set_random_seed(-1)  # variables initialization consistent.
             tf.Variable(1 if action_type == 'continuous' else 0, name='is_continuous_control', trainable=False, dtype=tf.int32)  # continuous 1 discrete 0
@@ -39,24 +40,26 @@ class Base(object):
         else:
             return 0
 
-    def generate_recorder(self, cp_dir, log_dir, excel_dir, logger2file, graph):
+    def generate_recorder(self, logger2file, graph):
         """
         create model/log/data dictionary and define writer to record training data.
         """
-        self.check_or_create(cp_dir, 'checkpoints')
-        self.check_or_create(log_dir, 'logs(summaries)')
-        self.check_or_create(excel_dir, 'excel')
+
+        self.check_or_create(self.cp_dir, 'checkpoints')
+        self.check_or_create(self.log_dir, 'logs(summaries)')
+        self.check_or_create(self.excel_dir, 'excel')
         self.recorder = Recorder(
-            log_dir=log_dir,
-            excel_dir=excel_dir,
+            log_dir=self.log_dir,
+            excel_dir=self.excel_dir,
             logger2file=logger2file,
             graph=graph
         )
 
-    def init_or_restore(self, cp_dir):
+    def init_or_restore(self, base_dir):
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
+        cp_dir = os.path.join(base_dir, 'model')
         with self.graph.as_default():
             if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
                 try:

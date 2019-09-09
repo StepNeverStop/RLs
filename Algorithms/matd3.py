@@ -17,13 +17,11 @@ class MATD3(Base):
                  buffer_size=10000,
                  n=1,
                  i=0,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous'
-        super().__init__(a_dim_or_list, action_type, cp_dir)
+        super().__init__(a_dim_or_list, action_type, base_dir)
         self.n = n
         self.i = i
         self.s_dim = s_dim
@@ -92,9 +90,6 @@ class MATD3(Base):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -110,7 +105,6 @@ class MATD3(Base):
 　　ｘｘｘｘ　ｘｘｘｘｘｘ　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　
             ''')
             self.recorder.logger.info(self.action_noise)
-            self.init_or_restore(cp_dir)
 
     def choose_action(self, s):
         return self.sess.run(self.action, feed_dict={

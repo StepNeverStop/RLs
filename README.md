@@ -14,6 +14,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 - Clear hierarchical structure and easy code control
 - Compatible with OpenAI Gym, Unity3D Ml-agents
 - Restoring the training process from where it stopped, retraining on a new task, fine-tuning
+- Using other training tsak's model as parameter initialization `--load`
 
 ### Supports
 
@@ -61,13 +62,14 @@ Options:
     -s,--save-frequency=<n>     保存频率 [default: None]
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
+    --load=<name>               指定载入model的训练名称 [default: None]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
-    python run.py -a ppo -u -n train_in_unity
+    python run.py -a ppo -u -n train_in_unity --load last_train_name
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4

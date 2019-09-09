@@ -23,13 +23,11 @@ class DDDQN(Policy):
                  batch_size=100,
                  buffer_size=10000,
                  assign_interval=2,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'discrete'
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():
@@ -53,8 +51,10 @@ class DDDQN(Policy):
             self.q_target = tf.stop_gradient(self.pl_r + self.gamma * (1 - self.pl_done) * self.q_target_next_max)
 
             self.q_loss = tf.reduce_mean(tf.squared_difference(self.q_eval, self.q_target))
+
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='dueling')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='dueling_target')
+
             self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
             self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_vars, self.q_vars)])
 
@@ -62,9 +62,6 @@ class DDDQN(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -82,7 +79,6 @@ class DDDQN(Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　
             ''')
-            self.init_or_restore(cp_dir)
 
     def choose_action(self, s, visual_s):
         if np.random.uniform() < self.epsilon:
