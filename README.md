@@ -1,6 +1,6 @@
 # RLs
 
-:evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-art or classic RL(reinforcement learning) algorithms used for training agents by interactive with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0 or through [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+:evergreen_tree::evergreen_tree::evergreen_tree:This project includes some state-of-the-art or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity on [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.9.0) v0.9.0 or [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and enable fast prototype of new methods as well.
 
 ## About
 
@@ -8,26 +8,26 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 ### Characteristics
 
-- Suitable for Windows, Linux, and OSX
+- Available on Windows, Linux, and OSX
 - Almost reimplementation and competitive performance of original papers
 - Reusable modules
 - Clear hierarchical structure and easy code control
 - Compatible with OpenAI Gym, Unity3D Ml-agents
 - Restoring the training process from where it stopped, retraining on a new task, fine-tuning
-- Using other training tsak's model as parameter initialization `--load`
+- Using other training tskak's model by parameter `--load`
 
 ### Supports
 
-This project support:
+This project supports:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
+- Gym, for now only two data types are compatible, `[Box, Discrete]`. The project supports 99.65% Gym environments (except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`), and **supports parallel training using gym envs. Please specify `--gym-agents` as how many agents you want to train in parallel.**
     - Discrete -> Discrete
     - Discrete -> Box
     - Box -> Discrete
     - Box -> Box
     - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
 - MultiAgent training. One brain controls multiple agents.
-- MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
+- MultiBrain training. Brains' model should be the same algorithm or have the same learning-progress (perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]` (only for ml-agents).
 - Four types of ReplayBuffer, Default is ER, using other RBs need to modify the code a little: 
     - ER
@@ -37,9 +37,9 @@ This project support:
 
 ### Advantages
 
-- Parallel training multiple scenes for Gym
+- Training multiple scenes for Gym parallelly
 - Unified data format of environments between ml-agents and gym
-- Just need to write a single file for other algorithms' implementation(Similar algorithm structure).
+- Only a single file for other algorithms' implementation is enough (Similar algorithm structure).
 - Many controllable factors and adjustable parameters
 
 ## Getting started
@@ -101,22 +101,22 @@ Multi-Agent training algorithms(*not support visual input yet*):
 - Multi-Agent Deterministic Policy Gradient, MADPG
 - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
-## Something need to know
+## Notes
 
 1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `/RLdata` for Linux/OSX
-2. need to use command `su` or `sudo` to run on a Linux/OSX
+2. command `su` or `sudo` should be used on a Linux/OSX
 3. record directory format is `RLdata/Environment/Algorithm/Brain name(for ml-agents)/Training name/config&excel&log&model`
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. maddpg doesn't support visual input for now
-6. need 3 steps to implement a new algorithm
+6. 3 steps are need to implement a new algorithm
     1. write `.py` in `Algorithms` directory and make the policy inherit from class `Base`, add `from .[name] import [name]`
     2. write default configuration in `Algorithms/config.py`
     3. register new algorithm in `algos` of `run.py`
-7. set algorithms' hyper-parameters in [Algorithms/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/config.py)
-8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [Nn/nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/nn.py)
+7. algorithms' hyperparameters are set in [Algorithms/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/config.py)
+8. the default training configuration is in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
+9. neural network structure can be changed in [Nn/nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/nn.py)
 
-## Ongoing things
+## TODO
 
 - RNN
 - Better episode experience replay buffer
@@ -132,7 +132,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 - numpy
 - pywin32=224
 
-### Install
+### Installation
 
 ```bash
 $ git clone https://github.com/StepNeverStop/RLs.git
@@ -155,4 +155,4 @@ If you use this repository for you research, please cite:
 
 ## Issues
 
-Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
+Any question about this project or error on my bad expression, plz let me know on [this](https://github.com/StepNeverStop/RLs/issues/new).
