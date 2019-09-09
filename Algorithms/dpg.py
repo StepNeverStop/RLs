@@ -26,19 +26,15 @@ class DPG(Policy):
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-            self.mu = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True, reuse=False)
+            self.mu = Nn.actor_dpg('actor', self.pl_s, self.pl_visual_s, self.a_counts)
             tf.identity(self.mu, 'action')
             self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
-            self.target_mu = Nn.actor_dpg('actor', self.s_, self.a_counts, trainable=True, reuse=True)
+            self.target_mu = Nn.actor_dpg('actor', self.pl_s_, self.pl_visual_s_, self.a_counts)
             self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
-            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
-            self.s_mu = tf.concat((self.s, self.mu), axis=1)
-            self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
-
-            self.q = Nn.critic_q_one('q', self.s_a, True, reuse=False)
-            self.q_actor = Nn.critic_q_one('q', self.s_mu, True, reuse=True)
-            self.q_target = Nn.critic_q_one('q', self.s_a_target, True, reuse=True)
+            self.q = Nn.critic_q_one('q', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q_actor = Nn.critic_q_one('q', self.pl_s, self.pl_visual_s, self.mu)
+            self.q_target = Nn.critic_q_one('q', self.pl_s_, self.pl_visual_s_, self.action_target)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target * (1 - self.pl_done))
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
@@ -49,9 +45,9 @@ class DPG(Policy):
 
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_q = optimizer.minimize(
-                self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
+                self.q_loss, var_list=self.q_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_q]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
             self.train_sequence = [self.train_q, self.train_actor]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

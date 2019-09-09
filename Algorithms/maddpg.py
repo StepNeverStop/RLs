@@ -29,38 +29,39 @@ class MADDPG(Base):
         self.ployak = ployak
 
         with self.graph.as_default():
-            self.q_actor_s = tf.placeholder(tf.float32, [None, (self.s_dim) * self.n], 'q_actor_s')
             self.q_actor_a_previous = tf.placeholder(tf.float32, [None, (self.a_counts) * self.i], 'q_actor_a_previous')
             self.q_actor_a_later = tf.placeholder(tf.float32, [None, (self.a_counts) * (self.n - self.i - 1)], 'q_actor_a_later')
-            self.q_input = tf.placeholder(tf.float32, [None, (self.s_dim + self.a_counts) * self.n], 'q_input')
-            self.q_target_input = tf.placeholder(tf.float32, [None, (self.s_dim + self.a_counts) * self.n], 'q_target_input')
+            self.ss = tf.placeholder(tf.float32, [None, (self.s_dim) * self.n], 'ss')
+            self.ss_ = tf.placeholder(tf.float32, [None, (self.s_dim) * self.n], 'ss_')
+            self.aa = tf.placeholder(tf.float32, [None, (self.a_counts) * self.n], 'aa')
+            self.aa_ = tf.placeholder(tf.float32, [None, (self.a_counts) * self.n], 'aa_')
             self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'vector_observation')
             self.pl_r = tf.placeholder(tf.float32, [None, 1], 'reward')
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-            self.mu = Nn.actor_dpg('actor', self.pl_s, self.a_counts, True)
+            self.mu = Nn.actor_dpg('actor', self.pl_s, None, self.a_counts)
             tf.identity(self.mu, 'action')
             self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
 
-            self.target_mu = Nn.actor_dpg('actor_target', self.pl_s, self.a_counts, False)
+            self.target_mu = Nn.actor_dpg('actor_target', self.pl_s, None, self.a_counts)
             self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
-            self.ss_mu = tf.concat((self.q_actor_s, self.q_actor_a_previous, self.mu, self.q_actor_a_later), axis=1)
+            self.mumu = tf.concat((self.q_actor_a_previous, self.mu, self.q_actor_a_later), axis=-1)
 
-            self.q = Nn.critic_q_one('q', self.q_input, True, reuse=False)
-            self.q_actor = Nn.critic_q_one('q', self.ss_mu, True, reuse=True)
-            self.q_target = Nn.critic_q_one('q_target', self.q_target_input, False, reuse=False)
+            self.q = Nn.critic_q_one('q', self.ss, None, self.aa)
+            self.q_actor = Nn.critic_q_one('q', self.ss, None, self.mumu)
+            self.q_target = Nn.critic_q_one('q_target', self.ss_, None, self.aa_)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
             self.actor_loss = -tf.reduce_mean(self.q_actor)
 
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
-            self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
+            self.q_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
-            self.actor_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_target')
+            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_q = optimizer.minimize(
@@ -109,13 +110,14 @@ class MADDPG(Base):
             self.pl_s: s,
         })
 
-    def learn(self, episode, ss, ap, al, s_a, s_a_, s, r):
+    def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.q_actor_s: ss,
             self.q_actor_a_previous: ap,
             self.q_actor_a_later: al,
-            self.q_input: s_a,
-            self.q_target_input: s_a_,
+            self.ss: ss,
+            self.ss_: ss_,
+            self.aa: aa,
+            self.aa_: aa_,
             self.pl_s: s,
             self.pl_r: r,
             self.episode: episode

@@ -32,12 +32,12 @@ class SAC_NO_V(Policy):
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
 
-            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.s, self.a_counts, reuse=False)
+            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.pl_s, self.pl_visual_s, self.a_counts)
             self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
             self.a_s = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.a_s_log_prob = self.norm_dist.log_prob(self.a_s)
             tf.identity(self.mu, 'action')
-            target_mu, target_sigma = Nn.actor_continuous('actor_net', self.s_, self.a_counts, reuse=True)
+            target_mu, target_sigma = Nn.actor_continuous('actor_net', self.pl_s_, self.pl_visual_s_, self.a_counts)
             target_norm_dist = tf.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
             self.a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
             self.a_s_log_prob_ = target_norm_dist.log_prob(self.a_s_)
@@ -45,15 +45,13 @@ class SAC_NO_V(Policy):
             self.prob = self.norm_dist.prob(self.a_s)
             self.new_log_prob = self.norm_dist.log_prob(self.pl_a)
             self.entropy = self.norm_dist.entropy()
-            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
-            self.s_a_ = tf.concat((self.s_, self.a_s_), axis=1)
-            self.s_a_s = tf.concat((self.s, self.a_s), axis=1)
-            self.q1 = Nn.critic_q_one('q1', self.s_a, trainable=True, reuse=False)
-            self.q1_target = Nn.critic_q_one('q1_target', self.s_a_, trainable=False, reuse=False)
-            self.q2 = Nn.critic_q_one('q2', self.s_a, trainable=True, reuse=False)
-            self.q2_target = Nn.critic_q_one('q2_target', self.s_a_, trainable=False, reuse=False)
-            self.q1_s_a = Nn.critic_q_one('q1', self.s_a_s, trainable=True, reuse=True)
-            self.q2_s_a = Nn.critic_q_one('q2', self.s_a_s, trainable=True, reuse=True)
+
+            self.q1 = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q1_target = Nn.critic_q_one('q1_target', self.pl_s_, self.pl_visual_s_, self.a_s_)
+            self.q2 = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q2_target = Nn.critic_q_one('q2_target', self.pl_s_, self.pl_visual_s_, self.a_s_)
+            self.q1_s_a = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.a_s)
+            self.q2_s_a = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.a_s)
 
             self.dc_r_q1 = tf.stop_gradient(self.pl_r + self.gamma * (self.q1_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
             self.dc_r_q2 = tf.stop_gradient(self.pl_r + self.gamma * (self.q2_target - self.alpha * tf.reduce_mean(self.a_s_log_prob_)))
@@ -66,9 +64,9 @@ class SAC_NO_V(Policy):
             self.alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(self.a_s_log_prob - self.a_counts))
 
             self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
-            self.q1_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1_target')
+            self.q1_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1_target')
             self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
-            self.q2_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2_target')
+            self.q2_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
@@ -78,9 +76,9 @@ class SAC_NO_V(Policy):
             self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
             self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])
             with tf.control_dependencies([self.assign_q1_target, self.assign_q2_target]):
-                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.conv_vars, global_step=self.global_step)
+                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
             with tf.control_dependencies([self.train_actor]):
                 self.train_alpha = optimizer.minimize(self.alpha_loss, var_list=[self.log_alpha])
             self.train_sequence = [self.assign_q1_target, self.assign_q2_target, self.train_critic, self.train_actor, self.train_alpha]

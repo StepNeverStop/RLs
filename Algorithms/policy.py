@@ -68,14 +68,6 @@ class Policy(Base):
             self.pl_done = tf.placeholder(tf.float32, [None, 1], 'done')
             self.pl_visual_s = tf.placeholder(tf.float32, [None] + self.visual_dim, 'visual_observation_')
             self.pl_visual_s_ = tf.placeholder(tf.float32, [None] + self.visual_dim, 'next_visual_observation')
-            if visual_sources:
-                self.s = tf.concat((Nn.visual_nn('visual_net', self.pl_visual_s), self.pl_s), axis=1)
-                self.s_ = tf.concat((Nn.visual_nn('visual_net', self.pl_visual_s_), self.pl_s_), axis=1)
-                self.conv_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='visual_net')
-            else:
-                self.s = self.pl_s
-                self.s_ = self.pl_s_
-                self.conv_vars = []
 
     def on_store(self, s, visual_s, a, r, s_, visual_s_, done):
         """

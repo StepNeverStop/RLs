@@ -28,22 +28,18 @@ class TD3(Policy):
 
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-            self.mu = Nn.actor_dpg('actor', self.s, self.a_counts, trainable=True)
+            self.mu = Nn.actor_dpg('actor', self.pl_s, self.pl_visual_s, self.a_counts)
             self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
             tf.identity(self.mu, 'action')
-            self.target_mu = Nn.actor_dpg('actor_target', self.s_, self.a_counts, trainable=False)
+            self.target_mu = Nn.actor_dpg('actor_target', self.pl_s_, self.pl_visual_s_, self.a_counts)
             self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
-            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
-            self.s_mu = tf.concat((self.s, self.mu), axis=1)
-            self.s_a_target = tf.concat((self.s_, self.action_target), axis=1)
+            self.q1 = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q1_actor = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.mu)
+            self.q1_target = Nn.critic_q_one('q1_target', self.pl_s_, self.pl_visual_s_, self.action_target)
 
-            self.q1 = Nn.critic_q_one('q1', self.s_a, True, reuse=False)
-            self.q1_actor = Nn.critic_q_one('q1', self.s_mu, True, reuse=True)
-            self.q1_target = Nn.critic_q_one('q1_target', self.s_a_target, False, reuse=False)
-
-            self.q2 = Nn.critic_q_one('q2', self.s_a, True, reuse=False)
-            self.q2_target = Nn.critic_q_one('q2_target', self.s_a_target, False, reuse=False)
+            self.q2 = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q2_target = Nn.critic_q_one('q2_target', self.pl_s_, self.pl_visual_s_, self.action_target)
 
             self.q_target = tf.minimum(self.q1_target, self.q2_target)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target * (1 - self.pl_done))
@@ -54,18 +50,18 @@ class TD3(Policy):
             self.actor_loss = -tf.reduce_mean(self.q1_actor)
 
             self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
-            self.q1_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q1_target')
+            self.q1_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1_target')
             self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
-            self.q2_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q2_target')
+            self.q2_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
-            self.actor_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='actor_target')
+            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars + self.conv_vars)
-            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars + self.conv_vars)
-            self.train_value = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.conv_vars)
+            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars)
+            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars)
+            self.train_value = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars)
             with tf.control_dependencies([self.train_value]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars, global_step=self.global_step)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_actor]):
                 self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
                 self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])

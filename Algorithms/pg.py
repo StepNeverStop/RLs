@@ -38,14 +38,14 @@ class PG(Policy):
             # neural network and data flow process
             # ----------------------------------------------------------------
             if self.action_type == 'continuous':
-                self.mu, self.sigma = Nn.actor_continuous('pg', self.s, self.a_counts)
+                self.mu, self.sigma = Nn.actor_continuous('pg', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 log_act_prob = tf.reduce_mean(self.norm_dist.log_prob(self.pl_a), axis=1)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_probs = Nn.actor_discrete('pg', self.s, self.a_counts)
+                self.action_probs = Nn.actor_discrete('pg', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
             self.action = tf.identity(self.sample_op, name='action')
@@ -60,7 +60,7 @@ class PG(Policy):
             # ----------------------------------------------------------------
             # define the optimization process
             # ----------------------------------------------------------------
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=self.net_vars + self.conv_vars, global_step=self.global_step)
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(-self.loss, var_list=self.net_vars, global_step=self.global_step)
             # ----------------------------------------------------------------
             # record information
             # ----------------------------------------------------------------

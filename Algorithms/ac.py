@@ -27,32 +27,28 @@ class AC(Policy):
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.old_prob = tf.placeholder(tf.float32, [None, 1], 'old_prob')
             if self.action_type == 'continuous':
-                self.mu, self.sigma = Nn.actor_continuous('actor', self.s, self.a_counts, reuse=False)
+                self.mu, self.sigma = Nn.actor_continuous('actor', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 self.prob = tf.reduce_mean(self.norm_dist.prob(self.pl_a), axis=1)[:, np.newaxis]
                 log_act_prob = self.norm_dist.log_prob(self.pl_a)
-                self.pl_s_a = tf.concat((self.s, self.pl_a), axis=1)
-                self.q = Nn.critic_q_one('critic', self.pl_s_a, reuse=False)
-                self.next_mu, _ = Nn.actor_continuous('actor', self.s_, self.a_counts, reuse=True)
-                self.s_next_mu = tf.concat((self.s_, self.next_mu), axis=1)
-                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.s_next_mu, reuse=True))
+                self.q = Nn.critic_q_one('critic', self.pl_s, self.pl_visual_s, self.pl_a)
+                self.next_mu, _ = Nn.actor_continuous('actor', self.pl_s_, self.pl_visual_s_, self.a_counts)
+                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
 
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.pl_s_a_hot = tf.concat((self.s, self.pl_a), axis=1)
-                self.action_probs = Nn.actor_discrete('actor', self.s, self.a_counts)
-                self.q = Nn.critic_q_one('critic', self.pl_s_a_hot, reuse=False)
+                self.action_probs = Nn.actor_discrete('actor', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.q = Nn.critic_q_one('critic', self.pl_s, self.pl_visual_s, self.pl_a)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 self.prob = tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1)[:, np.newaxis]
                 log_act_prob = tf.log(self.prob)
-                self.s_a_all = tf.concat(
-                    (tf.tile(self.s_, [self.a_counts, 1]), tf.one_hot([i for i in range(self.a_counts)], self.a_counts)),
-                    axis=1)
-                self.max_q_next = tf.stop_gradient(tf.reduce_max(
-                    Nn.critic_q_one('critic', self.s_a_all, reuse=True),
-                    axis=0, keepdims=True))
+                self.next_mu = tf.one_hot(tf.argmax(Nn.actor_discrete('actor', self.pl_s_, self.pl_visual_s_, self.a_counts), axis=-1), self.a_counts)
+                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
+                # self.max_q_next = tf.stop_gradient(tf.reduce_max(
+                #     Nn.critic_q_one('critic', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), tf.one_hot([i for i in range(self.a_counts)] * tf.shape(self.pl_s)[0], self.a_counts)),
+                #     axis=0, keepdims=True))
 
             self.action = tf.identity(self.sample_op, name='action')
             self.ratio = tf.stop_gradient(self.prob / self.old_prob)
@@ -65,9 +61,9 @@ class AC(Policy):
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars + self.conv_vars)
+            self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(-self.actor_loss, var_list=self.actor_vars + self.conv_vars, global_step=self.global_step)
+                self.train_actor = optimizer.minimize(-self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
             self.train_sequence = [self.train_critic, self.train_actor]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(-self.actor_loss))

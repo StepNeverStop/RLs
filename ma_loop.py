@@ -54,18 +54,16 @@ class Loop(object):
                     next_action[i] = models[i].get_target_action(s=s_[:, i])
                     new_action[i] = models[i].choose_inference_action(s=s[:, i])
                 a_ = np.array([np.array(e) for e in zip(*next_action)])
-                ss = s.reshape(batch_size, -1)
-                s_a = np.concatenate((s, a), axis=-1).reshape(batch_size, -1)
-                s_a_ = np.concatenate((s_, a_), axis=-1).reshape(batch_size, -1)
                 if train_mode == 'perStep':
                     for i in range(brains_num):
                         models[i].learn(
                             episode=episode,
-                            ss=ss,
                             ap=np.array([np.array(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
                             al=np.array([np.array(e) for e in zip(*next_action[-(brains_num - i - 1):])]).reshape(batch_size, -1) if brains_num - i != 1 else np.zeros((batch_size, 0)),
-                            s_a=s_a,
-                            s_a_=s_a_,
+                            ss=s.reshape(batch_size, -1),
+                            ss_=s_.reshape(batch_size, -1),
+                            aa=a.reshape(batch_size, -1),
+                            aa_=a_.reshape(batch_size, -1),
                             s=s[:, i],
                             r=r[:, i]
                         )

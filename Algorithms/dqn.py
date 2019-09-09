@@ -32,8 +32,8 @@ class DQN(Policy):
         with self.graph.as_default():
 
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.q = Nn.critic_q_all('q', self.s, self.a_counts, trainable=True)
-            self.q_next = Nn.critic_q_all('q_target', self.s_, self.a_counts, trainable=False)
+            self.q = Nn.critic_q_all('q', self.pl_s, self.pl_visual_s, self.a_counts)
+            self.q_next = Nn.critic_q_all('q_target', self.pl_s_, self.pl_visual_s_, self.a_counts)
             self.action = tf.argmax(self.q, axis=1)
             tf.identity(self.action, 'action')
             self.q_eval = tf.reduce_sum(tf.multiply(self.q, self.pl_a), axis=1)[:, np.newaxis]
@@ -45,7 +45,7 @@ class DQN(Policy):
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.q_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_target')
 
-            self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars + self.conv_vars, global_step=self.global_step)
+            self.train_q = tf.train.AdamOptimizer(self.lr).minimize(self.q_loss, var_list=self.q_vars, global_step=self.global_step)
             self.assign_q_target = tf.group([tf.assign(r, v) for r, v in zip(self.q_target_vars, self.q_vars)])
 
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(self.q_loss))

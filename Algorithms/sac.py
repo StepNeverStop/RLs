@@ -31,23 +31,23 @@ class SAC(Policy):
             self.alpha = alpha if not auto_adaption else tf.exp(self.log_alpha)
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
 
-            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.s, self.a_counts)
+            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.pl_s, self.pl_visual_s, self.a_counts)
             tf.identity(self.mu, 'action')
             self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
             self.a_new = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.log_prob = self.norm_dist.log_prob(self.a_new)
             self.entropy = self.norm_dist.entropy()
 
-            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
-            self.s_a_new = tf.concat((self.s, self.a_new), axis=1)
-            self.q1 = Nn.critic_q_one('q1', self.s_a, True, False)
-            self.q2 = Nn.critic_q_one('q2', self.s_a, True, False)
-            self.q1_anew = Nn.critic_q_one('q1', self.s_a_new, True, True)
-            self.q2_anew = Nn.critic_q_one('q2', self.s_a_new, True, True)
+            self.s_a = tf.concat((self.pl_s, self.pl_visual_s, self.pl_a), axis=1)
+            self.s_a_new = tf.concat((self.pl_s, self.pl_visual_s, self.a_new), axis=1)
+            self.q1 = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q2 = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q1_anew = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.a_new)
+            self.q2_anew = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.a_new)
             self.v_from_q = tf.minimum(self.q1_anew, self.q2_anew) - self.alpha * self.log_prob
             self.v_from_q_stop = tf.stop_gradient(self.v_from_q)
-            self.v = Nn.critic_v('v', input_vector=self.s, trainable=True)
-            self.v_target = Nn.critic_v('v_target', input_vector=self.s_, trainable=False)
+            self.v = Nn.critic_v('v', self.pl_s, self.pl_visual_s)
+            self.v_target = Nn.critic_v('v_target', self.pl_s_, self.pl_visual_s_)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.v_target)
 
             self.q1_loss = tf.reduce_mean(tf.squared_difference(self.q1, self.dc_r))
@@ -61,7 +61,7 @@ class SAC(Policy):
             self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
             self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
             self.v_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='v')
-            self.v_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='v_target')
+            self.v_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='v_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
@@ -72,9 +72,9 @@ class SAC(Policy):
             self.assign_v_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.v_target_vars, self.v_vars)])
             # self.assign_v_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.v_target_vars, self.v_vars)]
             with tf.control_dependencies([self.assign_v_target]):
-                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.v_vars + self.conv_vars, global_step=self.global_step)
+                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.v_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
             with tf.control_dependencies([self.train_actor]):
                 self.train_alpha = optimizer.minimize(self.alpha_loss, var_list=[self.log_alpha])
             self.train_sequence = [self.assign_v_target, self.train_critic, self.train_actor, self.train_alpha]

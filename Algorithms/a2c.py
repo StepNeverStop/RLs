@@ -26,16 +26,16 @@ class A2C(Policy):
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             if self.action_type == 'continuous':
-                self.mu, self.sigma = Nn.actor_continuous('actor', self.s, self.a_counts)
+                self.mu, self.sigma = Nn.actor_continuous('actor', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 log_act_prob = self.norm_dist.log_prob(self.pl_a)
-                self.v = Nn.critic_v('critic', self.s)
+                self.v = Nn.critic_v('critic', self.pl_s, self.visual_s)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_probs = Nn.actor_discrete('actor', self.s)
-                self.v = Nn.critic_v('critic', self.s)
+                self.action_probs = Nn.actor_discrete('actor', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.v = Nn.critic_v('critic', self.pl_s, self.visual_s)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 log_act_prob = tf.log(tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1))[:, np.newaxis]
             self.action = tf.identity(self.sample_op, name='action')
@@ -47,9 +47,9 @@ class A2C(Policy):
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars + self.conv_vars)
+            self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(-self.actor_loss, var_list=self.actor_vars + self.conv_vars, global_step=self.global_step)
+                self.train_actor = optimizer.minimize(-self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
             self.train_sequence = [self.train_critic, self.train_actor]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(-self.actor_loss))
