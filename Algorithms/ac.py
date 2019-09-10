@@ -44,11 +44,13 @@ class AC(Policy):
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 self.prob = tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1)[:, np.newaxis]
                 log_act_prob = tf.log(self.prob)
-                self.next_mu = tf.one_hot(tf.argmax(Nn.actor_discrete('actor', self.pl_s_, self.pl_visual_s_, self.a_counts), axis=-1), self.a_counts)
-                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
-                # self.max_q_next = tf.stop_gradient(tf.reduce_max(
-                #     Nn.critic_q_one('critic', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), tf.one_hot([i for i in range(self.a_counts)] * tf.shape(self.pl_s)[0], self.a_counts)),
-                #     axis=0, keepdims=True))
+                # self.next_mu = tf.one_hot(tf.argmax(Nn.actor_discrete('actor', self.pl_s_, self.pl_visual_s_, self.a_counts), axis=-1), self.a_counts)
+                # self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
+                self._all_a = tf.expand_dims(tf.one_hot([i for i in range(self.a_counts)], self.a_counts), 1)
+                self.all_a = tf.reshape(tf.tile(self._all_a, [1, tf.shape(self.pl_a)[0], 1]), [-1, self.a_counts])
+                self.max_q_next = tf.stop_gradient(tf.reduce_max(
+                    Nn.critic_q_one('critic', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), self.all_a),
+                    axis=0, keepdims=True))
 
             self.action = tf.identity(self.sample_op, name='action')
             self.ratio = tf.stop_gradient(self.prob / self.old_prob)
