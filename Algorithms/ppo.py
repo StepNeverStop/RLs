@@ -2,14 +2,14 @@ import numpy as np
 import tensorflow as tf
 import Nn
 from utils.sth import sth
-from Algorithms.algorithm_base import Policy
+from Algorithms.policy import Policy
 
 
 class PPO(Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  epsilon=0.2,
@@ -20,12 +20,10 @@ class PPO(Policy):
                  max_episode=50000,
                  batch_size=100,
                  epoch=5,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'ON')
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'ON')
         self.beta = beta
         self.epoch = epoch
         self.lambda_ = lambda_
@@ -36,15 +34,16 @@ class PPO(Policy):
             self.advantage = tf.placeholder(tf.float32, [None, 1], "advantage")
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.old_prob = tf.placeholder(tf.float32, [None, 1], 'old_prob')
+            self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             if self.action_type == 'continuous':
-                self.mu, self.sigma, self.value = Nn.a_c_v_continuous('ppo', self.s, self.a_counts)
+                self.mu, self.sigma, self.value = Nn.a_c_v_continuous('ppo', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.new_prob = tf.reduce_mean(self.norm_dist.prob(self.pl_a), axis=1)[:, np.newaxis]
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_probs, self.value = Nn.a_c_v_discrete('ppo', self.s, self.a_counts)
+                self.action_probs, self.value = Nn.a_c_v_discrete('ppo', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.new_prob = tf.reduce_max(self.action_probs, axis=1)[:, np.newaxis]
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
 
@@ -53,7 +52,6 @@ class PPO(Policy):
             ratio = self.new_prob / self.old_prob
             surrogate = ratio * self.advantage
 
-            self.net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='ppo')
             self.actor_loss = tf.reduce_mean(
                 tf.minimum(
                     surrogate,
@@ -64,16 +62,15 @@ class PPO(Policy):
                 self.loss = -(self.actor_loss - 1.0 * self.value_loss + self.beta * tf.reduce_mean(self.entropy))
             else:
                 self.loss = self.value_loss - self.actor_loss
-            self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, var_list=self.net_vars + self.conv_vars, global_step=self.global_step)
+
+            self.net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='ppo')
+
+            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, var_list=self.net_vars, global_step=self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.value_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -88,62 +85,58 @@ class PPO(Policy):
 　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　
 　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　
             ''')
-            self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
+    def choose_action(self, s, visual_s):
         if self.action_type == 'continuous':
-            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
             return self.sess.run(self.action, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
             if np.random.uniform() < self.epsilon:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
-                pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
                 a = self.sess.run(self.action, feed_dict={
-                    self.pl_visual_s: pl_visual_s,
-                    self.pl_s: pl_s
+                    self.pl_visual_s: visual_s,
+                    self.pl_s: s
                 })
             return sth.int2action_index(a, self.a_dim_or_list)
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         a = self.sess.run(self.action, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
-    def store_data(self, s, a, r, s_, done):
-        assert isinstance(a, np.ndarray)
-        assert isinstance(r, np.ndarray)
-        assert isinstance(done, np.ndarray)
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
+        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
+        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
 
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
         self.data = self.data.append({
             's': s,
+            'visual_s': visual_s,
             'a': a,
             'r': r,
             's_': s_,
+            'visual_s_': visual_s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'next_value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: pl_visual_s_,
-                self.pl_s: pl_s_,
+                self.pl_visual_s: visual_s_,
+                self.pl_s: s_,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'prob': self.sess.run(self.new_prob, feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
@@ -172,20 +165,20 @@ class PPO(Policy):
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
         s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
+        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
         a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
         dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
         old_prob = np.vstack([i_data.prob.values[i] for i in range(i_data.shape[0])])
         advantage = np.vstack([i_data.advantage.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
-        return s, a, dc_r, old_prob, advantage
+        return s, visual_s, a, dc_r, old_prob, advantage
 
     def learn(self, episode):
         self.calculate_statistics()
         for _ in range(self.epoch):
-            s, a, dc_r, old_prob, advantage = self.get_sample_data()
-            pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+            s, visual_s, a, dc_r, old_prob, advantage = self.get_sample_data()
             summaries, _ = self.sess.run([self.summaries, self.train_op], feed_dict={
-                self.pl_visual_s: pl_visual_s,
-                self.pl_s: pl_s,
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
                 self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
                 self.dc_r: dc_r,
                 self.old_prob: old_prob,

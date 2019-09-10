@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Sum_Tree(object):
     def __init__(self, capacity):
         """
@@ -16,7 +17,7 @@ class Sum_Tree(object):
          / \   / \     / \  / \
         8   9 10   11 12                   -> storing priority for transitions
         """
-        assert capacity > 0
+        assert capacity > 0, 'capacity must larger than zero'
         self.now = 0
         self.parent_node_count = self.get_parent_node_count(capacity)
         # print(self.parent_node_count)

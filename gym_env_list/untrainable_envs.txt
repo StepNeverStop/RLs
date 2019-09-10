@@ -1,0 +1,3 @@
+|Blackjack-v0                                      Tuple(Discrete(32), Discrete(11), Discrete(2))                                                                                                       Discrete(2)|
+|KellyCoinflip-v0                                  Tuple(Box(1,), Discrete(301))                                                                                                                    Discrete(25000)|
+|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(310), Discrete(310), Discrete(310), Box(1,))                                                                          Discrete(47360100)|

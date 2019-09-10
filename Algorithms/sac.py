@@ -1,14 +1,14 @@
 import numpy as np
 import tensorflow as tf
 import Nn
-from Algorithms.algorithm_base import Policy
+from Algorithms.policy import Policy
 
 
 class SAC(Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
-                 visual_resolutions,
+                 visual_resolution,
                  a_dim_or_list,
                  action_type,
                  alpha=0.2,
@@ -19,12 +19,11 @@ class SAC(Policy):
                  max_episode=50000,
                  batch_size=100,
                  buffer_size=10000,
-                 cp_dir=None,
-                 log_dir=None,
-                 excel_dir=None,
+                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolutions, a_dim_or_list, action_type, gamma, max_episode, cp_dir, 'OFF', batch_size, buffer_size)
+        assert action_type == 'continuous', 'sac only support continuous action space'
+        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size, buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
@@ -32,23 +31,23 @@ class SAC(Policy):
             self.alpha = alpha if not auto_adaption else tf.exp(self.log_alpha)
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
 
-            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.s, self.a_counts)
+            self.mu, self.sigma = Nn.actor_continuous('actor_net', self.pl_s, self.pl_visual_s, self.a_counts)
             tf.identity(self.mu, 'action')
             self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
             self.a_new = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
             self.log_prob = self.norm_dist.log_prob(self.a_new)
             self.entropy = self.norm_dist.entropy()
 
-            self.s_a = tf.concat((self.s, self.pl_a), axis=1)
-            self.s_a_new = tf.concat((self.s, self.a_new), axis=1)
-            self.q1 = Nn.critic_q_one('q1', self.s_a, True, False)
-            self.q2 = Nn.critic_q_one('q2', self.s_a, True, False)
-            self.q1_anew = Nn.critic_q_one('q1', self.s_a_new, True, True)
-            self.q2_anew = Nn.critic_q_one('q2', self.s_a_new, True, True)
+            self.s_a = tf.concat((self.pl_s, self.pl_visual_s, self.pl_a), axis=1)
+            self.s_a_new = tf.concat((self.pl_s, self.pl_visual_s, self.a_new), axis=1)
+            self.q1 = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q2 = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.pl_a)
+            self.q1_anew = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.a_new)
+            self.q2_anew = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.a_new)
             self.v_from_q = tf.minimum(self.q1_anew, self.q2_anew) - self.alpha * self.log_prob
             self.v_from_q_stop = tf.stop_gradient(self.v_from_q)
-            self.v = Nn.critic_v('v', input_vector=self.s, trainable=True)
-            self.v_target = Nn.critic_v('v_target', input_vector=self.s_, trainable=False)
+            self.v = Nn.critic_v('v', self.pl_s, self.pl_visual_s)
+            self.v_target = Nn.critic_v('v_target', self.pl_s_, self.pl_visual_s_)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.v_target)
 
             self.q1_loss = tf.reduce_mean(tf.squared_difference(self.q1, self.dc_r))
@@ -62,7 +61,7 @@ class SAC(Policy):
             self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
             self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
             self.v_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='v')
-            self.v_target_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='v_target')
+            self.v_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='v_target')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
 
             optimizer = tf.train.AdamOptimizer(self.lr)
@@ -73,9 +72,9 @@ class SAC(Policy):
             self.assign_v_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.v_target_vars, self.v_vars)])
             # self.assign_v_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.v_target_vars, self.v_vars)]
             with tf.control_dependencies([self.assign_v_target]):
-                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.v_vars + self.conv_vars, global_step=self.global_step)
+                self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.v_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars + self.conv_vars)
+                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
             with tf.control_dependencies([self.train_actor]):
                 self.train_alpha = optimizer.minimize(self.alpha_loss, var_list=[self.log_alpha])
             self.train_sequence = [self.assign_v_target, self.train_critic, self.train_actor, self.train_alpha]
@@ -87,9 +86,6 @@ class SAC(Policy):
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
             self.summaries = tf.summary.merge_all()
             self.generate_recorder(
-                cp_dir=cp_dir,
-                log_dir=log_dir,
-                excel_dir=excel_dir,
                 logger2file=logger2file,
                 graph=self.graph if out_graph else None
             )
@@ -104,48 +100,33 @@ class SAC(Policy):
 　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
 　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
             ''')
-            self.init_or_restore(cp_dir)
 
-    def choose_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_action(self, s, visual_s):
         return self.sess.run(self.a_new, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
-    def choose_inference_action(self, s):
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
+    def choose_inference_action(self, s, visual_s):
         return self.sess.run(self.mu, feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })
 
-    def store_data(self, s, a, r, s_, done):
-        self.off_store(s, a, r[:, np.newaxis], s_, done[:, np.newaxis])
+    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, a, r, s_, _ = self.data.sample()
-        pl_visual_s, pl_s = self.get_visual_and_vector_input(s)
-        pl_visual_s_, pl_s_ = self.get_visual_and_vector_input(s_)
-        # self.sess.run([self.assign_v_target, self.train_q1, self.train_q2, self.train_v, self.train_actor], feed_dict={
-        #     self.pl_visual_s: pl_visual_s,
-        #     self.pl_s: pl_s,
-        #     self.pl_a: a,
-        #     self.pl_r: r,
-        #     self.pl_visual_s_: pl_visual_s_,
-        #     self.pl_s_: pl_s_,
-        #     self.episode: episode,
-        #     self.sigma_offset: np.full(self.a_counts, 0.01)
-        # })
+        s, visual_s, a, r, s_, visual_s_, _ = self.data.sample()
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: pl_visual_s,
-            self.pl_s: pl_s,
+            self.pl_visual_s: visual_s,
+            self.pl_s: s,
             self.pl_a: a,
             self.pl_r: r,
-            self.pl_visual_s_: pl_visual_s_,
-            self.pl_s_: pl_s_,
+            self.pl_visual_s_: visual_s_,
+            self.pl_s_: s_,
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })

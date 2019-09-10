@@ -3,6 +3,7 @@ from mlagents.envs.sampler_class import SamplerManager
 from mlagents.envs.exception import UnityEnvironmentException, SamplerException
 from typing import Any, Callable, Dict, Optional
 
+
 def create_sampler_manager(sampler_file_path, env_reset_params):
     '''
     resample_interval refer to episodes between last param and next one.

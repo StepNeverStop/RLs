@@ -34,10 +34,12 @@ pg_config = {
     'batch_size': 500,
     'epoch': 1
 }
-ac_config={
+ac_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
-    'max_episode': 50000
+    'max_episode': 50000,
+    'batch_size': 1000,
+    'buffer_size': 100000,
 }
 a2c_config = {
     'lr': 5.0e-4,
@@ -97,4 +99,21 @@ sac_no_v_config = {
     'ployak': 0.995,
     'batch_size': 100,
     'buffer_size': 10000
+}
+madpg_config = {
+    'gamma': 0.99,
+    'lr': 5.0e-4,
+    'max_episode': 50000
+}
+maddpg_config = {
+    'gamma': 0.99,
+    'ployak': 0.995,
+    'lr': 5.0e-4,
+    'max_episode': 50000
+}
+matd3_config = {
+    'gamma': 0.99,
+    'ployak': 0.995,
+    'lr': 5.0e-4,
+    'max_episode': 50000
 }
