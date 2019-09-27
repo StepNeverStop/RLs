@@ -23,7 +23,7 @@ train_config = {
     'logger2file': False,
     'out_graph': True,
     'reset_config': {
-        
+    #    'copy': 10
     },
     'save_frequency': 20,
     'max_step': 10000,

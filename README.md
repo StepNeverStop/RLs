@@ -9,6 +9,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 ### Characteristics
 
 - Suitable for Windows, Linux, and OSX
+- **Support TensorFlow 1.x and TensorFlow 2.0**
 - Almost reimplementation and competitive performance of original papers
 - Reusable modules
 - Clear hierarchical structure and easy code control
@@ -109,7 +110,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. maddpg doesn't support visual input for now
 6. need 3 steps to implement a new algorithm
-    1. write `.py` in `Algorithms` directory and make the policy inherit from class `Base`, add `from .[name] import [name]` in `Algorithms/__init__.py`
+    1. write `.py` in `Algorithms/tf[x]algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf[x]algos/__init__.py`
     2. write default configuration in `Algorithms/config.py`
     3. register new algorithm in `algos` of `run.py`
 7. set algorithms' hyper-parameters in [Algorithms/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/config.py)
@@ -127,10 +128,14 @@ Multi-Agent training algorithms(*not support visual input yet*):
 ### Dependencies
 
 - python>3.6, <3.7
-- tensorflow>=1.7.0, <=1.12.0
+- tensorflow>=1.7.0, <=1.12.0 or tensorflow==2.0.0-rc1
 - pandas
 - numpy
-- pywin32=224
+- pywin32==224
+- docopt
+- pyyaml
+- pillow
+- openpyxl
 
 ### Install
 

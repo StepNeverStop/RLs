@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import Nn
 from utils.sth import sth
-from Algorithms.policy import Policy
+from .policy import Policy
 
 
 class A2C(Policy):

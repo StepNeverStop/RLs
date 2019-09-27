@@ -16,7 +16,7 @@ def get_visual_input(n, cameras, brain_obs):
         for k in range(cameras):
             s.append(brain_obs.visual_observations[k][j])
         ss.append(np.array(s))
-    return ss
+    return np.array(ss)
 
 
 class Loop(object):

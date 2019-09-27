@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import Nn
-from Algorithms.policy import Policy
+from .policy import Policy
 
 
 class SAC(Policy):
@@ -38,21 +38,17 @@ class SAC(Policy):
             self.log_prob = self.norm_dist.log_prob(self.a_new)
             self.entropy = self.norm_dist.entropy()
 
-            self.s_a = tf.concat((self.pl_s, self.pl_visual_s, self.pl_a), axis=1)
-            self.s_a_new = tf.concat((self.pl_s, self.pl_visual_s, self.a_new), axis=1)
             self.q1 = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.pl_a)
             self.q2 = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.pl_a)
             self.q1_anew = Nn.critic_q_one('q1', self.pl_s, self.pl_visual_s, self.a_new)
             self.q2_anew = Nn.critic_q_one('q2', self.pl_s, self.pl_visual_s, self.a_new)
-            self.v_from_q = tf.minimum(self.q1_anew, self.q2_anew) - self.alpha * self.log_prob
-            self.v_from_q_stop = tf.stop_gradient(self.v_from_q)
+            self.v_from_q_stop = tf.stop_gradient(tf.minimum(self.q1_anew, self.q2_anew) - self.alpha * self.log_prob)
             self.v = Nn.critic_v('v', self.pl_s, self.pl_visual_s)
             self.v_target = Nn.critic_v('v_target', self.pl_s_, self.pl_visual_s_)
-            self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.v_target)
+            self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.v_target * (1 - self.pl_done))
 
             self.q1_loss = tf.reduce_mean(tf.squared_difference(self.q1, self.dc_r))
             self.q2_loss = tf.reduce_mean(tf.squared_difference(self.q2, self.dc_r))
-            self.v_loss = tf.reduce_mean(tf.squared_difference(self.v, self.v_from_q))
             self.v_loss_stop = tf.reduce_mean(tf.squared_difference(self.v, self.v_from_q_stop))
             self.critic_loss = 0.5 * self.q1_loss + 0.5 * self.q2_loss + 0.5 * self.v_loss_stop
             self.actor_loss = -tf.reduce_mean(self.q1_anew - self.alpha * self.log_prob)
@@ -67,7 +63,7 @@ class SAC(Policy):
             optimizer = tf.train.AdamOptimizer(self.lr)
             self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars)
             self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars)
-            self.train_v = optimizer.minimize(self.v_loss, var_list=self.v_vars)
+            self.train_v = optimizer.minimize(self.v_loss_stop, var_list=self.v_vars)
 
             self.assign_v_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.v_target_vars, self.v_vars)])
             # self.assign_v_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.v_target_vars, self.v_vars)]
@@ -119,7 +115,7 @@ class SAC(Policy):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
-        s, visual_s, a, r, s_, visual_s_, _ = self.data.sample()
+        s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
             self.pl_visual_s: visual_s,
             self.pl_s: s,
@@ -127,6 +123,7 @@ class SAC(Policy):
             self.pl_r: r,
             self.pl_visual_s_: visual_s_,
             self.pl_s_: s_,
+            self.pl_done: done,
             self.episode: episode,
             self.sigma_offset: np.full(self.a_counts, 0.01)
         })

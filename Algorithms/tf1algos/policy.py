@@ -20,8 +20,7 @@ class Policy(Base):
                  batch_size=1,
                  buffer_size=1,
                  use_priority=False,
-                 n_step=False,
-                 ):
+                 n_step=False):
         super().__init__(a_dim_or_list, action_type, base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources

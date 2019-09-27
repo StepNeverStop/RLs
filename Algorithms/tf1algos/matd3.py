@@ -119,6 +119,17 @@ class MATD3(Base):
         })
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
+        self.sess.run(self.train_value, feed_dict={
+            self.q_actor_a_previous: ap,
+            self.q_actor_a_later: al,
+            self.ss: ss,
+            self.ss_: ss_,
+            self.aa: aa,
+            self.aa_: aa_,
+            self.pl_s: s,
+            self.pl_r: r,
+            self.episode: episode
+        })
         summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
             self.q_actor_a_previous: ap,
             self.q_actor_a_later: al,
