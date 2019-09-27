@@ -1,11 +1,12 @@
 import tensorflow as tf
+from .activations import swish, mish
 from tensorflow.keras.layers import Conv3D, Dense, Flatten, concatenate
 
 activation_fn = tf.keras.activations.tanh
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),
-    'bias_initializer': tf.constant_initializer(0.1)    # 1.x 需要指定dtype
+    'bias_initializer': tf.constant_initializer(0.1)    # 2.x 不需要指定dtype
 }
 
 class ImageNet(tf.keras.Model):

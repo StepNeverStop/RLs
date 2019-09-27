@@ -1,4 +1,5 @@
 import tensorflow as tf
+from .activations import swish, mish
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),
