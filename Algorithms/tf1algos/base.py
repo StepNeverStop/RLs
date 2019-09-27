@@ -10,12 +10,11 @@ class Base(object):
     _version_number_ = 2
 
     def __init__(self, a_dim_or_list, action_type, base_dir):
-        
+
         self.graph = tf.Graph()
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
-        self.base_dir = os.path.join(base_dir, 'tf1')
-        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(self.base_dir, i) for i in ['model', 'log', 'excel']]
+        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
 

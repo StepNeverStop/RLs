@@ -66,13 +66,13 @@ class MADDPG(Base):
 
     @tf.function
     def _get_action(self, vector_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             mu = self.actor_net(vector_input, None)
         return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
     @tf.function
     def _get_target_action(self, vector_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             target_mu = self.actor_target_net(vector_input, None)
         return target_mu, tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
 
@@ -95,7 +95,7 @@ class MADDPG(Base):
         
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.critic_net(ss, None, aa)
                 q_target = self.critic_target_net(ss_, None, aa_)

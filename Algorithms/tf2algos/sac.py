@@ -61,7 +61,7 @@ class SAC(Policy):
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             mu, sigma = self.actor_net(vector_input, visual_input)
             norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
             a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
@@ -87,7 +87,7 @@ class SAC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 mu, sigma = self.actor_net(s, visual_s)
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)

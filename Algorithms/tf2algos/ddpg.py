@@ -59,7 +59,7 @@ class DDPG(Policy):
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             mu = self.actor_net(vector_input, visual_input)
         return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
@@ -82,7 +82,7 @@ class DDPG(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 target_mu = self.actor_target_net(s_, visual_s_)
                 action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)

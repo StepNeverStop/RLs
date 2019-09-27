@@ -63,7 +63,7 @@ class AC(Policy):
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu, sigma = self.actor_net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
@@ -84,7 +84,7 @@ class AC(Policy):
 
     @tf.function
     def _get_prob(self, s, visual_s, a):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu, sigma = self.actor_net(s, visual_s)
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
@@ -119,7 +119,7 @@ class AC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done, old_prob):
         done = tf.cast(done, tf.float64)
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     next_mu, _ = self.actor_net(s_, visual_s_)

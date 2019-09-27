@@ -1,4 +1,9 @@
 import platform
+import tensorflow as tf
+if tf.version.VERSION[0] == '1':
+    version = 'tf1'
+elif tf.version.VERSION[0] == '2':
+    version = 'tf2'
 
 unity_file = {
     '3DBall': {
@@ -18,7 +23,7 @@ unity_file = {
 }
 
 train_config = {
-    'base_dir': r'C:/RLData' if platform.system() == "Windows" else r'/RLData',
+    'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else f'/RLData/{version}',
     'exe_file': unity_file['Boat']['second'],
     'logger2file': False,
     'out_graph': True,

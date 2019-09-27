@@ -10,15 +10,16 @@ class Base(tf.keras.Model):
     def __init__(self, a_dim_or_list, action_type, base_dir):
         super().__init__()
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
-        assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
-        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        if len(physical_devices) > 0:
+            self.device = "/gpu:0"
+            tf.config.experimental.set_memory_growth(physical_devices[0], True)
+        else:
+            self.device = "/cpu:0"
         tf.keras.backend.set_floatx('float64')
-        self.base_dir = os.path.join(base_dir, 'tf2')
-        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(self.base_dir, i) for i in ['model', 'log', 'excel']]
+        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
         self.a_counts = np.array(a_dim_or_list).prod()
         self.global_step = self.get_init_step()
-        # tf.set_random_seed(-1)  # variables initialization consistent.
         self.episode = 0
 
     def get_init_step(self):

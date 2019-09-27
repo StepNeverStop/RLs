@@ -68,7 +68,7 @@ class DQN(Policy):
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             q_values = self.q_net(vector_input, visual_input)
         return tf.argmax(q_values, axis=1)
 
@@ -76,6 +76,7 @@ class DQN(Policy):
         self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
+        self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
@@ -91,7 +92,7 @@ class DQN(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.q_net(s, visual_s)
                 q_next = self.q_target_net(s_, visual_s_)

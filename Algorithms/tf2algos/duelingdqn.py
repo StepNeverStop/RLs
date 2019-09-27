@@ -69,7 +69,7 @@ class DDDQN(Policy):
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             _, advs = self.dueling_net(vector_input, visual_input)
         return tf.argmax(advs, axis=1)
 
@@ -92,7 +92,7 @@ class DDDQN(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
-        with tf.device('/cpu:0'):
+        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 v, adv = self.dueling_net(s, visual_s)
                 average_adv = tf.reduce_mean(adv, axis=1, keepdims=True)
