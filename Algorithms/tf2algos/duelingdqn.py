@@ -31,8 +31,8 @@ class DDDQN(Policy):
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
-        self.dueling_net = Nn.critic_dueling(self.a_counts, 'dueling')
-        self.dueling_target_net = Nn.critic_dueling(self.a_counts, 'dueling_target')
+        self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling')
+        self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target')
         tf.group([r.assign(v) for r, v in zip(self.dueling_target_net.weights, self.dueling_net.weights)])
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(

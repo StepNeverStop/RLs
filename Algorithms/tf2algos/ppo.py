@@ -33,9 +33,9 @@ class PPO(Policy):
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
-            self.net = Nn.a_c_v_continuous(self.a_counts, 'ppo')
+            self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo')
         else:
-            self.net = Nn.a_c_v_discrete(self.a_counts, 'ppo')
+            self.net = Nn.a_c_v_discrete(self.s_dim, self.visual_dim, self.a_counts, 'ppo')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -76,7 +76,7 @@ class PPO(Policy):
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
                 action_probs, value = self.net(vector_input, visual_input)
-                sample_op = tf.argmax(self.action_probs, axis=1)
+                sample_op = tf.argmax(action_probs, axis=1)
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -116,7 +116,7 @@ class PPO(Policy):
                 new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
             else:
                 action_probs, value = self.net(s, visual_s)
-                new_prob = tf.reduce_max(self.action_probs, axis=1, keepdims=True)
+                new_prob = tf.reduce_max(action_probs, axis=1, keepdims=True)
             return new_prob
 
     def calculate_statistics(self):
@@ -154,8 +154,6 @@ class PPO(Policy):
         for _ in range(self.epoch):
             s, visual_s, a, dc_r, old_prob, advantage = self.get_sample_data()
             self.global_step.assign_add(1)
-            if not self.action_type == 'continuous':
-                a = th.action_index2one_hot(a, self.a_dim_or_list)
             actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r, old_prob, advantage)
             tf.summary.experimental.set_step(self.global_step)
             if entropy is not None:
@@ -180,8 +178,8 @@ class PPO(Policy):
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
                     action_probs, value = self.net(s, visual_s)
-                    new_prob = tf.reduce_max(self.action_probs, axis=1, keepdims=True)
-                    sample_op = tf.argmax(self.action_probs, axis=1)
+                    new_prob = tf.reduce_max(action_probs, axis=1, keepdims=True)
+                    sample_op = tf.argmax(action_probs, axis=1)
                 ratio = new_prob / old_prob
                 surrogate = ratio * advantage
                 td_error = dc_r - value

@@ -26,10 +26,10 @@ class AC(Policy):
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_continuous(self.a_counts, 'actor')
+            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         else:
-            self.actor_net = Nn.actor_discrete(self.a_counts, 'actor')
-        self.critic_net = Nn.critic_q_one('critic')
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor')
+        self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'critic')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -105,8 +105,6 @@ class AC(Policy):
     def learn(self, episode):
         s, visual_s, a, old_prob, r, s_, visual_s_, done = self.data.sample()
         self.global_step.assign_add(1)
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         actor_loss, critic_loss, entropy = self.train(s, visual_s, a, r, s_, visual_s_, done, old_prob)
         tf.summary.experimental.set_step(self.global_step)
         if entropy is not None:
