@@ -16,7 +16,7 @@ class Base(object):
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options), graph=self.graph)
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
-        self.a_counts = np.array(a_dim_or_list).prod()
+        self.a_counts = int(np.array(a_dim_or_list).prod())
 
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
 

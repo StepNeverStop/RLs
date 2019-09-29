@@ -28,13 +28,14 @@ class TD3(Policy):
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target')
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q1')
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q1_target')
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q2')
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q2_target')
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_net.weights, self.q1_net.weights)])
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_net.weights, self.q2_net.weights)])
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1')
+        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target')
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2')
+        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target')
+        self.update_target_net_weights(
+            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
+            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
+            self.ployak)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -72,9 +73,10 @@ class TD3(Policy):
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             self.global_step.assign_add(1)
             actor_loss, critic_loss = self.train(s, visual_s, a, r, s_, visual_s_, done)
-            tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
-            tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_net.weights, self.q1_net.weights)])
-            tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_net.weights, self.q2_net.weights)])
+            self.update_target_net_weights(
+                self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
+                self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
+                self.ployak)
             tf.summary.experimental.set_step(self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(critic_loss))

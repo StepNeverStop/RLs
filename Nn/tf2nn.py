@@ -106,12 +106,12 @@ class critic_q_one(ImageNet):
     output: q(s,a)
     '''
 
-    def __init__(self, vector_dim, visual_dim, name):
+    def __init__(self, vector_dim, visual_dim, action_dim, name):
         super().__init__(name=name)
         self.layer1 = Dense(256, activation_fn, **initKernelAndBias)
         self.layer2 = Dense(256, activation_fn, **initKernelAndBias)
         self.q = Dense(1, None, **initKernelAndBias)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
 
     def call(self, vector_input, visual_input, action):
         features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)

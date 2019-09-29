@@ -18,7 +18,7 @@ class Base(tf.keras.Model):
         tf.keras.backend.set_floatx('float64')
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
-        self.a_counts = np.array(a_dim_or_list).prod()
+        self.a_counts = int(np.array(a_dim_or_list).prod())
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.episode = 0
 
@@ -30,7 +30,7 @@ class Base(tf.keras.Model):
             return int(tf.train.latest_checkpoint(self.cp_dir).split('-')[-1])
         else:
             return 0
-            
+
     def generate_recorder(self, logger2file, model=None):
         """
         create model/log/data dictionary and define writer to record training data.
@@ -102,3 +102,9 @@ class Base(tf.keras.Model):
         set the start training step.
         """
         self.global_step = num
+
+    def update_target_net_weights(self, tge, src, ployak=None):
+        if ployak is None:
+            tf.group([r.assign(v) for r, v in zip(tge, src)])
+        else:
+            tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(tge, src)])

@@ -26,7 +26,7 @@ class DPG(Policy):
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor')
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q')
+        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,

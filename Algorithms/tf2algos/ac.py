@@ -29,7 +29,7 @@ class AC(Policy):
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor')
-        self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'critic')
+        self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,

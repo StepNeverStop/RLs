@@ -32,7 +32,7 @@ class DQN(Policy):
         self.lr = lr
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q')
         self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target')
-        tf.group([r.assign(v) for r, v in zip(self.q_target_net.weights, self.q_net.weights)])
+        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -83,7 +83,7 @@ class DQN(Policy):
             self.global_step.assign_add(1)
             q_loss = self.train(s, visual_s, _a, r, s_, visual_s_, done)
             if self.global_step % self.assign_interval == 0:
-                tf.group([r.assign(v) for r, v in zip(self.q_target_net.weights, self.q_net.weights)])
+                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
             tf.summary.experimental.set_step(self.global_step)
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(q_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))

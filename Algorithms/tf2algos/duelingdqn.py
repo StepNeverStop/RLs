@@ -33,7 +33,7 @@ class DDDQN(Policy):
         self.lr = lr
         self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling')
         self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target')
-        tf.group([r.assign(v) for r, v in zip(self.dueling_target_net.weights, self.dueling_net.weights)])
+        self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -83,7 +83,7 @@ class DDDQN(Policy):
             self.global_step.assign_add(1)
             q_loss = self.train(s, visual_s, _a, r, s_, visual_s_, done)
             if self.global_step % self.assign_interval == 0:
-                tf.group([r.assign(v) for r, v in zip(self.dueling_target_net.weights, self.dueling_net.weights)])
+                self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
             tf.summary.experimental.set_step(self.global_step)
             tf.summary.scalar('LOSS/loss', tf.reduce_mean(q_loss))
             tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))

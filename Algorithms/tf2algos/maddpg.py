@@ -32,10 +32,12 @@ class MADDPG(Base):
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target')
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q')
-        self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, 'q_target')
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_net.weights, self.q_net.weights)])
+        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q')
+        self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_target')
+        self.update_target_net_weights(
+            self.actor_target_net.weights + self.q_target_net.weights,
+            self.actor_net.weights + self.q_net.weights,
+            self.ployak)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
@@ -79,8 +81,10 @@ class MADDPG(Base):
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.global_step.assign_add(1)
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
-        tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_net.weights, self.q_net.weights)])
+        self.update_target_net_weights(
+            self.actor_target_net.weights + self.q_target_net.weights,
+            self.actor_net.weights + self.q_net.weights,
+            self.ployak)
         tf.summary.experimental.set_step(self.global_step)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', q_loss)
@@ -92,7 +96,7 @@ class MADDPG(Base):
         get the max episode of this training model.
         """
         return self.max_episode
-        
+
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
         with tf.device(self.device):
@@ -100,7 +104,7 @@ class MADDPG(Base):
                 q = self.critic_net(ss, None, aa)
                 q_target = self.critic_target_net(ss_, None, aa_)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target)
-                td_error = q-dc_r
+                td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(
