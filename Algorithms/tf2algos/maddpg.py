@@ -77,7 +77,7 @@ class MADDPG(Base):
         return target_mu, tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
-        self.global_step += 1
+        self.global_step.assign_add(1)
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
         tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_net.weights, self.q_net.weights)])

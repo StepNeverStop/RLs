@@ -80,7 +80,7 @@ class DDDQN(Policy):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.global_step += 1
+            self.global_step.assign_add(1)
             q_loss = self.train(s, visual_s, _a, r, s_, visual_s_, done)
             if self.global_step % self.assign_interval == 0:
                 tf.group([r.assign(v) for r, v in zip(self.dueling_target_net.weights, self.dueling_net.weights)])

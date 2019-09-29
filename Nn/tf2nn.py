@@ -12,14 +12,14 @@ initKernelAndBias = {
 class ImageNet(tf.keras.Model):
     def __init__(self, name):
         super().__init__(name=name)
-        self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn, name='conv1', **initKernelAndBias)
-        self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn, name='conv2', **initKernelAndBias)
-        self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn, name='conv3', **initKernelAndBias)
+        self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn, **initKernelAndBias)
+        self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn, **initKernelAndBias)
+        self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn, **initKernelAndBias)
         self.flatten1 = Flatten()
-        self.fc1 = Dense(256, activation_fn, name='fc1', **initKernelAndBias)
+        self.fc1 = Dense(256, activation_fn, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
-        if len(visual_input.shape) != 5:
+        if visual_input is None or len(visual_input.shape) != 5:
             pass
         else:
             features = self.conv1(visual_input)
@@ -38,9 +38,9 @@ class actor_discrete(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.layer1 = Dense(128, activation_fn, name='actor1', **initKernelAndBias)
-        self.layer2 = Dense(64, activation_fn, name='actor2', **initKernelAndBias)
-        self.action_probs = Dense(output_shape, tf.keras.activations.softmax, name='action_probs', **initKernelAndBias)
+        self.layer1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.action_probs = Dense(output_shape, tf.keras.activations.softmax, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.layer1(super().call(vector_input, visual_input))
@@ -56,11 +56,11 @@ class actor_continuous(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.layer1 = Dense(128, activation_fn, name='actor1', **initKernelAndBias)
-        self.layer2 = Dense(64, activation_fn, name='actor2', **initKernelAndBias)
-        self.mu = Dense(output_shape, tf.keras.activations.tanh, name='mu', **initKernelAndBias)
-        self.sigma1 = Dense(64, activation_fn, name='sigma1', **initKernelAndBias)
-        self.sigma = Dense(output_shape, tf.keras.activations.sigmoid, name='sigma', **initKernelAndBias)
+        self.layer1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.mu = Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+        self.sigma1 = Dense(64, activation_fn, **initKernelAndBias)
+        self.sigma = Dense(output_shape, tf.keras.activations.sigmoid, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.layer1(super().call(vector_input, visual_input))
@@ -78,9 +78,9 @@ class actor_dpg(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.layer1 = Dense(128, activation_fn, name='actor1', **initKernelAndBias)
-        self.layer2 = Dense(64, activation_fn, name='actor2', **initKernelAndBias)
-        self.mu = Dense(output_shape, tf.keras.activations.tanh, name='mu', **initKernelAndBias)
+        self.layer1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.mu = Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.layer1(super().call(vector_input, visual_input))
@@ -96,9 +96,9 @@ class critic_q_one(ImageNet):
     '''
     def __init__(self, name):
         super().__init__(name=name)
-        self.layer1 = Dense(256, activation_fn, name='layer1', **initKernelAndBias)
-        self.layer2 = Dense(256, activation_fn, name='layer2', **initKernelAndBias)
-        self.q = Dense(1, None, name='value', **initKernelAndBias)
+        self.layer1 = Dense(256, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.q = Dense(1, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input, action):
         features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
@@ -115,9 +115,9 @@ class critic_v(ImageNet):
     '''
     def __init__(self, name):
         super().__init__(name=name)
-        self.critic1 = Dense(256, activation_fn, name='critic1', **initKernelAndBias)
-        self.critic2 = Dense(256, activation_fn, name='critic2', **initKernelAndBias)
-        self.v = Dense(1, None, name='v', **initKernelAndBias)
+        self.critic1 = Dense(256, activation_fn, **initKernelAndBias)
+        self.critic2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.v = Dense(1, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.critic1(super().call(vector_input, visual_input))
@@ -133,9 +133,9 @@ class critic_q_all(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.layer1 = Dense(256, activation_fn, name='layer1', **initKernelAndBias)
-        self.layer2 = Dense(256, activation_fn, name='layer2', **initKernelAndBias)
-        self.q = Dense(output_shape, None, name='value', **initKernelAndBias)
+        self.layer1 = Dense(256, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.q = Dense(output_shape, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.layer1(super().call(vector_input, visual_input))
@@ -146,11 +146,11 @@ class critic_q_all(ImageNet):
 class critic_dueling(ImageNet):
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.layer1 = Dense(256, activation_fn, name='layer1', **initKernelAndBias)
-        self.layer2 = Dense(256, activation_fn, name='layer2', **initKernelAndBias)
-        self.layer3 = Dense(256, activation_fn, name='layer3', **initKernelAndBias)
-        self.v = Dense(1, None, name='value', **initKernelAndBias)
-        self.a = Dense(output_shape, None, name='advantage', **initKernelAndBias)
+        self.layer1 = Dense(256, activation_fn, **initKernelAndBias)
+        self.layer2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.layer3 = Dense(256, activation_fn, **initKernelAndBias)
+        self.v = Dense(1, None, **initKernelAndBias)
+        self.a = Dense(output_shape, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.layer1(super().call(vector_input, visual_input))
@@ -168,14 +168,14 @@ class a_c_v_discrete(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.share1 = Dense(512, activation_fn, name='share1', **initKernelAndBias)
-        self.share2 = Dense(256, activation_fn, name='share2', **initKernelAndBias)
-        self.actor1 = Dense(128, activation_fn, name='actor1', **initKernelAndBias)
-        self.actor2 = Dense(64, activation_fn, name='actor2', **initKernelAndBias)
-        self.action_probs = Dense(output_shape, tf.keras.activations.softmax, name='action_probs', **initKernelAndBias)
-        self.critic1 = Dense(128, activation_fn, name='critic1', **initKernelAndBias)
-        self.critic2 = Dense(64, activation_fn, name='critic2', **initKernelAndBias)
-        self.value = Dense(1, None, name='value', **initKernelAndBias)
+        self.share1 = Dense(512, activation_fn, **initKernelAndBias)
+        self.share2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.actor1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.actor2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.action_probs = Dense(output_shape, tf.keras.activations.softmax, **initKernelAndBias)
+        self.critic1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.critic2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.value = Dense(1, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.share1(super().call(vector_input, visual_input))
@@ -196,16 +196,16 @@ class a_c_v_continuous(ImageNet):
     '''
     def __init__(self, output_shape, name):
         super().__init__(name=name)
-        self.share1 = Dense(512, activation_fn, name='share1', **initKernelAndBias)
-        self.share2 = Dense(256, activation_fn, name='share2', **initKernelAndBias)
-        self.actor1 = Dense(128, activation_fn, name='actor1', **initKernelAndBias)
-        self.actor2 = Dense(64, activation_fn, name='actor2', **initKernelAndBias)
-        self.mu = Dense(output_shape, tf.keras.activations.tanh, name='action_probs', **initKernelAndBias)
-        self.sigma1 = Dense(64, activation_fn, name='sigma1', **initKernelAndBias)
-        self.sigma = Dense(output_shape, tf.keras.activations.sigmoid, name='sigma', **initKernelAndBias)
-        self.critic1 = Dense(128, activation_fn, name='critic1', **initKernelAndBias)
-        self.critic2 = Dense(64, activation_fn, name='critic2', **initKernelAndBias)
-        self.value = Dense(1, None, name='value', **initKernelAndBias)
+        self.share1 = Dense(512, activation_fn, **initKernelAndBias)
+        self.share2 = Dense(256, activation_fn, **initKernelAndBias)
+        self.actor1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.actor2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.mu = Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+        self.sigma1 = Dense(64, activation_fn, **initKernelAndBias)
+        self.sigma = Dense(output_shape, tf.keras.activations.sigmoid, **initKernelAndBias)
+        self.critic1 = Dense(128, activation_fn, **initKernelAndBias)
+        self.critic2 = Dense(64, activation_fn, **initKernelAndBias)
+        self.value = Dense(1, None, **initKernelAndBias)
 
     def call(self, vector_input, visual_input):
         features = self.share1(super().call(vector_input, visual_input))

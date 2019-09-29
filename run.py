@@ -190,7 +190,7 @@ def unity_run(options, max_step, save_frequency, name):
         ) for index, i in enumerate(brain_names)]
 
     [models[index].init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load'], i)) for index, i in enumerate(brain_names)]
-    begin_episode = models[0].get_init_step()
+    begin_episode = models[0].get_init_episode()
     max_episode = models[0].get_max_episode()
 
     params = {
@@ -302,7 +302,7 @@ def gym_run(options, max_step, save_frequency, name):
         **algorithm_config
     )
     gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
-    begin_episode = gym_model.get_init_step()
+    begin_episode = gym_model.get_init_episode()
     max_episode = gym_model.get_max_episode()
     params = {
         'env': env,

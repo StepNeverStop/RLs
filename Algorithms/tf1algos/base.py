@@ -19,7 +19,6 @@ class Base(object):
         self.a_counts = np.array(a_dim_or_list).prod()
 
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
-        self.init_step = self.get_init_step()
 
         with self.graph.as_default():
             tf.set_random_seed(-1)  # variables initialization consistent.
@@ -28,9 +27,9 @@ class Base(object):
             tf.Variable(self._version_number_, name='version_number', trainable=False, dtype=tf.int32)
             tf.Variable(0, name="memory_size", trainable=False, dtype=tf.int32)
             self.episode = tf.Variable(tf.constant(0))
-            self.global_step = tf.get_variable('global_step', shape=(), initializer=tf.constant_initializer(value=self.init_step), trainable=False)
+            self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)
 
-    def get_init_step(self):
+    def get_init_episode(self):
         """
         get the initial training step. use for continue train from last training step.
         """

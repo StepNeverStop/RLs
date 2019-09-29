@@ -104,7 +104,7 @@ class AC(Policy):
 
     def learn(self, episode):
         s, visual_s, a, old_prob, r, s_, visual_s_, done = self.data.sample()
-        self.global_step += 1
+        self.global_step.assign_add(1)
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         actor_loss, critic_loss, entropy = self.train(s, visual_s, a, r, s_, visual_s_, done, old_prob)

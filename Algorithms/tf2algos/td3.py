@@ -70,7 +70,7 @@ class TD3(Policy):
     def learn(self, episode):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            self.global_step += 1
+            self.global_step.assign_add(1)
             actor_loss, critic_loss = self.train(s, visual_s, a, r, s_, visual_s_, done)
             tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_net.weights, self.actor_net.weights)])
             tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_net.weights, self.q1_net.weights)])

@@ -67,7 +67,7 @@ class MADPG(Base):
         return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
-        self.global_step += 1
+        self.global_step.assign_add(1)
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         tf.summary.experimental.set_step(self.global_step)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
