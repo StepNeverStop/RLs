@@ -1,9 +1,14 @@
 import platform
 import tensorflow as tf
-if tf.version.VERSION[0] == '1':
-    version = 'tf1'
-elif tf.version.VERSION[0] == '2':
-    version = 'tf2'
+try:
+    tf_version = tf.version.VERSION[0]
+except:
+    tf_version = tf.VERSION[0]
+finally:
+    if tf_version == '1':
+        version = 'tf1'
+    elif tf_version == '2':
+        version = 'tf2'
 
 unity_file = {
     '3DBall': {
