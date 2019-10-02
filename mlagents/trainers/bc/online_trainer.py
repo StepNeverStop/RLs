@@ -5,8 +5,8 @@
 import logging
 import numpy as np
 
-from mlagents.envs import AllBrainInfo
-from mlagents.trainers import ActionInfoOutputs
+from mlagents.envs.brain import AllBrainInfo
+from mlagents.envs.action_info import ActionInfoOutputs
 from mlagents.trainers.bc.trainer import BCTrainer
 
 logger = logging.getLogger("mlagents.trainers")
@@ -49,17 +49,6 @@ class OnlineBCTrainer(BCTrainer):
         self.batches_per_epoch = trainer_parameters["batches_per_epoch"]
         self.n_sequences = max(
             int(trainer_parameters["batch_size"] / self.policy.sequence_length), 1
-        )
-
-    def __str__(self):
-        return """Hyperparameters for the Imitation Trainer of brain {0}: \n{1}""".format(
-            self.brain_name,
-            "\n".join(
-                [
-                    "\t{0}:\t{1}".format(x, self.trainer_parameters[x])
-                    for x in self.param_keys
-                ]
-            ),
         )
 
     def add_experiences(

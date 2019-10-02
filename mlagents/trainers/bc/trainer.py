@@ -5,10 +5,9 @@
 import logging
 
 import numpy as np
-import tensorflow as tf
 
-from mlagents.envs import AllBrainInfo
-from mlagents.trainers import ActionInfoOutputs
+from mlagents.envs.brain import AllBrainInfo
+from mlagents.envs.action_info import ActionInfoOutputs
 from mlagents.trainers.bc.policy import BCPolicy
 from mlagents.trainers.buffer import Buffer
 from mlagents.trainers.trainer import Trainer
@@ -43,36 +42,6 @@ class BCTrainer(Trainer):
 
         self.demonstration_buffer = Buffer()
         self.evaluation_buffer = Buffer()
-
-    @property
-    def parameters(self):
-        """
-        Returns the trainer parameters of the trainer.
-        """
-        return self.trainer_parameters
-
-    @property
-    def get_max_steps(self):
-        """
-        Returns the maximum number of steps. Is used to know when the trainer should be stopped.
-        :return: The maximum number of steps of the trainer
-        """
-        return float(self.trainer_parameters["max_steps"])
-
-    @property
-    def get_step(self):
-        """
-        Returns the number of steps the trainer has performed
-        :return: the step count of the trainer
-        """
-        return self.policy.get_current_step()
-
-    def increment_step(self):
-        """
-        Increment the step count of the trainer
-        """
-        self.policy.increment_step()
-        return
 
     def add_experiences(
         self,
@@ -154,7 +123,7 @@ class BCTrainer(Trainer):
         """
         Updates the policy.
         """
-        self.demonstration_buffer.update_buffer.shuffle()
+        self.demonstration_buffer.update_buffer.shuffle(self.policy.sequence_length)
         batch_losses = []
         num_batches = min(
             len(self.demonstration_buffer.update_buffer["actions"]) // self.n_sequences,
