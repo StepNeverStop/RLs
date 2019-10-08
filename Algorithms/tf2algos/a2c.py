@@ -126,6 +126,7 @@ class A2C(Policy):
                     action_probs = self.actor_net(s, visual_s)
                     sample_op = tf.argmax(action_probs, axis=1)
                     log_act_prob = tf.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1), keepdims=True)
+                v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -tf.reduce_mean(log_act_prob * advantage)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
