@@ -105,3 +105,26 @@ class MADPG(Base):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, q_loss
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                q = self.critic_net(ss, None, aa)
+                q_target = self.critic_target_net(ss_, None, aa_)
+                dc_r = tf.stop_gradient(r + self.gamma * q_target)
+                td_error = q - dc_r
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                mu = self.actor_net(s, None)
+                mumu = tf.concat((q_actor_a_previous, mu, q_actor_a_later), axis=-1)
+                q_actor = self.critic_net(ss, None, mumu)
+                actor_loss = -tf.reduce_mean(q_actor)
+            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(q_grads, self.q_net.trainable_variables)
+            )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, q_loss

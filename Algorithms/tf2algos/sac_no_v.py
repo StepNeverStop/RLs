@@ -144,3 +144,48 @@ class SAC_NO_V(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             return actor_loss, critic_loss, entropy
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        done = tf.cast(done, tf.float64)
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                mu, sigma = self.actor_net(s, visual_s)
+                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                a_s_log_prob = norm_dist.log_prob(a_new)
+                entropy = tf.reduce_mean(norm_dist.entropy())
+                target_mu, target_sigma = self.actor_net(s_, visual_s_)
+                target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
+                a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
+                a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                q1 = self.q1_net(s, visual_s, a)
+                q1_target = self.q1_target_net(s_, visual_s_, a_s_)
+                q2 = self.q2_net(s, visual_s, a)
+                q2_target = self.q2_target_net(s_, visual_s_, a_s_)
+                q1_s_a = self.q1_net(s, visual_s, a_new)
+                q2_s_a = self.q2_net(s, visual_s, a_new)
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
+                td_error1 = q1 - dc_r_q1
+                td_error2 = q2 - dc_r_q2
+                q1_loss = tf.reduce_mean(tf.square(td_error1))
+                q2_loss = tf.reduce_mean(tf.square(td_error2))
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_a, q2_s_a) - tf.exp(self.log_alpha) * a_s_log_prob)
+                if self.auto_adaption:
+                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(a_s_log_prob - self.a_counts))
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+            )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            if self.auto_adaption:
+                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                self.optimizer_alpha.apply_gradients(
+                    zip(alpha_grads, [self.log_alpha])
+                )
+            return actor_loss, critic_loss, entropy

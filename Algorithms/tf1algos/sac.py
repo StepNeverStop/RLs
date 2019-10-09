@@ -71,10 +71,10 @@ class SAC(Policy):
             # self.assign_v_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.v_target_vars, self.v_vars)]
             with tf.control_dependencies([self.assign_v_target]):
                 self.train_critic = optimizer_critic.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars + self.v_vars, global_step=self.global_step)
-            with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
-            with tf.control_dependencies([self.train_actor]):
-                self.train_alpha = optimizer_alpha.minimize(self.alpha_loss, var_list=[self.log_alpha])
+                with tf.control_dependencies([self.train_critic]):
+                    self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
+                    with tf.control_dependencies([self.train_actor]):
+                        self.train_alpha = optimizer_alpha.minimize(self.alpha_loss, var_list=[self.log_alpha])
             self.train_sequence = [self.assign_v_target, self.train_critic, self.train_actor, self.train_alpha]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

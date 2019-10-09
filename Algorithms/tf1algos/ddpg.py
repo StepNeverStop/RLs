@@ -53,9 +53,9 @@ class DDPG(Policy):
                 self.q_loss, var_list=self.q_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_q]):
                 self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
-            with tf.control_dependencies([self.train_actor]):
-                self.assign_q_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_vars, self.q_vars)])
-                self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
+                with tf.control_dependencies([self.train_actor]):
+                    self.assign_q_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_vars, self.q_vars)])
+                    self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
             # self.assign_q_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.q_target_vars, self.q_vars)]
             # self.assign_q_target = [tf.assign(r, 1/(self.episode+1) * v + (1-1/(self.episode+1)) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)]
             self.train_sequence = [self.train_q, self.train_actor, self.assign_q_target, self.assign_actor_target]

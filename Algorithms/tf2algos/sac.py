@@ -140,3 +140,46 @@ class SAC(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             return actor_loss, critic_loss, entropy
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        done = tf.cast(done, tf.float64)
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                mu, sigma = self.actor_net(s, visual_s)
+                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                entropy = tf.reduce_mean(norm_dist.entropy())
+                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                log_prob = norm_dist.log_prob(a_new)
+                q1 = self.q1_net(s, visual_s, a)
+                q2 = self.q2_net(s, visual_s, a)
+                v = self.v_net(s, visual_s)
+                q1_anew = self.q1_net(s, visual_s, a_new)
+                q2_anew = self.q2_net(s, visual_s, a_new)
+                v_target = self.v_target_net(s_, visual_s_)
+                dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_anew, q2_anew) - tf.exp(self.log_alpha) * log_prob)
+                td_v = v - v_from_q_stop
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
+                q1_loss = tf.reduce_mean(tf.square(td_error1))
+                q2_loss = tf.reduce_mean(tf.square(td_error2))
+                v_loss_stop = tf.reduce_mean(tf.square(td_v))
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
+                actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
+                if self.auto_adaption:
+                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+            ) 
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            if self.auto_adaption:
+                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                self.optimizer_alpha.apply_gradients(
+                    zip(alpha_grads, [self.log_alpha])
+                )
+            return actor_loss, critic_loss, entropy

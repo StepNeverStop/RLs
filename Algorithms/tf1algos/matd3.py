@@ -77,10 +77,10 @@ class MATD3(Base):
             self.train_value = optimizer_critic.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars)
             with tf.control_dependencies([self.train_value]):
                 self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
-            with tf.control_dependencies([self.train_actor]):
-                self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
-                self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])
-                self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
+                with tf.control_dependencies([self.train_actor]):
+                    self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
+                    self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])
+                    self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
             self.train_sequence = [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
