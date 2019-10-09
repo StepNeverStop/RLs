@@ -3,8 +3,8 @@ dqn_config = {
     'gamma': 0.99,
     'epsilon': 0.2,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384,
+    'batch_size': 1024,
+    'buffer_size': 200000,
     'assign_interval': 1000,
     'use_priority': False,
     'n_step': False
@@ -14,8 +14,8 @@ ddqn_config = {
     'gamma': 0.99,
     'epsilon': 0.2,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384,
+    'batch_size': 1024,
+    'buffer_size': 200000,
     'assign_interval': 1000
 }
 dddqn_config = {
@@ -23,8 +23,8 @@ dddqn_config = {
     'gamma': 0.99,
     'epsilon': 0.2,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384,
+    'batch_size': 1024,
+    'buffer_size': 200000,
     'assign_interval': 1000
 }
 pg_config = {
@@ -38,8 +38,8 @@ ac_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384,
+    'batch_size': 1024,
+    'buffer_size': 200000,
 }
 a2c_config = {
     'lr': 5.0e-4,
@@ -54,31 +54,31 @@ ppo_config = {
     'lr': 5.0e-4,
     'lambda_': 0.95,
     'max_episode': 50000,
-    'batch_size': 128,
+    'batch_size': 1024,
     'epoch': 5
 }
 dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384
+    'batch_size': 1024,
+    'buffer_size': 200000
 }
 ddpg_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384
+    'batch_size': 1024,
+    'buffer_size': 200000
 }
 td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384,
+    'batch_size': 1024,
+    'buffer_size': 200000,
 }
 sac_config = {
     'alpha': 0.2,
@@ -87,8 +87,8 @@ sac_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000,
-    'batch_size': 128,
-    'buffer_size': 16384
+    'batch_size': 1024,
+    'buffer_size': 200000
 }
 sac_no_v_config = {
     'alpha': 0.2,
@@ -97,8 +97,8 @@ sac_no_v_config = {
     'max_episode': 50000,
     'gamma': 0.99,
     'ployak': 0.995,
-    'batch_size': 128,
-    'buffer_size': 16384
+    'batch_size': 1024,
+    'buffer_size': 200000
 }
 madpg_config = {
     'gamma': 0.99,
