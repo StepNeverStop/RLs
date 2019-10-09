@@ -116,3 +116,35 @@ class TD3(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, critic_loss
+    
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        done = tf.cast(done, tf.float64)
+        with tf.device(self.device):
+            for _ in range(2):
+                with tf.GradientTape(persistent=True) as tape:
+                    mu = self.actor_net(s, visual_s)
+                    target_mu = self.actor_net(s_, visual_s_)
+                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    q1 = self.q1_net(s, visual_s, a)
+                    q1_target = self.q1_target_net(s_, visual_s_, action_target)
+                    q2 = self.q2_net(s, visual_s, a)
+                    q2_target = self.q2_target_net(s_, visual_s_, action_target)
+                    q1_actor = self.q1_net(s, visual_s, mu)
+                    q_target = tf.minimum(q1_target, q2_target)
+                    dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
+                    td_error1 = q1 - dc_r
+                    td_error2 = q2 - dc_r
+                    q1_loss = tf.reduce_mean(tf.square(td_error1))
+                    q2_loss = tf.reduce_mean(tf.square(td_error2))
+                    critic_loss = 0.5 * (q1_loss + q2_loss)
+                    actor_loss = -tf.reduce_mean(q1_actor)
+                critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                self.optimizer_critic.apply_gradients(
+                    zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, critic_loss

@@ -135,3 +135,32 @@ class A2C(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, dc_r):
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_act_prob = norm_dist.log_prob(a)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                else:
+                    action_probs = self.actor_net(s, visual_s)
+                    sample_op = tf.argmax(action_probs, axis=1)
+                    log_act_prob = tf.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1), keepdims=True)
+                v = self.critic_net(s, visual_s)
+                advantage = tf.stop_gradient(dc_r - v)
+                td_error = dc_r - v
+                critic_loss = tf.reduce_mean(tf.square(td_error))
+                actor_loss = -tf.reduce_mean(log_act_prob * advantage)
+            critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.critic_net.trainable_variables)
+            )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None

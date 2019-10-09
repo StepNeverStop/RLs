@@ -34,8 +34,8 @@ class DDPG(Policy):
             self.actor_target_net.weights + self.q_target_net.weights,
             self.actor_net.weights + self.q_net.weights,
             self.ployak)
-        self.actor_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.critic_optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -97,7 +97,7 @@ class DDPG(Policy):
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.critic_optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.q_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
@@ -105,7 +105,32 @@ class DDPG(Policy):
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.actor_optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, q_loss
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        done = tf.cast(done, tf.float64)
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                target_mu = self.actor_target_net(s_, visual_s_)
+                action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                q = self.q_net(s, visual_s, a)
+                q_target = self.q_target_net(s_, visual_s_, action_target)
+                dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
+                td_error = q - dc_r
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                mu = self.actor_net(s, visual_s)
+                q_actor = self.q_net(s, visual_s, mu)
+                actor_loss = -tf.reduce_mean(q_actor)
+            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(q_grads, self.q_net.trainable_variables)
+            )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, q_loss

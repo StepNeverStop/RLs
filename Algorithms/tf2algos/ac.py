@@ -156,3 +156,43 @@ class AC(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_prob):
+        done = tf.cast(done, tf.float64)
+        with tf.device(self.device):
+            with tf.GradientTape(persistent=True) as tape:
+                if self.action_type == 'continuous':
+                    next_mu, _ = self.actor_net(s_, visual_s_)
+                    max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
+
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
+                    log_act_prob = norm_dist.log_prob(a)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                else:
+                    _all_a = tf.expand_dims(tf.one_hot([i for i in range(self.a_counts)], self.a_counts), 1)
+                    all_a = tf.reshape(tf.tile(_all_a, [1, tf.shape(a)[0], 1]), [-1, self.a_counts])
+                    max_q_next = tf.stop_gradient(tf.reduce_max(
+                        self.critic_net(tf.tile(s_, [self.a_counts, 1]), tf.tile(visual_s_, [self.a_counts, 1]), all_a),
+                        axis=0, keepdims=True))
+                    
+                    action_probs = self.actor_net(s, visual_s)
+                    prob = tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True)
+                    log_act_prob = tf.log(prob)
+                q = self.critic_net(s, visual_s, a)
+                ratio = tf.stop_gradient(prob / old_prob)
+                q_value = tf.stop_gradient(q)
+                td_error = q - (r + self.gamma * (1 - done) * max_q_next)
+                critic_loss = tf.reduce_mean(tf.square(td_error))
+                actor_loss = -tf.reduce_mean(ratio * log_act_prob * q_value)
+            critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.critic_net.trainable_variables)
+            )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
