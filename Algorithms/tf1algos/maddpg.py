@@ -63,11 +63,12 @@ class MADDPG(Base):
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
 
-            optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q = optimizer.minimize(
+            optimizer_critic = tf.train.AdamOptimizer(self.lr)
+            optimizer_actor = tf.train.AdamOptimizer(self.lr)
+            self.train_q = optimizer_critic.minimize(
                 self.q_loss, var_list=self.q_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_q]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
+                self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
             with tf.control_dependencies([self.train_actor]):
                 self.assign_q_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_vars, self.q_vars)])
                 self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])

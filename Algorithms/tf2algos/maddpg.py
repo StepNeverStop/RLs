@@ -38,7 +38,8 @@ class MADDPG(Base):
             self.actor_target_net.weights + self.q_target_net.weights,
             self.actor_net.weights + self.q_net.weights,
             self.ployak)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -107,7 +108,7 @@ class MADDPG(Base):
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.q_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
@@ -116,7 +117,7 @@ class MADDPG(Base):
                 q_actor = self.critic_net(ss, None, aa_mumu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, q_loss

@@ -62,10 +62,11 @@ class AC(Policy):
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
 
-            optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_critic = optimizer.minimize(self.critic_loss, var_list=self.critic_vars)
+            optimizer_critic = tf.train.AdamOptimizer(self.lr)
+            optimizer_actor = tf.train.AdamOptimizer(self.lr)
+            self.train_critic = optimizer_critic.minimize(self.critic_loss, var_list=self.critic_vars)
             with tf.control_dependencies([self.train_critic]):
-                self.train_actor = optimizer.minimize(-self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
+                self.train_actor = optimizer_actor.minimize(-self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
             self.train_sequence = [self.train_critic, self.train_actor]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(-self.actor_loss))

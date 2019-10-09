@@ -56,12 +56,13 @@ class TD3(Policy):
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
             self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
 
-            optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars)
-            self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars)
-            self.train_value = optimizer.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars)
+            optimizer_critic = tf.train.AdamOptimizer(self.lr)
+            optimizer_actor = tf.train.AdamOptimizer(self.lr)
+            # self.train_q1 = optimizer.minimize(self.q1_loss, var_list=self.q1_vars)
+            # self.train_q2 = optimizer.minimize(self.q2_loss, var_list=self.q2_vars)
+            self.train_value = optimizer_critic.minimize(self.critic_loss, var_list=self.q1_vars + self.q2_vars)
             with tf.control_dependencies([self.train_value]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
+                self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_actor]):
                 self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
                 self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])

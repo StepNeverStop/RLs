@@ -74,8 +74,8 @@ def critic_q_one(name, vector_input, visual_input, action):
     state = get_state(name, vector_input, visual_input)
     s_a = tf.concat((state, action), axis=-1)
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
-        critic1 = tf.layers.dense(s_a, 256, activation_fn, name='critic1', **initKernelAndBias)
-        critic2 = tf.layers.dense(critic1, 256, activation_fn, name='critic2', **initKernelAndBias)
+        critic1 = tf.layers.dense(s_a, 128, activation_fn, name='critic1', **initKernelAndBias)
+        critic2 = tf.layers.dense(critic1, 64, activation_fn, name='critic2', **initKernelAndBias)
         q = tf.layers.dense(critic2, 1, None, name='q', **initKernelAndBias)
         # var = tf.get_variable_scope().global_variables()
         return q
@@ -89,8 +89,8 @@ def critic_v(name, vector_input, visual_input):
     '''
     state = get_state(name, vector_input, visual_input)
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
-        critic1 = tf.layers.dense(state, 256, activation_fn, name='critic1', **initKernelAndBias)
-        critic2 = tf.layers.dense(critic1, 256, activation_fn, name='critic2', **initKernelAndBias)
+        critic1 = tf.layers.dense(state, 128, activation_fn, name='critic1', **initKernelAndBias)
+        critic2 = tf.layers.dense(critic1, 64, activation_fn, name='critic2', **initKernelAndBias)
         v = tf.layers.dense(critic2, 1, None, name='v', **initKernelAndBias)
         return v
 

@@ -36,7 +36,9 @@ class SAC(Policy):
         self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v')
         self.v_target_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_target')
         self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -109,7 +111,7 @@ class SAC(Policy):
                 v_loss_stop = tf.reduce_mean(tf.square(td_v))
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
             critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
-            self.optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
             )
 
@@ -122,7 +124,7 @@ class SAC(Policy):
                 q1_anew = self.q1_net(s, visual_s, a_new)
                 actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
 
@@ -134,7 +136,7 @@ class SAC(Policy):
                     log_prob = norm_dist.log_prob(a_new)
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
-                self.optimizer.apply_gradients(
+                self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
             return actor_loss, critic_loss, entropy

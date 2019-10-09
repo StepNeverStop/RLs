@@ -40,7 +40,8 @@ class MATD3(Base):
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
             self.ployak)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -115,7 +116,7 @@ class MATD3(Base):
                     q2_loss = tf.reduce_mean(tf.square(td_error2))
                     critic_loss = 0.5 * (q1_loss + q2_loss)
                 critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
-                self.optimizer.apply_gradients(
+                self.optimizer_critic.apply_gradients(
                     zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
                 )
             with tf.GradientTape() as tape:
@@ -124,7 +125,7 @@ class MATD3(Base):
                 q1_actor = self.q1_net(ss, None, mumu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, critic_loss

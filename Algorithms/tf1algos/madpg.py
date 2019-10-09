@@ -61,11 +61,12 @@ class MADPG(Base):
             self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
             self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
 
-            optimizer = tf.train.AdamOptimizer(self.lr)
-            self.train_q = optimizer.minimize(
+            optimizer_critic = tf.train.AdamOptimizer(self.lr)
+            optimizer_actor = tf.train.AdamOptimizer(self.lr)
+            self.train_q = optimizer_critic.minimize(
                 self.q_loss, var_list=self.q_vars, global_step=self.global_step)
             with tf.control_dependencies([self.train_q]):
-                self.train_actor = optimizer.minimize(self.actor_loss, var_list=self.actor_vars)
+                self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
             self.train_sequence = [self.train_q, self.train_actor]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

@@ -3,7 +3,7 @@ from .activations import swish, mish
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv3D, Dense, Flatten
 
-activation_fn = tf.keras.activations.tanh
+activation_fn = tf.keras.activations.relu
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),
@@ -112,8 +112,8 @@ class critic_q_one(ImageNet):
     def __init__(self, vector_dim, visual_dim, action_dim, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(256, activation_fn, **initKernelAndBias),
+            Dense(128, activation_fn, **initKernelAndBias),
+            Dense(64, activation_fn, **initKernelAndBias),
             Dense(1, None, **initKernelAndBias)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
@@ -134,8 +134,8 @@ class critic_v(ImageNet):
     def __init__(self, vector_dim, visual_dim, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(256, activation_fn, **initKernelAndBias),
+            Dense(128, activation_fn, **initKernelAndBias),
+            Dense(64, activation_fn, **initKernelAndBias),
             Dense(1, None, **initKernelAndBias)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))

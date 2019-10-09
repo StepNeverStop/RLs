@@ -30,7 +30,8 @@ class AC(Policy):
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic')
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -132,7 +133,7 @@ class AC(Policy):
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
                 critic_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
@@ -151,7 +152,7 @@ class AC(Policy):
                 q_value = tf.stop_gradient(q)
                 actor_loss = -tf.reduce_mean(ratio * log_act_prob * q_value)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None

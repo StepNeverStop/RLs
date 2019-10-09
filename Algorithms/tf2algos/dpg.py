@@ -27,7 +27,8 @@ class DPG(Policy):
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor')
         self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q')
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -85,7 +86,7 @@ class DPG(Policy):
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.q_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
@@ -93,7 +94,7 @@ class DPG(Policy):
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             return actor_loss, q_loss
