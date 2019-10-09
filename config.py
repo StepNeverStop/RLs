@@ -1,3 +1,4 @@
+import os
 import platform
 import tensorflow as tf
 try:
@@ -29,7 +30,7 @@ unity_file = {
 }
 
 train_config = {
-    'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else f'/RLData/{version}',
+    'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
     'exe_file': unity_file['3DBall']['hard1'],
     'logger2file': False,
     'out_graph': True,
