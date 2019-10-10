@@ -36,14 +36,14 @@ class PPO(Policy):
             self.old_prob = tf.placeholder(tf.float32, [None, 1], 'old_prob')
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             if self.action_type == 'continuous':
-                self.mu, self.sigma, self.value = Nn.a_c_v_continuous('ppo', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.mu, self.sigma, self.value = Nn.a_c_v_continuous('ppo_net', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.new_prob = tf.reduce_mean(self.norm_dist.prob(self.pl_a), axis=1)[:, np.newaxis]
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_probs, self.value = Nn.a_c_v_discrete('ppo', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.action_probs, self.value = Nn.a_c_v_discrete('ppo_net', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.new_prob = tf.reduce_max(self.action_probs, axis=1)[:, np.newaxis]
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
 
@@ -63,7 +63,7 @@ class PPO(Policy):
             else:
                 self.loss = self.value_loss - self.actor_loss
 
-            self.net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='ppo')
+            self.net_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='ppo_net')
 
             self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.loss, var_list=self.net_vars, global_step=self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

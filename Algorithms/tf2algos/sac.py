@@ -30,12 +30,12 @@ class SAC(Policy):
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
-        self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor')
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1')
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2')
-        self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v')
-        self.v_target_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_target')
-        self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
+        self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
+        self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_net')
+        self.v_target_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_target_net')
+        self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.lr)
@@ -172,7 +172,7 @@ class SAC(Policy):
             critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
-            ) 
+            )
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)

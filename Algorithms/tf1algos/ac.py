@@ -27,29 +27,29 @@ class AC(Policy):
             self.sigma_offset = tf.placeholder(tf.float32, [self.a_counts, ], 'sigma_offset')
             self.old_prob = tf.placeholder(tf.float32, [None, 1], 'old_prob')
             if self.action_type == 'continuous':
-                self.mu, self.sigma = Nn.actor_continuous('actor', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.mu, self.sigma = Nn.actor_continuous('actor_net', self.pl_s, self.pl_visual_s, self.a_counts)
                 self.norm_dist = tf.distributions.Normal(loc=self.mu, scale=self.sigma + self.sigma_offset)
                 self.sample_op = tf.clip_by_value(self.norm_dist.sample(), -1, 1)
                 self.prob = tf.reduce_mean(self.norm_dist.prob(self.pl_a), axis=1)[:, np.newaxis]
                 log_act_prob = self.norm_dist.log_prob(self.pl_a)
-                self.q = Nn.critic_q_one('critic', self.pl_s, self.pl_visual_s, self.pl_a)
-                self.next_mu, _ = Nn.actor_continuous('actor', self.pl_s_, self.pl_visual_s_, self.a_counts)
-                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
+                self.q = Nn.critic_q_one('critic_net', self.pl_s, self.pl_visual_s, self.pl_a)
+                self.next_mu, _ = Nn.actor_continuous('actor_net', self.pl_s_, self.pl_visual_s_, self.a_counts)
+                self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic_net', self.pl_s_, self.pl_visual_s_, self.next_mu))
 
                 self.entropy = self.norm_dist.entropy()
                 tf.summary.scalar('LOSS/entropy', tf.reduce_mean(self.entropy))
             else:
-                self.action_probs = Nn.actor_discrete('actor', self.pl_s, self.pl_visual_s, self.a_counts)
-                self.q = Nn.critic_q_one('critic', self.pl_s, self.pl_visual_s, self.pl_a)
+                self.action_probs = Nn.actor_discrete('actor_net', self.pl_s, self.pl_visual_s, self.a_counts)
+                self.q = Nn.critic_q_one('critic_net', self.pl_s, self.pl_visual_s, self.pl_a)
                 self.sample_op = tf.argmax(self.action_probs, axis=1)
                 self.prob = tf.reduce_sum(tf.multiply(self.action_probs, self.pl_a), axis=1)[:, np.newaxis]
                 log_act_prob = tf.log(self.prob)
-                # self.next_mu = tf.one_hot(tf.argmax(Nn.actor_discrete('actor', self.pl_s_, self.pl_visual_s_, self.a_counts), axis=-1), self.a_counts)
-                # self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic', self.pl_s_, self.pl_visual_s_, self.next_mu))
+                # self.next_mu = tf.one_hot(tf.argmax(Nn.actor_discrete('actor_net', self.pl_s_, self.pl_visual_s_, self.a_counts), axis=-1), self.a_counts)
+                # self.max_q_next = tf.stop_gradient(Nn.critic_q_one('critic_net', self.pl_s_, self.pl_visual_s_, self.next_mu))
                 self._all_a = tf.expand_dims(tf.one_hot([i for i in range(self.a_counts)], self.a_counts), 1)
                 self.all_a = tf.reshape(tf.tile(self._all_a, [1, tf.shape(self.pl_a)[0], 1]), [-1, self.a_counts])
                 self.max_q_next = tf.stop_gradient(tf.reduce_max(
-                    Nn.critic_q_one('critic', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), self.all_a),
+                    Nn.critic_q_one('critic_net', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), self.all_a),
                     axis=0, keepdims=True))
 
             self.action = tf.identity(self.sample_op, name='action')
@@ -59,8 +59,8 @@ class AC(Policy):
             self.actor_loss = tf.reduce_mean(self.ratio * log_act_prob * self.q_value)
             self.critic_loss = tf.reduce_mean(tf.squared_difference(self.q, self.pl_r + self.gamma * (1 - self.pl_done) * self.max_q_next))
 
-            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
-            self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
+            self.critic_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='critic_net')
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)

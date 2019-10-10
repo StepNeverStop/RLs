@@ -27,9 +27,9 @@ class PG(Policy):
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.lr = lr
         if self.action_type == 'continuous':
-            self.net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'pg')
+            self.net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'pg_net')
         else:
-            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg')
+            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,

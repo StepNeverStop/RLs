@@ -105,6 +105,6 @@ class Base(tf.keras.Model):
 
     def update_target_net_weights(self, tge, src, ployak=None):
         if ployak is None:
-            tf.group([r.assign(v) for r, v in zip(tge, src)])
+            tf.group([t.assign(s) for t, s in zip(tge, src)])
         else:
-            tf.group([r.assign(self.ployak * v + (1 - self.ployak) * r) for r, v in zip(tge, src)])
+            tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])

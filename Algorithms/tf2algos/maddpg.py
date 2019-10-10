@@ -29,15 +29,15 @@ class MADDPG(Base):
         self.ployak = ployak
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor')
-        self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target')
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q')
-        self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_target')
+        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
+        self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
+        self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net')
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,
-            self.actor_net.weights + self.q_net.weights,
-            self.ployak)
+            self.actor_net.weights + self.q_net.weights
+        )
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
@@ -80,6 +80,7 @@ class MADDPG(Base):
         return target_mu, tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
+        self.episode = episode
         self.global_step.assign_add(1)
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(

@@ -41,21 +41,21 @@ class MATD3(Base):
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-            self.mu = Nn.actor_dpg('actor', self.pl_s, None, self.a_counts)
+            self.mu = Nn.actor_dpg('actor_net', self.pl_s, None, self.a_counts)
             tf.identity(self.mu, 'action')
             self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
 
-            self.target_mu = Nn.actor_dpg('actor_target', self.pl_s, None, self.a_counts)
+            self.target_mu = Nn.actor_dpg('actor_target_net', self.pl_s, None, self.a_counts)
             self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
             self.mumu = tf.concat((self.q_actor_a_previous, self.mu, self.q_actor_a_later), axis=1)
 
-            self.q1 = Nn.critic_q_one('q1', self.ss, None, self.aa)
-            self.q1_actor = Nn.critic_q_one('q1', self.ss, None, self.mumu)
-            self.q1_target = Nn.critic_q_one('q1_target', self.ss_, None, self.aa_)
+            self.q1 = Nn.critic_q_one('q1_net', self.ss, None, self.aa)
+            self.q1_actor = Nn.critic_q_one('q1_net', self.ss, None, self.mumu)
+            self.q1_target = Nn.critic_q_one('q1_target_net', self.ss_, None, self.aa_)
 
-            self.q2 = Nn.critic_q_one('q2', self.ss, None, self.aa)
-            self.q2_target = Nn.critic_q_one('q2_target', self.ss_, None, self.aa_)
+            self.q2 = Nn.critic_q_one('q2_net', self.ss, None, self.aa)
+            self.q2_target = Nn.critic_q_one('q2_target_net', self.ss_, None, self.aa_)
 
             self.q_target = tf.minimum(self.q1_target, self.q2_target)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
@@ -65,12 +65,16 @@ class MATD3(Base):
             self.critic_loss = 0.5 * (self.q1_loss + self.q2_loss)
             self.actor_loss = -tf.reduce_mean(self.q1_actor)
 
-            self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1')
-            self.q1_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1_target')
-            self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2')
-            self.q2_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2_target')
-            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
-            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
+            self.q1_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1_net')
+            self.q1_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q1_target_net')
+            self.q2_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2_net')
+            self.q2_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q2_target_net')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
+            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target_net')
+            self.assign_init = self.update_target_net_weights(
+                self.q1_target_vars + self.q2_target_vars + self.actor_target_vars,
+                self.q1_vars + self.q2_vars + self.actor_vars
+                )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)
@@ -78,10 +82,12 @@ class MATD3(Base):
             with tf.control_dependencies([self.train_value]):
                 self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars, global_step=self.global_step)
                 with tf.control_dependencies([self.train_actor]):
-                    self.assign_q1_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q1_target_vars, self.q1_vars)])
-                    self.assign_q2_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q2_target_vars, self.q2_vars)])
-                    self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
-            self.train_sequence = [self.train_value, self.train_actor, self.assign_q1_target, self.assign_q2_target, self.assign_actor_target]
+                    self.assign_target = self.update_target_net_weights(
+                        self.q1_target_vars + self.q2_target_vars + self.actor_target_vars,
+                        self.q1_vars + self.q2_vars + self.actor_vars,
+                        self.ployak
+                        )
+            self.train_sequence = [self.train_value, self.train_actor, self.assign_target]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.critic_loss))

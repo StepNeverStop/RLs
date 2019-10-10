@@ -67,9 +67,12 @@ class actor_continuous(ImageNet):
             Dense(128, activation_fn, **initKernelAndBias),
             Dense(64, activation_fn, **initKernelAndBias)
         ])
-        self.mu = Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+        self.mu = Sequential([
+            Dense(32, activation_fn, **initKernelAndBias),
+            Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+        ])
         self.sigma = Sequential([
-            Dense(64, activation_fn, **initKernelAndBias),
+            Dense(32, activation_fn, **initKernelAndBias),
             Dense(output_shape, tf.keras.activations.sigmoid, **initKernelAndBias)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))

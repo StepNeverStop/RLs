@@ -31,8 +31,8 @@ class DDQN(Policy):
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
-        self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q')
-        self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target')
+        self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
+        self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net')
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(

@@ -17,6 +17,7 @@ class Base(object):
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
         self.a_counts = int(np.array(a_dim_or_list).prod())
+        self.assign_init = None
 
         self.possible_output_nodes = ['action', 'version_number', 'is_continuous_control', 'action_output_shape', 'memory_size']
 
@@ -68,6 +69,8 @@ class Base(object):
                     self.recorder.logger.info('restore model from checkpoint SUCCUESS.')
             else:
                 self.sess.run(tf.global_variables_initializer())
+                if self.assign_init is not None:
+                    self.sess.run(self.assign_init)
                 self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
@@ -139,3 +142,9 @@ class Base(object):
         """
         with self.graph.as_default():
             self.global_step.load(num, self.sess)
+
+    def update_target_net_weights(self, tge, src, ployak=None):
+        if ployak is None:
+            return tf.group([t.assign(s) for t, s in zip(tge, src)])
+        else:
+            return tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])

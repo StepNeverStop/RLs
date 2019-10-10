@@ -41,27 +41,31 @@ class MADDPG(Base):
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.ones(self.a_counts))
-            self.mu = Nn.actor_dpg('actor', self.pl_s, None, self.a_counts)
+            self.mu = Nn.actor_dpg('actor_net', self.pl_s, None, self.a_counts)
             tf.identity(self.mu, 'action')
             self.action = tf.clip_by_value(self.mu + self.action_noise(), -1, 1)
 
-            self.target_mu = Nn.actor_dpg('actor_target', self.pl_s, None, self.a_counts)
+            self.target_mu = Nn.actor_dpg('actor_target_net', self.pl_s, None, self.a_counts)
             self.action_target = tf.clip_by_value(self.target_mu + self.action_noise(), -1, 1)
 
             self.mumu = tf.concat((self.q_actor_a_previous, self.mu, self.q_actor_a_later), axis=-1)
 
-            self.q = Nn.critic_q_one('q', self.ss, None, self.aa)
-            self.q_actor = Nn.critic_q_one('q', self.ss, None, self.mumu)
-            self.q_target = Nn.critic_q_one('q_target', self.ss_, None, self.aa_)
+            self.q = Nn.critic_q_one('q_net', self.ss, None, self.aa)
+            self.q_actor = Nn.critic_q_one('q_net', self.ss, None, self.mumu)
+            self.q_target = Nn.critic_q_one('q_target_net', self.ss_, None, self.aa_)
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target)
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
             self.actor_loss = -tf.reduce_mean(self.q_actor)
 
-            self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q')
-            self.q_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q_target')
-            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor')
-            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target')
+            self.q_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q_net')
+            self.q_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='q_target_net')
+            self.actor_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_net')
+            self.actor_target_vars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='actor_target_net')
+            self.assign_init = self.update_target_net_weights(
+                self.q_target_vars + self.actor_target_vars,
+                self.q_vars + self.actor_vars
+                )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)
@@ -70,9 +74,12 @@ class MADDPG(Base):
             with tf.control_dependencies([self.train_q]):
                 self.train_actor = optimizer_actor.minimize(self.actor_loss, var_list=self.actor_vars)
                 with tf.control_dependencies([self.train_actor]):
-                    self.assign_q_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.q_target_vars, self.q_vars)])
-                    self.assign_actor_target = tf.group([tf.assign(r, self.ployak * v + (1 - self.ployak) * r) for r, v in zip(self.actor_target_vars, self.actor_vars)])
-            self.train_sequence = [self.train_q, self.train_actor, self.assign_q_target, self.assign_actor_target]
+                    self.assign_target = self.update_target_net_weights(
+                        self.q_target_vars + self.actor_target_vars,
+                        self.q_vars + self.actor_vars,
+                        self.ployak
+                        )
+            self.train_sequence = [self.train_q, self.train_actor, self.assign_target]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(self.q_loss))
