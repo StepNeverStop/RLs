@@ -1,4 +1,5 @@
 import os
+import time
 import platform
 import tensorflow as tf
 try:
@@ -39,7 +40,7 @@ train_config = {
     },
     'save_frequency': 20,
     'max_step': 10000,
-    'name': '0',
+    'name': time.strftime('%Y_%m_%d_%H_%M_%S',time.localtime(time.time())),
     'gym_render': False,
     'gym_render_episode': 50000,
     'ma_batch_size': 10,

@@ -12,21 +12,34 @@ class DQN(Policy):
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 lr=5.0e-4,
                  gamma=0.99,
-                 epsilon=0.2,
                  max_episode=50000,
                  batch_size=100,
                  buffer_size=10000,
-                 assign_interval=2,
                  use_priority=False,
                  n_step=False,
                  base_dir=None,
+
+                 lr=5.0e-4,
+                 epsilon=0.2,
+                 assign_interval=2,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'discrete', 'dqn only support discrete action space'
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode,
-                         base_dir, 'OFF', batch_size=batch_size, buffer_size=buffer_size, use_priority=use_priority, n_step=n_step)
+        super().__init__(
+            s_dim=s_dim,
+            visual_sources=visual_sources, 
+            visual_resolution=visual_resolution, 
+            a_dim_or_list= a_dim_or_list, 
+            action_type=action_type, 
+            gamma=gamma, 
+            max_episode=max_episode, 
+            base_dir=base_dir, 
+            policy_mode='OFF', 
+            batch_size=batch_size, 
+            buffer_size=buffer_size, 
+            use_priority=use_priority,
+            n_step=n_step)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():

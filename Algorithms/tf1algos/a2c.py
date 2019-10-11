@@ -12,15 +12,25 @@ class A2C(Policy):
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 lr=5.0e-4,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
                  base_dir=None,
+                 batch_size=100,
+
+                 lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'ON')
-        self.batch_size = batch_size
+        super().__init__(
+            s_dim=s_dim,
+            visual_sources=visual_sources, 
+            visual_resolution=visual_resolution, 
+            a_dim_or_list= a_dim_or_list, 
+            action_type=action_type, 
+            gamma=gamma, 
+            max_episode=max_episode, 
+            base_dir=base_dir, 
+            policy_mode='ON',
+            batch_size=batch_size)
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)

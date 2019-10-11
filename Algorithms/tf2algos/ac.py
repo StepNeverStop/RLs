@@ -14,15 +14,27 @@ class AC(Policy):
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 lr=5.0e-4,
                  gamma=0.99,
                  max_episode=50000,
                  batch_size=100,
                  buffer_size=10000,
                  base_dir=None,
+
+                 lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(
+            s_dim=s_dim,
+            visual_sources=visual_sources, 
+            visual_resolution=visual_resolution, 
+            a_dim_or_list= a_dim_or_list, 
+            action_type=action_type, 
+            gamma=gamma, 
+            max_episode=max_episode, 
+            base_dir=base_dir, 
+            policy_mode='OFF', 
+            batch_size=batch_size, 
+            buffer_size=buffer_size)
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':

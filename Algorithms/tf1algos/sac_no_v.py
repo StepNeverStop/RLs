@@ -11,19 +11,31 @@ class SAC_NO_V(Policy):
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 alpha=0.2,
-                 auto_adaption=True,
-                 lr=5.0e-4,
                  max_episode=50000,
                  gamma=0.99,
-                 ployak=0.995,
                  batch_size=100,
                  buffer_size=10000,
                  base_dir=None,
+
+                 alpha=0.2,
+                 ployak=0.995,
+                 auto_adaption=True,
+                 lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous', 'sac only support continuous action space'
-        super().__init__(s_dim, visual_sources, visual_resolution, a_dim_or_list, action_type, gamma, max_episode, base_dir, 'OFF', batch_size, buffer_size)
+        super().__init__(
+            s_dim=s_dim,
+            visual_sources=visual_sources, 
+            visual_resolution=visual_resolution, 
+            a_dim_or_list= a_dim_or_list, 
+            action_type=action_type, 
+            gamma=gamma, 
+            max_episode=max_episode, 
+            base_dir=base_dir, 
+            policy_mode='OFF', 
+            batch_size=batch_size, 
+            buffer_size=buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
             self.log_alpha = tf.get_variable('log_alpha', dtype=tf.float32, initializer=0.0)

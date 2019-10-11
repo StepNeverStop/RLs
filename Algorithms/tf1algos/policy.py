@@ -8,20 +8,24 @@ from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, Priorit
 
 class Policy(Base):
     def __init__(self,
+                 a_dim_or_list,
+                 action_type,
+                 base_dir,
+
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
-                 action_type,
                  gamma,
                  max_episode,
-                 base_dir,
                  policy_mode=None,
                  batch_size=1,
                  buffer_size=1,
                  use_priority=False,
                  n_step=False):
-        super().__init__(a_dim_or_list, action_type, base_dir)
+        super().__init__(
+            a_dim_or_list=a_dim_or_list, 
+            action_type=action_type, 
+            base_dir=base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
         self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
@@ -31,7 +35,12 @@ class Policy(Base):
         self.policy_mode = policy_mode
         self.batch_size = batch_size
         self.buffer_size = buffer_size
+        self.use_priority = use_priority
+        self.n_step = n_step
+        self.init_data_memory()
+        self.init_placeholders()
 
+    def init_data_memory(self):
         '''
         the biggest diffenernce between policy_modes(ON and OFF) is 'OFF' mode need raise the dimension
         of 'r' and 'done'.
@@ -41,8 +50,8 @@ class Policy(Base):
         if self.policy_mode == 'ON':
             self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
         elif self.policy_mode == 'OFF':
-            if use_priority:
-                if n_step:
+            if self.use_priority:
+                if self.n_step:
                     print('N-Step PER')
                     self.data = NStepPrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode,
                                                                  gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
@@ -50,7 +59,7 @@ class Policy(Base):
                     print('PER')
                     self.data = PrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
             else:
-                if n_step:
+                if self.n_step:
                     print('N-Step ER')
                     self.data = NStepExperienceReplay(self.batch_size, self.buffer_size, gamma=self.gamma, agents_num=20, n=4)
                 else:
@@ -58,7 +67,8 @@ class Policy(Base):
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)
         else:
             raise Exception('Please specific a mode of policy!')
-
+    
+    def init_placeholders(self):
         with self.graph.as_default():
             self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'vector_observation')
             self.pl_a = tf.placeholder(tf.float32, [None, self.a_counts], 'pl_action')

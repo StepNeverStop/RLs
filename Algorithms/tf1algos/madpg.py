@@ -7,19 +7,21 @@ from .base import Base
 class MADPG(Base):
     def __init__(self,
                  s_dim,
+
                  a_dim_or_list,
                  action_type,
+                 base_dir=None,
+                 
                  gamma=0.99,
                  ployak=0.995,
                  lr=5.0e-4,
                  max_episode=50000,
                  n=1,
                  i=0,
-                 base_dir=None,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous', 'madpg only support continuous action space'
-        super().__init__(a_dim_or_list, action_type, base_dir)
+        super().__init__(a_dim_or_list=a_dim_or_list, action_type=action_type, base_dir=base_dir)
         self.n = n
         self.i = i
         self.s_dim = s_dim
