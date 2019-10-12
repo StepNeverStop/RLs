@@ -107,7 +107,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 
 ## Notes
 
-1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `/RLdata` for Linux/OSX
+1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `$HOME/RLdata` for Linux/OSX
 2. need to use command `su` or `sudo` to run on a Linux/OSX
 3. record directory format is `RLdata/Environment/Algorithm/Brain name(for ml-agents)/Training name/config&excel&log&model`
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg

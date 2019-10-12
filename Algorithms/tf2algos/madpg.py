@@ -32,8 +32,8 @@ class MADPG(Base):
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
+        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net')
+        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net')
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
@@ -89,8 +89,8 @@ class MADPG(Base):
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.critic_net(ss, None, aa)
-                q_target = self.critic_target_net(ss_, None, aa_)
+                q = self.q_net(ss, None, aa)
+                q_target = self.q_net(ss_, None, aa_)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target)
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
@@ -101,7 +101,7 @@ class MADPG(Base):
             with tf.GradientTape() as tape:
                 mu = self.actor_net(s, None)
                 mumu = tf.concat((q_actor_a_previous, mu, q_actor_a_later), axis=-1)
-                q_actor = self.critic_net(ss, None, mumu)
+                q_actor = self.q_net(ss, None, mumu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
@@ -113,14 +113,14 @@ class MADPG(Base):
     def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                q = self.critic_net(ss, None, aa)
-                q_target = self.critic_target_net(ss_, None, aa_)
+                q = self.q_net(ss, None, aa)
+                q_target = self.q_net(ss_, None, aa_)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target)
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
                 mu = self.actor_net(s, None)
                 mumu = tf.concat((q_actor_a_previous, mu, q_actor_a_later), axis=-1)
-                q_actor = self.critic_net(ss, None, mumu)
+                q_actor = self.q_net(ss, None, mumu)
                 actor_loss = -tf.reduce_mean(q_actor)
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
