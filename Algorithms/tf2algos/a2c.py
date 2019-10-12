@@ -23,13 +23,13 @@ class A2C(Policy):
                  out_graph=False):
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
             policy_mode='ON',
             batch_size=batch_size)
         self.lr = lr

@@ -125,7 +125,7 @@ class Loop(object):
                 state[i] = maybe_one_hot(obs, env.observation_space, env.n)
 
     @staticmethod
-    def no_op(env, gym_model, action_type, steps):
+    def no_op(env, gym_model, action_type, steps, choose=False):
         assert type(steps) == int and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
         i, mu, sigma, [state, new_state] = init_variables(env, action_type, 2)
 
@@ -137,8 +137,13 @@ class Loop(object):
         else:
             tmp = (len(env.action_space),) if hasattr(env.action_space, '__len__') else ()
             action = np.zeros((env.n,) + tmp, dtype=np.int32)
+
+        steps = steps // env.n + 1
+
         for step in range(steps):
             print(f'no op step {step}')
+            if choose:
+                action = gym_model.choose_action(s=state[0], visual_s=state[1])
             obs, reward, done, info = env.step(action * sigma + mu)
             new_state[i] = maybe_one_hot(obs, env.observation_space, env.n)
             gym_model.no_op_store(

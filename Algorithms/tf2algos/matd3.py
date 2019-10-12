@@ -11,7 +11,7 @@ class MATD3(Base):
                  a_dim_or_list,
                  action_type,
                  base_dir=None,
-                 
+
                  gamma=0.99,
                  ployak=0.995,
                  lr=5.0e-4,

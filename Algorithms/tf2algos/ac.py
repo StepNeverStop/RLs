@@ -25,15 +25,15 @@ class AC(Policy):
                  out_graph=False):
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
-            policy_mode='OFF', 
-            batch_size=batch_size, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
+            policy_mode='OFF',
+            batch_size=batch_size,
             buffer_size=buffer_size)
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
@@ -189,7 +189,7 @@ class AC(Policy):
                     max_q_next = tf.stop_gradient(tf.reduce_max(
                         self.critic_net(tf.tile(s_, [self.a_counts, 1]), tf.tile(visual_s_, [self.a_counts, 1]), all_a),
                         axis=0, keepdims=True))
-                    
+
                     action_probs = self.actor_net(s, visual_s)
                     prob = tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True)
                     log_act_prob = tf.log(prob)

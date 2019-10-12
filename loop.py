@@ -130,7 +130,7 @@ class Loop(object):
                 obs = env.step(vector_action=actions)
 
     @staticmethod
-    def no_op(env, brain_names, models, brains, steps):
+    def no_op(env, brain_names, models, brains, steps, choose=False):
         '''
         Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
         Make sure steps is greater than n-step if using any n-step ReplayBuffer.
@@ -144,18 +144,23 @@ class Loop(object):
         obs = env.reset(train_mode=False)
 
         for i, brain_name in enumerate(brain_names):
+            # initialize actions to zeros
             agents_num[i] = len(obs[brain_name].agents)
             if brains[brain_name].vector_action_space_type == 'continuous':
                 action[i] = np.zeros((agents_num[i], brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
             else:
                 action[i] = np.zeros((agents_num[i], len(brains[brain_name].vector_action_space_size)), dtype=np.int32)
-        actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
+            
+        steps = steps // min(agents_num) + 1
 
         for step in range(steps):
             print(f'no op step {step}')
             for i, brain_name in enumerate(brain_names):
                 state[i] = obs[brain_name].vector_observations
                 visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
+                if choose:
+                    action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
             obs = env.step(vector_action=actions)
             for i, brain_name in enumerate(brain_names):
                 next_state = obs[brain_name].vector_observations

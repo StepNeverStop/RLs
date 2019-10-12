@@ -17,22 +17,22 @@ class DPG(Policy):
                  batch_size=100,
                  buffer_size=10000,
                  base_dir=None,
-                 
+
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous', 'ddpg only support continuous action space'
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
-            policy_mode='OFF', 
-            batch_size=batch_size, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
+            policy_mode='OFF',
+            batch_size=batch_size,
             buffer_size=buffer_size)
         with self.graph.as_default():
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)

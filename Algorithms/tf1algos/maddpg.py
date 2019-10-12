@@ -7,7 +7,7 @@ from .base import Base
 class MADDPG(Base):
     def __init__(self,
                  s_dim,
-                 
+
                  a_dim_or_list,
                  action_type,
                  base_dir=None,
@@ -67,7 +67,7 @@ class MADDPG(Base):
             self.assign_init = self.update_target_net_weights(
                 self.q_target_vars + self.actor_target_vars,
                 self.q_vars + self.actor_vars
-                )
+            )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)
@@ -80,7 +80,7 @@ class MADDPG(Base):
                         self.q_target_vars + self.actor_target_vars,
                         self.q_vars + self.actor_vars,
                         self.ployak
-                        )
+                    )
             self.train_sequence = [self.train_q, self.train_actor, self.assign_target]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

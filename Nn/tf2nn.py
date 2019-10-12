@@ -3,7 +3,7 @@ from .activations import swish, mish
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv3D, Dense, Flatten
 
-activation_fn = tf.keras.activations.relu
+activation_fn = tf.keras.activations.tanh
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),

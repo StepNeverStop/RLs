@@ -24,15 +24,15 @@ class DDPG(Policy):
         assert action_type == 'continuous', 'ddpg only support continuous action space'
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
-            policy_mode='OFF', 
-            batch_size=batch_size, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
+            policy_mode='OFF',
+            batch_size=batch_size,
             buffer_size=buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
@@ -48,7 +48,7 @@ class DDPG(Policy):
 
             self.q = Nn.critic_q_one('q_net', self.pl_s, self.pl_visual_s, self.pl_a)
             self.q_actor = Nn.critic_q_one('q_net', self.pl_s, self.pl_visual_s, self.mu)
-            self.q_target = Nn.critic_q_one('q_target_net', self.pl_s_, self.pl_visual_s_, self.action_target) # must be action_target, not target_mu
+            self.q_target = Nn.critic_q_one('q_target_net', self.pl_s_, self.pl_visual_s_, self.action_target)  # must be action_target, not target_mu
             self.dc_r = tf.stop_gradient(self.pl_r + self.gamma * self.q_target * (1 - self.pl_done))
 
             self.q_loss = 0.5 * tf.reduce_mean(tf.squared_difference(self.q, self.dc_r))
@@ -61,7 +61,7 @@ class DDPG(Policy):
             self.assign_init = self.update_target_net_weights(
                 self.q_target_vars + self.actor_target_vars,
                 self.q_vars + self.actor_vars
-                )
+            )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)
@@ -74,7 +74,7 @@ class DDPG(Policy):
                         self.q_target_vars + self.actor_target_vars,
                         self.q_vars + self.actor_vars,
                         self.ployak
-                        )
+                    )
                     # self.assign_target = self.update_target_net_weights(
                     #     self.q_target_vars + self.actor_target_vars,
                     #     self.q_vars + self.actor_vars,

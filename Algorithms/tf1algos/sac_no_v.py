@@ -26,15 +26,15 @@ class SAC_NO_V(Policy):
         assert action_type == 'continuous', 'sac only support continuous action space'
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
-            policy_mode='OFF', 
-            batch_size=batch_size, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
+            policy_mode='OFF',
+            batch_size=batch_size,
             buffer_size=buffer_size)
         self.ployak = ployak
         with self.graph.as_default():
@@ -80,7 +80,7 @@ class SAC_NO_V(Policy):
             self.assign_init = self.update_target_net_weights(
                 self.q1_target_vars + self.q2_target_vars,
                 self.q1_vars + self.q2_vars
-                )
+            )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)

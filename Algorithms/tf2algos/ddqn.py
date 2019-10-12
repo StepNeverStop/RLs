@@ -30,15 +30,15 @@ class DDQN(Policy):
         assert action_type == 'discrete', 'double dqn only support discrete action space'
         super().__init__(
             s_dim=s_dim,
-            visual_sources=visual_sources, 
-            visual_resolution=visual_resolution, 
-            a_dim_or_list= a_dim_or_list, 
-            action_type=action_type, 
-            gamma=gamma, 
-            max_episode=max_episode, 
-            base_dir=base_dir, 
-            policy_mode='OFF', 
-            batch_size=batch_size, 
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            gamma=gamma,
+            max_episode=max_episode,
+            base_dir=base_dir,
+            policy_mode='OFF',
+            batch_size=batch_size,
             buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval

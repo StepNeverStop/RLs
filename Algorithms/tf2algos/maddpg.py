@@ -7,7 +7,7 @@ from .base import Base
 class MADDPG(Base):
     def __init__(self,
                  s_dim,
-                 
+
                  a_dim_or_list,
                  action_type,
                  base_dir=None,

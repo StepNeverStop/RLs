@@ -11,7 +11,7 @@ class MATD3(Base):
                  a_dim_or_list,
                  action_type,
                  base_dir=None,
-                 
+
                  gamma=0.99,
                  ployak=0.995,
                  lr=5.0e-4,
@@ -76,7 +76,7 @@ class MATD3(Base):
             self.assign_init = self.update_target_net_weights(
                 self.q1_target_vars + self.q2_target_vars + self.actor_target_vars,
                 self.q1_vars + self.q2_vars + self.actor_vars
-                )
+            )
 
             optimizer_critic = tf.train.AdamOptimizer(self.lr)
             optimizer_actor = tf.train.AdamOptimizer(self.lr)
@@ -88,7 +88,7 @@ class MATD3(Base):
                         self.q1_target_vars + self.q2_target_vars + self.actor_target_vars,
                         self.q1_vars + self.q2_vars + self.actor_vars,
                         self.ployak
-                        )
+                    )
             self.train_sequence = [self.train_value, self.train_actor, self.assign_target]
 
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(self.actor_loss))

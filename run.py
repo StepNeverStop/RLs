@@ -17,6 +17,8 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
+    --fill_in                   指定是否预填充经验池至batch_size [default: False]
+    --no_op_choose              指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
@@ -27,6 +29,7 @@ Example:
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
+    python run.py -u -a ddpg -n pre_fill --fill_in --no_op_choose
 """
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -206,12 +209,17 @@ def unity_run(options, max_step, save_frequency, name):
         'sampler_manager': sampler_manager,
         'resampling_interval': resampling_interval
     }
+    if 'batch_size' in algorithm_config.keys() and options['--fill_in']:
+        steps = algorithm_config['batch_size']
+    else:
+        steps = train_config['no_op_steps']
     no_op_params = {
         'env': env,
         'brain_names': brain_names,
         'models': models,
         'brains': brains,
-        'steps': 30
+        'steps': steps,
+        'choose': options['--no_op_choose']
     }
     params.update(extra_params)
     no_op_params.update(extra_params)
@@ -316,12 +324,16 @@ def gym_run(options, max_step, save_frequency, name):
         'render_episode': render_episode,
         'train_mode': train_mode
     }
+    if 'batch_size' in algorithm_config.keys() and options['--fill_in']:
+        steps = algorithm_config['batch_size']
+    else:
+        steps = train_config['no_op_steps']
     if options['--inference']:
         Loop.inference(env, gym_model, action_type)
     else:
         sth.save_config(os.path.join(base_dir, 'config'), algorithm_config)
         try:
-            Loop.no_op(env, gym_model, action_type, 30)
+            Loop.no_op(env, gym_model, action_type, steps, choose=options['--no_op_choose'])
             Loop.train(**params)
         except Exception as e:
             print(e)

@@ -8,6 +8,7 @@ initKernelAndBias = {
 
 activation_fn = tf.nn.tanh
 
+
 def get_state(name, vector_input, visual_input):
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
         if visual_input == None or len(visual_input.shape) == 2:
@@ -107,6 +108,7 @@ def critic_q_all(name, vector_input, visual_input, out_shape):
         layer2 = tf.layers.dense(layer1, 256, activation_fn, name='layer2', **initKernelAndBias)
         q = tf.layers.dense(layer2, out_shape, None, name='value', **initKernelAndBias)
         return q
+
 
 def critic_dueling(name, vector_input, visual_input, out_shape):
     state = get_state(name, vector_input, visual_input)

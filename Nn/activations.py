@@ -1,8 +1,10 @@
 import tensorflow as tf
 
+
 def swish(x):
     """Swish activation function. For more info: https://arxiv.org/abs/1710.05941"""
     return tf.multiply(x, tf.nn.sigmoid(x))
+
 
 def mish(x):
     """

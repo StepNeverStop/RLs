@@ -23,8 +23,8 @@ class Policy(Base):
                  use_priority=False,
                  n_step=False):
         super().__init__(
-            a_dim_or_list=a_dim_or_list, 
-            action_type=action_type, 
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
             base_dir=base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
@@ -67,7 +67,7 @@ class Policy(Base):
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)
         else:
             raise Exception('Please specific a mode of policy!')
-    
+
     def init_placeholders(self):
         with self.graph.as_default():
             self.pl_s = tf.placeholder(tf.float32, [None, self.s_dim], 'vector_observation')

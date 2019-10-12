@@ -86,7 +86,7 @@ class Loop(object):
                     models[i].save_checkpoint(episode)
 
     @staticmethod
-    def no_op(env, brain_names, models, data, brains, steps):
+    def no_op(env, brain_names, models, data, brains, steps, choose=False, **kwargs):
         assert type(steps) == int, 'multi-agent no_op.steps must have type of int'
         if steps < data.batch_size:
             steps = data.batch_size
@@ -105,18 +105,22 @@ class Loop(object):
                 action[i] = np.zeros((agents_num[i], brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
             else:
                 action[i] = np.zeros((agents_num[i], len(brains[brain_name].vector_action_space_size)), dtype=np.int32)
-        actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
+                
         a = [np.array(e) for e in zip(*action)]
         for step in range(steps):
             print(f'no op step {step}')
             for i, brain_name in enumerate(brain_names):
                 state[i] = obs[brain_name].vector_observations
+                if choose:
+                    action[i] = models[i].choose_action(s=state[i])
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
             obs = env.step(vector_action=actions)
             for i, brain_name in enumerate(brain_names):
                 reward[i] = np.array(obs[brain_name].rewards)[:, np.newaxis]
                 next_state[i] = obs[brain_name].vector_observations
                 dones[i] = np.array(obs[brain_name].local_done)[:, np.newaxis]
             s = [np.array(e) for e in zip(*state)]
+            a = [np.array(e) for e in zip(*action)]
             r = [np.array(e) for e in zip(*reward)]
             s_ = [np.array(e) for e in zip(*next_state)]
             done = [np.array(e) for e in zip(*dones)]

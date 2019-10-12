@@ -22,12 +22,12 @@ class Policy(Base):
                  use_priority=False,
                  n_step=False):
         super().__init__(
-            a_dim_or_list=a_dim_or_list, 
-            action_type=action_type, 
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
             base_dir=base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
-        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
+        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else 0
         self.a_dim_or_list = a_dim_or_list
         self.gamma = gamma
         self.max_episode = max_episode
@@ -37,7 +37,7 @@ class Policy(Base):
         self.use_priority = use_priority
         self.n_step = n_step
         self.init_data_memory()
-        
+
     def init_data_memory(self):
         '''
         the biggest diffenernce between policy_modes(ON and OFF) is 'OFF' mode need raise the dimension

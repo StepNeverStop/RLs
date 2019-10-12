@@ -1,6 +1,7 @@
 import numpy as np
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 
+
 class AdaptiveParamNoiseSpec(object):
     def __init__(self, initial_stddev=0.1, desired_action_stddev=0.1, adoption_coefficient=1.01):
         self.initial_stddev = initial_stddev
