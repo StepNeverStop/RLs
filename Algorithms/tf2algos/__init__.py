@@ -1,3 +1,4 @@
+from .config import *
 from .dqn import DQN
 from .ddqn import DDQN
 from .duelingdqn import DDDQN

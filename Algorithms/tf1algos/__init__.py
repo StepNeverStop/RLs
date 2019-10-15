@@ -1,3 +1,4 @@
+from .config import *
 from .dpg import DPG
 from .ddpg import DDPG
 from .ppo import PPO

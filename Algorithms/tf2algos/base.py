@@ -8,6 +8,12 @@ from utils.recorder import RecorderTf2 as Recorder
 class Base(tf.keras.Model):
 
     def __init__(self, a_dim_or_list, action_type, base_dir):
+        '''
+        inputs:
+            a_dim_or_list: action spaces, if continuous, it will like [2,], if discrete, it will like [2,3,4]
+            action_type: action type, refer to whether this control problem is 'continuous' or 'discrete'
+            base_dir: the directory that store data, like model, logs, and other data
+        '''
         super().__init__()
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:
@@ -20,7 +26,8 @@ class Base(tf.keras.Model):
         self.action_type = action_type
         self.a_counts = int(np.array(a_dim_or_list).prod())
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
-        self.episode = 0
+        self.episode = 0    # episode of now
+        self.IS_w = 1       # the weights of NN variables by using Importance sampling.
 
     def get_init_episode(self):
         """

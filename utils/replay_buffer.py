@@ -4,6 +4,33 @@ from abc import ABC, abstractmethod
 
 # [s, visual_s, a, r, s_, visual_s_, done] must be this format.
 
+er_config = {
+    'episode_er_config': {
+        'max_agents': 20,
+        'er_size': 1000
+    }, 
+
+    'per_config': {
+        'alpha': 0.6,
+        'beta': 0.4,
+        'epsilon': 0.01,
+        'global_v': False
+    },
+
+    'ner_config': {
+        'n': 4,
+        'max_agents': 20
+    },
+
+    'nper_config': {
+        'alpha': 0.6,
+        'beta': 0.4,
+        'epsilon': 0.01,
+        'n': 4,
+        'max_agents': 20,
+        'global_v': False
+    }
+}
 
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):
@@ -30,18 +57,24 @@ class ReplayBuffer(ABC):
 
 class EpisodeExperienceReplay(ReplayBuffer):
     # TODO: implement padding so that makes each episode has the same length.
-    def __init__(self, batch_size, capacity):
+    def __init__(self, batch_size, capacity, agents_num, sub_capacity):
         super().__init__(batch_size, capacity)
         self._data_pointer = 0
-        self.agents_num = 0
-        self._buffer = np.empty(capacity, dtype=object)
+        self.agents_num = agents_num
+        self.sub_capacity = sub_capacity
+        self._buffer = np.empty(capacity, dtype=object) # Temporary experience buffer
+        self._tmp_bf = np.empty(self.agents_num, dtype=object)
+        for i in range(self._tmp_bf.shape[0]):
+            self._tmp_bf[i] = ExperienceReplay(self.sub_capacity, self.sub_capacity)
         for i in range(self._buffer.shape[0]):
-            self._buffer[i] = ExperienceReplay(1000, 1000)
+            self._buffer[i] = ExperienceReplay(self.sub_capacity, self.sub_capacity)
 
     def done(self):
+        for i in range(self.agents_num):
+            self._buffer[(self._data_pointer + i) % self.capacity] = self._tmp_bf[i]
         self._data_pointer = (self._data_pointer + self.agents_num) % self.capacity
         for i in range(self.agents_num):
-            self._buffer[(self._data_pointer + i) % self.capacity] = ExperienceReplay(1000, 1000)
+            self._tmp_bf[i] = ExperienceReplay(self.sub_capacity, self.sub_capacity)
         self._size += self.agents_num
         if self._size > self.capacity:
             self._size = self.capacity
@@ -59,7 +92,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
             self._store_op(i, args)
 
     def _store_op(self, i, data):
-        self._buffer[(self._data_pointer + i) % self.capacity]._store_op(data)
+        self._tmp_bf[i]._store_op(data)
 
     def sample(self):
         '''
@@ -153,7 +186,15 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     This PER will introduce some bias, 'cause when the experience with the minimum probability has been collected, the min_p that be updated may become inaccuracy.
     '''
 
-    def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon):
+    def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon, global_v):
+        '''
+        inputs:
+            max_episode: use for calculating the decay interval of beta 
+            alpha: control sampling rule, alpha -> 0 means uniform sampling, alpha -> 1 means complete td_error sampling
+            beta: control importance sampling ratio, beta -> 0 means no IS, beta -> 1 means complete IS.
+            epsilon: a small positive number that prevents td-error of 0 from never being replayed.
+            global_v: whether using the global
+        '''
         assert epsilon > 0, 'episode must larger than zero'
         super().__init__(batch_size, capacity)
         self.alpha = alpha
@@ -161,8 +202,10 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.beta_interval = (1 - beta) / max_episode
         self.tree = Sum_Tree(capacity)
         self.epsilon = epsilon
-        self.min_p = epsilon
+        self.IS_w = 1   # weights of variables by using Importance Sampling
+        self.min_p = 1
         self.max_p = epsilon
+        self.global_v = global_v
 
     def add(self, *args):
         '''
@@ -190,7 +233,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         t = [np.array(e) for e in zip(*t)]
         d = [np.array(e) for e in zip(*t[-1])]
         self.last_indexs = t[0]
-        return np.power(self.min_p / t[-2], self.beta), d
+        self.IS_w = np.power(self.min_p / t[-2], self.beta) if self.global_v else np.power(t[-2].min() / t[-2], self.beta)
+        return d
 
     @property
     def is_lg_batch_size(self):
@@ -204,14 +248,13 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         assert len(priority) == len(self.last_indexs), 'length between priority and last_indexs must equal'
         self.beta += self.beta_interval * episode
         priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
-        min_p = priority.min()
-        max_p = priority.max()
-        if min_p < self.min_p:
-            self.min_p = min_p
-        if max_p > self.max_p:
-            self.max_p = max_p
+        self.min_p = min(self.min_p, priority.min())
+        self.max_p = max(self.max_p, priority.max())
         for i in range(len(priority)):
             self.tree._updatetree(self.last_indexs[i], priority[i])
+    
+    def get_IS_w(self):
+        return self.IS_w
 
 
 class NStepExperienceReplay(ExperienceReplay):
@@ -282,8 +325,8 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
     [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
-    def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n):
-        super().__init__(batch_size, capacity, alpha, beta, epsilon, max_episode)
+    def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n, global_v):
+        super().__init__(batch_size, capacity, max_episode, alpha, beta, epsilon, global_v)
         self.n = n
         self.gamma = gamma
         self.exps_pointer = np.zeros(agents_num, dtype=np.int32)

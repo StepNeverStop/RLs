@@ -1,4 +1,3 @@
-from .config import *
 import tensorflow as tf
 try:
     tf_version = tf.version.VERSION[0]

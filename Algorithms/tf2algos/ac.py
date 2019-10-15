@@ -16,8 +16,9 @@ class AC(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
+                 use_priority=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -34,7 +35,8 @@ class AC(Policy):
             base_dir=base_dir,
             policy_mode='OFF',
             batch_size=batch_size,
-            buffer_size=buffer_size)
+            buffer_size=buffer_size,
+            use_priority=use_priority)
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
@@ -118,7 +120,11 @@ class AC(Policy):
     def learn(self, episode):
         s, visual_s, a, old_prob, r, s_, visual_s_, done = self.data.sample()
         self.global_step.assign_add(1)
-        actor_loss, critic_loss, entropy = self.train(s, visual_s, a, r, s_, visual_s_, done, old_prob)
+        if self.use_priority:
+            self.IS_w = self.data.get_IS_w()
+        actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done, old_prob)
+        if self.use_priority:
+            self.data.update(td_error, episode)
         tf.summary.experimental.set_step(self.global_step)
         if entropy is not None:
             tf.summary.scalar('LOSS/entropy', entropy)
@@ -143,7 +149,7 @@ class AC(Policy):
                         axis=0, keepdims=True))
                 q = self.critic_net(s, visual_s, a)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error))
+                critic_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
             critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
@@ -167,7 +173,7 @@ class AC(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_prob):
@@ -197,7 +203,7 @@ class AC(Policy):
                 ratio = tf.stop_gradient(prob / old_prob)
                 q_value = tf.stop_gradient(q)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error))
+                critic_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
                 actor_loss = -tf.reduce_mean(ratio * log_act_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
@@ -207,4 +213,4 @@ class AC(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error

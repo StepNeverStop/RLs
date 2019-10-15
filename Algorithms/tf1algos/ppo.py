@@ -14,7 +14,7 @@ class PPO(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  base_dir=None,
 
                  epoch=5,

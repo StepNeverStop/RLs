@@ -14,8 +14,9 @@ class SAC(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
+                 use_priority=False,
                  base_dir=None,
 
                  alpha=0.2,
@@ -36,8 +37,9 @@ class SAC(Policy):
             base_dir=base_dir,
             policy_mode='OFF',
             batch_size=batch_size,
-            buffer_size=buffer_size)
-        self.lr = lr
+            buffer_size=buffer_size,
+            use_priority=use_priority)
+        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.ployak = ployak
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
@@ -48,9 +50,9 @@ class SAC(Policy):
         self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_net')
         self.v_target_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_target_net')
         self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights)
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -85,17 +87,22 @@ class SAC(Policy):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
+        self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             self.global_step.assign_add(1)
-            actor_loss, critic_loss, entropy = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.data.update(td_error, episode)
             self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
             tf.summary.experimental.set_step(self.global_step)
             tf.summary.scalar('LOSS/actor_loss', actor_loss)
             tf.summary.scalar('LOSS/critic_loss', critic_loss)
             tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
             tf.summary.scalar('LOSS/entropy', entropy)
-            tf.summary.scalar('LEARNING_RATE/lr', self.lr)
+            tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
             self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
@@ -118,9 +125,9 @@ class SAC(Policy):
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
-                q1_loss = tf.reduce_mean(tf.square(td_error1))
-                q2_loss = tf.reduce_mean(tf.square(td_error2))
-                v_loss_stop = tf.reduce_mean(tf.square(td_v))
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
+                v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
             critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
             self.optimizer_critic.apply_gradients(
@@ -151,7 +158,7 @@ class SAC(Policy):
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
-            return actor_loss, critic_loss, entropy
+            return actor_loss, critic_loss, entropy, td_error1
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -174,9 +181,9 @@ class SAC(Policy):
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
-                q1_loss = tf.reduce_mean(tf.square(td_error1))
-                q2_loss = tf.reduce_mean(tf.square(td_error2))
-                v_loss_stop = tf.reduce_mean(tf.square(td_v))
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
+                v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
                 actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
                 if self.auto_adaption:
@@ -194,4 +201,4 @@ class SAC(Policy):
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
-            return actor_loss, critic_loss, entropy
+            return actor_loss, critic_loss, entropy, td_error1

@@ -30,7 +30,7 @@ This project supports:
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]` (only for ml-agents).
-- Four types of ReplayBuffer, Default is ER, using other RBs need to modify the code a little: 
+- Four types of ReplayBuffer(**only for algorithms of TF2.0**), Default is ER: 
     - ER
     - n-step ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
@@ -108,17 +108,18 @@ Multi-Agent training algorithms(*not support visual input yet*):
 ## Notes
 
 1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `$HOME/RLdata` for Linux/OSX
-2. need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLdata/Environment/Algorithm/Brain name(for ml-agents)/Training name/config&excel&log&model`
+2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
+3. record directory format is `RLdata/TF version/Environment/Algorithm/Brain name(for ml-agents)/Training name/config&excel&log&model`
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
-5. maddpg doesn't support visual input for now
+5. multi-agents algorithms doesn't support visual input and PER for now
 6. need 3 steps to implement a new algorithm
     1. write `.py` in `Algorithms/tf[x]algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf[x]algos/__init__.py`
-    2. write default configuration in `Algorithms/config.py`
+    2. write default configuration in `Algorithms/tf[x]algos/config.py`
     3. register new algorithm in `algos` of `run.py`
-7. set algorithms' hyper-parameters in [Algorithms/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/config.py)
+7. set algorithms' hyper-parameters in [Algorithms/tf[x]algos/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.py)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [Nn/nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/nn.py)
+9. change neural network structure in [Nn/tf[x]nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
+10. set replay buffer default parameters in [utils/replay_buffer.py](https://github.com/StepNeverStop/RLs/blob/master/utils/replay_buffer.py)
 
 ## Ongoing things
 
@@ -131,7 +132,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 ### Dependencies
 
 - python>3.6, <3.7
-- tensorflow>=1.7.0, <=1.12.0 or tensorflow==2.0.0-rc1
+- tensorflow>=1.7.0, <=1.12.0 or tensorflow==2.0.0
 - pandas
 - numpy
 - pywin32==224

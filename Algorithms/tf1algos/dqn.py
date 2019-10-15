@@ -14,10 +14,8 @@ class DQN(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -37,9 +35,7 @@ class DQN(Policy):
             base_dir=base_dir, 
             policy_mode='OFF', 
             batch_size=batch_size, 
-            buffer_size=buffer_size, 
-            use_priority=use_priority,
-            n_step=n_step)
+            buffer_size=buffer_size)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         with self.graph.as_default():
@@ -121,4 +117,3 @@ class DQN(Policy):
         if self.sess.run(self.global_step) % self.assign_interval == 0:
             self.sess.run(self.assign_q_target)
         self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
-        # self.data.update(td_error, episode)

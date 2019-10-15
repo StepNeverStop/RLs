@@ -14,8 +14,9 @@ class DPG(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
+                 use_priority=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -33,7 +34,8 @@ class DPG(Policy):
             base_dir=base_dir,
             policy_mode='OFF',
             batch_size=batch_size,
-            buffer_size=buffer_size)
+            buffer_size=buffer_size,
+            use_priority=use_priority)
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
@@ -79,7 +81,11 @@ class DPG(Policy):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             self.global_step.assign_add(1)
-            actor_loss, q_loss = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.data.update(td_error, episode)
             tf.summary.experimental.set_step(self.global_step)
             tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(actor_loss))
             tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(q_loss))
@@ -97,7 +103,7 @@ class DPG(Policy):
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 q = self.q_net(s, visual_s, a)
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.q_net.trainable_variables)
@@ -110,7 +116,7 @@ class DPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, q_loss
+            return actor_loss, q_loss, td_error
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -123,7 +129,7 @@ class DPG(Policy):
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 q = self.q_net(s, visual_s, a)
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
                 mu = self.actor_net(s, visual_s)
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
@@ -135,4 +141,4 @@ class DPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, q_loss
+            return actor_loss, q_loss, td_error

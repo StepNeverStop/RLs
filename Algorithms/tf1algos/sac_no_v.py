@@ -13,7 +13,7 @@ class SAC_NO_V(Policy):
                  action_type,
                  max_episode=50000,
                  gamma=0.99,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
                  base_dir=None,
 

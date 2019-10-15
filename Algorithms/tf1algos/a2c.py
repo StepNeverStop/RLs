@@ -15,7 +15,7 @@ class A2C(Policy):
                  gamma=0.99,
                  max_episode=50000,
                  base_dir=None,
-                 batch_size=100,
+                 batch_size=128,
 
                  lr=5.0e-4,
                  logger2file=False,

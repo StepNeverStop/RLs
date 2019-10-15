@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from .base import Base
-from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepPrioritizedExperienceReplay
+from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepPrioritizedExperienceReplay, er_config
 
 
 class Policy(Base):
@@ -27,7 +27,7 @@ class Policy(Base):
             base_dir=base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
-        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else 0
+        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
         self.a_dim_or_list = a_dim_or_list
         self.gamma = gamma
         self.max_episode = max_episode
@@ -51,15 +51,33 @@ class Policy(Base):
             if self.use_priority:
                 if self.n_step:
                     print('N-Step PER')
-                    self.data = NStepPrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode,
-                                                                 gamma=self.gamma, alpha=0.6, beta=0.2, epsilon=0.01, agents_num=20, n=4)
+                    self.data = NStepPrioritizedExperienceReplay(self.batch_size,
+                                                                 self.buffer_size,
+                                                                 max_episode=self.max_episode,
+                                                                 gamma=self.gamma,
+                                                                 alpha=er_config['nper_config']['alpha'],
+                                                                 beta=er_config['nper_config']['beta'],
+                                                                 epsilon=er_config['nper_config']['epsilon'],
+                                                                 agents_num=er_config['nper_config']['max_agents'],
+                                                                 n=er_config['nper_config']['n'],
+                                                                 global_v=er_config['nper_config']['global_v'])
                 else:
                     print('PER')
-                    self.data = PrioritizedExperienceReplay(self.batch_size, self.buffer_size, max_episode=self.max_episode, alpha=0.6, beta=0.2, epsilon=0.01)
+                    self.data = PrioritizedExperienceReplay(self.batch_size,
+                                                            self.buffer_size,
+                                                            max_episode=self.max_episode,
+                                                            alpha=er_config['per_config']['alpha'],
+                                                            beta=er_config['per_config']['beta'],
+                                                            epsilon=er_config['per_config']['epsilon'],
+                                                            global_v=er_config['nper_config']['global_v'])
             else:
                 if self.n_step:
                     print('N-Step ER')
-                    self.data = NStepExperienceReplay(self.batch_size, self.buffer_size, gamma=self.gamma, agents_num=20, n=4)
+                    self.data = NStepExperienceReplay(self.batch_size,
+                                                      self.buffer_size,
+                                                      gamma=self.gamma,
+                                                      agents_num=er_config['ner_config']['max_agents'],
+                                                      n=er_config['ner_config']['n'])
                 else:
                     print('ER')
                     self.data = ExperienceReplay(self.batch_size, self.buffer_size)

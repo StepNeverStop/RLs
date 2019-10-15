@@ -18,8 +18,9 @@ class DDDQN(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
+                 use_priority=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -39,7 +40,8 @@ class DDDQN(Policy):
             base_dir=base_dir,
             policy_mode='OFF',
             batch_size=batch_size,
-            buffer_size=buffer_size)
+            buffer_size=buffer_size,
+            use_priority=use_priority)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
@@ -93,7 +95,11 @@ class DDDQN(Policy):
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
             self.global_step.assign_add(1)
-            q_loss = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.data.update(td_error, episode)
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
             tf.summary.experimental.set_step(self.global_step)
@@ -120,9 +126,9 @@ class DDDQN(Policy):
                     axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error))
+                q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
             grads = tape.gradient(q_loss, self.dueling_net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(grads, self.dueling_net.trainable_variables)
             )
-            return q_loss
+            return q_loss, td_error

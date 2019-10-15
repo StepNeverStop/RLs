@@ -13,8 +13,10 @@ class DDPG(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
+                 use_priority=False,
+                 n_step=False,
                  base_dir=None,
 
                  ployak=0.995,
@@ -33,7 +35,9 @@ class DDPG(Policy):
             base_dir=base_dir,
             policy_mode='OFF',
             batch_size=batch_size,
-            buffer_size=buffer_size)
+            buffer_size=buffer_size,
+            use_priority=use_priority,
+            n_step=n_step)
         self.ployak = ployak
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
@@ -86,7 +90,11 @@ class DDPG(Policy):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             self.global_step.assign_add(1)
-            actor_loss, q_loss = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.data.update(td_error, episode)
             self.update_target_net_weights(
                 self.actor_target_net.weights + self.q_target_net.weights,
                 self.actor_net.weights + self.q_net.weights,
@@ -108,7 +116,7 @@ class DDPG(Policy):
                 q_target = self.q_target_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.q_net.trainable_variables)
@@ -121,7 +129,7 @@ class DDPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, q_loss
+            return actor_loss, q_loss, td_error
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -134,7 +142,7 @@ class DDPG(Policy):
                 q_target = self.q_target_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
                 mu = self.actor_net(s, visual_s)
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
@@ -146,4 +154,4 @@ class DDPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            return actor_loss, q_loss
+            return actor_loss, q_loss, td_error

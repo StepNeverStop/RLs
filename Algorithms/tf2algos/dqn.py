@@ -14,7 +14,7 @@ class DQN(Policy):
                  action_type,
                  gamma=0.99,
                  max_episode=50000,
-                 batch_size=100,
+                 batch_size=128,
                  buffer_size=10000,
                  use_priority=False,
                  n_step=False,
@@ -94,7 +94,11 @@ class DQN(Policy):
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
             self.global_step.assign_add(1)
-            q_loss = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            if self.use_priority:
+                self.data.update(td_error, episode)
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
             tf.summary.experimental.set_step(self.global_step)
@@ -112,9 +116,9 @@ class DQN(Policy):
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
                 td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error))
+                q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(grads, self.q_net.trainable_variables)
             )
-            return q_loss
+            return q_loss, td_error
