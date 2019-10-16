@@ -89,7 +89,6 @@ class DDPG(Policy):
         self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            self.global_step.assign_add(1)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
@@ -129,6 +128,7 @@ class DDPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss, td_error
 
     @tf.function(experimental_relax_shapes=True)
@@ -154,4 +154,5 @@ class DDPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss, td_error

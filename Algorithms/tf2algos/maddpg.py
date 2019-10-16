@@ -83,7 +83,6 @@ class MADDPG(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
-        self.global_step.assign_add(1)
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,
@@ -123,6 +122,7 @@ class MADDPG(Base):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss
 
     @tf.function(experimental_relax_shapes=True)
@@ -146,4 +146,5 @@ class MADDPG(Base):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss

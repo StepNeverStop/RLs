@@ -17,6 +17,7 @@ class DPG(Policy):
                  batch_size=128,
                  buffer_size=10000,
                  use_priority=False,
+                 n_step=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -35,7 +36,8 @@ class DPG(Policy):
             policy_mode='OFF',
             batch_size=batch_size,
             buffer_size=buffer_size,
-            use_priority=use_priority)
+            use_priority=use_priority,
+            n_step=n_step)
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
@@ -80,7 +82,6 @@ class DPG(Policy):
         self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            self.global_step.assign_add(1)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
@@ -116,6 +117,7 @@ class DPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss, td_error
 
     @tf.function(experimental_relax_shapes=True)
@@ -141,4 +143,5 @@ class DPG(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, q_loss, td_error

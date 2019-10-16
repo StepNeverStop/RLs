@@ -19,6 +19,7 @@ class AC(Policy):
                  batch_size=128,
                  buffer_size=10000,
                  use_priority=False,
+                 n_step=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -36,7 +37,8 @@ class AC(Policy):
             policy_mode='OFF',
             batch_size=batch_size,
             buffer_size=buffer_size,
-            use_priority=use_priority)
+            use_priority=use_priority,
+            n_step=n_step)
         self.lr = lr
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
@@ -119,7 +121,6 @@ class AC(Policy):
 
     def learn(self, episode):
         s, visual_s, a, old_prob, r, s_, visual_s_, done = self.data.sample()
-        self.global_step.assign_add(1)
         if self.use_priority:
             self.IS_w = self.data.get_IS_w()
         actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done, old_prob)
@@ -173,6 +174,7 @@ class AC(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error
 
     @tf.function(experimental_relax_shapes=True)
@@ -213,4 +215,5 @@ class AC(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error

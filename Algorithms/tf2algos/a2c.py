@@ -102,7 +102,6 @@ class A2C(Policy):
     def learn(self, episode):
         self.calculate_statistics()
         s, visual_s, a, dc_r = self.get_sample_data()
-        self.global_step.assign_add(1)
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
@@ -144,6 +143,7 @@ class A2C(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
 
     @tf.function(experimental_relax_shapes=True)
@@ -173,4 +173,5 @@ class A2C(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None

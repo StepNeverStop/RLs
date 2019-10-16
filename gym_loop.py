@@ -95,7 +95,7 @@ class Loop(object):
                 if train_mode == 'perStep':
                     gym_model.learn(episode)
 
-                if all(done) or step > max_step:
+                if all(done) or step >= max_step:
                     break
 
             if train_mode == 'perEpisode':

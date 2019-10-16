@@ -163,7 +163,6 @@ class PPO(Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, visual_s, a, dc_r, old_prob, advantage = self.get_sample_data()
-            self.global_step.assign_add(1)
             actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r, old_prob, advantage)
             tf.summary.experimental.set_step(self.global_step)
             if entropy is not None:
@@ -207,4 +206,5 @@ class PPO(Policy):
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, value_loss, entropy if self.action_type == 'continuous' else None

@@ -84,7 +84,6 @@ class MATD3(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
-        self.global_step.assign_add(1)
         actor_loss, critic_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
@@ -131,6 +130,7 @@ class MATD3(Base):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss
 
     @tf.function(experimental_relax_shapes=True)
@@ -161,4 +161,5 @@ class MATD3(Base):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss

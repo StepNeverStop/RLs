@@ -8,7 +8,7 @@ er_config = {
     'episode_er_config': {
         'max_agents': 20,
         'er_size': 1000
-    }, 
+    },
 
     'per_config': {
         'alpha': 0.6,
@@ -32,10 +32,11 @@ er_config = {
     }
 }
 
+
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):
         assert type(batch_size) == int and batch_size > 0, 'batch_size must be int and larger than 0'
-        assert type(capacity) == int and capacity > 0,'capacity must be int and larger than 0'
+        assert type(capacity) == int and capacity > 0, 'capacity must be int and larger than 0'
         self.batch_size = batch_size
         self.capacity = capacity
         self._size = 0
@@ -62,7 +63,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         self._data_pointer = 0
         self.agents_num = agents_num
         self.sub_capacity = sub_capacity
-        self._buffer = np.empty(capacity, dtype=object) # Temporary experience buffer
+        self._buffer = np.empty(capacity, dtype=object)  # Temporary experience buffer
         self._tmp_bf = np.empty(self.agents_num, dtype=object)
         for i in range(self._tmp_bf.shape[0]):
             self._tmp_bf[i] = ExperienceReplay(self.sub_capacity, self.sub_capacity)
@@ -252,7 +253,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.max_p = max(self.max_p, priority.max())
         for i in range(len(priority)):
             self.tree._updatetree(self.last_indexs[i], priority[i])
-    
+
     def get_IS_w(self):
         return self.IS_w
 

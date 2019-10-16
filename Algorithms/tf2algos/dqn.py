@@ -93,7 +93,6 @@ class DQN(Policy):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.global_step.assign_add(1)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
@@ -121,4 +120,5 @@ class DQN(Policy):
             self.optimizer.apply_gradients(
                 zip(grads, self.q_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return q_loss, td_error

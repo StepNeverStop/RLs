@@ -17,6 +17,7 @@ class SAC(Policy):
                  batch_size=128,
                  buffer_size=10000,
                  use_priority=False,
+                 n_step=False,
                  base_dir=None,
 
                  alpha=0.2,
@@ -38,7 +39,8 @@ class SAC(Policy):
             policy_mode='OFF',
             batch_size=batch_size,
             buffer_size=buffer_size,
-            use_priority=use_priority)
+            use_priority=use_priority,
+            n_step=n_step)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.ployak = ployak
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
@@ -90,7 +92,6 @@ class SAC(Policy):
         self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            self.global_step.assign_add(1)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
@@ -129,9 +130,9 @@ class SAC(Policy):
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                 v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             )
 
             with tf.GradientTape() as tape:
@@ -158,6 +159,7 @@ class SAC(Policy):
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error1
 
     @tf.function(experimental_relax_shapes=True)
@@ -188,9 +190,9 @@ class SAC(Policy):
                 actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.weights)
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             )
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
@@ -201,4 +203,5 @@ class SAC(Policy):
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
+            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error1

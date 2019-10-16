@@ -106,7 +106,6 @@ class PG(Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, visual_s, a, dc_r = self.get_sample_data()
-            self.global_step.assign_add(1)
             if not self.action_type == 'continuous':
                 a = th.action_index2one_hot(a, self.a_dim_or_list)
             loss, entropy = self.train(s, visual_s, a, dc_r)
@@ -139,4 +138,5 @@ class PG(Policy):
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return loss, entropy if self.action_type == 'continuous' else None

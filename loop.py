@@ -87,7 +87,7 @@ class Loop(object):
                     for i in range(brains_num):
                         models[i].learn(episode)
 
-                if all([all(dones_flag[i]) for i in range(brains_num)]) or step > max_step:
+                if all([all(dones_flag[i]) for i in range(brains_num)]) or step >= max_step:
                     break
 
             if train_mode == 'perEpisode':

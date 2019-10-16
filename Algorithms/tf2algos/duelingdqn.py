@@ -21,6 +21,7 @@ class DDDQN(Policy):
                  batch_size=128,
                  buffer_size=10000,
                  use_priority=False,
+                 n_step=False,
                  base_dir=None,
 
                  lr=5.0e-4,
@@ -41,7 +42,8 @@ class DDDQN(Policy):
             policy_mode='OFF',
             batch_size=batch_size,
             buffer_size=buffer_size,
-            use_priority=use_priority)
+            use_priority=use_priority,
+            n_step=n_step)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
@@ -94,7 +96,6 @@ class DDDQN(Policy):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             _a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.global_step.assign_add(1)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
@@ -131,4 +132,5 @@ class DDDQN(Policy):
             self.optimizer.apply_gradients(
                 zip(grads, self.dueling_net.trainable_variables)
             )
+            self.global_step.assign_add(1)
             return q_loss, td_error
