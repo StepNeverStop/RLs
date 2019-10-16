@@ -37,7 +37,7 @@ pg_config = {
     'gamma': 0.99,
     'max_episode': 50000,
     'batch_size': 1024,
-    'epoch': 1
+    'epoch': 1  # very important
 }
 ac_config = {
     'lr': 5.0e-4,
@@ -52,9 +52,10 @@ a2c_config = {
     'epsilon': 0.2,
     'lr': 5.0e-4,
     'gamma': 0.99,
+    'beta': 1.0e-3,
     'max_episode': 50000,
     'batch_size': 1024,
-    'epoch': 5
+    'epoch': 1  # very important
 }
 ppo_config = {
     'epsilon': 0.2,
@@ -65,7 +66,7 @@ ppo_config = {
     'max_episode': 50000,
     'batch_size': 1024,
     'share_net': True,
-    'epoch': 5
+    'epoch': 4  # very important
 }
 dpg_config = {
     'gamma': 0.99,

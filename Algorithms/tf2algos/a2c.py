@@ -19,6 +19,7 @@ class A2C(Policy):
                  batch_size=128,
 
                  epoch=5,
+                 beta=1.0e-3,
                  epsilon=0.2,
                  lr=5.0e-4,
                  logger2file=False,
@@ -35,6 +36,7 @@ class A2C(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.lr = lr
+        self.beta = beta
         self.epsilon = epsilon
         self.epoch = epoch
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
@@ -143,7 +145,7 @@ class A2C(Policy):
                     log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
-                actor_loss = -tf.reduce_mean(log_act_prob * advantage)
+                actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
