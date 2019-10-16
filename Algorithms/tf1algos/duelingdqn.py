@@ -48,13 +48,13 @@ class DDDQN(Policy):
             self.v, self.a = Nn.critic_dueling('dueling_net', self.pl_s, self.pl_visual_s, self.a_counts)
             self.action = tf.argmax(self.a, axis=1, name='action_int')
             tf.identity(self.action, 'action')
-            self.average_a = tf.reduce_mean(self.a, axis=1, keepdims=True)
+            self.average_a = tf.reduce_mean(self.a, axis=1)[:, np.newaxis]
 
             self.v_next, self.a_next = Nn.critic_dueling('dueling_net', self.pl_s_, self.pl_visual_s_, self.a_counts)
             self.next_max_action = tf.argmax(self.a_next, axis=1, name='next_action_int')
             self.next_max_action_one_hot = tf.one_hot(tf.squeeze(self.next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
             self.v_target_next, self.a_target_next = Nn.critic_dueling('dueling_target_net', self.pl_s_, self.pl_visual_s_, self.a_counts)
-            self.average_a_target_next = tf.reduce_mean(self.a_target_next, axis=1, keepdims=True)
+            self.average_a_target_next = tf.reduce_mean(self.a_target_next, axis=1)[:, np.newaxis]
 
             self.q_eval = tf.reduce_sum(tf.multiply(self.v + self.a - self.average_a, self.pl_a), axis=1)[:, np.newaxis]
             self.q_target_next_max = tf.reduce_sum(

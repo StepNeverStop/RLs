@@ -19,6 +19,7 @@ class PG(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
+                 epsilon=0.2,
                  epoch=5,
                  logger2file=False,
                  out_graph=False):
@@ -34,6 +35,7 @@ class PG(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.epoch = epoch
+        self.epsilon = epsilon
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.lr = lr
         if self.action_type == 'continuous':
@@ -62,7 +64,7 @@ class PG(Policy):
         if self.action_type == 'continuous':
             return self._get_action(s, visual_s).numpy()
         else:
-            if np.random.uniform() < 0.2:
+            if np.random.uniform() < self.epsilon:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
                 a = self._get_action(s, visual_s).numpy()
@@ -85,6 +87,8 @@ class PG(Policy):
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        if not self.action_type == 'continuous':
+            a = th.action_index2one_hot(a, self.a_dim_or_list)
         self.on_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def calculate_statistics(self):
@@ -96,27 +100,25 @@ class PG(Policy):
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
-        s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
-        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
-        a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        s = np.vstack(i_data.s.values)
+        visual_s = np.vstack(i_data.visual_s.values)
+        a = np.vstack(i_data.a.values)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
     def learn(self, episode):
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, visual_s, a, dc_r = self.get_sample_data()
-            if not self.action_type == 'continuous':
-                a = th.action_index2one_hot(a, self.a_dim_or_list)
             loss, entropy = self.train(s, visual_s, a, dc_r)
-            tf.summary.experimental.set_step(self.global_step)
-            if entropy is not None:
-                tf.summary.scalar('LOSS/entropy', entropy)
-            tf.summary.scalar('LOSS/loss', loss)
-            tf.summary.scalar('LEARNING_RATE/lr', self.lr)
-            tf.summary.scalar('REWARD/discounted_reward', self.data.discounted_reward.values[0].mean())
-            tf.summary.scalar('REWARD/reward', self.data.total_reward.values[0].mean())
-            self.recorder.writer.flush()
+        tf.summary.experimental.set_step(episode)
+        if entropy is not None:
+            tf.summary.scalar('LOSS/entropy', entropy)
+        tf.summary.scalar('LOSS/loss', loss)
+        tf.summary.scalar('LEARNING_RATE/lr', self.lr)
+        tf.summary.scalar('REWARD/discounted_reward', self.data.discounted_reward.values[0].mean())
+        tf.summary.scalar('REWARD/reward', self.data.total_reward.values[0].mean())
+        self.recorder.writer.flush()
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)
@@ -132,7 +134,7 @@ class PG(Policy):
                 else:
                     action_probs = self.net(s, visual_s)
                     sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1), keepdims=True)
+                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
             loss_grads = tape.gradient(loss, self.net.trainable_variables)
             self.optimizer.apply_gradients(

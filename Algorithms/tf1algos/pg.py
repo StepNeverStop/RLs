@@ -18,6 +18,7 @@ class PG(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
+                 epsilon=0.2,
                  epoch=5,
                  logger2file=False,
                  out_graph=False):
@@ -36,6 +37,7 @@ class PG(Policy):
         # class variables
         # ----------------------------------------------------------------
         self.epoch = epoch
+        self.epsilon = epsilon
 
         with self.graph.as_default():
             # ----------------------------------------------------------------
@@ -102,7 +104,7 @@ class PG(Policy):
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
-            if np.random.uniform() < 0.2:
+            if np.random.uniform() < self.epsilon:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
                 a = self.sess.run(self.action, feed_dict={
@@ -131,10 +133,10 @@ class PG(Policy):
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
-        s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
-        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
-        a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        s = np.vstack(i_data.s.value)
+        visual_s = np.vstack(i_data.visual_s.values)
+        a = np.vstack(i_data.a.values)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
     def learn(self, episode):

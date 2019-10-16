@@ -30,7 +30,7 @@ This project supports:
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]` (only for ml-agents).
-- Four types of ReplayBuffer(**only for algorithms of TF2.0**), Default is ER: 
+- Four types of ReplayBuffer(**only for algorithms based on TF2.0**), Default is ER: 
     - ER
     - n-step ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)

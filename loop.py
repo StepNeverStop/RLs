@@ -94,13 +94,14 @@ class Loop(object):
                 for i in range(brains_num):
                     models[i].learn(episode)
 
+            print(f'episode {episode} step {step}')
             for i in range(brains_num):
                 models[i].writer_summary(
                     episode,
                     total_reward=rewards[i].mean(),
                     step=step
                 )
-            print(f'episode {episode} step {step}')
+            
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)

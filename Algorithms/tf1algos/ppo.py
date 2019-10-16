@@ -131,17 +131,10 @@ class PPO(Policy):
             'visual_s': visual_s,
             'a': a,
             'r': r,
-            's_': s_,
-            'visual_s_': visual_s_,
             'done': done,
             'value': np.squeeze(self.sess.run(self.value, feed_dict={
                 self.pl_visual_s: visual_s,
                 self.pl_s: s,
-                self.sigma_offset: np.full(self.a_counts, 0.01)
-            })),
-            'next_value': np.squeeze(self.sess.run(self.value, feed_dict={
-                self.pl_visual_s: visual_s_,
-                self.pl_s: s_,
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })),
             'prob': self.sess.run(self.new_prob, feed_dict={
@@ -151,14 +144,21 @@ class PPO(Policy):
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             }) + 1e-10
         }, ignore_index=True)
+        self.s_ = s_
+        self.visual_s_ = visual_s_
 
     def calculate_statistics(self):
         self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
-        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, self.data.next_value.values[-1], self.data.done.values)
+        init_value = np.squeeze(self.sess.run(self.value, feed_dict={
+            self.pl_visual_s: self.visual_s_,
+            self.pl_s: self.s_,
+            self.sigma_offset: np.full(self.a_counts, 0.01)
+        })),
+        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
             self.data.r.values,
             self.gamma,
-            self.data.next_value.values[-1],
+            init_value,
             self.data.done.values,
             self.data.value.values
         )
@@ -174,12 +174,12 @@ class PPO(Policy):
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
-        s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
-        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
-        a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
-        old_prob = np.vstack([i_data.prob.values[i] for i in range(i_data.shape[0])])
-        advantage = np.vstack([i_data.advantage.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        s = np.vstack(i_data.s.values)
+        visual_s = np.vstack(i_data.visual_s.values)
+        a = np.vstack(i_data.a.values)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
+        old_prob = np.vstack(i_data.prob.values)
+        advantage = np.vstack(i_data.advantage.values).reshape(-1, 1)
         return s, visual_s, a, dc_r, old_prob, advantage
 
     def learn(self, episode):

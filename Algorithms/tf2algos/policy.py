@@ -46,7 +46,7 @@ class Policy(Base):
         'OFF' mode will call off_store function and use replay buffer to store data.
         '''
         if self.policy_mode == 'ON':
-            self.data = pd.DataFrame(columns=['s', 'a', 'r', 's_', 'done'])
+            self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
         elif self.policy_mode == 'OFF':
             if self.use_priority:
                 if self.n_step:

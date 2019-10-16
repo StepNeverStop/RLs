@@ -16,7 +16,9 @@ class A2C(Policy):
                  max_episode=50000,
                  base_dir=None,
                  batch_size=128,
-
+                 
+                 epoch=5,
+                 epsilon=0.2,
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
@@ -31,6 +33,8 @@ class A2C(Policy):
             base_dir=base_dir,
             policy_mode='ON',
             batch_size=batch_size)
+        self.epoch = epoch
+        self.epsilon = epsilon
         with self.graph.as_default():
             self.dc_r = tf.placeholder(tf.float32, [None, 1], name="discounted_reward")
             self.lr = tf.train.polynomial_decay(lr, self.episode, self.max_episode, 1e-10, power=1.0)
@@ -91,7 +95,7 @@ class A2C(Policy):
                 self.sigma_offset: np.full(self.a_counts, 0.01)
             })
         else:
-            if np.random.uniform() < 0.2:
+            if np.random.uniform() < self.epsilon:
                 a = np.random.randint(0, self.a_counts, len(s))
             else:
                 a = self.sess.run(self.action, feed_dict={
@@ -128,22 +132,23 @@ class A2C(Policy):
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
-        s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
-        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
-        a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        s = np.vstack(i_data.s.values)
+        visual_s = np.vstack(i_data.visual_s.values)
+        a = np.vstack(i_data.a.values[i])
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
     def learn(self, episode):
         self.calculate_statistics()
-        s, visual_s, a, dc_r = self.get_sample_data()
-        summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: visual_s,
-            self.pl_s: s,
-            self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
-            self.dc_r: dc_r,
-            self.episode: episode,
-            self.sigma_offset: np.full(self.a_counts, 0.01)
-        })
-        self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
+        for _ in range(self.epoch):
+            s, visual_s, a, dc_r = self.get_sample_data()
+            summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
+                self.pl_a: a if self.action_type == 'continuous' else sth.action_index2one_hot(a, self.a_dim_or_list),
+                self.dc_r: dc_r,
+                self.episode: episode,
+                self.sigma_offset: np.full(self.a_counts, 0.01)
+            })
+            self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
         self.clear()

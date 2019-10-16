@@ -32,10 +32,11 @@ dddqn_config = {
     'n_step': False
 }
 pg_config = {
+    'epsilon': 0.2,
     'lr': 5.0e-4,
     'gamma': 0.99,
     'max_episode': 50000,
-    'batch_size': 500,
+    'batch_size': 1024,
     'epoch': 1
 }
 ac_config = {
@@ -48,10 +49,12 @@ ac_config = {
     'n_step': False
 }
 a2c_config = {
+    'epsilon': 0.2,
     'lr': 5.0e-4,
     'gamma': 0.99,
     'max_episode': 50000,
-    'batch_size': 500,
+    'batch_size': 1024,
+    'epoch': 5
 }
 ppo_config = {
     'epsilon': 0.2,
@@ -61,6 +64,7 @@ ppo_config = {
     'lambda_': 0.95,
     'max_episode': 50000,
     'batch_size': 1024,
+    'share_net': True,
     'epoch': 5
 }
 dpg_config = {

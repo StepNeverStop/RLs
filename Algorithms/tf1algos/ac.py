@@ -62,7 +62,7 @@ class AC(Policy):
                 self.all_a = tf.reshape(tf.tile(self._all_a, [1, tf.shape(self.pl_a)[0], 1]), [-1, self.a_counts])
                 self.max_q_next = tf.stop_gradient(tf.reduce_max(
                     Nn.critic_q_one('critic_net', tf.tile(self.pl_s_, [self.a_counts, 1]), tf.tile(self.pl_visual_s_, [self.a_counts, 1]), self.all_a),
-                    axis=0, keepdims=True))
+                    axis=0)[:, np.newaxis])
 
             self.action = tf.identity(self.sample_op, name='action')
             self.ratio = tf.stop_gradient(self.prob / self.old_prob)

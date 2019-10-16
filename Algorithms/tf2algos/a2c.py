@@ -18,6 +18,8 @@ class A2C(Policy):
                  base_dir=None,
                  batch_size=128,
 
+                 epoch=5,
+                 epsilon=0.2,
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
@@ -33,6 +35,8 @@ class A2C(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.lr = lr
+        self.epsilon = epsilon
+        self.epoch = epoch
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
@@ -84,6 +88,8 @@ class A2C(Policy):
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.on_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def calculate_statistics(self):
@@ -93,19 +99,18 @@ class A2C(Policy):
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
-        s = np.vstack([i_data.s.values[i] for i in range(i_data.shape[0])])
-        visual_s = np.vstack([i_data.visual_s.values[i] for i in range(i_data.shape[0])])
-        a = np.vstack([i_data.a.values[i] for i in range(i_data.shape[0])])
-        dc_r = np.vstack([i_data.discounted_reward.values[i][:, np.newaxis] for i in range(i_data.shape[0])])
+        s = np.vstack(i_data.s.values)
+        visual_s = np.vstack(i_data.visual_s.values)
+        a = np.vstack(i_data.a.values)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
     def learn(self, episode):
         self.calculate_statistics()
-        s, visual_s, a, dc_r = self.get_sample_data()
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
-        tf.summary.experimental.set_step(self.global_step)
+        for _ in range(self.epoch):
+            s, visual_s, a, dc_r = self.get_sample_data()
+            actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
+        tf.summary.experimental.set_step(episode)
         if entropy is not None:
             tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
@@ -135,7 +140,7 @@ class A2C(Policy):
                 else:
                     action_probs = self.actor_net(s, visual_s)
                     sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1), keepdims=True)
+                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -tf.reduce_mean(log_act_prob * advantage)
@@ -159,7 +164,7 @@ class A2C(Policy):
                 else:
                     action_probs = self.actor_net(s, visual_s)
                     sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1), keepdims=True)
+                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
