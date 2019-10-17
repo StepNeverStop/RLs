@@ -135,7 +135,7 @@ class Loop(object):
             r = np.zeros(env.n)
             while True:
                 r_tem = np.zeros(env.n)
-                action = gym_model.choose_action(s=state[0], visual_s=state[1])
+                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])
                 obs, reward, done, info = env.step(action * sigma + mu)
                 unfinished_index = np.where(dones_flag == False)
                 dones_flag += done
@@ -162,7 +162,7 @@ class Loop(object):
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
             while True:
                 env.render()
-                action = gym_model.choose_action(s=state[0], visual_s=state[1])
+                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])
                 obs, reward, done, info = env.step(action * sigma + mu)
                 state[i] = maybe_one_hot(obs, env.observation_space, env.n)
 
