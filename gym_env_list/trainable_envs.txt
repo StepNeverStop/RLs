@@ -10,6 +10,11 @@
 |MountainCarContinuous-v0                          Box(2,)                                                                                                                                                  Box(1,)|
 |Pendulum-v0                                       Box(3,)                                                                                                                                                  Box(1,)|
 |Acrobot-v1                                        Box(6,)                                                                                                                                              Discrete(3)|
+|LunarLander-v2                                    Box(8,)                                                                                                                                              Discrete(4)|
+|LunarLanderContinuous-v2                          Box(8,)                                                                                                                                                  Box(2,)|
+|BipedalWalker-v2                                  Box(24,)                                                                                                                                                 Box(4,)|
+|BipedalWalkerHardcore-v2                          Box(24,)                                                                                                                                                 Box(4,)|
+|CarRacing-v0                                      Box(96, 96, 3)                                                                                                                                           Box(3,)|
 |FrozenLake-v0                                     Discrete(16)                                                                                                                                         Discrete(4)|
 |FrozenLake8x8-v0                                  Discrete(64)                                                                                                                                         Discrete(4)|
 |CliffWalking-v0                                   Discrete(48)                                                                                                                                         Discrete(4)|
