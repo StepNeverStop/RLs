@@ -121,18 +121,30 @@ sac_no_v_config = {
     'use_priority': False,
     'n_step': False
 }
-madpg_config = {
+maxsqn_config = {
+    'alpha': 0.2,
+    'auto_adaption': True,
+    'lr': 5.0e-4,
+    'max_episode': 50000,
+    'gamma': 0.99,
+    'ployak': 0.995,
+    'batch_size': 1024,
+    'buffer_size': 200000,
+    'use_priority': False,
+    'n_step': False
+}
+ma_dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
     'max_episode': 50000
 }
-maddpg_config = {
+ma_ddpg_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000
 }
-matd3_config = {
+ma_td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,

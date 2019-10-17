@@ -101,18 +101,18 @@ sac_no_v_config = {
     'batch_size': 1024,
     'buffer_size': 200000
 }
-madpg_config = {
+ma_dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
     'max_episode': 50000
 }
-maddpg_config = {
+ma_ddpg_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
     'max_episode': 50000
 }
-matd3_config = {
+ma_td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,

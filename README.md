@@ -99,6 +99,7 @@ For now, those algorithms are available:
     - Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
     - [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
     - [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
+    - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
 
 Multi-Agent training algorithms(*not support visual input yet*):
 - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)

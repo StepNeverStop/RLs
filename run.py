@@ -58,9 +58,10 @@ algos = {
     'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
     'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
     'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
-    'madpg': [Algorithms.madpg_config, Algorithms.MADPG, 'off-policy', 'perStep'],
-    'maddpg': [Algorithms.maddpg_config, Algorithms.MADDPG, 'off-policy', 'perStep'],
-    'matd3': [Algorithms.matd3_config, Algorithms.MATD3, 'off-policy', 'perStep'],
+    'maxsqn': [Algorithms.maxsqn_config, Algorithms.MAXSQN, 'off-policy', 'perStep'],
+    'ma_dpg': [Algorithms.ma_dpg_config, Algorithms.MADPG, 'off-policy', 'perStep'],
+    'ma_ddpg': [Algorithms.ma_ddpg_config, Algorithms.MADDPG, 'off-policy', 'perStep'],
+    'ma_td3': [Algorithms.ma_td3_config, Algorithms.MATD3, 'off-policy', 'perStep'],
 }
 
 
@@ -129,7 +130,7 @@ def unity_run(options, max_step, save_frequency, name):
 
     try:
         algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
-        ma = options['--algorithm'][:2] == 'ma'
+        ma = options['--algorithm'][:3] == 'ma_'
     except KeyError:
         raise Exception("Don't have this algorithm.")
 

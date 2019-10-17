@@ -11,6 +11,7 @@ from .pg import PG
 from .ppo import PPO
 from .ac import AC
 from .a2c import A2C
-from .madpg import MADPG
-from .maddpg import MADDPG
-from .matd3 import MATD3
+from .maxsqn import MAXSQN
+from .ma_dpg import MADPG
+from .ma_ddpg import MADDPG
+from .ma_td3 import MATD3
