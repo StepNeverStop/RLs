@@ -17,8 +17,8 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
-    --fill_in                   指定是否预填充经验池至batch_size [default: False]
-    --no_op_choose              指定no_op操作时随机选择动作，或者置0 [default: False]
+    --fill-in                   指定是否预填充经验池至batch_size [default: False]
+    --noop-choose               指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
@@ -29,13 +29,13 @@ Example:
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
-    python run.py -u -a ddpg -n pre_fill --fill_in --no_op_choose
+    python run.py -u -a ddpg -n pre_fill--fill-in --noop-choose
 """
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import sys
 import _thread
-import Algorithms
+from Algorithms import algos
 from docopt import docopt
 from config import train_config
 from utils.replay_buffer import ExperienceReplay
@@ -44,25 +44,6 @@ from utils.sth import sth
 if sys.platform.startswith('win'):
     import win32api
     import win32con
-
-algos = {
-    'pg': [Algorithms.pg_config, Algorithms.PG, 'on-policy', 'perEpisode'],
-    'ppo': [Algorithms.ppo_config, Algorithms.PPO, 'on-policy', 'perEpisode'],
-    'ac': [Algorithms.ac_config, Algorithms.AC, 'off-policy', 'perStep'],  # could be on-policy, but also doesn't work well.
-    'a2c': [Algorithms.a2c_config, Algorithms.A2C, 'on-policy', 'perEpisode'],
-    'dpg': [Algorithms.dpg_config, Algorithms.DPG, 'off-policy', 'perStep'],
-    'ddpg': [Algorithms.ddpg_config, Algorithms.DDPG, 'off-policy', 'perStep'],
-    'td3': [Algorithms.td3_config, Algorithms.TD3, 'off-policy', 'perStep'],
-    'sac': [Algorithms.sac_config, Algorithms.SAC, 'off-policy', 'perStep'],
-    'sac_no_v': [Algorithms.sac_no_v_config, Algorithms.SAC_NO_V, 'off-policy', 'perStep'],
-    'dqn': [Algorithms.dqn_config, Algorithms.DQN, 'off-policy', 'perStep'],
-    'ddqn': [Algorithms.ddqn_config, Algorithms.DDQN, 'off-policy', 'perStep'],
-    'dddqn': [Algorithms.dddqn_config, Algorithms.DDDQN, 'off-policy', 'perStep'],
-    'maxsqn': [Algorithms.maxsqn_config, Algorithms.MAXSQN, 'off-policy', 'perStep'],
-    'ma_dpg': [Algorithms.ma_dpg_config, Algorithms.MADPG, 'off-policy', 'perStep'],
-    'ma_ddpg': [Algorithms.ma_ddpg_config, Algorithms.MADDPG, 'off-policy', 'perStep'],
-    'ma_td3': [Algorithms.ma_td3_config, Algorithms.MATD3, 'off-policy', 'perStep'],
-}
 
 
 def _win_handler(event, hook_sigint=_thread.interrupt_main):
@@ -210,7 +191,7 @@ def unity_run(options, max_step, save_frequency, name):
         'sampler_manager': sampler_manager,
         'resampling_interval': resampling_interval
     }
-    if 'batch_size' in algorithm_config.keys() and options['--fill_in']:
+    if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
         steps = train_config['no_op_steps']
@@ -220,7 +201,7 @@ def unity_run(options, max_step, save_frequency, name):
         'models': models,
         'brains': brains,
         'steps': steps,
-        'choose': options['--no_op_choose']
+        'choose': options['--noop-choose']
     }
     params.update(extra_params)
     no_op_params.update(extra_params)
@@ -321,11 +302,13 @@ def gym_run(options, max_step, save_frequency, name):
         'save_frequency': save_frequency,
         'max_step': max_step,
         'max_episode': max_episode,
+        'eval_while_train': False,  # whether to eval while training.
+        'max_eval_episode': 100,
         'render': render,
         'render_episode': render_episode,
         'train_mode': train_mode
     }
-    if 'batch_size' in algorithm_config.keys() and options['--fill_in']:
+    if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
         steps = train_config['no_op_steps']
@@ -334,7 +317,7 @@ def gym_run(options, max_step, save_frequency, name):
     else:
         sth.save_config(os.path.join(base_dir, 'config'), algorithm_config)
         try:
-            Loop.no_op(env, gym_model, action_type, steps, choose=options['--no_op_choose'])
+            Loop.no_op(env, gym_model, action_type, steps, choose=options['--noop-choose'])
             Loop.train(**params)
         except Exception as e:
             print(e)

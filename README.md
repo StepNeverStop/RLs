@@ -64,8 +64,8 @@ Options:
     --max-step=<n>              每回合最大步长 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
-    --fill_in                   指定是否预填充经验池至batch_size [default: False]
-    --no_op_choose              指定no_op操作时随机选择动作，或者置0 [default: False]
+    --fill-in                   指定是否预填充经验池至batch_size [default: False]
+    --noop-choose               指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
@@ -76,7 +76,7 @@ Example:
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
-    python run.py -u -a ddpg -n pre_fill --fill_in --no_op_choose
+    python run.py -u -a ddpg -n pre_fill --fill-in --noop-choose
 """
 ```
 
@@ -116,7 +116,7 @@ Multi-Agent training algorithms(*not support visual input yet*):
 6. need 3 steps to implement a new algorithm
     1. write `.py` in `Algorithms/tf[x]algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf[x]algos/__init__.py`
     2. write default configuration in `Algorithms/tf[x]algos/config.py`
-    3. register new algorithm in `algos` of `run.py`
+    3. register new algorithm in `algos` of `Algorithms/register.py`
 7. set algorithms' hyper-parameters in [Algorithms/tf[x]algos/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.py)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
 9. change neural network structure in [Nn/tf[x]nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
