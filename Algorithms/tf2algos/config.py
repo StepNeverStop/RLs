@@ -123,6 +123,8 @@ sac_no_v_config = {
 }
 maxsqn_config = {
     'alpha': 0.2,
+    'epsilon': 0.2,
+    'use_epsilon': False,
     'auto_adaption': True,
     'lr': 5.0e-4,
     'max_episode': 50000,

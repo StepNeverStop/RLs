@@ -22,6 +22,8 @@ class MAXSQN(Policy):
 
                  alpha=0.2,
                  ployak=0.995,
+                 epsilon=0.2,
+                 use_epsilon=False,
                  lr=5.0e-4,
                  auto_adaption=True,
                  logger2file=False,
@@ -42,6 +44,8 @@ class MAXSQN(Policy):
             use_priority=use_priority,
             n_step=n_step)
         self.lr = lr
+        self.epsilon = epsilon
+        self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
@@ -61,22 +65,22 @@ class MAXSQN(Policy):
             model=self
         )
         self.recorder.logger.info('''
-　　ｘｘｘｘ　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　
-　　　ｘｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　　ｘ　　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　ｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　　ｘ　　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘ　ｘｘ　　ｘ　　　　
-　　　　ｘｘｘｘ　ｘ　ｘ　　　　　　　ｘｘ　　ｘ　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘ　　　　　ｘ　　　　　　　　ｘ　ｘｘｘ　ｘ　　　　
-　　　　ｘ　ｘｘｘｘ　ｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘ　　　　　　　　ｘ　　ｘｘｘｘ　　　　
-　　　　ｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘｘ　ｘ　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　
-　　　　ｘ　　ｘｘ　　ｘ　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘ　　　　ｘｘ　　　　
-　　ｘｘｘｘ　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　ｘ　　　　　　ｘｘｘｘ　　　ｘ　　　　
-　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　ｘｘｘ　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　
+　　　ｘｘ　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘ　　　ｘｘ　　　
+　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘ　　　
+　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　ｘｘｘｘｘ　　ｘｘ　　　
+　　　ｘｘｘｘ　　ｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘ　ｘｘｘ　ｘｘ　　　
+　　　ｘｘｘｘ　ｘｘ　ｘ　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　ｘｘｘｘｘ　　　
+　　　ｘｘｘｘ　ｘｘ　ｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　ｘ　ｘｘｘ　　　　　ｘｘ　　　ｘｘｘｘ　　　
+　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘｘ　ｘｘｘｘｘ　　　　　　ｘｘ　　　ｘｘｘｘ　　　
+　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　ｘｘ　　　　ｘｘｘ　　　
+　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
     def choose_action(self, s, visual_s):
-        if np.random.uniform() < 0.2:
-            a = np.random.randint(0, self.a_counts, len(s))
+        if self.use_epsilon:
+            if np.random.uniform() < self.epsilon:
+                a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
