@@ -82,12 +82,12 @@ class MAXSQN(Policy):
             if np.random.uniform() < self.epsilon:
                 a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(s, visual_s).numpy()
+            a = self._get_action(s, visual_s)[-1].numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
         return sth.int2action_index(
-            self._get_action(s, visual_s).numpy(),
+            self._get_action(s, visual_s)[0].numpy(),
             self.a_dim_or_list
         )
 
@@ -96,7 +96,8 @@ class MAXSQN(Policy):
         with tf.device(self.device):
             q = self.q1_net(vector_input, visual_input)
             log_probs = tf.nn.log_softmax(q / tf.exp(self.log_alpha), axis=1)
-        return tf.argmax(log_probs, axis=1)
+            pi = tf.squeeze(tf.random.categorical(log_probs, 1), axis=1)
+        return tf.argmax(log_probs, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
