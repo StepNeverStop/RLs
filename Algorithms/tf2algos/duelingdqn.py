@@ -99,7 +99,7 @@ class DDDQN(Policy):
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
-            q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
             if self.use_priority:
                 self.data.update(td_error, episode)
             if self.global_step % self.assign_interval == 0:

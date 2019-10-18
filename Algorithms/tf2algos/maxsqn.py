@@ -112,7 +112,7 @@ class MAXSQN(Policy):
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
-            loss, entropy, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
+            loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
             if self.use_priority:
                 self.data.update(td_error, episode)
             self.update_target_net_weights(
