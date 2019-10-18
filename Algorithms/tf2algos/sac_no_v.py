@@ -166,7 +166,7 @@ class SAC_NO_V(Policy):
                     log_action_probs = self.actor_net(s, visual_s)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
                     a_new = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
-                    log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
+                    a_s_log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
                     entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q1_s_a = self.q1_net(s, visual_s, a_new)
                 q2_s_a = self.q2_net(s, visual_s, a_new)
