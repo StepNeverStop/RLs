@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 from .base import Base
+from utils.sth import sth
 from utils.replay_buffer import ExperienceReplay, NStepExperienceReplay, PrioritizedExperienceReplay, NStepPrioritizedExperienceReplay, er_config
 
 
@@ -115,6 +116,8 @@ class Policy(Base):
         assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
         if self.policy_mode == 'OFF':
+            if not self.action_type == 'continuous':
+                a = sth.action_index2one_hot(a, self.a_dim_or_list)
             self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def clear(self):

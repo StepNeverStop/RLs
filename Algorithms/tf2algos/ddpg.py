@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import Nn
+from utils.sth import sth
 from .policy import Policy
 
 
@@ -23,7 +25,6 @@ class DDPG(Policy):
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous', 'ddpg only support continuous action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -42,8 +43,13 @@ class DDPG(Policy):
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-        self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+        self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
+        if self.action_type == 'continuous':
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+        else:
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
         self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
         self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net')
         self.update_target_net_weights(
@@ -71,18 +77,29 @@ class DDPG(Policy):
         self.recorder.logger.info(self.action_noise)
 
     def choose_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[-1].numpy()
+        a = self._get_action(s, visual_s)[-1].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[0].numpy()
+        a = self._get_action(s, visual_s)[0].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
-            mu = self.actor_net(vector_input, visual_input)
-        return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            if self.action_type == 'continuous':
+                mu = self.actor_net(vector_input, visual_input)
+                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            else:
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                mu = tf.argmax(log_action_probs, axis=1)
+                cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                pi = cate_dist.sample()
+        return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
@@ -109,8 +126,13 @@ class DDPG(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                target_mu = self.actor_target_net(s_, visual_s_)
-                action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                if self.action_type == 'continuous':
+                    target_mu = self.actor_target_net(s_, visual_s_)
+                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                else:
+                    target_log_action_probs = self.actor_target_net(s_, visual_s_)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    action_target = tf.nn.softmax(target_log_action_probs + gumbel_noise)
                 q = self.q_net(s, visual_s, a)
                 q_target = self.q_target_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
@@ -121,7 +143,12 @@ class DDPG(Policy):
                 zip(q_grads, self.q_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
-                mu = self.actor_net(s, visual_s)
+                if self.action_type == 'continuous':
+                    mu = self.actor_net(s, visual_s)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    mu = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -136,14 +163,23 @@ class DDPG(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                target_mu = self.actor_target_net(s_, visual_s_)
-                action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                if self.action_type == 'continuous':
+                    target_mu = self.actor_target_net(s_, visual_s_)
+                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    mu = self.actor_net(s, visual_s)
+                else:
+                    target_log_action_probs = self.actor_target_net(s_, visual_s_)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    action_target = tf.nn.softmax(target_log_action_probs + gumbel_noise)
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    mu = tf.nn.softmax((log_action_probs + gumbel_noise2) / 0.1)
                 q = self.q_net(s, visual_s, a)
                 q_target = self.q_target_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
-                mu = self.actor_net(s, visual_s)
+
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
