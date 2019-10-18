@@ -82,13 +82,14 @@ class PG(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
-                action_probs = self.net(vector_input, visual_input)
-                sample_op = tf.argmax(action_probs, axis=1)
+                log_action_probs = self.net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits=log_action_probs)
+                sample_op = norm_dist.sample()
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         if not self.action_type == 'continuous':
-            a = th.action_index2one_hot(a, self.a_dim_or_list)
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.on_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def calculate_statistics(self):
@@ -112,12 +113,11 @@ class PG(Policy):
             s, visual_s, a, dc_r = self.get_sample_data()
             loss, entropy = self.train(s, visual_s, a, dc_r)
         tf.summary.experimental.set_step(episode)
-        if entropy is not None:
-            tf.summary.scalar('LOSS/entropy', entropy)
+        tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/loss', loss)
         tf.summary.scalar('LEARNING_RATE/lr', self.lr)
         tf.summary.scalar('REWARD/discounted_reward', self.data.discounted_reward.values[0].mean())
-        tf.summary.scalar('REWARD/reward', self.data.total_reward.values[0].mean())
+        tf.summary.scalar('REWARD/total_reward', self.data.total_reward.values[0].mean())
         self.recorder.writer.flush()
         self.clear()
 
@@ -128,17 +128,16 @@ class PG(Policy):
                 if self.action_type == 'continuous':
                     mu, sigma = self.net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
                     log_act_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs = self.net(s, visual_s)
-                    sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
+                    log_action_probs = self.net(s, visual_s)
+                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
             loss_grads = tape.gradient(loss, self.net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return loss, entropy if self.action_type == 'continuous' else None
+            return loss, entropy

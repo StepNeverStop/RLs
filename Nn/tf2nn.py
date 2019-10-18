@@ -45,7 +45,7 @@ class actor_discrete(ImageNet):
         self.net = Sequential([
             Dense(128, activation_fn, **initKernelAndBias),
             Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.softmax, **initKernelAndBias)
+            Dense(output_shape, tf.nn.log_softmax, **initKernelAndBias)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -206,7 +206,7 @@ class a_c_v_discrete(ImageNet):
         self.action_probs = Sequential([
             Dense(128, activation_fn, **initKernelAndBias),
             Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.softmax, **initKernelAndBias)
+            Dense(output_shape, tf.nn.log_softmax, **initKernelAndBias)
         ])
         self.value = Sequential([
             Dense(128, activation_fn, **initKernelAndBias),

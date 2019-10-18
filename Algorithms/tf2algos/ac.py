@@ -23,6 +23,7 @@ class AC(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
+                 epsilon=0.2,
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -40,6 +41,7 @@ class AC(Policy):
             use_priority=use_priority,
             n_step=n_step)
         self.lr = lr
+        self.epsilon = epsilon
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
@@ -86,8 +88,9 @@ class AC(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
-                action_probs = self.actor_net(vector_input, visual_input)
-                sample_op = tf.argmax(action_probs, axis=1)
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits=log_action_probs)
+                sample_op = norm_dist.sample()
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -107,12 +110,14 @@ class AC(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
             else:
-                action_probs = self.actor_net(s, visual_s)
-                prob = tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True)
+                log_action_probs = self.actor_net(s, visual_s)
+                prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
             return prob
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         old_prob = np.ones_like(r)
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
@@ -127,8 +132,7 @@ class AC(Policy):
         if self.use_priority:
             self.data.update(td_error, episode)
         tf.summary.experimental.set_step(self.global_step)
-        if entropy is not None:
-            tf.summary.scalar('LOSS/entropy', entropy)
+        tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)
         tf.summary.scalar('LEARNING_RATE/lr', self.lr)
@@ -143,11 +147,10 @@ class AC(Policy):
                     next_mu, _ = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                 else:
-                    _all_a = tf.expand_dims(tf.one_hot([i for i in range(self.a_counts)], self.a_counts), 1)
-                    all_a = tf.reshape(tf.tile(_all_a, [1, tf.shape(a)[0], 1]), [-1, self.a_counts])
-                    max_q_next = tf.stop_gradient(tf.reduce_max(
-                        self.critic_net(tf.tile(s_, [self.a_counts, 1]), tf.tile(visual_s_, [self.a_counts, 1]), all_a),
-                        axis=0, keepdims=True))
+                    log_action_probs = self.actor_net(s_, visual_s_)
+                    max_a = tf.argmax(log_action_probs, axis=1)
+                    max_a_one_hot = tf.one_hot(max_a, self.a_counts, dtype=tf.float64)
+                    max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, max_a_one_hot))
                 q = self.critic_net(s, visual_s, a)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
                 critic_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
@@ -163,9 +166,10 @@ class AC(Policy):
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs = self.actor_net(s, visual_s)
-                    prob = tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True)
-                    log_act_prob = tf.log(prob)
+                    log_action_probs = self.actor_net(s, visual_s)
+                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
+                    prob = tf.exp(log_act_prob)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q = self.critic_net(s, visual_s, a)
                 ratio = tf.stop_gradient(prob / old_prob)
                 q_value = tf.stop_gradient(q)
@@ -175,7 +179,7 @@ class AC(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error
+            return actor_loss, critic_loss, entropy, td_error
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_prob):
@@ -192,15 +196,15 @@ class AC(Policy):
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    _all_a = tf.expand_dims(tf.one_hot([i for i in range(self.a_counts)], self.a_counts), 1)
-                    all_a = tf.reshape(tf.tile(_all_a, [1, tf.shape(a)[0], 1]), [-1, self.a_counts])
-                    max_q_next = tf.stop_gradient(tf.reduce_max(
-                        self.critic_net(tf.tile(s_, [self.a_counts, 1]), tf.tile(visual_s_, [self.a_counts, 1]), all_a),
-                        axis=0, keepdims=True))
+                    log_action_probs = self.actor_net(s_, visual_s_)
+                    max_a = tf.argmax(log_action_probs, axis=1)
+                    max_a_one_hot = tf.one_hot(max_a, self.a_counts)
+                    max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, max_a_one_hot))
 
-                    action_probs = self.actor_net(s, visual_s)
-                    prob = tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True)
-                    log_act_prob = tf.log(prob)
+                    log_action_probs = self.actor_net(s, visual_s)
+                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
+                    prob = tf.exp(log_act_prob)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q = self.critic_net(s, visual_s, a)
                 ratio = tf.stop_gradient(prob / old_prob)
                 q_value = tf.stop_gradient(q)
@@ -216,4 +220,4 @@ class AC(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None, td_error
+            return actor_loss, critic_loss, entropy, td_error

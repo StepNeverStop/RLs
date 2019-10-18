@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
 from .policy import Policy
@@ -96,7 +97,8 @@ class MAXSQN(Policy):
         with tf.device(self.device):
             q = self.q1_net(vector_input, visual_input)
             log_probs = tf.nn.log_softmax(q / tf.exp(self.log_alpha), axis=1)
-            pi = tf.squeeze(tf.random.categorical(log_probs, 1), axis=1)
+            cate_dist = tfp.distributions.Categorical(logits=log_probs)
+            pi = cate_dist.sample()
         return tf.argmax(log_probs, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):

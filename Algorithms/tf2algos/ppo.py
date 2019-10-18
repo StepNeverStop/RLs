@@ -94,10 +94,11 @@ class PPO(Policy):
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
                 if self.share_net:
-                    action_probs, _ = self.net(vector_input, visual_input)
+                    log_action_probs, _ = self.net(vector_input, visual_input)
                 else:
-                    action_probs = self.actor_net(vector_input, visual_input)
-                sample_op = tf.argmax(action_probs, axis=1)
+                    log_action_probs = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits=log_action_probs)
+                sample_op = norm_dist.sample()
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -145,10 +146,10 @@ class PPO(Policy):
                 new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
             else:
                 if self.share_net:
-                    action_probs, _ = self.net(s, visual_s)
+                    log_action_probs, _ = self.net(s, visual_s)
                 else:
-                    action_probs = self.actor_net(s, visual_s)
-                new_prob = tf.reduce_max(action_probs, axis=1, keepdims=True)
+                    log_action_probs = self.actor_net(s, visual_s)
+                new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
             return new_prob
 
     def calculate_statistics(self):
@@ -191,8 +192,7 @@ class PPO(Policy):
             else:
                 actor_loss, critic_loss, entropy = self.train_not_share(s, visual_s, a, dc_r, old_prob, advantage)
         tf.summary.experimental.set_step(episode)
-        if entropy is not None:
-            tf.summary.scalar('LOSS/entropy', entropy)
+        tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)
         tf.summary.scalar('LEARNING_RATE/lr', self.lr)
@@ -209,12 +209,11 @@ class PPO(Policy):
                     mu, sigma, value = self.net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
-                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs, value = self.net(s, visual_s)
-                    new_prob = tf.reduce_max(action_probs, axis=1, keepdims=True)
-                    sample_op = tf.argmax(action_probs, axis=1)
+                    log_action_probs, value = self.net(s, visual_s)
+                    new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 ratio = new_prob / old_prob
                 surrogate = ratio * advantage
                 td_error = dc_r - value
@@ -224,16 +223,13 @@ class PPO(Policy):
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
-                if self.action_type == 'continuous':
-                    loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
-                else:
-                    loss = value_loss - actor_loss
+                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
             loss_grads = tape.gradient(loss, self.net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, value_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, value_loss, entropy
     
     @tf.function(experimental_relax_shapes=True)
     def train_not_share(self, s, visual_s, a, dc_r, old_prob, advantage):
@@ -251,13 +247,11 @@ class PPO(Policy):
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
-                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs = self.actor_net(s, visual_s)
-                    value = self.critic_net(s, visual_s)
-                    new_prob = tf.reduce_max(action_probs, axis=1, keepdims=True)
-                    sample_op = tf.argmax(action_probs, axis=1)
+                    log_action_probs = self.actor_net(s, visual_s)
+                    new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 ratio = new_prob / old_prob
                 surrogate = ratio * advantage
                 actor_loss = -(tf.reduce_mean(
@@ -270,4 +264,4 @@ class PPO(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, value_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, value_loss, entropy

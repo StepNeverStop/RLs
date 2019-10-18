@@ -85,8 +85,9 @@ class A2C(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
-                action_probs = self.actor_net(vector_input, visual_input)
-                sample_op = tf.argmax(action_probs, axis=1)
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits=log_action_probs)
+                sample_op = norm_dist.sample()
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -113,8 +114,7 @@ class A2C(Policy):
             s, visual_s, a, dc_r = self.get_sample_data()
             actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
         tf.summary.experimental.set_step(episode)
-        if entropy is not None:
-            tf.summary.scalar('LOSS/entropy', entropy)
+        tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)
         tf.summary.scalar('LEARNING_RATE/lr', self.lr)
@@ -136,13 +136,12 @@ class A2C(Policy):
                 if self.action_type == 'continuous':
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs = self.actor_net(s, visual_s)
-                    sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
+                    log_action_probs = self.actor_net(s, visual_s)
+                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
@@ -151,7 +150,7 @@ class A2C(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, critic_loss, entropy
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, dc_r):
@@ -160,13 +159,12 @@ class A2C(Policy):
                 if self.action_type == 'continuous':
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    action_probs = self.actor_net(s, visual_s)
-                    sample_op = tf.argmax(action_probs, axis=1)
-                    log_act_prob = tf.math.log(tf.reduce_sum(tf.multiply(action_probs, a), axis=1, keepdims=True))
+                    log_action_probs = self.actor_net(s, visual_s)
+                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
@@ -181,4 +179,4 @@ class A2C(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy if self.action_type == 'continuous' else None
+            return actor_loss, critic_loss, entropy

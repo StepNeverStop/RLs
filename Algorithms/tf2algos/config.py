@@ -41,6 +41,7 @@ pg_config = {
 }
 ac_config = {
     'lr': 5.0e-4,
+    'epsilon': 0.2,
     'gamma': 0.99,
     'max_episode': 50000,
     'batch_size': 1024,
