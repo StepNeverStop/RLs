@@ -89,7 +89,7 @@ class AC(Policy):
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
                 log_action_probs = self.actor_net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Categorical(logits=log_action_probs)
+                norm_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
                 sample_op = norm_dist.sample()
         return sample_op
 

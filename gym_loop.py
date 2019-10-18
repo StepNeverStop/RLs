@@ -82,20 +82,23 @@ class Loop(object):
                     env.render()
                 action = gym_model.choose_action(s=state[0], visual_s=state[1])
                 obs, reward, done, info = env.step(action * sigma + mu)
-                unfinished_index = np.where(dones_flag == False)
+                unfinished_index = np.where(dones_flag == False)[0]
                 dones_flag += done
                 new_state[i] = maybe_one_hot(obs, env.observation_space, env.n)
                 r_tem[unfinished_index] = reward[unfinished_index]
                 r += r_tem
                 gym_model.store_data(
-                    s=state[0][unfinished_index],
-                    visual_s=state[1][unfinished_index],
-                    a=action[unfinished_index],
-                    r=reward[unfinished_index],
-                    s_=new_state[0][unfinished_index],
-                    visual_s_=new_state[1][unfinished_index],
-                    done=done[unfinished_index]
+                    s=state[0],
+                    visual_s=state[1],
+                    a=action,
+                    r=reward,
+                    s_=new_state[0],
+                    visual_s_=new_state[1],
+                    done=done
                 )
+                if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
+                    new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, env.n)
+                    new_state[i][env.dones_index] = new_episode_states
                 state[i] = new_state[i]
                 if train_mode == 'perStep':
                     gym_model.learn(episode)

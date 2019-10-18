@@ -42,6 +42,7 @@ class gym_envs(object):
         [env.close() for env in self.envs]
 
     def reset(self):
+        self.dones_index = []
         threadpool = []
         for i in range(self.n):
             th = MyThread(self.envs[i].reset, args=())
@@ -74,4 +75,21 @@ class gym_envs(object):
                 for i in range(self.n)]
         else:
             results = [threadpool[i].get_result() for i in range(self.n)]
-        return [np.array(e) for e in zip(*results)]
+        obs, reward, done, info = [np.array(e) for e in zip(*results)]
+        self.dones_index = np.where(done)[0]
+        return obs, reward, done, info
+    
+    def patial_reset(self):
+        threadpool = []
+        for i in self.dones_index:
+            th = MyThread(self.envs[i].reset, args=())
+            threadpool.append(th)
+        for th in threadpool:
+            th.start()
+        for th in threadpool:
+            threading.Thread.join(th)
+        if self.obs_type == 'visual':
+            return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
+        else:
+            return np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
+
