@@ -41,15 +41,15 @@ class DDPG(Policy):
             n_step=n_step)
         self.ployak = ployak
         self.lr = lr
-        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
             self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
+            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
             self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
         self.q_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net')
         self.update_target_net_weights(
@@ -74,7 +74,6 @@ class DDPG(Policy):
 　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
         ''')
-        self.recorder.logger.info(self.action_noise)
 
     def choose_action(self, s, visual_s):
         a = self._get_action(s, visual_s)[-1].numpy()
@@ -98,8 +97,6 @@ class DDPG(Policy):
         return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
@@ -131,8 +128,9 @@ class DDPG(Policy):
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                 else:
                     target_log_action_probs = self.actor_target_net(s_, visual_s_)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    action_target = tf.nn.softmax(target_log_action_probs + gumbel_noise)
+                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    pi = target_cate_dist.sample()
+                    action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q = self.q_net(s, visual_s, a)
                 q_target = self.q_target_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
@@ -169,8 +167,9 @@ class DDPG(Policy):
                     mu = self.actor_net(s, visual_s)
                 else:
                     target_log_action_probs = self.actor_target_net(s_, visual_s_)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    action_target = tf.nn.softmax(target_log_action_probs + gumbel_noise)
+                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    pi = target_cate_dist.sample()
+                    action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                     log_action_probs = self.actor_net(s, visual_s)
                     gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
                     mu = tf.nn.softmax((log_action_probs + gumbel_noise2) / 0.1)

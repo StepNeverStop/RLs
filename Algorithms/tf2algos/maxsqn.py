@@ -102,8 +102,6 @@ class MAXSQN(Policy):
         return tf.argmax(log_probs, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
@@ -160,11 +158,11 @@ class MAXSQN(Policy):
                     q1 = self.q1_net(s, visual_s)
                     q1_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
-                    q1_entropy = tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True)
+                    q1_entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(q1_log_max - self.target_alpha))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return loss, tf.reduce_mean(q1_entropy), td_error1
+            return loss, q1_entropy, td_error1

@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 import Nn
+from utils.sth import sth
 from .policy import Policy
 
 
@@ -23,7 +25,6 @@ class TD3(Policy):
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous', 'td3 only support continuous action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -40,10 +41,15 @@ class TD3(Policy):
             n_step=n_step)
         self.lr = lr
         self.ployak = ployak
-        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-        self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+        if self.action_type == 'continuous':
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
+            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
+        else:
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
         self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
         self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
@@ -71,16 +77,25 @@ class TD3(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[-1].numpy()
+        a = self._get_action(s, visual_s)[-1].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[0].numpy()
+        a = self._get_action(s, visual_s)[0].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
-            mu = self.actor_net(vector_input, visual_input)
-        return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            if self.action_type == 'continuous':
+                mu = self.actor_net(vector_input, visual_input)
+                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            else:
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                mu = tf.argmax(log_action_probs, axis=1)
+                cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                pi = cate_dist.sample()
+        return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
@@ -110,8 +125,14 @@ class TD3(Policy):
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape() as tape:
-                    target_mu = self.actor_net(s_, visual_s_)
-                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    if self.action_type == 'continuous':
+                        target_mu = self.actor_target_net(s_, visual_s_)
+                        action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    else:
+                        target_log_action_probs = self.actor_target_net(s_, visual_s_)
+                        target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                        pi = target_cate_dist.sample()
+                        action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                     q1 = self.q1_net(s, visual_s, a)
                     q1_target = self.q1_target_net(s_, visual_s_, action_target)
                     q2 = self.q2_net(s, visual_s, a)
@@ -128,7 +149,12 @@ class TD3(Policy):
                     zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
                 )
             with tf.GradientTape() as tape:
-                mu = self.actor_net(s, visual_s)
+                if self.action_type == 'continuous':
+                    mu = self.actor_net(s, visual_s)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    mu = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
                 q1_actor = self.q1_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -144,9 +170,18 @@ class TD3(Policy):
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
-                    mu = self.actor_net(s, visual_s)
-                    target_mu = self.actor_net(s_, visual_s_)
-                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    if self.action_type == 'continuous':
+                        target_mu = self.actor_target_net(s_, visual_s_)
+                        action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                        mu = self.actor_net(s, visual_s)
+                    else:
+                        target_log_action_probs = self.actor_target_net(s_, visual_s_)
+                        target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                        pi = target_cate_dist.sample()
+                        action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
+                        log_action_probs = self.actor_net(s, visual_s)
+                        gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                        mu = tf.nn.softmax((log_action_probs + gumbel_noise2) / 0.1)
                     q1 = self.q1_net(s, visual_s, a)
                     q1_target = self.q1_target_net(s_, visual_s_, action_target)
                     q2 = self.q2_net(s, visual_s, a)

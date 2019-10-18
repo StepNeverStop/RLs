@@ -91,8 +91,6 @@ class A2C(Policy):
         return sample_op
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.on_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def calculate_statistics(self):

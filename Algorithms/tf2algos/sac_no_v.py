@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
+from utils.sth import sth
 from .policy import Policy
 
 
@@ -26,7 +27,6 @@ class SAC_NO_V(Policy):
                  lr=5.0e-4,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous', 'sac only support continuous action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -46,7 +46,11 @@ class SAC_NO_V(Policy):
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
-        self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        if self.action_type == 'continuous':
+            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        else:
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
         self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
         self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
@@ -76,18 +80,25 @@ class SAC_NO_V(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[-1].numpy()
+        a = self._get_action(s, visual_s)[-1].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[0].numpy()
+        a = self._get_action(s, visual_s)[0].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
-            mu, sigma = self.actor_net(vector_input, visual_input)
-            norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-            a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-        return mu, a_new
+            if self.action_type == 'continuous':
+                mu = self.actor_net(vector_input, visual_input)
+                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            else:
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                mu = tf.argmax(log_action_probs, axis=1)
+                cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                pi = cate_dist.sample()
+        return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
@@ -117,10 +128,17 @@ class SAC_NO_V(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                target_mu, target_sigma = self.actor_net(s_, visual_s_)
-                target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
-                a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
-                a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                if self.action_type == 'continuous':
+                    target_mu, target_sigma = self.actor_net(s_, visual_s_)
+                    target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
+                    a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
+                    a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                else:
+                    target_log_action_probs = self.actor_net(s_, visual_s_)
+                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    pi = target_cate_dist.sample()
+                    a_s_log_prob_ = cate_dist.log_prob(pi)
+                    a_s_ = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q1 = self.q1_net(s, visual_s, a)
                 q1_target = self.q1_target_net(s_, visual_s_, a_s_)
                 q2 = self.q2_net(s, visual_s, a)
@@ -138,11 +156,18 @@ class SAC_NO_V(Policy):
             )
 
             with tf.GradientTape() as tape:
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                a_s_log_prob = norm_dist.log_prob(a_new)
-                entropy = tf.reduce_mean(norm_dist.entropy())
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    a_s_log_prob = norm_dist.log_prob(a_new)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    a_new = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
+                    log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
+                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q1_s_a = self.q1_net(s, visual_s, a_new)
                 q2_s_a = self.q2_net(s, visual_s, a_new)
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_a, q2_s_a) - tf.exp(self.log_alpha) * a_s_log_prob)
@@ -153,10 +178,16 @@ class SAC_NO_V(Policy):
 
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    a_s_log_prob = norm_dist.log_prob(a_new)
+                    if self.action_type == 'continuous':
+                        mu, sigma = self.actor_net(s, visual_s)
+                        norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                        a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                        a_s_log_prob = norm_dist.log_prob(a_new)
+                    else:
+                        log_action_probs = self.actor_net(s, visual_s)
+                        cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                        pi = cate_dist.sample()
+                        a_s_log_prob = cate_dist.log_prob(pi)
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(a_s_log_prob - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(
@@ -170,15 +201,27 @@ class SAC_NO_V(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                a_s_log_prob = norm_dist.log_prob(a_new)
-                entropy = tf.reduce_mean(norm_dist.entropy())
-                target_mu, target_sigma = self.actor_net(s_, visual_s_)
-                target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
-                a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
-                a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    a_s_log_prob = norm_dist.log_prob(a_new)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    target_mu, target_sigma = self.actor_net(s_, visual_s_)
+                    target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
+                    a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
+                    a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    a_new = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
+                    a_s_log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
+                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
+                    target_log_action_probs = self.actor_net(s_, visual_s_)
+                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    pi = target_cate_dist.sample()
+                    a_s_log_prob_ = cate_dist.log_prob(pi)
+                    a_s_ = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q1 = self.q1_net(s, visual_s, a)
                 q1_target = self.q1_target_net(s_, visual_s_, a_s_)
                 q2 = self.q2_net(s, visual_s, a)

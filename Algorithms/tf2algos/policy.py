@@ -92,6 +92,8 @@ class Policy(Base):
         assert isinstance(a, np.ndarray), "on_store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "on_store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "on_store need done type is np.ndarray"
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
             's': s,
             'visual_s': visual_s,
@@ -109,6 +111,8 @@ class Policy(Base):
         assert isinstance(a, np.ndarray), "off_store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "off_store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "off_store need done type is np.ndarray"
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):

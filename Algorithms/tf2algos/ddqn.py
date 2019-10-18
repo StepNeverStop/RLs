@@ -90,8 +90,6 @@ class DDQN(Policy):
         return tf.argmax(q_values, axis=1)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        if not self.action_type == 'continuous':
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):

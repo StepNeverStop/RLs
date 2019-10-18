@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
+from utils.sth import sth
 from .policy import Policy
 
 
@@ -26,7 +27,6 @@ class SAC(Policy):
                  auto_adaption=True,
                  logger2file=False,
                  out_graph=False):
-        assert action_type == 'continuous', 'sac only support continuous action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -46,7 +46,11 @@ class SAC(Policy):
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
-        self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        if self.action_type == 'continuous':
+            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+        else:
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
         self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
         self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_net')
@@ -72,18 +76,26 @@ class SAC(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[-1].numpy()
+        a = self._get_action(s, visual_s)[-1].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return self._get_action(s, visual_s)[0].numpy()
+        a = self._get_action(s, visual_s)[0].numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
-            mu, sigma = self.actor_net(vector_input, visual_input)
-            norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-            a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-        return mu, a_new
+            if self.action_type == 'continuous':
+                mu, sigma = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
+            else:
+                log_action_probs = self.actor_net(vector_input, visual_input)
+                mu = tf.argmax(log_action_probs, axis=1)
+                cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                pi = cate_dist.sample()
+        return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
@@ -111,10 +123,17 @@ class SAC(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                log_prob = norm_dist.log_prob(a_new)
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(a_new)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                    pi = cate_dist.sample()
+                    log_prob = cate_dist.log_prob(pi)
+                    a_new = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
@@ -136,11 +155,18 @@ class SAC(Policy):
             )
 
             with tf.GradientTape() as tape:
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                entropy = tf.reduce_mean(norm_dist.entropy())
-                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                log_prob = norm_dist.log_prob(a_new)
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(a_new)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    a_new = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
+                    log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
+                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q1_anew = self.q1_net(s, visual_s, a_new)
                 actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -150,10 +176,16 @@ class SAC(Policy):
 
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(a_new)
+                    if self.action_type == 'continuous':
+                        mu, sigma = self.actor_net(s, visual_s)
+                        norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                        a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                        log_prob = norm_dist.log_prob(a_new)
+                    else:
+                        log_action_probs = self.actor_net(s, visual_s)
+                        cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                        pi = cate_dist.sample()
+                        log_prob = cate_dist.log_prob(pi)                   
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(
@@ -167,11 +199,18 @@ class SAC(Policy):
         done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                entropy = tf.reduce_mean(norm_dist.entropy())
-                a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                log_prob = norm_dist.log_prob(a_new)
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(a_new)
+                else:
+                    log_action_probs = self.actor_net(s, visual_s)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    a_new = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
+                    log_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a_new), axis=1, keepdims=True)
+                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
