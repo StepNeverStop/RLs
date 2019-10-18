@@ -90,12 +90,13 @@ class DDQN(Policy):
         return tf.argmax(q_values, axis=1)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            _a = sth.action_index2one_hot(a, self.a_dim_or_list)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             q_loss, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)

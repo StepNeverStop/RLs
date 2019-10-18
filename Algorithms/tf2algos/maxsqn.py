@@ -102,13 +102,14 @@ class MAXSQN(Policy):
         return tf.argmax(log_probs, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, episode):
         self.episode = episode
         if self.data.is_lg_batch_size:
             s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            _a = sth.action_index2one_hot(a, self.a_dim_or_list)
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             loss, entropy, td_error = self.train(s, visual_s, _a, r, s_, visual_s_, done)
