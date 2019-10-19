@@ -96,15 +96,17 @@ class Loop(object):
                     visual_s_=new_state[1],
                     done=done
                 )
-                if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
-                    new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, env.n)
-                    new_state[i][env.dones_index] = new_episode_states
-                state[i] = new_state[i]
+
                 if train_mode == 'perStep':
                     gym_model.learn(episode)
 
                 if all(dones_flag) or step_max_of_all >= max_step:
                     break
+                
+                if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
+                    new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, len(env.dones_index))
+                    new_state[i][env.dones_index] = new_episode_states
+                state[i] = new_state[i]
 
             if train_mode == 'perEpisode':
                 gym_model.learn(episode)
