@@ -20,7 +20,7 @@ def maybe_one_hot(obs, obs_space, n):
     """
     if hasattr(obs_space, 'n'):
         obs = obs.reshape(n, -1)
-        dim = [obs_space.n] if type(obs_space.n) == int else list(obs_space.n)
+        dim = [int(obs_space.n)] if type(obs_space.n) == int or type(obs_space.n) == np.int32 else list(obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
         multiplication_factor = dim[1:] + [1]
         n = np.array(dim).prod()
         ints = obs.dot(multiplication_factor)
@@ -91,7 +91,7 @@ class Loop(object):
                     s=state[0],
                     visual_s=state[1],
                     a=action,
-                    r=reward,
+                    r=reward.astype(np.float64),
                     s_=new_state[0],
                     visual_s_=new_state[1],
                     done=done

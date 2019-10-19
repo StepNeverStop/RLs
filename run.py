@@ -32,7 +32,7 @@ Example:
     python run.py -u -a ddpg -n pre_fill--fill-in --noop-choose
 """
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 import _thread
 from Algorithms import algos
@@ -239,7 +239,7 @@ def gym_run(options, max_step, save_frequency, name):
         env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
         print('obs: ', env.observation_space)
         print('a: ', env.action_space)
-        assert env.observation_space in available_type and env.action_space in available_type, 'action_space and observation_space must be one of available_type'
+        assert type(env.observation_space) in available_type and type(env.action_space) in available_type, 'action_space and observation_space must be one of available_type'
     except Exception as e:
         print(e)
 
@@ -260,7 +260,7 @@ def gym_run(options, max_step, save_frequency, name):
         else:
             s_dim = 0
     else:
-        s_dim = env.observation_space.n
+        s_dim = int(env.observation_space.n)
     if len(env.observation_space.shape) == 3:
         visual_sources = 1
         visual_resolution = list(env.observation_space.shape)
