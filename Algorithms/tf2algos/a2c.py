@@ -20,6 +20,7 @@ class A2C(Policy):
 
                  epoch=5,
                  beta=1.0e-3,
+                 sample_count=1,
                  epsilon=0.2,
                  lr=5.0e-4,
                  logger2file=False,
@@ -38,6 +39,7 @@ class A2C(Policy):
         self.lr = lr
         self.beta = beta
         self.epsilon = epsilon
+        self.sample_count = sample_count
         self.epoch = epoch
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
@@ -67,10 +69,7 @@ class A2C(Policy):
         if self.action_type == 'continuous':
             return self._get_action(s, visual_s).numpy()
         else:
-            if np.random.uniform() < self.epsilon:
-                a = np.random.randint(0, self.a_counts, len(s))
-            else:
-                a = self._get_action(s, visual_s).numpy()
+            a = self._get_action(s, visual_s).numpy()
             return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
@@ -85,8 +84,8 @@ class A2C(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
-                log_action_probs = self.actor_net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                logits = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
 
@@ -108,9 +107,11 @@ class A2C(Policy):
 
     def learn(self, episode):
         self.calculate_statistics()
-        for _ in range(self.epoch):
+        for _ in range(self.sample_count):
             s, visual_s, a, dc_r = self.get_sample_data()
-            actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
+            for _ in range(self.epoch):
+                actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
+        self.global_step.assign_add(1)
         tf.summary.experimental.set_step(episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
@@ -137,9 +138,10 @@ class A2C(Policy):
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    log_action_probs = self.actor_net(s, visual_s)
-                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    log_act_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
@@ -147,7 +149,6 @@ class A2C(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy
 
     @tf.function(experimental_relax_shapes=True)
@@ -160,14 +161,15 @@ class A2C(Policy):
                     log_act_prob = norm_dist.log_prob(a)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    log_action_probs = self.actor_net(s, visual_s)
-                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    log_act_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
                 critic_loss = tf.reduce_mean(tf.square(td_error))
-                actor_loss = -tf.reduce_mean(log_act_prob * advantage)
+                actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
@@ -176,5 +178,4 @@ class A2C(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-            self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy

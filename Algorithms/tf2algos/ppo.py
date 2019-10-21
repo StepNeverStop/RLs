@@ -19,11 +19,16 @@ class PPO(Policy):
                  base_dir=None,
 
                  epoch=5,
+                 sample_count=1,
                  beta=1.0e-3,
                  lr=5.0e-4,
                  lambda_=0.95,
                  epsilon=0.2,
                  share_net=True,
+                 actor_lr=3e-4,
+                 critic_lr=1e-3,
+                 actor_epoch=4,
+                 critic_epoch=4,
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -43,6 +48,9 @@ class PPO(Policy):
         self.lambda_ = lambda_
         self.epsilon = epsilon
         self.share_net = share_net
+        self.actor_epoch = actor_epoch
+        self.critic_epoch = critic_epoch
+        self.sample_count = sample_count
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
             self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
@@ -52,6 +60,8 @@ class PPO(Policy):
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net')
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=actor_lr)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=critic_lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -69,14 +79,8 @@ class PPO(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.action_type == 'continuous':
-            return self._get_action(s, visual_s).numpy()
-        else:
-            if np.random.uniform() < self.epsilon:
-                a = np.random.randint(0, self.a_counts, len(s))
-            else:
-                a = self._get_action(s, visual_s).numpy()
-            return sth.int2action_index(a, self.a_dim_or_list)
+        a = self._get_action(s, visual_s).numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
         a = self._get_action(s, visual_s).numpy()
@@ -94,10 +98,10 @@ class PPO(Policy):
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
                 if self.share_net:
-                    log_action_probs, _ = self.net(vector_input, visual_input)
+                    logits, _ = self.net(vector_input, visual_input)
                 else:
-                    log_action_probs = self.actor_net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                    logits = self.actor_net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
 
@@ -114,7 +118,7 @@ class PPO(Policy):
             'r': r,
             'done': done,
             'value': np.squeeze(self._get_value(s, visual_s).numpy()),
-            'prob': self._get_new_prob(s, visual_s, a).numpy() + 1e-10
+            'log_prob': self._get_log_prob(s, visual_s, a).numpy() + 1e-10
         }, ignore_index=True)
         self.s_ = s_
         self.visual_s_ = visual_s_
@@ -135,7 +139,7 @@ class PPO(Policy):
             return value
 
     @tf.function
-    def _get_new_prob(self, s, visual_s, a):
+    def _get_log_prob(self, s, visual_s, a):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 if self.share_net:
@@ -143,18 +147,19 @@ class PPO(Policy):
                 else:
                     mu, sigma = self.actor_net(s, visual_s)
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
+                new_log_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1, keepdims=True)
             else:
                 if self.share_net:
-                    log_action_probs, _ = self.net(s, visual_s)
+                    logits, _ = self.net(s, visual_s)
                 else:
-                    log_action_probs = self.actor_net(s, visual_s)
-                new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
-            return new_prob
+                    logits = self.actor_net(s, visual_s)
+                logp_all = tf.nn.log_softmax(logits)
+                new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+            return new_log_prob
 
     def calculate_statistics(self):
-        self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
         init_value = np.squeeze(self._get_value(self.s_, self.visual_s_).numpy())
+        self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
             self.data.r.values,
@@ -164,14 +169,15 @@ class PPO(Policy):
             self.data.value.values
         )
         # GAE
-        self.data['advantage'] = sth.discounted_sum(
+        adv = np.array(sth.discounted_sum(
             self.data.td_error.values,
             self.lambda_ * self.gamma,
             0,
             self.data.done.values
-        )
-        # self.data.to_excel(self.excel_writer, sheet_name='test', index=True)
-        # self.excel_writer.save()
+        ))
+        self.data['advantage'] = [i for i in (adv - adv.mean()) / adv.std()]
+        # self.data.to_excel(self.recorder.excel_writer, sheet_name=f'test{self.episode}', index=True)
+        # self.recorder.excel_writer.save()
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
@@ -179,18 +185,26 @@ class PPO(Policy):
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
         dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
-        old_prob = np.vstack(i_data.prob.values)
+        old_log_prob = np.vstack(i_data.log_prob.values)
         advantage = np.vstack(i_data.advantage.values).reshape(-1, 1)
-        return s, visual_s, a, dc_r, old_prob, advantage
+        return s, visual_s, a, dc_r, old_log_prob, advantage
 
     def learn(self, episode):
+        self.episode = episode
         self.calculate_statistics()
-        for _ in range(self.epoch):
-            s, visual_s, a, dc_r, old_prob, advantage = self.get_sample_data()
+        for _ in range(self.sample_count):
+            s, visual_s, a, dc_r, old_log_prob, advantage = self.get_sample_data()
             if self.share_net:
-                actor_loss, critic_loss, entropy = self.train_share(s, visual_s, a, dc_r, old_prob, advantage)
+                for _ in range(self.self.epoch):
+                    actor_loss, critic_loss, entropy, kl = self.train_share(s, visual_s, a, dc_r, old_log_prob, advantage)
             else:
-                actor_loss, critic_loss, entropy = self.train_not_share(s, visual_s, a, dc_r, old_prob, advantage)
+                for _ in range(self.actor_epoch):
+                    actor_loss, entropy, kl = self.train_actor(s, visual_s, a, old_log_prob, advantage)
+                    # if kl > 1.5 * 0.01:
+                    #     break
+                for _ in range(self.critic_epoch):
+                    critic_loss = self.train_critic(s, visual_s, dc_r)
+        self.global_step.assign_add(1)
         tf.summary.experimental.set_step(episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
@@ -202,19 +216,21 @@ class PPO(Policy):
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)
-    def train_share(self, s, visual_s, a, dc_r, old_prob, advantage):
+    def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, sigma, value = self.net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
+                    new_log_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1, keepdims=True)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    log_action_probs, value = self.net(s, visual_s)
-                    new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
-                ratio = new_prob / old_prob
+                    logits, value = self.net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                ratio = tf.exp(new_log_prob - old_log_prob)
+                kl = tf.reduce_mean(old_log_prob - new_log_prob)
                 surrogate = ratio * advantage
                 td_error = dc_r - value
                 actor_loss = tf.reduce_mean(
@@ -228,40 +244,42 @@ class PPO(Policy):
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net.trainable_variables)
             )
-            self.global_step.assign_add(1)
-            return actor_loss, value_loss, entropy
-    
+            return actor_loss, value_loss, entropy, kl
+
     @tf.function(experimental_relax_shapes=True)
-    def train_not_share(self, s, visual_s, a, dc_r, old_prob, advantage):
+    def train_actor(self, s, visual_s, a, old_log_prob, advantage):
+        with tf.device(self.device):
+            with tf.GradientTape() as tape:
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    new_log_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1, keepdims=True)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                else:
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                ratio = tf.exp(new_log_prob - old_log_prob)
+                kl = tf.reduce_mean(old_log_prob - new_log_prob)
+                surrogate = ratio * advantage
+                min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
+                actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            return actor_loss, entropy, kl
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_critic(self, s, visual_s, dc_r):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 value = self.critic_net(s, visual_s)
                 td_error = dc_r - value
                 value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.critic_net.trainable_variables)
-            self.optimizer.apply_gradients(
+            self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    new_prob = tf.reduce_mean(norm_dist.prob(a), axis=1, keepdims=True)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
-                else:
-                    log_action_probs = self.actor_net(s, visual_s)
-                    new_prob = tf.reduce_sum(tf.multiply(tf.exp(log_action_probs), a), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
-                ratio = new_prob / old_prob
-                surrogate = ratio * advantage
-                actor_loss = -(tf.reduce_mean(
-                    tf.minimum(
-                        surrogate,
-                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
-                    )) + self.beta * entropy)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return actor_loss, value_loss, entropy
+            return value_loss

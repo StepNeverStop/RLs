@@ -100,7 +100,7 @@ class Loop(object):
                 if train_mode == 'perStep':
                     gym_model.learn(episode)
 
-                if all(dones_flag) or step_max_of_all >= max_step:
+                if step_max_of_all >= max_step:
                     break
                 
                 if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
@@ -161,7 +161,7 @@ class Loop(object):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
-        i, mu, sigma, new_state = init_variables(env, action_type, 1)
+        i, mu, sigma, state = init_variables(env, action_type, 1)
         while True:
             obs = env.reset()
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
@@ -170,6 +170,9 @@ class Loop(object):
                 action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])
                 obs, reward, done, info = env.step(action * sigma + mu)
                 state[i] = maybe_one_hot(obs, env.observation_space, env.n)
+                if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
+                    new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, len(env.dones_index))
+                    state[i][env.dones_index] = new_episode_states
 
     @staticmethod
     def no_op(env, gym_model, action_type, steps, choose=False):

@@ -56,18 +56,25 @@ a2c_config = {
     'beta': 1.0e-3,
     'max_episode': 50000,
     'batch_size': 1024,
-    'epoch': 1  # very important
+    'epoch': 4,  # very important
+    'sample_count': 1,  # 采样的次数
 }
 ppo_config = {
     'epsilon': 0.2,
     'gamma': 0.99,
     'beta': 1.0e-3,
     'lr': 5.0e-4,
-    'lambda_': 0.95,
+    'lambda_': 0.97,
     'max_episode': 50000,
     'batch_size': 1024,
+    'sample_count': 1,  # 采样的次数
+    'epoch': 1,  # very important
     'share_net': True,
-    'epoch': 4  # very important
+
+    'actor_lr': 3e-4,
+    'critic_lr': 1e-3,
+    'actor_epoch': 4,
+    'critic_epoch': 4,
 }
 dpg_config = {
     'gamma': 0.99,

@@ -14,11 +14,11 @@ initKernelAndBias = {
 class ImageNet(tf.keras.Model):
     def __init__(self, name):
         super().__init__(name=name)
-        self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn, **initKernelAndBias)
-        self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn, **initKernelAndBias)
-        self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn, **initKernelAndBias)
+        self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
+        self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
+        self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
         self.flatten = Flatten()
-        self.fc = Dense(256, activation_fn, **initKernelAndBias)
+        self.fc = Dense(128, activation_fn)
 
     def call(self, vector_input, visual_input):
         if visual_input is None or len(visual_input.shape) != 5:
@@ -42,16 +42,16 @@ class actor_discrete(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
-        self.net = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.nn.log_softmax, **initKernelAndBias)
+        self.logits = Sequential([
+            Dense(64, activation_fn),
+            Dense(32, activation_fn),
+            Dense(output_shape, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        action_probs = self.net(super().call(vector_input, visual_input))
-        return action_probs
+        logits = self.logits(super().call(vector_input, visual_input))
+        return logits
 
 
 class actor_continuous(ImageNet):
@@ -64,16 +64,16 @@ class actor_continuous(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
         self.share = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(64, activation_fn)
         ])
         self.mu = Sequential([
-            Dense(32, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+            Dense(32, activation_fn),
+            Dense(output_shape, tf.keras.activations.tanh)
         ])
         self.sigma = Sequential([
-            Dense(32, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.sigmoid, **initKernelAndBias)
+            Dense(32, activation_fn),
+            Dense(output_shape, tf.keras.activations.sigmoid)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -94,9 +94,9 @@ class actor_dpg(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(64, activation_fn),
+            Dense(output_shape, tf.keras.activations.tanh)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -115,9 +115,9 @@ class critic_q_one(ImageNet):
     def __init__(self, vector_dim, visual_dim, action_dim, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(1, None, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(64, activation_fn),
+            Dense(1, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
 
@@ -137,9 +137,9 @@ class critic_v(ImageNet):
     def __init__(self, vector_dim, visual_dim, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(1, None, **initKernelAndBias)
+            Dense(32, activation_fn),
+            Dense(32, activation_fn),
+            Dense(1, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -158,9 +158,9 @@ class critic_q_all(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
         self.net = Sequential([
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(output_shape, None, **initKernelAndBias)
+            Dense(128, activation_fn),
+            Dense(128, activation_fn),
+            Dense(output_shape, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -172,14 +172,14 @@ class critic_q_all(ImageNet):
 class critic_dueling(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
-        self.share = Dense(256, activation_fn, **initKernelAndBias)
+        self.share = Dense(128, activation_fn)
         self.v = Sequential([
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(1, None, **initKernelAndBias)
+            Dense(128, activation_fn),
+            Dense(1, None)
         ])
         self.a = Sequential([
-            Dense(256, activation_fn, **initKernelAndBias),
-            Dense(output_shape, None, **initKernelAndBias)
+            Dense(128, activation_fn),
+            Dense(output_shape, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -200,26 +200,26 @@ class a_c_v_discrete(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
         self.share = Sequential([
-            Dense(512, activation_fn, **initKernelAndBias),
-            Dense(256, activation_fn, **initKernelAndBias)
+            Dense(32, activation_fn),
+            Dense(32, activation_fn)
         ])
-        self.action_probs = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.nn.log_softmax, **initKernelAndBias)
+        self.logits = Sequential([
+            Dense(32, activation_fn),
+            Dense(32, activation_fn),
+            Dense(output_shape, None)
         ])
         self.value = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(1, None, **initKernelAndBias)
+            Dense(32, activation_fn),
+            Dense(32, activation_fn),
+            Dense(1, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
-        action_probs = self.action_probs(features)
+        logits = self.logits(features)
         value = self.value(features)
-        return action_probs, value
+        return logits, value
 
 
 class a_c_v_continuous(ImageNet):
@@ -232,22 +232,22 @@ class a_c_v_continuous(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name):
         super().__init__(name=name)
         self.share = Sequential([
-            Dense(512, activation_fn, **initKernelAndBias),
-            Dense(256, activation_fn, **initKernelAndBias)
+            Dense(128, activation_fn),
+            Dense(128, activation_fn)
         ])
-        self.actor = Dense(128, activation_fn, **initKernelAndBias)
+        self.actor = Dense(64, activation_fn)
         self.mu = Sequential([
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.tanh, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(output_shape, tf.keras.activations.tanh)
         ])
         self.sigma = Sequential([
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(output_shape, tf.keras.activations.sigmoid, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(output_shape, tf.keras.activations.sigmoid)
         ])
         self.value = Sequential([
-            Dense(128, activation_fn, **initKernelAndBias),
-            Dense(64, activation_fn, **initKernelAndBias),
-            Dense(1, None, **initKernelAndBias)
+            Dense(64, activation_fn),
+            Dense(64, activation_fn),
+            Dense(1, None)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 

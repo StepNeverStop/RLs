@@ -169,8 +169,6 @@ class PPO(Policy):
             0,
             self.data.done.values
         )
-        # self.data.to_excel(self.excel_writer, sheet_name='test', index=True)
-        # self.excel_writer.save()
 
     def get_sample_data(self):
         i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data

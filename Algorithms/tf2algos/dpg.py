@@ -82,9 +82,9 @@ class DPG(Policy):
                 mu = self.actor_net(vector_input, visual_input)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
             else:
-                log_action_probs = self.actor_net(vector_input, visual_input)
-                mu = tf.argmax(log_action_probs, axis=1)
-                cate_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                logits = self.actor_net(vector_input, visual_input)
+                mu = tf.argmax(logits, axis=1)
+                cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
         return mu, pi
 
@@ -115,8 +115,8 @@ class DPG(Policy):
                     target_mu = self.actor_net(s_, visual_s_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                 else:
-                    target_log_action_probs = self.actor_net(s_, visual_s_)
-                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    target_logits = self.actor_net(s_, visual_s_)
+                    target_cate_dist = tfp.distributions.Categorical(target_logits)
                     pi = target_cate_dist.sample()
                     action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q_target = self.q_net(s_, visual_s_, action_target)
@@ -132,9 +132,10 @@ class DPG(Policy):
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
                 else:
-                    log_action_probs = self.actor_net(s, visual_s)
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((log_action_probs + gumbel_noise) / 0.1)
+                    mu = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -154,13 +155,14 @@ class DPG(Policy):
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                     mu = self.actor_net(s, visual_s)
                 else:
-                    target_log_action_probs = self.actor_net(s_, visual_s_)
-                    target_cate_dist = tfp.distributions.Categorical(probs=tf.exp(target_log_action_probs))
+                    target_logits = self.actor_net(s_, visual_s_)
+                    target_cate_dist = tfp.distributions.Categorical(target_logits)
                     pi = target_cate_dist.sample()
                     action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
-                    log_action_probs = self.actor_net(s, visual_s)
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((log_action_probs + gumbel_noise2) / 0.1)
+                    mu = tf.nn.softmax((logp_all + gumbel_noise2) / 0.1)
                 q_target = self.q_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 q = self.q_net(s, visual_s, a)

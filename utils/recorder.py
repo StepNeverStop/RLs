@@ -11,7 +11,7 @@ class Recorder(object):
     def __init__(self, log_dir, excel_dir, logger2file, graph=None):
         self.saver = tf.train.Saver(max_to_keep=5, pad_step_number=True)
         self.writer = tf.summary.FileWriter(log_dir, graph=graph)
-        self.excel_writer = pd.ExcelWriter(excel_dir + 'data.xlsx')
+        self.excel_writer = pd.ExcelWriter(excel_dir + '/data.xlsx')
         self.logger = self.create_logger(
             name='logger',
             console_level=logging.INFO,
@@ -51,7 +51,7 @@ class RecorderTf2(object):
         self.writer.set_as_default()
         self.checkpoint = tf.train.Checkpoint(policy=model)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=cp_dir, max_to_keep=5, checkpoint_name='rb')
-        self.excel_writer = pd.ExcelWriter(excel_dir + 'data.xlsx')
+        self.excel_writer = pd.ExcelWriter(excel_dir + '/data.xlsx')
         self.logger = self.create_logger(
             name='logger',
             console_level=logging.INFO,

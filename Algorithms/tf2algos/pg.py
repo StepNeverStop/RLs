@@ -82,8 +82,8 @@ class PG(Policy):
                 norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                 sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
             else:
-                log_action_probs = self.net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Categorical(probs=tf.exp(log_action_probs))
+                logits = self.net(vector_input, visual_input)
+                norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
 
@@ -129,9 +129,10 @@ class PG(Policy):
                     log_act_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
-                    log_action_probs = self.net(s, visual_s)
-                    log_act_prob = tf.reduce_sum(tf.multiply(log_action_probs, a), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(log_action_probs) * log_action_probs, axis=1, keepdims=True))
+                    logits = self.net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    log_act_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
             loss_grads = tape.gradient(loss, self.net.trainable_variables)
             self.optimizer.apply_gradients(
