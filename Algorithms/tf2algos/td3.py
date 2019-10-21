@@ -23,6 +23,7 @@ class TD3(Policy):
 
                  ployak=0.995,
                  lr=5.0e-4,
+                 discrete_tau=1.0,
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -41,6 +42,7 @@ class TD3(Policy):
             n_step=n_step)
         self.lr = lr
         self.ployak = ployak
+        self.discrete_tau = discrete_tau
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
             self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
@@ -155,7 +157,7 @@ class TD3(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    mu = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                 q1_actor = self.q1_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -183,7 +185,7 @@ class TD3(Policy):
                         logits = self.actor_net(s, visual_s)
                         logp_all = tf.nn.log_softmax(logits)
                         gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                        mu = tf.nn.softmax((logp_all + gumbel_noise2) / 0.1)
+                        mu = tf.nn.softmax((logp_all + gumbel_noise2) / self.discrete_tau)
                     q1 = self.q1_net(s, visual_s, a)
                     q1_target = self.q1_target_net(s_, visual_s_, action_target)
                     q2 = self.q2_net(s, visual_s, a)

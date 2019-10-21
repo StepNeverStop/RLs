@@ -23,6 +23,7 @@ class DPG(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
+                 discrete_tau=1.0,
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -40,6 +41,7 @@ class DPG(Policy):
             use_priority=use_priority,
             n_step=n_step)
         self.lr = lr
+        self.discrete_tau = discrete_tau
         if self.action_type == 'continuous':
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
@@ -135,7 +137,7 @@ class DPG(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    mu = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                 q_actor = self.q_net(s, visual_s, mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
@@ -162,7 +164,7 @@ class DPG(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((logp_all + gumbel_noise2) / 0.1)
+                    mu = tf.nn.softmax((logp_all + gumbel_noise2) / self.discrete_tau)
                 q_target = self.q_net(s_, visual_s_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 q = self.q_net(s, visual_s, a)

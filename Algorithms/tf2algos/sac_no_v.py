@@ -23,6 +23,7 @@ class SAC_NO_V(Policy):
 
                  alpha=0.2,
                  ployak=0.995,
+                 discrete_tau=1.0,
                  auto_adaption=True,
                  lr=5.0e-4,
                  logger2file=False,
@@ -43,6 +44,7 @@ class SAC_NO_V(Policy):
             n_step=n_step)
         self.lr = lr
         self.ployak = ployak
+        self.discrete_tau = discrete_tau
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
@@ -166,9 +168,9 @@ class SAC_NO_V(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     a_s_log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
-                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1_s_pi = self.q1_net(s, visual_s, pi)
                 q2_s_pi = self.q2_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * a_s_log_prob)
@@ -216,9 +218,9 @@ class SAC_NO_V(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     a_s_log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
-                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                     target_logits = self.actor_net(s_, visual_s_)
                     target_cate_dist = tfp.distributions.Categorical(target_logits)
                     pi = target_cate_dist.sample()

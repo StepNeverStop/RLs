@@ -136,7 +136,7 @@ class MAXSQN(Policy):
                 q1_target = self.q1_target_net(s_, visual_s_)
                 q1_target_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
-                # q1_target_entropy = tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True)
+                # q1_target_entropy = -tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True)
                 q1_target_log_max = tf.reduce_max(q1_target_log_probs, axis=1, keepdims=True)
 
                 q2_target = self.q2_target_net(s_, visual_s_)
@@ -158,7 +158,7 @@ class MAXSQN(Policy):
                     q1 = self.q1_net(s, visual_s)
                     q1_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
-                    q1_entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
+                    q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(q1_log_max - self.target_alpha))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(

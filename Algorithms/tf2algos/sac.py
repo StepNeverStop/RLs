@@ -23,6 +23,7 @@ class SAC(Policy):
 
                  alpha=0.2,
                  ployak=0.995,
+                 discrete_tau=1.0,
                  lr=5.0e-4,
                  auto_adaption=True,
                  logger2file=False,
@@ -43,6 +44,7 @@ class SAC(Policy):
             n_step=n_step)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.ployak = ployak
+        self.discrete_tau = discrete_tau
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
         self.auto_adaption = auto_adaption
@@ -133,7 +135,7 @@ class SAC(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1_pi = self.q1_net(s, visual_s, pi)
@@ -208,9 +210,9 @@ class SAC(Policy):
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
-                    entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
