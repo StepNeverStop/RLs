@@ -121,27 +121,47 @@ class SAC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
+        with tf.GradientTape() as tape:
+                if self.action_type == 'continuous':
+                    mu, sigma = self.actor_net(s, visual_s)
+                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
+                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(pi)
+                else:
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
+                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                q1_pi = self.q1_net(s, visual_s, pi)
+                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_prob)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.trainable_variables)
+            )
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(a_new)
+                    pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(pi)
                 else:
                     logits = self.actor_net(s, visual_s)
                     cate_dist = tfp.distributions.Categorical(logits)
                     pi = cate_dist.sample()
                     log_prob = cate_dist.log_prob(pi)
-                    a_new = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
+                    pi = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
-                q1_anew = self.q1_net(s, visual_s, a_new)
-                q2_anew = self.q2_net(s, visual_s, a_new)
+                q1_pi = self.q1_net(s, visual_s, pi)
+                q2_pi = self.q2_net(s, visual_s, pi)
                 v_target = self.v_target_net(s_, visual_s_)
                 dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
-                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_anew, q2_anew) - tf.exp(self.log_alpha) * log_prob)
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_prob)
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
@@ -153,35 +173,13 @@ class SAC(Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             )
-
-            with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
-                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(a_new)
-                else:
-                    logits = self.actor_net(s, visual_s)
-                    logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    a_new = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
-                    log_prob = tf.reduce_sum(tf.multiply(logp_all, a_new), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                q1_anew = self.q1_net(s, visual_s, a_new)
-                actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
-            )
-
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     if self.action_type == 'continuous':
                         mu, sigma = self.actor_net(s, visual_s)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                        a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                        log_prob = norm_dist.log_prob(a_new)
+                        pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                        log_prob = norm_dist.log_prob(pi)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -204,23 +202,23 @@ class SAC(Policy):
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     entropy = tf.reduce_mean(norm_dist.entropy())
-                    a_new = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(a_new)
+                    pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                    log_prob = norm_dist.log_prob(pi)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    a_new = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
-                    log_prob = tf.reduce_sum(tf.multiply(logp_all, a_new), axis=1, keepdims=True)
+                    pi = tf.nn.softmax((logp_all + gumbel_noise) / 0.1)
+                    log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
-                q1_anew = self.q1_net(s, visual_s, a_new)
-                q2_anew = self.q2_net(s, visual_s, a_new)
+                q1_pi = self.q1_net(s, visual_s, pi)
+                q2_pi = self.q2_net(s, visual_s, pi)
                 v_target = self.v_target_net(s_, visual_s_)
                 dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
-                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_anew, q2_anew) - tf.exp(self.log_alpha) * log_prob)
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_prob)
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
@@ -228,16 +226,16 @@ class SAC(Policy):
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                 v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-                actor_loss = -tf.reduce_mean(q1_anew - tf.exp(self.log_alpha) * log_prob)
+                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_prob)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
-            self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
-            )
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             )
             if self.auto_adaption:
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
