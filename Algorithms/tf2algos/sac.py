@@ -121,7 +121,8 @@ class SAC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         done = tf.cast(done, tf.float64)
-        with tf.GradientTape() as tape:
+        with tf.device(self.device):
+            with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
@@ -141,7 +142,6 @@ class SAC(Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-        with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, sigma = self.actor_net(s, visual_s)
