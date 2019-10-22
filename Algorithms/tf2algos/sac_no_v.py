@@ -145,8 +145,8 @@ class SAC_NO_V(Policy):
                 q1_target = self.q1_target_net(s_, visual_s_, a_s_)
                 q2 = self.q2_net(s, visual_s, a)
                 q2_target = self.q2_target_net(s_, visual_s_, a_s_)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
@@ -238,8 +238,8 @@ class SAC_NO_V(Policy):
                 q2_target = self.q2_target_net(s_, visual_s_, a_s_)
                 q1_s_pi = self.q1_net(s, visual_s, pi)
                 q2_s_pi = self.q2_net(s, visual_s, pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_) * (1 - done)))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)

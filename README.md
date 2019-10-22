@@ -1,6 +1,6 @@
 # RLs
 
-:evergreen_tree::evergreen_tree::evergreen_tree:This project include some state-of-the-art or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+:evergreen_tree::evergreen_tree::evergreen_tree:This project include SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ## About
 
@@ -13,16 +13,16 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 - Almost reimplementation and competitive performance of original papers
 - Reusable modules
 - Clear hierarchical structure and easy code control
-- Compatible with OpenAI Gym, Unity3D Ml-agents
+- Compatible with OpenAI Gym and Unity3D Ml-agents
 - Restoring the training process from where it stopped, retraining on a new task, fine-tuning
-- Using other training tsak's model as parameter initialization `--load`
+- Using other training task's model as parameter initialization, specifying `--load`
 
 ### Supports
 
 This project supports:
 - Unity3D ml-agents.
 - Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
-    - Discrete -> Discrete
+    - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
     - Box -> Box
@@ -67,24 +67,24 @@ For now, those algorithms are available:
     - Multi-Agent Deterministic Policy Gradient, MADPG
     - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
-|        算法        | 离散 | 连续 | TF1  | TF2  |
-| :----------------: | :--: | :--: | :--: | :--: |
-|         PG         |  √   |  √   |  √   |  √   |
-|         AC         |  √   |  √   |  √   |  √   |
-|        A2C         |  √   |  √   |  √   |  √   |
-|        PPO         |  √   |  √   |  √   |  √   |
-|        DQN         |  √   |      |  √   |  √   |
-|     Double DQN     |  √   |      |  √   |  √   |
-| Dueling Double DQN |  √   |      |  √   |  √   |
-|        DPG         |  √   |  √   |  √   |  √   |
-|        DDPG        |  √   |  √   |  √   |  √   |
-|        TD3         |  √   |  √   |  √   |  √   |
-|        SAC         |  √   |  √   |  √   |  √   |
-| SAC(no V Network)  |  √   |  √   |  √   |  √   |
-|       MaxSQN       |  √   |      |      |  √   |
-|       MADPG        |      |  √   |  √   |  √   |
-|       MADDPG       |      |  √   |  √   |  √   |
-|       MATD3        |      |  √   |  √   |  √   |
+|     Algorithms     | Discrete | Continuous | TF 1.x | TF 2.0 | Command parameter |
+| :----------------: | :------: | :--------: | :----: | :----: | :---------------: |
+|         PG         |    √     |     √      |   √    |   √    |        pg         |
+|         AC         |    √     |     √      |   √    |   √    |        ac         |
+|        A2C         |    √     |     √      |   √    |   √    |        a2c        |
+|        PPO         |    √     |     √      |   √    |   √    |        ppo        |
+|        DQN         |    √     |            |   √    |   √    |        dqn        |
+|     Double DQN     |    √     |            |   √    |   √    |       ddqn        |
+| Dueling Double DQN |    √     |            |   √    |   √    |       dddqn       |
+|        DPG         |    √     |     √      |   √    |   √    |        dpg        |
+|        DDPG        |    √     |     √      |   √    |   √    |       ddpg        |
+|        TD3         |    √     |     √      |   √    |   √    |        td3        |
+|        SAC         |    √     |     √      |   √    |   √    |        sac        |
+| SAC(no V Network)  |    √     |     √      |   √    |   √    |     sac_no_v      |
+|       MaxSQN       |    √     |            |        |   √    |      maxsqn       |
+|       MADPG        |          |     √      |   √    |   √    |      ma_dpg       |
+|       MADDPG       |          |     √      |   √    |   √    |      ma_ddpg      |
+|       MATD3        |          |     √      |   √    |   √    |      ma_td3       |
 
 ## Getting started
 
@@ -123,7 +123,7 @@ Example:
 """
 ```
 
-If you specify gym, unity, and env simultaneously, the following priorities will be followed: gym > unity > unity_env.
+If you specify **gym**, **unity**, and **envrionment executable file path** simultaneously, the following priorities will be followed: gym > unity > unity_env.
 
 ## Notes
 
@@ -160,6 +160,7 @@ If you specify gym, unity, and env simultaneously, the following priorities will
 - pyyaml
 - pillow
 - openpyxl
+- gym
 
 ### Install
 
@@ -174,7 +175,7 @@ If you use this repository for you research, please cite:
 ```
 @misc{RLs,
   author = {Keavnn},
-  title = {RLs: Reinforcement Learning search framework for Unity3D and Gym},
+  title = {RLs: Reinforcement Learning research framework for Unity3D and Gym},
   year = {2019},
   publisher = {GitHub},
   journal = {GitHub repository},

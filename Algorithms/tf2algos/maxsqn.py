@@ -50,7 +50,6 @@ class MAXSQN(Policy):
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
-        self.target_alpha = np.log(self.a_counts)
         self.q1_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
         self.q1_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
         self.q2_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
@@ -79,9 +78,8 @@ class MAXSQN(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.use_epsilon:
-            if np.random.uniform() < self.epsilon:
-                a = np.random.randint(0, self.a_counts, len(s))
+        if self.use_epsilon and np.random.uniform() < self.epsilon:
+            a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s)[-1].numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
@@ -96,10 +94,9 @@ class MAXSQN(Policy):
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
             q = self.q1_net(vector_input, visual_input)
-            log_probs = tf.nn.log_softmax(q / tf.exp(self.log_alpha), axis=1)
-            cate_dist = tfp.distributions.Categorical(logits=log_probs)
+            cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
-        return tf.argmax(log_probs, axis=1), pi
+        return tf.argmax(q, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
@@ -133,9 +130,8 @@ class MAXSQN(Policy):
                 q2 = self.q2_net(s, visual_s)
                 q2_eval = tf.reduce_sum(tf.multiply(q2, a), axis=1, keepdims=True)
                 q1_target = self.q1_target_net(s_, visual_s_)
-                q1_target_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
-                # q1_target_entropy = -tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True)
+                q1_target_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                 q1_target_log_max = tf.reduce_max(q1_target_log_probs, axis=1, keepdims=True)
 
                 q2_target = self.q2_target_net(s_, visual_s_)
@@ -158,7 +154,7 @@ class MAXSQN(Policy):
                     q1_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1)
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
-                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(q1_log_max - self.target_alpha))
+                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(q1_log_max - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
