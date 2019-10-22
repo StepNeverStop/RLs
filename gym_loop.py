@@ -32,12 +32,11 @@ def maybe_one_hot(obs, obs_space, n):
         return obs
 
 
-def init_variables(env, action_type, n):
+def init_variables(env, action_type):
     """
     inputs:
         env: Environment
         action_type: discrete or continuous
-        n: number of state array
     outputs:
         i: specify which item of state should be modified
         mu: action bias
@@ -45,10 +44,7 @@ def init_variables(env, action_type, n):
     """
     i = 1 if len(env.observation_space.shape) == 3 else 0
     mu, sigma = get_action_normalize_factor(env.action_space, action_type)
-    if n == 2:
-        return i, mu, sigma, [[np.array([[]] * env.n)] * 2] * 2
-    else:
-        return i, mu, sigma, [np.array([[]] * env.n)] * 2
+    return i, mu, sigma, [np.empty(env.n), np.empty(env.n)], [np.empty(env.n), np.empty(env.n)]
 
 
 class Loop(object):
@@ -68,7 +64,7 @@ class Loop(object):
             render_episode:     if 'render' is false, specify from which episode to render the env
             train_mode:         perStep or perEpisode
         """
-        i, mu, sigma, [state, new_state] = init_variables(env, action_type, 2)
+        i, mu, sigma, state, new_state = init_variables(env, action_type)
         for episode in range(begin_episode, max_episode):
             obs = env.reset()
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
@@ -91,7 +87,7 @@ class Loop(object):
                     s=state[0],
                     visual_s=state[1],
                     a=action,
-                    r=reward.astype(np.float64),
+                    r=reward,
                     s_=new_state[0],
                     visual_s_=new_state[1],
                     done=done
@@ -100,7 +96,7 @@ class Loop(object):
                 if train_mode == 'perStep':
                     gym_model.learn(episode)
 
-                if step_max_of_all >= max_step:
+                if all(dones_flag) or step_max_of_all >= max_step:
                     break
                 
                 if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
@@ -128,7 +124,7 @@ class Loop(object):
 
     @staticmethod
     def evaluate(env, gym_model, action_type, max_step, max_eval_episode):
-        i, mu, sigma, [state, _] = init_variables(env, action_type, 2)
+        i, mu, sigma, state, _ = init_variables(env, action_type)
         total_r = np.zeros(env.n)
         total_steps = np.zeros(env.n)
         episodes = max_eval_episode // env.n
@@ -161,7 +157,7 @@ class Loop(object):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
-        i, mu, sigma, state = init_variables(env, action_type, 1)
+        i, mu, sigma, state, _ = init_variables(env, action_type)
         while True:
             obs = env.reset()
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
@@ -177,7 +173,7 @@ class Loop(object):
     @staticmethod
     def no_op(env, gym_model, action_type, steps, choose=False):
         assert type(steps) == int and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-        i, mu, sigma, [state, new_state] = init_variables(env, action_type, 2)
+        i, mu, sigma, state, new_state = init_variables(env, action_type)
 
         obs = env.reset()
         state[i] = maybe_one_hot(obs, env.observation_space, env.n)
