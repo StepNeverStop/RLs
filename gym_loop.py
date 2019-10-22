@@ -41,10 +41,12 @@ def init_variables(env, action_type):
         i: specify which item of state should be modified
         mu: action bias
         sigma: action scale
+        state: [vector_obs, visual_obs]
+        newstate: [vector_obs, visual_obs]
     """
     i = 1 if len(env.observation_space.shape) == 3 else 0
     mu, sigma = get_action_normalize_factor(env.action_space, action_type)
-    return i, mu, sigma, [np.empty(env.n), np.empty(env.n)], [np.empty(env.n), np.empty(env.n)]
+    return i, mu, sigma, [np.empty(env.n), np.array([[]] * env.n)], [np.empty(env.n), np.array([[]] * env.n)]
 
 
 class Loop(object):

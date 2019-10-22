@@ -46,25 +46,26 @@ This project supports:
 ## Implemented Algorithms
 
 For now, those algorithms are available:
-Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
 
-- :bug:Policy Gradient, PG
-- :bug:Actor Critic, AC
-- Advantage Actor Critic, A2C
-- :boom:[Proximal Policy Optimization, PPO](https://arxiv.org/abs/1707.06347)
-- [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
-- [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
-- :fire:[Soft Actor Critic, SAC](https://arxiv.org/abs/1812.05905)
-- :fire:[Twin Delayed Deep Deterministic Policy Gradient, TD3](https://arxiv.org/abs/1802.09477)
-- Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
-- [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
-- [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
-- [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
+- Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
 
-Multi-Agent training algorithms(*not support visual input yet*):
-- [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
-- Multi-Agent Deterministic Policy Gradient, MADPG
-- Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
+    - :bug:Policy Gradient, PG
+    - :bug:Actor Critic, AC
+    - Advantage Actor Critic, A2C
+    - :boom:[Proximal Policy Optimization, PPO](https://arxiv.org/abs/1707.06347)
+    - [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
+    - [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
+    - :fire:[Soft Actor Critic, SAC](https://arxiv.org/abs/1812.05905)
+    - :fire:[Twin Delayed Deep Deterministic Policy Gradient, TD3](https://arxiv.org/abs/1802.09477)
+    - Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
+    - [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
+    - [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
+    - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
+
+- Multi-Agent training algorithms(*not support visual input yet*):
+    - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
+    - Multi-Agent Deterministic Policy Gradient, MADPG
+    - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
 |        算法        | 离散 | 连续 | TF1  | TF2  |
 | :----------------: | :--: | :--: | :--: | :--: |
