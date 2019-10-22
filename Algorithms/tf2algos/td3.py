@@ -123,7 +123,6 @@ class TD3(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape() as tape:
@@ -133,8 +132,8 @@ class TD3(Policy):
                     else:
                         target_logits = self.actor_target_net(s_, visual_s_)
                         target_cate_dist = tfp.distributions.Categorical(target_logits)
-                        pi = target_cate_dist.sample()
-                        action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
+                        target_pi = target_cate_dist.sample()
+                        action_target = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
                     q1 = self.q1_net(s, visual_s, a)
                     q1_target = self.q1_target_net(s_, visual_s_, action_target)
                     q2 = self.q2_net(s, visual_s, a)
@@ -153,12 +152,16 @@ class TD3(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
+                    pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    mu = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                q1_actor = self.q1_net(s, visual_s, mu)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                    pi = _pi_diff + _pi
+                q1_actor = self.q1_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
@@ -169,7 +172,6 @@ class TD3(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
@@ -177,20 +179,24 @@ class TD3(Policy):
                         target_mu = self.actor_target_net(s_, visual_s_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                         mu = self.actor_net(s, visual_s)
+                        pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
                     else:
                         target_logits = self.actor_target_net(s_, visual_s_)
                         target_cate_dist = tfp.distributions.Categorical(target_logits)
-                        pi = target_cate_dist.sample()
-                        action_target = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
+                        target_pi = target_cate_dist.sample()
+                        action_target = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
                         logits = self.actor_net(s, visual_s)
                         logp_all = tf.nn.log_softmax(logits)
-                        gumbel_noise2 = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                        mu = tf.nn.softmax((logp_all + gumbel_noise2) / self.discrete_tau)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                        _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                        _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                        pi = _pi_diff + _pi
                     q1 = self.q1_net(s, visual_s, a)
                     q1_target = self.q1_target_net(s_, visual_s_, action_target)
                     q2 = self.q2_net(s, visual_s, a)
                     q2_target = self.q2_target_net(s_, visual_s_, action_target)
-                    q1_actor = self.q1_net(s, visual_s, mu)
+                    q1_actor = self.q1_net(s, visual_s, pi)
                     q_target = tf.minimum(q1_target, q2_target)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r

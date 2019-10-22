@@ -48,7 +48,7 @@ class MAXSQN(Policy):
         self.epsilon = epsilon
         self.use_epsilon = use_epsilon
         self.ployak = ployak
-        self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
+        self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         self.target_alpha = np.log(self.a_counts)
         self.q1_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
@@ -126,7 +126,6 @@ class MAXSQN(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q1 = self.q1_net(s, visual_s)

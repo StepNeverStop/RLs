@@ -95,13 +95,13 @@ class Policy(Base):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
-            's': s,
-            'visual_s': visual_s,
-            'a': a,
-            'r': r,
-            's_': s_,
-            'visual_s_': visual_s_,
-            'done': done
+            's': s.astype(np.float32),
+            'visual_s': visual_s.astype(np.float32),
+            'a': a.astype(np.float32),
+            'r': r.astype(np.float32),
+            's_': s_.astype(np.float32),
+            'visual_s_': visual_s_.astype(np.float32),
+            'done': done.astype(np.float32)
         }, ignore_index=True)
 
     def off_store(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -113,7 +113,15 @@ class Policy(Base):
         assert isinstance(done, np.ndarray), "off_store need done type is np.ndarray"
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        self.data.add(s, visual_s, a, r, s_, visual_s_, done)
+        self.data.add(
+            s.astype(np.float32), 
+            visual_s.astype(np.float32), 
+            a.astype(np.float32), 
+            r.astype(np.float32), 
+            s_.astype(np.float32), 
+            visual_s_.astype(np.float32), 
+            done.astype(np.float32)
+            )
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
@@ -122,7 +130,15 @@ class Policy(Base):
         if self.policy_mode == 'OFF':
             if not self.action_type == 'continuous':
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+            self.data.add(
+                s.astype(np.float32), 
+                visual_s.astype(np.float32), 
+                a.astype(np.float32), 
+                r[:, np.newaxis].astype(np.float32), 
+                s_.astype(np.float32), 
+                visual_s_.astype(np.float32), 
+                done[:, np.newaxis].astype(np.float32)
+                )
 
     def clear(self):
         """

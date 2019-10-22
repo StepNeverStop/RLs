@@ -46,7 +46,7 @@ class SAC(Policy):
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
-        self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float64, trainable=True)
+        self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
@@ -122,7 +122,6 @@ class SAC(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
@@ -134,8 +133,11 @@ class SAC(Policy):
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                    pi = _pi_diff + _pi
                     log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1_pi = self.q1_net(s, visual_s, pi)
@@ -155,7 +157,7 @@ class SAC(Policy):
                     cate_dist = tfp.distributions.Categorical(logits)
                     pi = cate_dist.sample()
                     log_prob = cate_dist.log_prob(pi)
-                    pi = tf.one_hot(pi, self.a_counts, dtype=tf.float64)
+                    pi = tf.one_hot(pi, self.a_counts, dtype=tf.float32)
                 q1 = self.q1_net(s, visual_s, a)
                 q2 = self.q2_net(s, visual_s, a)
                 v = self.v_net(s, visual_s)
@@ -197,7 +199,6 @@ class SAC(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':
@@ -209,8 +210,11 @@ class SAC(Policy):
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float64)
-                    pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                    pi = _pi_diff + _pi
                     log_prob = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1 = self.q1_net(s, visual_s, a)

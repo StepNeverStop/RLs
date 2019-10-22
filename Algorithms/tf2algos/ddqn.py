@@ -109,14 +109,13 @@ class DDQN(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        done = tf.cast(done, tf.float64)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.q_net(s, visual_s)
                 q_next = self.q_net(s_, visual_s_)
                 next_max_action = tf.argmax(q_next, axis=1)
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
-                next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float64)
+                next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
                 q_target_next = self.q_target_net(s_, visual_s_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)

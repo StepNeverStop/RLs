@@ -112,13 +112,13 @@ class PPO(Policy):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
-            's': s,
-            'visual_s': visual_s,
-            'a': a,
-            'r': r,
-            'done': done,
-            'value': np.squeeze(self._get_value(s, visual_s).numpy()),
-            'log_prob': self._get_log_prob(s, visual_s, a).numpy() + 1e-10
+            's': s.astype(np.float32),
+            'visual_s': visual_s.astype(np.float32),
+            'a': a.astype(np.float32),
+            'r': r.astype(np.float32),
+            'done': done.astype(np.float32),
+            'value': np.squeeze(self._get_value(s, visual_s).numpy().astype(np.float32)),
+            'log_prob': self._get_log_prob(s, visual_s, a).numpy().astype(np.float32) + 1e-10
         }, ignore_index=True)
         self.s_ = s_
         self.visual_s_ = visual_s_
@@ -140,6 +140,7 @@ class PPO(Policy):
 
     @tf.function
     def _get_log_prob(self, s, visual_s, a):
+        a = tf.cast(a, tf.float32)
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 if self.share_net:
@@ -195,7 +196,7 @@ class PPO(Policy):
         for _ in range(self.sample_count):
             s, visual_s, a, dc_r, old_log_prob, advantage = self.get_sample_data()
             if self.share_net:
-                for _ in range(self.self.epoch):
+                for _ in range(self.epoch):
                     actor_loss, critic_loss, entropy, kl = self.train_share(s, visual_s, a, dc_r, old_log_prob, advantage)
             else:
                 for _ in range(self.actor_epoch):

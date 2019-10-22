@@ -21,7 +21,7 @@ class Base(tf.keras.Model):
             tf.config.experimental.set_memory_growth(physical_devices[0], True)
         else:
             self.device = "/cpu:0"
-        tf.keras.backend.set_floatx('float64')
+        tf.keras.backend.set_floatx('float32')
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.action_type = action_type
         self.a_counts = int(np.array(a_dim_or_list).prod())
