@@ -134,7 +134,7 @@ class SAC_NO_V(Policy):
                     target_mu, target_sigma = self.actor_net(s_, visual_s_)
                     target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
                     a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
-                    a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                    a_s_log_prob_ = tf.reduce_mean(target_norm_dist.log_prob(a_s_), axis=1, keepdims=True)
                 else:
                     target_logits = self.actor_net(s_, visual_s_)
                     target_cate_dist = tfp.distributions.Categorical(target_logits)
@@ -145,8 +145,8 @@ class SAC_NO_V(Policy):
                 q1_target = self.q1_target_net(s_, visual_s_, a_s_)
                 q2 = self.q2_net(s, visual_s, a)
                 q2_target = self.q2_target_net(s_, visual_s_, a_s_)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * a_s_log_prob_))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * a_s_log_prob_))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
@@ -162,7 +162,7 @@ class SAC_NO_V(Policy):
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    a_s_log_prob = norm_dist.log_prob(pi)
+                    a_s_log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                 else:
                     logits = self.actor_net(s, visual_s)
@@ -188,7 +188,7 @@ class SAC_NO_V(Policy):
                         mu, sigma = self.actor_net(s, visual_s)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                         pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                        a_s_log_prob = norm_dist.log_prob(pi)
+                        a_s_log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -210,12 +210,12 @@ class SAC_NO_V(Policy):
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    a_s_log_prob = norm_dist.log_prob(pi)
+                    a_s_log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                     target_mu, target_sigma = self.actor_net(s_, visual_s_)
                     target_norm_dist = tfp.distributions.Normal(loc=target_mu, scale=target_sigma + self.sigma_offset)
                     a_s_ = tf.clip_by_value(target_norm_dist.sample(), -1, 1)
-                    a_s_log_prob_ = target_norm_dist.log_prob(a_s_)
+                    a_s_log_prob_ = tf.reduce_mean(target_norm_dist.log_prob(a_s_), axis=1, keepdims=True)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -238,8 +238,8 @@ class SAC_NO_V(Policy):
                 q2_target = self.q2_target_net(s_, visual_s_, a_s_)
                 q1_s_pi = self.q1_net(s, visual_s, pi)
                 q2_s_pi = self.q2_net(s, visual_s, pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * tf.reduce_mean(a_s_log_prob_)))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * a_s_log_prob_))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * a_s_log_prob_))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)

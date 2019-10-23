@@ -129,7 +129,7 @@ class SAC(Policy):
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                     pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(pi)
+                    log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -151,7 +151,7 @@ class SAC(Policy):
                     mu, sigma = self.actor_net(s, visual_s)
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(pi)
+                    log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                 else:
                     logits = self.actor_net(s, visual_s)
                     cate_dist = tfp.distributions.Categorical(logits)
@@ -183,7 +183,7 @@ class SAC(Policy):
                         mu, sigma = self.actor_net(s, visual_s)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                         pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                        log_prob = norm_dist.log_prob(pi)
+                        log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -206,7 +206,7 @@ class SAC(Policy):
                     norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
                     entropy = tf.reduce_mean(norm_dist.entropy())
                     pi = tf.clip_by_value(norm_dist.sample(), -1, 1)
-                    log_prob = norm_dist.log_prob(pi)
+                    log_prob = tf.reduce_mean(norm_dist.log_prob(pi), axis=1, keepdims=True)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
