@@ -42,7 +42,8 @@ train_config = {
     'save_frequency': 20,
     'max_step': 10000,
     'name': time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
-    'no_op_steps': 100,
+    'unity_no_op_steps': 100,
+    'gym_random_steps': 10000,
 
     'gym_render': False,
     'gym_render_episode': 50000,

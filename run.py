@@ -194,7 +194,7 @@ def unity_run(options, max_step, save_frequency, name):
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
-        steps = train_config['no_op_steps']
+        steps = train_config['unity_no_op_steps']
     no_op_params = {
         'env': env,
         'brain_names': brain_names,
@@ -311,7 +311,7 @@ def gym_run(options, max_step, save_frequency, name):
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
-        steps = train_config['no_op_steps']
+        steps = train_config['gym_random_steps']
     if options['--inference']:
         Loop.inference(env, gym_model, action_type)
     else:

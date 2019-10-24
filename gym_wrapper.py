@@ -40,6 +40,9 @@ class gym_envs(object):
 
     def close(self):
         [env.close() for env in self.envs]
+    
+    def sample_action(self):
+        return np.array([env.action_space.sample() for env in self.envs])
 
     def reset(self):
         self.dones_index = []

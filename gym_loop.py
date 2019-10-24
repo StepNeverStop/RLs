@@ -180,19 +180,16 @@ class Loop(object):
         obs = env.reset()
         state[i] = maybe_one_hot(obs, env.observation_space, env.n)
 
-        if action_type == 'continuous':
-            action = np.zeros((env.n,) + env.action_space.shape, dtype=np.int32)
-        else:
-            tmp = (len(env.action_space),) if hasattr(env.action_space, '__len__') else ()
-            action = np.zeros((env.n,) + tmp, dtype=np.int32)
-
         steps = steps // env.n + 1
 
         for step in range(steps):
             print(f'no op step {step}')
             if choose:
                 action = gym_model.choose_action(s=state[0], visual_s=state[1])
-            obs, reward, done, info = env.step(action * sigma + mu)
+                obs, reward, done, info = env.step(action * sigma + mu)
+            else:
+                action = env.sample_action()
+                obs, reward, done, info = env.step(action)
             new_state[i] = maybe_one_hot(obs, env.observation_space, env.n)
             gym_model.no_op_store(
                 s=state[0],
@@ -203,4 +200,7 @@ class Loop(object):
                 visual_s_=new_state[1],
                 done=done
             )
+            if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
+                new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, len(env.dones_index))
+                new_state[i][env.dones_index] = new_episode_states
             state[i] = new_state[i]

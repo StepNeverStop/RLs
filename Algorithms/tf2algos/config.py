@@ -136,10 +136,10 @@ sac_no_v_config = {
 }
 maxsqn_config = {
     'alpha': 0.2,
+    'beta': 0.1,    # 0 <= beta < 1, when beta approaches 1, the distribution of convergence points is closer to uniform distribution, means more entropy. when beta approaches 0, the final policy is more deterministic.
     'epsilon': 0.2,
     'use_epsilon': False,
     'auto_adaption': True,
-    'beta': 0.5,    # 0 <= beta < 1, when beta approaches 1, the distribution of convergence points is closer to uniform distribution, means more entropy. when beta approaches 0, the final policy is more deterministic.
     'lr': 5.0e-4,
     'max_episode': 50000,
     'gamma': 0.99,
