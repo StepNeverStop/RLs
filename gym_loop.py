@@ -109,7 +109,7 @@ class Loop(object):
             if train_mode == 'perEpisode':
                 gym_model.learn(episode)
 
-            print(f'episode {episode} step_max_of_all {step_max_of_all} rewards {r}')
+            print(f'Episode: {episode:3d} step_max_of_all: {step_max_of_all:4d} rewards: {r}')
             gym_model.writer_summary(
                 episode,
                 total_reward=r.mean(),
@@ -120,9 +120,9 @@ class Loop(object):
 
             if r.max() > 0 and eval_while_train:
                 ave_r, ave_step = Loop.evaluate(env, gym_model, action_type, max_step, max_eval_episode)
-                print('--------------------------------------------------------------------------------------------')
-                print(f'eval episode {episode} evaluate number {max_eval_episode} average step {ave_step} average reward {ave_r}')
-                print('--------------------------------------------------------------------------------------------')
+                print(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
+                print(f'evaluate number: {max_eval_episode:3d} average step: {ave_step} average reward: {ave_r}')
+                print('----------------------------------------------------------------------------------------------------------------------------')
 
     @staticmethod
     def evaluate(env, gym_model, action_type, max_step, max_eval_episode):

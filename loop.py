@@ -94,7 +94,7 @@ class Loop(object):
                 for i in range(brains_num):
                     models[i].learn(episode)
 
-            print(f'episode {episode} step {step}')
+            print(f'episode {episode:3d} step {step:4d}')
             for i in range(brains_num):
                 models[i].writer_summary(
                     episode,

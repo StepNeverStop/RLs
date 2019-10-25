@@ -4,12 +4,12 @@
 - max step per episode: 999
 - algorithm: sac[[code]( https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/sac.py )]
 - Actor
-- - 64(share)->64(share)->32->32->mu(tanh)
-- - 64(share)->64(share)->32->32->sigma(sigmoid)
+- - 64(share) -> 64(share) -> 32 -> 32 -> mu(tanh)
+- - 64(share) -> 64(share) -> 32 -> 32 -> sigma(sigmoid)
 - Critic_Q
-- - 64->64->1
+- - 64 -> 64 -> 1
 - Critic_V
-- - 32->32->1
+- - 32 -> 32 -> 1
 - n_step: 4
 - step_before_train(random): 10000
 - agents in parrallel: 10

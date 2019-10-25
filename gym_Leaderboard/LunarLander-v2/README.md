@@ -1,7 +1,7 @@
-# CartPole-v0
+# LunarLander-v2
 
-- Convergence episode: 12
-- max step per episode: 200
+- Convergence episode: 16
+- max step per episode: 1000
 - algorithm: sac+gumbel[[code]( https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/sac.py )]
 - Actor
 - - 64 -> 32 -> logits
@@ -15,12 +15,14 @@
 
 Parameters:
 ```
+'alpha': 0.2,
 'auto_adaption': True,
-'gamma': 0.99,
+'gamma': 0.999,
 'ployak': 0.995,
-'lr': 5.0e-4,
+'lr': 2.0e-3,
+'discrete_tau': 1.0,
 'max_episode': 50000,
-'batch_size': 4096,
+'batch_size': 8192,
 'buffer_size': 200000,
 'use_priority': False,
 'n_step': True
@@ -31,6 +33,8 @@ Result:
 ![](./result.gif)
 
 ![](./training_process.png)
+
+![](./training_process2.png)
 
 ![](./training_curve.png)
 
