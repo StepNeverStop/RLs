@@ -27,6 +27,7 @@ class gym_envs(object):
         self.envs = [gym.make(gym_env_name) for _ in range(self.n)]
         self.observation_space = self.envs[0].observation_space
         self.obs_type = 'visual' if len(self.observation_space.shape) == 3 else 'vector'
+        self.reward_threshold = self.envs[0].env.spec.reward_threshold
         if type(self.envs[0].action_space) == gym.spaces.box.Box:
             self.a_type = 'continuous'
         elif type(self.envs[0].action_space) == gym.spaces.tuple.Tuple:

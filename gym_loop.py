@@ -118,11 +118,13 @@ class Loop(object):
             if episode % save_frequency == 0:
                 gym_model.save_checkpoint(episode)
 
-            if r.max() > 0 and eval_while_train:
-                ave_r, ave_step = Loop.evaluate(env, gym_model, action_type, max_step, max_eval_episode)
-                print(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
-                print(f'evaluate number: {max_eval_episode:3d} average step: {ave_step} average reward: {ave_r}')
-                print('----------------------------------------------------------------------------------------------------------------------------')
+            if eval_while_train and env.reward_threshold is not None:
+                if r.max() > env.reward_threshold:
+                    ave_r, ave_step = Loop.evaluate(env, gym_model, action_type, max_step, max_eval_episode)
+                    solved = True if ave_r > env.reward_threshold else False
+                    print(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
+                    print(f'evaluate number: {max_eval_episode:3d} average step: {ave_step} average reward: {ave_r} SOLVED: {solved}')
+                    print('----------------------------------------------------------------------------------------------------------------------------')
 
     @staticmethod
     def evaluate(env, gym_model, action_type, max_step, max_eval_episode):
@@ -151,7 +153,7 @@ class Loop(object):
             total_r += r
             total_steps += steps
         average_r = total_r.mean() / episodes
-        average_step = total_steps.mean() / episodes
+        average_step = int(total_steps.mean() / episodes)
         return average_r, average_step
 
     @staticmethod
