@@ -119,9 +119,9 @@ class Loop(object):
                 gym_model.save_checkpoint(episode)
 
             if eval_while_train and env.reward_threshold is not None:
-                if r.max() > env.reward_threshold:
+                if r.max() >= env.reward_threshold:
                     ave_r, ave_step = Loop.evaluate(env, gym_model, action_type, max_step, max_eval_episode)
-                    solved = True if ave_r > env.reward_threshold else False
+                    solved = True if ave_r >= env.reward_threshold else False
                     print(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                     print(f'evaluate number: {max_eval_episode:3d} average step: {ave_step} average reward: {ave_r} SOLVED: {solved}')
                     print('----------------------------------------------------------------------------------------------------------------------------')
