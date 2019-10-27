@@ -2,7 +2,6 @@ dqn_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'epsilon': 0.2,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
@@ -13,7 +12,6 @@ ddqn_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'epsilon': 0.2,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
@@ -24,7 +22,6 @@ dddqn_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'epsilon': 0.2,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
@@ -35,7 +32,6 @@ pg_config = {
     'epsilon': 0.2,
     'lr': 5.0e-4,
     'gamma': 0.99,
-    'max_episode': 50000,
     'batch_size': 1024,
     'epoch': 1  # very important
 }
@@ -43,7 +39,6 @@ ac_config = {
     'lr': 5.0e-4,
     'epsilon': 0.2,
     'gamma': 0.99,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -54,7 +49,6 @@ a2c_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'beta': 1.0e-3,
-    'max_episode': 50000,
     'batch_size': 1024,
     'epoch': 4,  # very important
     'sample_count': 1,  # 采样的次数
@@ -65,7 +59,6 @@ ppo_config = {
     'beta': 1.0e-3,
     'lr': 5.0e-4,
     'lambda_': 0.97,
-    'max_episode': 50000,
     'batch_size': 1024,
     'sample_count': 1,  # 采样的次数
     'epoch': 1,  # very important
@@ -80,7 +73,6 @@ dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
     'discrete_tau': 1.0,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -91,7 +83,6 @@ ddpg_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'discrete_tau': 1.0,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -101,7 +92,6 @@ td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
-    'max_episode': 50000,
     'discrete_tau': 1.0, # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
     'batch_size': 1024,
     'buffer_size': 200000,
@@ -115,7 +105,6 @@ sac_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'discrete_tau': 1.0,
-    'max_episode': 50000,
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -125,7 +114,7 @@ sac_no_v_config = {
     'alpha': 0.2,
     'auto_adaption': True,
     'lr': 5.0e-4,
-    'max_episode': 50000,
+    'gamma': 0.999,
     'gamma': 0.99,
     'ployak': 0.995,
     'discrete_tau': 1.0,
@@ -141,7 +130,7 @@ maxsqn_config = {
     'use_epsilon': False,
     'auto_adaption': True,
     'lr': 5.0e-4,
-    'max_episode': 50000,
+    'gamma': 0.999,
     'gamma': 0.99,
     'ployak': 0.995,
     'batch_size': 1024,
@@ -152,17 +141,14 @@ maxsqn_config = {
 ma_dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
-    'max_episode': 50000
 }
 ma_ddpg_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
-    'max_episode': 50000
 }
 ma_td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
-    'max_episode': 50000
 }

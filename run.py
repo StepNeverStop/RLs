@@ -15,6 +15,7 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
     --max-step=<n>              每回合最大步长 [default: None]
+    --max-episode=<n>           总的训练回合数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
     --fill-in                   指定是否预填充经验池至batch_size [default: False]
@@ -24,7 +25,7 @@ Options:
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --sampler C:/test_sampler.yaml
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
     python run.py -a ppo -u -n train_in_unity --load last_train_name
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
@@ -62,6 +63,7 @@ def run():
     print(options)
 
     max_step = int(options['--max-step']) if options['--max-step'] != 'None' else train_config['max_step']
+    max_episode = int(options['--max-episode']) if options['--max-episode'] != 'None' else train_config['max_episode']
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
 
@@ -69,13 +71,14 @@ def run():
     run_params = {
         'options': options,
         'max_step': max_step,
+        'max_episode': max_episode,
         'save_frequency': save_frequency,
         'name': name
     }
     gym_run(**run_params) if options['--gym'] else unity_run(**run_params)
 
 
-def unity_run(options, max_step, save_frequency, name):
+def unity_run(options, max_step, max_episode, save_frequency, name):
     from mlagents.envs import UnityEnvironment
     from utils.sampler import create_sampler_manager
     reset_config = train_config['reset_config']
@@ -150,6 +153,7 @@ def unity_run(options, max_step, save_frequency, name):
         's_dim': brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
         'a_dim_or_list': brains[i].vector_action_space_size,
         'action_type': brains[i].vector_action_space_type,
+        'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, i),
         'logger2file': train_config['logger2file'],
         'out_graph': train_config['out_graph'],
@@ -176,7 +180,6 @@ def unity_run(options, max_step, save_frequency, name):
 
     [models[index].init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load'], i)) for index, i in enumerate(brain_names)]
     begin_episode = models[0].get_init_episode()
-    max_episode = models[0].get_max_episode()
 
     params = {
         'env': env,
@@ -225,7 +228,7 @@ def unity_run(options, max_step, save_frequency, name):
                 sys.exit()
 
 
-def gym_run(options, max_step, save_frequency, name):
+def gym_run(options, max_step, max_episode, save_frequency, name):
     from gym_loop import Loop
     from gym.spaces import Box, Discrete, Tuple
     from gym_wrapper import gym_envs
@@ -286,6 +289,7 @@ def gym_run(options, max_step, save_frequency, name):
         visual_resolution=visual_resolution,
         a_dim_or_list=a_dim_or_list,
         action_type=action_type,
+        max_episode=max_episode,
         base_dir=base_dir,
         logger2file=train_config['logger2file'],
         out_graph=train_config['out_graph'],
@@ -293,7 +297,6 @@ def gym_run(options, max_step, save_frequency, name):
     )
     gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
     begin_episode = gym_model.get_init_episode()
-    max_episode = gym_model.get_max_episode()
     params = {
         'env': env,
         'gym_model': gym_model,
