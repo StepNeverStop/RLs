@@ -188,14 +188,14 @@ class SAC(Policy):
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
                         pi = cate_dist.sample()
-                        log_prob = cate_dist.log_prob(pi)                   
+                        log_prob = cate_dist.log_prob(pi)
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_prob - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1
+            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -249,4 +249,4 @@ class SAC(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1
+            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2

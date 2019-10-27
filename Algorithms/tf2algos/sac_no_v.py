@@ -200,7 +200,7 @@ class SAC_NO_V(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1
+            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -262,4 +262,4 @@ class SAC_NO_V(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1
+            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2

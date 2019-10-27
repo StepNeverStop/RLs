@@ -168,7 +168,7 @@ class TD3(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, td_error1
+            return actor_loss, critic_loss, td_error1 + td_error2 / 2
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -214,4 +214,4 @@ class TD3(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, td_error1
+            return actor_loss, critic_loss, td_error1 + td_error2 / 2

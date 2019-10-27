@@ -166,4 +166,4 @@ class MAXSQN(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return loss, q1_entropy, td_error1
+            return loss, q1_entropy, td_error1 + td_error2 / 2
