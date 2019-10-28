@@ -35,62 +35,64 @@ Example:
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
-import _thread
 from Algorithms import algos
 from docopt import docopt
 from config import train_config
 from utils.replay_buffer import ExperienceReplay
 from utils.sth import sth
 
-if sys.platform.startswith('win'):
-    import win32api
-    import win32con
-
-
-def _win_handler(event, hook_sigint=_thread.interrupt_main):
-    if event == 0:
-        hook_sigint()
-        return 1
-    return 0
-
 
 def run():
     if sys.platform.startswith('win'):
+        import win32api
+        import win32con
+        import _thread
+
+        def _win_handler(event, hook_sigint=_thread.interrupt_main):
+            if event == 0:
+                hook_sigint()
+                return 1
+            return 0
         # Add the _win_handler function to the windows console's handler function list
         win32api.SetConsoleCtrlHandler(_win_handler, 1)
 
     options = docopt(__doc__)
     print(options)
 
-    max_step = int(options['--max-step']) if options['--max-step'] != 'None' else train_config['max_step']
-    max_episode = int(options['--max-episode']) if options['--max-episode'] != 'None' else train_config['max_episode']
+    max_step = train_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
+    max_episode = train_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
+    share_args, unity_args, gym_args = train_config['share'], train_config['unity'], train_config['gym']
 
     # gym > unity > unity_env
     run_params = {
+        'share_args': share_args,
         'options': options,
         'max_step': max_step,
         'max_episode': max_episode,
         'save_frequency': save_frequency,
         'name': name
     }
-    gym_run(**run_params) if options['--gym'] else unity_run(**run_params)
+    gym_run(default_args=gym_args, **run_params) if options['--gym'] else unity_run(default_args=unity_args, **run_params)
 
 
-def unity_run(options, max_step, max_episode, save_frequency, name):
+def unity_run(default_args, share_args, options, max_step, max_episode, save_frequency, name):
     from mlagents.envs import UnityEnvironment
     from utils.sampler import create_sampler_manager
-    reset_config = train_config['reset_config']
-    if options['--env'] != 'None':
-        file_name = options['--env']
-    else:
-        file_name = train_config['exe_file']
 
+    try:
+        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
+        ma = options['--algorithm'][:3] == 'ma_'
+    except KeyError:
+        raise NotImplementedError
+
+    reset_config = default_args['reset_config']
     if options['--unity']:
-        file_name = None
-
-    if file_name != None:
+        env = UnityEnvironment()
+        env_name = 'unity'
+    else:
+        file_name = default_args['exe_file'] if options['--env'] == 'None' else options['--env']
         if os.path.exists(file_name):
             env = UnityEnvironment(
                 file_name=file_name,
@@ -108,15 +110,7 @@ def unity_run(options, max_step, max_episode, save_frequency, name):
                 from env_loop import Loop
         else:
             raise Exception('can not find this file.')
-    else:
-        env = UnityEnvironment()
-        env_name = 'unity'
-
-    try:
-        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
-        ma = options['--algorithm'][:3] == 'ma_'
-    except KeyError:
-        raise Exception("Don't have this algorithm.")
+    sampler_manager, resampling_interval = create_sampler_manager(options['--sampler'], env.reset_parameters)
 
     if 'Loop' not in locals().keys():
         if ma:
@@ -124,13 +118,9 @@ def unity_run(options, max_step, max_episode, save_frequency, name):
         else:
             from loop import Loop
 
-    sampler_manager, resampling_interval = create_sampler_manager(
-        options['--sampler'], env.reset_parameters
-    )
-
     if options['--config-file'] != 'None':
         algorithm_config = update_config(algorithm_config, options['--config-file'])
-    _base_dir = os.path.join(train_config['base_dir'], env_name, options['--algorithm'])
+    _base_dir = os.path.join(share_args['base_dir'], env_name, options['--algorithm'])
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
 
@@ -155,13 +145,13 @@ def unity_run(options, max_step, max_episode, save_frequency, name):
         'action_type': brains[i].vector_action_space_type,
         'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, i),
-        'logger2file': train_config['logger2file'],
-        'out_graph': train_config['out_graph'],
+        'logger2file': share_args['logger2file'],
+        'out_graph': share_args['out_graph'],
     } for i in brain_names]
 
     if ma:
         assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
-        data = ExperienceReplay(train_config['ma_batch_size'], train_config['ma_capacity'])
+        data = ExperienceReplay(share_args['ma']['batch_size'], share_args['ma']['capacity'])
         extra_params = {'data': data}
         models = [model(
             n=brain_num,
@@ -197,7 +187,7 @@ def unity_run(options, max_step, max_episode, save_frequency, name):
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
-        steps = train_config['unity_no_op_steps']
+        steps = default_args['no_op_steps']
     no_op_params = {
         'env': env,
         'brain_names': brain_names,
@@ -228,42 +218,36 @@ def unity_run(options, max_step, max_episode, save_frequency, name):
                 sys.exit()
 
 
-def gym_run(options, max_step, max_episode, save_frequency, name):
+def gym_run(default_args, share_args, options, max_step, max_episode, save_frequency, name):
     from gym_loop import Loop
     from gym.spaces import Box, Discrete, Tuple
     from gym_wrapper import gym_envs
 
-    available_type = [Box, Discrete]
+    try:
+        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
+    except KeyError:
+        raise NotImplementedError
 
-    render = train_config['gym_render']
-    render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else train_config['gym_render_episode']
+    available_type = [Box, Discrete]
+    render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
         env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
-        print('obs: ', env.observation_space)
-        print('a: ', env.action_space)
         assert type(env.observation_space) in available_type and type(env.action_space) in available_type, 'action_space and observation_space must be one of available_type'
     except Exception as e:
         print(e)
 
-    try:
-        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
-    except KeyError:
-        raise Exception("Don't have this algorithm.")
-
     if options['--config-file'] != 'None':
         algorithm_config = update_config(algorithm_config, options['--config-file'])
-    _base_dir = os.path.join(train_config['base_dir'], options['--gym-env'], options['--algorithm'])
+    _base_dir = os.path.join(share_args['base_dir'], options['--gym-env'], options['--algorithm'])
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
 
     if type(env.observation_space) == Box:
-        if len(env.observation_space.shape) == 1:
-            s_dim = env.observation_space.shape[0]
-        else:
-            s_dim = 0
+        s_dim = env.observation_space.shape[0] if len(env.observation_space.shape) == 1 else 0
     else:
         s_dim = int(env.observation_space.n)
+
     if len(env.observation_space.shape) == 3:
         visual_sources = 1
         visual_resolution = list(env.observation_space.shape)
@@ -291,8 +275,8 @@ def gym_run(options, max_step, max_episode, save_frequency, name):
         action_type=action_type,
         max_episode=max_episode,
         base_dir=base_dir,
-        logger2file=train_config['logger2file'],
-        out_graph=train_config['out_graph'],
+        logger2file=share_args['logger2file'],
+        out_graph=share_args['out_graph'],
         **algorithm_config
     )
     gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
@@ -305,16 +289,16 @@ def gym_run(options, max_step, max_episode, save_frequency, name):
         'save_frequency': save_frequency,
         'max_step': max_step,
         'max_episode': max_episode,
-        'eval_while_train': False,  # whether to eval while training.
-        'max_eval_episode': 100,
-        'render': render,
+        'eval_while_train': share_args['eval_while_train'],  # whether to eval while training.
+        'max_eval_episode': share_args['max_eval_episode'],
+        'render': default_args['render'],
         'render_episode': render_episode,
         'train_mode': train_mode
     }
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
     else:
-        steps = train_config['gym_random_steps']
+        steps = default_args['random_steps']
     if options['--inference']:
         Loop.inference(env, gym_model, action_type)
     else:

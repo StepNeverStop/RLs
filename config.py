@@ -14,7 +14,7 @@ finally:
 
 unity_file = {
     '3DBall': {
-        'simple500' : r'C:\UnityBuild\Ball\simple500\train.exe',
+        'simple500': r'C:\UnityBuild\Ball\simple500\train.exe',
         'hard1': r'C:\UnityBuild\Ball\hard1\hard1.exe',
         'hard3': r'C:\UnityBuild\Ball\hard3\hard3.exe'
     },
@@ -32,23 +32,32 @@ unity_file = {
 }
 
 train_config = {
-    'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
-    'exe_file': unity_file['3DBall']['simple500'],
-    'logger2file': False,
-    'out_graph': True,
-    'reset_config': {
-    #    'copy': 10
-    },
+    'name': time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
     'save_frequency': 20,
     'max_step': 10000,
     'max_episode': 5000,
-    'name': time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
-    'unity_no_op_steps': 100,
-    'gym_random_steps': 10000,
+    'share': {
+        'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
+        'logger2file': False,
+        'out_graph': False,
+        'ma': {
+            'batch_size': 10,
+            'capacity': 1000
+        }
+    },
+    'unity': {
+        'no_op_steps': 100,
+        'exe_file': unity_file['3DBall']['simple500'],
+        'reset_config': {
+            #    'copy': 10
+        },
+    },
+    'gym': {
+        'random_steps': 10000,
+        'render': False,
+        'render_episode': 50000,
+        'eval_while_train': False,
+        'max_eval_episode': 100,
+    },
 
-    'gym_render': False,
-    'gym_render_episode': 50000,
-
-    'ma_batch_size': 10,
-    'ma_capacity': 1000
 }
