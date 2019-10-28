@@ -22,7 +22,7 @@ def get_visual_input(n, cameras, brain_obs):
 class Loop(object):
 
     @staticmethod
-    def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, train_mode, sampler_manager, resampling_interval):
+    def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
         """
         Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
         Inputs:
@@ -31,7 +31,6 @@ class Loop(object):
             save_frequency:         how often to save checkpoints.
             reset_config:           configuration to reset for Unity environment.
             max_step:               maximum number of steps for an episode.
-            train_mode:             train or inference.
             sampler_manager:        sampler configuration parameters for 'reset_config'.
             resampling_interval:    how often to resample parameters for env reset.
         Variables:
@@ -82,26 +81,17 @@ class Loop(object):
                         done=np.array(obs[brain_name].local_done)
                     )
                     rewards[i] += np.array(obs[brain_name].rewards)
-
-                if train_mode == 'perStep':
-                    for i in range(brains_num):
-                        models[i].learn(episode)
-
                 if all([all(dones_flag[i]) for i in range(brains_num)]) or step >= max_step:
                     break
 
-            if train_mode == 'perEpisode':
-                for i in range(brains_num):
-                    models[i].learn(episode)
-
-            print(f'episode {episode:3d} step {step:4d}')
             for i in range(brains_num):
+                models[i].learn(episode=episode, step=step)
                 models[i].writer_summary(
                     episode,
                     total_reward=rewards[i].mean(),
                     step=step
                 )
-            
+            print(f'episode {episode:3d} step {step:4d}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)

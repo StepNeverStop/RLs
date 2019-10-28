@@ -101,24 +101,25 @@ class DDPG(Policy):
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def learn(self, episode):
-        self.episode = episode
-        if self.data.is_lg_batch_size:
-            s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            if self.use_priority:
-                self.IS_w = self.data.get_IS_w()
-            actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
-            if self.use_priority:
-                self.data.update(td_error, episode)
-            self.update_target_net_weights(
-                self.actor_target_net.weights + self.q_target_net.weights,
-                self.actor_net.weights + self.q_net.weights,
-                self.ployak)
-            tf.summary.experimental.set_step(self.global_step)
-            tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(actor_loss))
-            tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(q_loss))
-            tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
-            self.recorder.writer.flush()
+    def learn(self, **kwargs):
+        self.episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            if self.data.is_lg_batch_size:
+                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                if self.use_priority:
+                    self.IS_w = self.data.get_IS_w()
+                actor_loss, q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                if self.use_priority:
+                    self.data.update(td_error, self.episode)
+                self.update_target_net_weights(
+                    self.actor_target_net.weights + self.q_target_net.weights,
+                    self.actor_net.weights + self.q_net.weights,
+                    self.ployak)
+                tf.summary.experimental.set_step(self.global_step)
+                tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(actor_loss))
+                tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(q_loss))
+                tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
+                self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

@@ -114,19 +114,21 @@ class DDDQN(Policy):
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def learn(self, episode):
-        s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-        _a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        summaries, _ = self.sess.run([self.summaries, self.train_q], feed_dict={
-            self.pl_visual_s: visual_s,
-            self.pl_s: s,
-            self.pl_a: _a,
-            self.pl_r: r,
-            self.pl_visual_s_: visual_s_,
-            self.pl_s_: s_,
-            self.pl_done: done,
-            self.episode: episode
-        })
-        if self.sess.run(self.global_step) % self.assign_interval == 0:
-            self.sess.run(self.assign_target)
-        self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
+    def learn(self, **kwargs):
+        episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+            _a = sth.action_index2one_hot(a, self.a_dim_or_list)
+            summaries, _ = self.sess.run([self.summaries, self.train_q], feed_dict={
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
+                self.pl_a: _a,
+                self.pl_r: r,
+                self.pl_visual_s_: visual_s_,
+                self.pl_s_: s_,
+                self.pl_done: done,
+                self.episode: episode
+            })
+            if self.sess.run(self.global_step) % self.assign_interval == 0:
+                self.sess.run(self.assign_target)
+            self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))

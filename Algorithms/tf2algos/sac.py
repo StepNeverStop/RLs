@@ -102,23 +102,24 @@ class SAC(Policy):
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def learn(self, episode):
-        self.episode = episode
-        if self.data.is_lg_batch_size:
-            s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            if self.use_priority:
-                self.IS_w = self.data.get_IS_w()
-            actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
-            if self.use_priority:
-                self.data.update(td_error, episode)
-            self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
-            tf.summary.experimental.set_step(self.global_step)
-            tf.summary.scalar('LOSS/actor_loss', actor_loss)
-            tf.summary.scalar('LOSS/critic_loss', critic_loss)
-            tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
-            tf.summary.scalar('LOSS/entropy', entropy)
-            tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
-            self.recorder.writer.flush()
+    def learn(self, **kwargs):
+        self.episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            if self.data.is_lg_batch_size:
+                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                if self.use_priority:
+                    self.IS_w = self.data.get_IS_w()
+                actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                if self.use_priority:
+                    self.data.update(td_error, self.episode)
+                self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
+                tf.summary.experimental.set_step(self.global_step)
+                tf.summary.scalar('LOSS/actor_loss', actor_loss)
+                tf.summary.scalar('LOSS/critic_loss', critic_loss)
+                tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
+                tf.summary.scalar('LOSS/entropy', entropy)
+                tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
+                self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

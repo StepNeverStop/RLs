@@ -105,14 +105,15 @@ class A2C(Policy):
         dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
-    def learn(self, episode):
+    def learn(self, **kwargs):
+        self.episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.sample_count):
             s, visual_s, a, dc_r = self.get_sample_data()
             for _ in range(self.epoch):
                 actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
-        tf.summary.experimental.set_step(episode)
+        tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)

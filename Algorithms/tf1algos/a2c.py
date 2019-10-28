@@ -138,7 +138,8 @@ class A2C(Policy):
         dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
         return s, visual_s, a, dc_r
 
-    def learn(self, episode):
+    def learn(self, **kwargs):
+        episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, visual_s, a, dc_r = self.get_sample_data()

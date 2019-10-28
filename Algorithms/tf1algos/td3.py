@@ -127,26 +127,28 @@ class TD3(Policy):
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def learn(self, episode):
-        s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-        self.sess.run(self.train_value, feed_dict={
-            self.pl_visual_s: visual_s,
-            self.pl_s: s,
-            self.pl_a: a,
-            self.pl_r: r,
-            self.pl_visual_s_: visual_s_,
-            self.pl_s_: s_,
-            self.pl_done: done,
-            self.episode: episode
-        })
-        summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
-            self.pl_visual_s: visual_s,
-            self.pl_s: s,
-            self.pl_a: a,
-            self.pl_r: r,
-            self.pl_visual_s_: visual_s_,
-            self.pl_s_: s_,
-            self.pl_done: done,
-            self.episode: episode
-        })
-        self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))
+    def learn(self, **kwargs):
+        episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+            self.sess.run(self.train_value, feed_dict={
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
+                self.pl_a: a,
+                self.pl_r: r,
+                self.pl_visual_s_: visual_s_,
+                self.pl_s_: s_,
+                self.pl_done: done,
+                self.episode: episode
+            })
+            summaries, _ = self.sess.run([self.summaries, self.train_sequence], feed_dict={
+                self.pl_visual_s: visual_s,
+                self.pl_s: s,
+                self.pl_a: a,
+                self.pl_r: r,
+                self.pl_visual_s_: visual_s_,
+                self.pl_s_: s_,
+                self.pl_done: done,
+                self.episode: episode
+            })
+            self.recorder.writer.add_summary(summaries, self.sess.run(self.global_step))

@@ -82,7 +82,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from utils.sampler import create_sampler_manager
 
     try:
-        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
+        algorithm_config, model, policy_mode, _ = algos[options['--algorithm']]
         ma = options['--algorithm'][:3] == 'ma_'
     except KeyError:
         raise NotImplementedError
@@ -180,7 +180,6 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'reset_config': reset_config,
         'max_step': max_step,
         'max_episode': max_episode,
-        'train_mode': train_mode,
         'sampler_manager': sampler_manager,
         'resampling_interval': resampling_interval
     }
@@ -224,7 +223,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     from gym_wrapper import gym_envs
 
     try:
-        algorithm_config, model, policy_mode, train_mode = algos[options['--algorithm']]
+        algorithm_config, model, policy_mode, _ = algos[options['--algorithm']]
     except KeyError:
         raise NotImplementedError
 
@@ -292,8 +291,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         'eval_while_train': share_args['eval_while_train'],  # whether to eval while training.
         'max_eval_episode': share_args['max_eval_episode'],
         'render': default_args['render'],
-        'render_episode': render_episode,
-        'train_mode': train_mode
+        'render_episode': render_episode
     }
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']

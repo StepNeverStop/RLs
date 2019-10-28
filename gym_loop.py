@@ -52,7 +52,7 @@ def init_variables(env, action_type):
 class Loop(object):
 
     @staticmethod
-    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, eval_while_train, max_eval_episode, render, render_episode, train_mode):
+    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, eval_while_train, max_eval_episode, render, render_episode):
         """
         Inputs:
             env:                gym environment
@@ -64,7 +64,6 @@ class Loop(object):
             max_episode:        maximum number of episodes in this training task
             render:             specify whether render the env or not
             render_episode:     if 'render' is false, specify from which episode to render the env
-            train_mode:         perStep or perEpisode
         """
         i, mu, sigma, state, new_state = init_variables(env, action_type)
         for episode in range(begin_episode, max_episode):
@@ -94,10 +93,6 @@ class Loop(object):
                     visual_s_=new_state[1],
                     done=done
                 )
-
-                if train_mode == 'perStep':
-                    gym_model.learn(episode)
-
                 if all(dones_flag) or step_max_of_all >= max_step:
                     break
                 
@@ -106,15 +101,13 @@ class Loop(object):
                     new_state[i][env.dones_index] = new_episode_states
                 state[i] = new_state[i]
 
-            if train_mode == 'perEpisode':
-                gym_model.learn(episode)
-
-            print(f'Episode: {episode:3d} step_max_of_all: {step_max_of_all:4d} rewards: {r}')
+            gym_model.learn(episode)
             gym_model.writer_summary(
                 episode,
                 total_reward=r.mean(),
                 step=step_max_of_all
             )
+            print(f'Episode: {episode:3d} step_max_of_all: {step_max_of_all:4d} rewards: {r}')
             if episode % save_frequency == 0:
                 gym_model.save_checkpoint(episode)
 

@@ -92,20 +92,22 @@ class DDQN(Policy):
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
-    def learn(self, episode):
-        if self.data.is_lg_batch_size:
-            s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-            if self.use_priority:
-                self.IS_w = self.data.get_IS_w()
-            q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
-            if self.use_priority:
-                self.data.update(td_error, episode)
-            if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-            tf.summary.experimental.set_step(self.global_step)
-            tf.summary.scalar('LOSS/loss', tf.reduce_mean(q_loss))
-            tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
-            self.recorder.writer.flush()
+    def learn(self, **kwargs):
+        self.episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            if self.data.is_lg_batch_size:
+                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                if self.use_priority:
+                    self.IS_w = self.data.get_IS_w()
+                q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                if self.use_priority:
+                    self.data.update(td_error, self.episode)
+                if self.global_step % self.assign_interval == 0:
+                    self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+                tf.summary.experimental.set_step(self.global_step)
+                tf.summary.scalar('LOSS/loss', tf.reduce_mean(q_loss))
+                tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
+                self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

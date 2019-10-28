@@ -126,19 +126,21 @@ class AC(Policy):
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
             self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob[:, np.newaxis].astype(np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
 
-    def learn(self, episode):
-        s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
-        if self.use_priority:
-            self.IS_w = self.data.get_IS_w()
-        actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
-        if self.use_priority:
-            self.data.update(td_error, episode)
-        tf.summary.experimental.set_step(self.global_step)
-        tf.summary.scalar('LOSS/entropy', entropy)
-        tf.summary.scalar('LOSS/actor_loss', actor_loss)
-        tf.summary.scalar('LOSS/critic_loss', critic_loss)
-        tf.summary.scalar('LEARNING_RATE/lr', self.lr)
-        self.recorder.writer.flush()
+    def learn(self, **kwargs):
+        self.episode = kwargs['episode']
+        for i in range(kwargs['step']):
+            s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
+            if self.use_priority:
+                self.IS_w = self.data.get_IS_w()
+            actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
+            if self.use_priority:
+                self.data.update(td_error, self.episode)
+            tf.summary.experimental.set_step(self.global_step)
+            tf.summary.scalar('LOSS/entropy', entropy)
+            tf.summary.scalar('LOSS/actor_loss', actor_loss)
+            tf.summary.scalar('LOSS/critic_loss', critic_loss)
+            tf.summary.scalar('LEARNING_RATE/lr', self.lr)
+            self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):

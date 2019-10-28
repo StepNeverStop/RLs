@@ -180,7 +180,8 @@ class PPO(Policy):
         advantage = np.vstack(i_data.advantage.values).reshape(-1, 1)
         return s, visual_s, a, dc_r, old_prob, advantage
 
-    def learn(self, episode):
+    def learn(self, **kwargs):
+        episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.epoch):
             s, visual_s, a, dc_r, old_prob, advantage = self.get_sample_data()
