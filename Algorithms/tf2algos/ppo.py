@@ -52,6 +52,11 @@ class PPO(Policy):
         self.critic_epoch = critic_epoch
         self.sample_count = sample_count
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
+        if self.share_net:
+            self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
+        else:
+            self.actor_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
+            self.critic_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [1])
         if self.action_type == 'continuous':
             self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
@@ -194,17 +199,20 @@ class PPO(Policy):
         self.episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.sample_count):
-            s, visual_s, a, dc_r, old_log_prob, advantage = self.get_sample_data()
+            s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
             if self.share_net:
                 for _ in range(self.epoch):
-                    actor_loss, critic_loss, entropy, kl = self.train_share(s, visual_s, a, dc_r, old_log_prob, advantage)
+                    actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
+                        *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)
             else:
                 for _ in range(self.actor_epoch):
-                    actor_loss, entropy, kl = self.train_actor(s, visual_s, a, old_log_prob, advantage)
+                    actor_loss, entropy, kl = self.train_actor.get_concrete_function(
+                        *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
                     # if kl > 1.5 * 0.01:
                     #     break
                 for _ in range(self.critic_epoch):
-                    critic_loss = self.train_critic(s, visual_s, dc_r)
+                    critic_loss = self.train_critic.get_concrete_function(
+                        *self.critic_TensorSpecs)(s, visual_s, dc_r)
         self.global_step.assign_add(1)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)

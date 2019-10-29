@@ -38,6 +38,7 @@ class PG(Policy):
         self.epsilon = epsilon
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.lr = lr
+        self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
             self.net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'pg_net')
         else:
@@ -109,8 +110,9 @@ class PG(Policy):
         self.episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.epoch):
-            s, visual_s, a, dc_r = self.get_sample_data()
-            loss, entropy = self.train(s, visual_s, a, dc_r)
+            s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
+            loss, entropy = self.train.get_concrete_function(
+                        *self.TensorSpecs)(s, visual_s, a, dc_r)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/loss', loss)

@@ -151,3 +151,9 @@ class Policy(Base):
         get the max episode of this training model.
         """
         return self.max_episode
+
+    def get_TensorSpecs(self, *args):
+        """
+        get all inputs' shape in order to fix the problem of retracting in TF2.0
+        """
+        return [tf.TensorSpec(shape=[None] + i, dtype=tf.float32) for i in args]

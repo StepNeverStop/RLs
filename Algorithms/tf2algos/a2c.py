@@ -42,6 +42,7 @@ class A2C(Policy):
         self.sample_count = sample_count
         self.epoch = epoch
         self.sigma_offset = np.full([self.a_counts, ], 0.01)
+        self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         else:
@@ -109,9 +110,10 @@ class A2C(Policy):
         self.episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.sample_count):
-            s, visual_s, a, dc_r = self.get_sample_data()
+            s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
             for _ in range(self.epoch):
-                actor_loss, critic_loss, entropy = self.train(s, visual_s, a, dc_r)
+                actor_loss, critic_loss, entropy = self.train.get_concrete_function(
+                        *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
