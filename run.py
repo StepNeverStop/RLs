@@ -288,8 +288,8 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         'save_frequency': save_frequency,
         'max_step': max_step,
         'max_episode': max_episode,
-        'eval_while_train': share_args['eval_while_train'],  # whether to eval while training.
-        'max_eval_episode': share_args['max_eval_episode'],
+        'eval_while_train': default_args['eval_while_train'],  # whether to eval while training.
+        'max_eval_episode': default_args['max_eval_episode'],
         'render': default_args['render'],
         'render_episode': render_episode
     }

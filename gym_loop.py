@@ -101,7 +101,7 @@ class Loop(object):
                     new_state[i][env.dones_index] = new_episode_states
                 state[i] = new_state[i]
 
-            gym_model.learn(episode)
+            gym_model.learn(episode=episode, step=step_max_of_all)
             gym_model.writer_summary(
                 episode,
                 total_reward=r.mean(),

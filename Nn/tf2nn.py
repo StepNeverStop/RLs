@@ -1,6 +1,7 @@
 import tensorflow as tf
 from .activations import swish, mish
 from tensorflow.keras import Sequential
+from tensorflow.python.framework import tensor_shape
 from tensorflow.keras.layers import Conv3D, Dense, Flatten
 
 activation_fn = tf.keras.activations.tanh
@@ -9,6 +10,47 @@ initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),
     'bias_initializer': tf.constant_initializer(0.1)    # 2.x 不需要指定dtype
 }
+
+
+class Noisy(Dense):
+    def __init__(self, units, activation=None, **kwargs):
+        super().__init__(units, activation=None, **kwargs)
+        self.noise_sigma = 0.4 if 'noise_sigma' not in kwargs.keys() else kwargs['noise_sigma']
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        self.build = False
+        self.last_dim = tensor_shape.dimension_value(input_shape[-1])
+        self.noisy_w = self.add_weight(
+            'noise_kernel',
+            shape=[self.last_dim, self.units],
+            initializer=tf.random_normal_initializer(0.0, .1),
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            dtype=self.dtype,
+            trainable=True)
+        if self.use_bias:
+            self.noisy_b = self.add_weight(
+                'noise_bias',
+                shape=[self.units, ],
+                initializer=tf.constant_initializer(self.noise_sigma / np.sqrt(self.units)),
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                dtype=self.dtype,
+                trainable=True)
+        else:
+            self.bias = None
+        self.build = True
+
+    def noisy_layer(self, inputs):
+        epsilon_w = tf.random.truncated_normal([self.last_dim, self.units], stddev=self.noise_sigma)
+        epsilon_b = tf.random.truncated_normal([self.units, ], stddev=self.noise_sigma)
+        return tf.matmul(inputs, self.noisy_w * epsilon_w) + self.noisy_b * epsilon_b
+
+    def call(self, inputs):
+        y = super().call(inputs)
+        noise = self.noisy_layer(inputs)
+        return y + noise
 
 
 class ImageNet(tf.keras.Model):
