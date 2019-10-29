@@ -114,14 +114,14 @@ class Policy(Base):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(
-            s.astype(np.float32), 
-            visual_s.astype(np.float32), 
-            a.astype(np.float32), 
-            r.astype(np.float32), 
-            s_.astype(np.float32), 
-            visual_s_.astype(np.float32), 
+            s.astype(np.float32),
+            visual_s.astype(np.float32),
+            a.astype(np.float32),
+            r.astype(np.float32),
+            s_.astype(np.float32),
+            visual_s_.astype(np.float32),
             done.astype(np.float32)
-            )
+        )
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
@@ -131,14 +131,14 @@ class Policy(Base):
             if not self.action_type == 'continuous':
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
             self.data.add(
-                s.astype(np.float32), 
-                visual_s.astype(np.float32), 
-                a.astype(np.float32), 
-                r[:, np.newaxis].astype(np.float32), 
-                s_.astype(np.float32), 
-                visual_s_.astype(np.float32), 
+                s.astype(np.float32),
+                visual_s.astype(np.float32),
+                a.astype(np.float32),
+                r[:, np.newaxis].astype(np.float32),
+                s_.astype(np.float32),
+                visual_s_.astype(np.float32),
                 done[:, np.newaxis].astype(np.float32)
-                )
+            )
 
     def clear(self):
         """
@@ -157,3 +157,48 @@ class Policy(Base):
         get all inputs' shape in order to fix the problem of retracting in TF2.0
         """
         return [tf.TensorSpec(shape=[None] + i, dtype=tf.float32) for i in args]
+
+    @staticmethod
+    def clip_nn_log_std(log_std, _min=-20, _max=2):
+        return _min + 0.5 * (_max - _min) * (log_std + 1)
+
+    @staticmethod
+    def gaussian_reparam_sample(mu, log_std):
+        std = tf.exp(log_std)
+        pi = mu + tf.random.normal(mu.shape) * std
+        log_pi = Policy.gaussian_likelihood(pi, mu, log_std)
+        return pi, log_pi
+
+    @staticmethod
+    def gaussian_likelihood(x, mu, log_std):
+        pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + np.log(2 * np.pi))
+        return tf.reduce_sum(pre_sum, axis=1, keepdims=True)
+
+    @staticmethod
+    def squash_action(pi, log_pi=None):
+        pi = tf.tanh(pi)
+        if log_pi is not None:
+            sub = tf.reduce_sum(tf.math.log(Policy.clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-6), axis=1, keepdims=True)
+            log_pi -= sub
+        return pi, log_pi
+
+    @staticmethod
+    def unsquash_action(mu, pi, log_std):
+        _pi = tf.atanh(pi)
+        log_pi = Policy.gaussian_likelihood(_pi, mu, log_std)
+        sub = tf.reduce_sum(tf.math.log(Policy.clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-6), axis=1, keepdims=True)
+        log_pi -= sub
+        return log_pi
+
+    @staticmethod
+    def clip_but_pass_gradient(x, l=-1., h=1.):
+        """
+        Stole this function from SpinningUp
+        """
+        clip_up = tf.cast(x > h, tf.float32)
+        clip_low = tf.cast(x < l, tf.float32)
+        return x + tf.stop_gradient((h - x) * clip_up + (l - x) * clip_low)
+
+    @staticmethod
+    def gaussian_entropy(log_std):
+        return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2)))

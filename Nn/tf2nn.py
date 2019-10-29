@@ -280,11 +280,7 @@ class a_c_v_continuous(ImageNet):
         self.actor = Dense(64, activation_fn)
         self.mu = Sequential([
             Dense(64, activation_fn),
-            Dense(output_shape, tf.keras.activations.tanh)
-        ])
-        self.sigma = Sequential([
-            Dense(64, activation_fn),
-            Dense(output_shape, tf.keras.activations.sigmoid)
+            Dense(output_shape, None)
         ])
         self.value = Sequential([
             Dense(64, activation_fn),
@@ -298,5 +294,4 @@ class a_c_v_continuous(ImageNet):
         value = self.value(features)
         features_actor = self.actor(features)
         mu = self.mu(features_actor)
-        sigma = self.sigma(features_actor)
-        return mu, sigma, value
+        return mu, value
