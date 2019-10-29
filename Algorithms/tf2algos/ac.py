@@ -42,14 +42,14 @@ class AC(Policy):
             n_step=n_step)
         self.lr = lr
         self.epsilon = epsilon
-        self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic_net')
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -84,9 +84,8 @@ class AC(Policy):
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu, sigma = self.actor_net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                mu = self.actor_net(vector_input, visual_input)
+                sample_op, _ = self.squash_action(*self.gaussian_reparam_sample(mu, self.log_std))
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -107,9 +106,8 @@ class AC(Policy):
         a = tf.cast(a, tf.float32)
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu, sigma = self.actor_net(s, visual_s)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                log_prob = tf.reduce_mean(norm_dist.log_prob(a), axis=1, keepdims=True)
+                mu = self.actor_net(s, visual_s)
+                log_prob = self.unsquash_action(mu, a, self.log_std)
             else:
                 logits = self.actor_net(s, visual_s)
                 logp_all = tf.nn.log_softmax(logits)
@@ -147,7 +145,7 @@ class AC(Policy):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
-                    next_mu, _ = self.actor_net(s_, visual_s_)
+                    next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                 else:
                     logits = self.actor_net(s_, visual_s_)
@@ -163,10 +161,9 @@ class AC(Policy):
             )
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    log_prob = norm_dist.log_prob(a)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    mu = self.actor_net(s, visual_s)
+                    log_prob = self.unsquash_action(mu, a, self.log_std)
+                    entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -176,9 +173,9 @@ class AC(Policy):
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
             )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error
@@ -188,12 +185,11 @@ class AC(Policy):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':
-                    next_mu, _ = self.actor_net(s_, visual_s_)
+                    next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                     mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    log_prob = norm_dist.log_prob(a)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    log_prob = self.unsquash_action(mu, a, self.log_std)
+                    entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s_, visual_s_)
                     max_a = tf.argmax(logits, axis=1)
@@ -213,9 +209,9 @@ class AC(Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
             )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error

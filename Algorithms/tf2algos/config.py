@@ -101,6 +101,7 @@ td3_config = {
 sac_config = {
     'alpha': 0.2,
     'auto_adaption': True,
+    'log_std_bound': [-20, 2],
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
@@ -113,6 +114,7 @@ sac_config = {
 sac_no_v_config = {
     'alpha': 0.2,
     'auto_adaption': True,
+    'log_std_bound': [-20, 2],
     'lr': 5.0e-4,
     'gamma': 0.99,
     'ployak': 0.995,

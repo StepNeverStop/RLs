@@ -51,28 +51,24 @@ class PPO(Policy):
         self.actor_epoch = actor_epoch
         self.critic_epoch = critic_epoch
         self.sample_count = sample_count
-        self.sigma_offset = np.full([self.a_counts, ], 0.01)
         if self.share_net:
             self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
             if self.action_type == 'continuous':
                 self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
-                self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
             else:
                 self.net = Nn.a_c_v_discrete(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
-                self.log_std = []
             self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         else:
             self.actor_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
             self.critic_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.action_type == 'continuous':
-                self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-                self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+                self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
             else:
                 self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-                self.log_std = []
             self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net')
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=actor_lr)
-            self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=critic_lr)
+            self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=critic_lr)  
+        self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -211,8 +207,7 @@ class PPO(Policy):
                 for _ in range(self.critic_epoch):
                     critic_loss = self.train_critic.get_concrete_function(
                         *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        if self.action_type == 'continuous':
-            self.log_std = self.clip_nn_log_std(self.log_std)
+        print(self.log_std)
         self.global_step.assign_add(1)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
@@ -272,9 +267,9 @@ class PPO(Policy):
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
                 actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
             )
             return actor_loss, entropy, kl
 

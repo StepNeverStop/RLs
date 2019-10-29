@@ -41,15 +41,15 @@ class A2C(Policy):
         self.epsilon = epsilon
         self.sample_count = sample_count
         self.epoch = epoch
-        self.sigma_offset = np.full([self.a_counts, ], 0.01)
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
         self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net')
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -81,9 +81,8 @@ class A2C(Policy):
     def _get_action(self, vector_input, visual_input):
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu, sigma = self.actor_net(vector_input, visual_input)
-                norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                sample_op = tf.clip_by_value(norm_dist.sample(), -1, 1)
+                mu = self.actor_net(vector_input, visual_input)
+                sample_op, _ = self.squash_action(*self.gaussian_reparam_sample(mu, self.log_std))
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -136,10 +135,9 @@ class A2C(Policy):
             )
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    log_act_prob = norm_dist.log_prob(a)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    mu = self.actor_net(s, visual_s)
+                    log_act_prob = self.unsquash_action(mu, a, self.log_std)
+                    entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -148,9 +146,9 @@ class A2C(Policy):
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
             )
             return actor_loss, critic_loss, entropy
 
@@ -159,10 +157,9 @@ class A2C(Policy):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':
-                    mu, sigma = self.actor_net(s, visual_s)
-                    norm_dist = tfp.distributions.Normal(loc=mu, scale=sigma + self.sigma_offset)
-                    log_act_prob = norm_dist.log_prob(a)
-                    entropy = tf.reduce_mean(norm_dist.entropy())
+                    mu = self.actor_net(s, visual_s)
+                    log_act_prob = self.unsquash_action(mu, a, self.log_std)
+                    entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -177,8 +174,8 @@ class A2C(Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
             )
             return actor_loss, critic_loss, entropy

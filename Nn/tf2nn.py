@@ -100,7 +100,7 @@ class actor_continuous(ImageNet):
     '''
     use for continuous action space.
     input: vector of state
-    output: mean(mu) and variance(sigma) of Gaussian Distribution of actions given a state
+    output: mean(mu) and log_variance(log_std) of Gaussian Distribution of actions given a state
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name):
@@ -111,19 +111,19 @@ class actor_continuous(ImageNet):
         ])
         self.mu = Sequential([
             Dense(32, activation_fn),
-            Dense(output_shape, tf.keras.activations.tanh)
+            Dense(output_shape, None)
         ])
-        self.sigma = Sequential([
+        self.log_std = Sequential([
             Dense(32, activation_fn),
-            Dense(output_shape, tf.keras.activations.sigmoid)
+            Dense(output_shape, tf.keras.activations.tanh)
         ])
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
         mu = self.mu(features)
-        sigma = self.sigma(features)
-        return mu, sigma
+        log_std = self.log_std(features)
+        return mu, log_std
 
 
 class actor_dpg(ImageNet):
@@ -146,6 +146,25 @@ class actor_dpg(ImageNet):
         mu = self.net(super().call(vector_input, visual_input))
         return mu
 
+class actor_mu(ImageNet):
+    '''
+    use for PPO/PG algorithms' actor network.
+    input: vector of state
+    output: stochastic action(mu), normally is the mean of a Normal distribution
+    '''
+
+    def __init__(self, vector_dim, visual_dim, output_shape, name):
+        super().__init__(name=name)
+        self.net = Sequential([
+            Dense(64, activation_fn),
+            Dense(64, activation_fn),
+            Dense(output_shape, tf.keras.activations.tanh)
+        ])
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+
+    def call(self, vector_input, visual_input):
+        mu = self.net(super().call(vector_input, visual_input))
+        return mu
 
 class critic_q_one(ImageNet):
     '''
@@ -277,8 +296,8 @@ class a_c_v_continuous(ImageNet):
             Dense(128, activation_fn),
             Dense(128, activation_fn)
         ])
-        self.actor = Dense(64, activation_fn)
         self.mu = Sequential([
+            Dense(64, activation_fn),
             Dense(64, activation_fn),
             Dense(output_shape, None)
         ])
@@ -292,6 +311,5 @@ class a_c_v_continuous(ImageNet):
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
         value = self.value(features)
-        features_actor = self.actor(features)
-        mu = self.mu(features_actor)
+        mu = self.mu(features)
         return mu, value
