@@ -150,6 +150,7 @@ td3_config = {
         'actor_discrete': [64, 64],
         'q': [64, 64]
     },
+    'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
     'n_step': False
