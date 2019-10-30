@@ -46,8 +46,8 @@ class DQN(Policy):
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
         self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)(self.episode)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -102,8 +102,8 @@ class DQN(Policy):
                 if self.global_step % self.assign_interval == 0:
                     self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/loss', tf.reduce_mean(q_loss))
-                tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
+                tf.summary.scalar('LOSS/loss', q_loss)
+                tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
                 self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)

@@ -72,12 +72,12 @@ class SAC_NO_V(Policy):
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
         )
-        self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
-        self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
-        self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
-        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr)
+        self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
+        self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
+        self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
+        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -140,9 +140,9 @@ class SAC_NO_V(Policy):
                 tf.summary.scalar('LOSS/critic_loss', critic_loss)
                 tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
                 tf.summary.scalar('LOSS/entropy', entropy)
-                tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr)
-                tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr)
-                tf.summary.scalar('LEARNING_RATE/alpha_lr', self.alpha_lr)
+                tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
+                tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
+                tf.summary.scalar('LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode))
                 self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)

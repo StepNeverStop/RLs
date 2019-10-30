@@ -45,8 +45,8 @@ class PG(Policy):
             self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
         else:
             self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'])
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)(self.episode)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
@@ -116,12 +116,10 @@ class PG(Policy):
             s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
             loss, entropy = self.train.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r)
-        tf.summary.experimental.set_step
+        tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/loss', loss)
-        tf.summary.scalar('LEARNING_RATE/lr', self.lr)
-        tf.summary.scalar('REWARD/discounted_reward', self.data.discounted_reward.values[0].mean())
-        tf.summary.scalar('REWARD/total_reward', self.data.total_reward.values[0].mean())
+        tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
         self.recorder.writer.flush()
         self.clear()
 

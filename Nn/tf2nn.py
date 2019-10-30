@@ -12,6 +12,21 @@ initKernelAndBias = {
 }
 
 
+class mlp(Sequential):
+    def __init__(self, hidden_units, output_shape=1, out_activation=None, out_layer=True):
+        """
+        inputs:
+            hidden_units: like [32, 32]
+            output_shape: units of last layer
+            out_activation: activation function of last layer
+            out_layer: whether need specifing last layer or not
+        """
+        super().__init__()
+        [self.add(Dense(u, activation_fn)) for u in hidden_units]
+        if out_layer:
+            self.add(Dense(output_shape, out_activation))
+
+
 class Noisy(Dense):
     def __init__(self, units, activation=None, **kwargs):
         super().__init__(units, activation=None, **kwargs)
@@ -54,13 +69,14 @@ class Noisy(Dense):
 
 
 class ImageNet(tf.keras.Model):
-    def __init__(self, name):
+    def __init__(self, name, visual_dim=[]):
         super().__init__(name=name)
-        self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
-        self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
-        self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
-        self.flatten = Flatten()
-        self.fc = Dense(128, activation_fn)
+        if len(visual_dim) == 5:
+            self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
+            self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
+            self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
+            self.flatten = Flatten()
+            self.fc = Dense(128, activation_fn)
 
     def call(self, vector_input, visual_input):
         if visual_input is None or len(visual_input.shape) != 5:
@@ -74,20 +90,6 @@ class ImageNet(tf.keras.Model):
             vector_input = tf.concat((features, vector_input), axis=-1)
         return vector_input
 
-class mlp(Sequential):
-    def __init__(self, hidden_units, output_shape=1, out_activation=None, out_layer=True):
-        """
-        inputs:
-            hidden_units: like [32, 32]
-            output_shape: units of last layer
-            out_activation: activation function of last layer
-            out_layer: whether need specifing last layer or not
-        """
-        super().__init__()
-        [self.add(Dense(u, activation_fn)) for u in hidden_units]
-        if out_layer:
-            self.add(Dense(output_shape, out_activation))
-
 
 class actor_dpg(ImageNet):
     '''
@@ -97,7 +99,7 @@ class actor_dpg(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation=tf.keras.activations.tanh)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -114,7 +116,7 @@ class actor_mu(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -131,7 +133,7 @@ class actor_continuous(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
         self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation=tf.keras.activations.tanh)
@@ -152,7 +154,7 @@ class actor_discrete(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.logits = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -169,7 +171,7 @@ class critic_q_one(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
 
@@ -187,7 +189,7 @@ class critic_v(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -204,7 +206,7 @@ class critic_q_all(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
@@ -215,7 +217,7 @@ class critic_q_all(ImageNet):
 
 class critic_dueling(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self.adv = mlp(hidden_units['adv'], output_shape=output_shape, out_activation=None)
@@ -236,7 +238,7 @@ class a_c_v_continuous(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
@@ -257,7 +259,7 @@ class a_c_v_discrete(ImageNet):
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name)
+        super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.logits = mlp(hidden_units['logits'], output_shape=output_shape, out_activation=None)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
