@@ -35,7 +35,7 @@ Example:
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
-from Algorithms import algos
+from Algorithms.register import get_model_info
 from docopt import docopt
 from config import train_config
 from utils.replay_buffer import ExperienceReplay
@@ -82,7 +82,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from utils.sampler import create_sampler_manager
 
     try:
-        algorithm_config, model, policy_mode, _ = algos[options['--algorithm']]
+        algorithm_config, model, policy_mode, _ = get_model_info(options['--algorithm'])
         ma = options['--algorithm'][:3] == 'ma_'
     except KeyError:
         raise NotImplementedError
@@ -223,7 +223,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     from gym_wrapper import gym_envs
 
     try:
-        algorithm_config, model, policy_mode, _ = algos[options['--algorithm']]
+        algorithm_config, model, policy_mode, _ = get_model_info(options['--algorithm'])
     except KeyError:
         raise NotImplementedError
 

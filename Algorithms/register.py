@@ -45,3 +45,9 @@ finally:
             'ma_ddpg': [ma_ddpg_config, MADDPG, 'off-policy', 'perStep'],
             'ma_td3': [ma_td3_config, MATD3, 'off-policy', 'perStep'],
         }
+
+def get_model_info(name):
+    if name not in algos.keys():
+        raise NotImplementedError
+    else:
+        return algos[name]
