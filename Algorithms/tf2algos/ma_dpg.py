@@ -18,6 +18,10 @@ class MADPG(Base):
                  max_episode=50000,
                  n=1,
                  i=0,
+                 hidden_units={
+                     'actor': [32, 32],
+                     'q': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous', 'madpg only support continuous action space'
@@ -32,8 +36,8 @@ class MADPG(Base):
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net')
-        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net')
+        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net', hidden_units['actor'])
+        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net', hidden_units['q'])
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(

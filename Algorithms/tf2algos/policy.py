@@ -160,10 +160,16 @@ class Policy(Base):
 
     @staticmethod
     def clip_nn_log_std(log_std, _min=-20, _max=2):
+        """
+        scale log_std from [-1, 1] to [_min, _max]
+        """
         return _min + 0.5 * (_max - _min) * (log_std + 1)
 
     @staticmethod
     def gaussian_reparam_sample(mu, log_std):
+        """
+        reparameter
+        """
         std = tf.exp(log_std)
         pi = mu + tf.random.normal(mu.shape) * std
         log_pi = Policy.gaussian_likelihood(pi, mu, log_std)
@@ -175,7 +181,15 @@ class Policy(Base):
         return tf.reduce_sum(pre_sum, axis=1, keepdims=True)
 
     @staticmethod
+    def gaussian_entropy(log_std):
+        return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2)))
+
+    @staticmethod
     def squash_action(pi, log_pi=None):
+        """
+        enforcing action bounds.
+        squash action to range [-1, 1] and calculate the correct log probability value 
+        """
         pi = tf.tanh(pi)
         if log_pi is not None:
             sub = tf.reduce_sum(tf.math.log(Policy.clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-6), axis=1, keepdims=True)
@@ -184,6 +198,9 @@ class Policy(Base):
 
     @staticmethod
     def unsquash_action(mu, pi, log_std):
+        """
+        desquash action from [-1, 1] to [-inf, inf]
+        """
         _pi = tf.atanh(pi)
         log_pi = Policy.gaussian_likelihood(_pi, mu, log_std)
         sub = tf.reduce_sum(tf.math.log(Policy.clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-6), axis=1, keepdims=True)
@@ -199,6 +216,3 @@ class Policy(Base):
         clip_low = tf.cast(x < l, tf.float32)
         return x + tf.stop_gradient((h - x) * clip_up + (l - x) * clip_low)
 
-    @staticmethod
-    def gaussian_entropy(log_std):
-        return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2)))

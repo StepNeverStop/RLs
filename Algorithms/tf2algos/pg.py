@@ -21,6 +21,10 @@ class PG(Policy):
                  lr=5.0e-4,
                  epsilon=0.2,
                  epoch=5,
+                 hidden_units={
+                     'actor_continuous': [32, 32],
+                     'actor_discrete': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -39,9 +43,9 @@ class PG(Policy):
         self.lr = lr
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
-            self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net')
+            self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
         else:
-            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net')
+            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'])
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(

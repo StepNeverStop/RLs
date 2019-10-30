@@ -24,6 +24,11 @@ class DPG(Policy):
 
                  lr=5.0e-4,
                  discrete_tau=1.0,
+                 hidden_units={
+                     'actor_continuous': [32, 32],
+                     'actor_discrete': [32, 32],
+                     'q': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -45,11 +50,11 @@ class DPG(Policy):
         if self.action_type == 'continuous':
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
+        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units['q'])
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(

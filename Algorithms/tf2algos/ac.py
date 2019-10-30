@@ -24,6 +24,11 @@ class AC(Policy):
 
                  lr=5.0e-4,
                  epsilon=0.2,
+                 hidden_units={
+                     'actor_continuous': [32, 32],
+                     'actor_discrete': [32, 32],
+                     'critic': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -43,10 +48,10 @@ class AC(Policy):
         self.lr = lr
         self.epsilon = epsilon
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-        self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic_net')
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
+        self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic_net', hidden_units['critic'])
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []

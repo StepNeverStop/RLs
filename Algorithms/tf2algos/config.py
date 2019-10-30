@@ -5,6 +5,7 @@ dqn_config = {
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
+    'hidden_units': [128, 128],
     'use_priority': False,
     'n_step': False
 }
@@ -15,6 +16,7 @@ ddqn_config = {
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
+    'hidden_units': [128, 128],
     'use_priority': False,
     'n_step': False
 }
@@ -25,6 +27,11 @@ dddqn_config = {
     'batch_size': 1024,
     'buffer_size': 200000,
     'assign_interval': 1000,
+    'hidden_units': {
+        'share': [128],
+        'v': [128],
+        'adv': [128]
+    },
     'use_priority': False,
     'n_step': False
 }
@@ -33,7 +40,11 @@ pg_config = {
     'lr': 5.0e-4,
     'gamma': 0.99,
     'batch_size': 1024,
-    'epoch': 1  # very important
+    'epoch': 1,  # very important
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64]
+    },
 }
 ac_config = {
     'lr': 5.0e-4,
@@ -41,6 +52,11 @@ ac_config = {
     'gamma': 0.99,
     'batch_size': 1024,
     'buffer_size': 200000,
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'critic': [64, 64]
+    },
     'use_priority': False,
     'n_step': False
 }
@@ -50,6 +66,11 @@ a2c_config = {
     'gamma': 0.99,
     'beta': 1.0e-3,
     'batch_size': 1024,
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'critic': [64, 64]
+    },
     'epoch': 4,  # very important
     'sample_count': 1,  # 采样的次数
 }
@@ -63,7 +84,23 @@ ppo_config = {
     'sample_count': 1,  # 采样的次数
     'epoch': 1,  # very important
     'share_net': True,
-
+    'hidden_units': {
+        'share': {
+            'continuous': {
+                'share': [64, 64],
+                'mu': [64, 64],
+                'v': [64, 64]
+            },
+            'discrete': {
+                'share': [64, 64],
+                'logits': [64, 64],
+                'v': [64, 64]
+            }
+        },
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'critic': [64, 64]
+    },
     'actor_lr': 3e-4,
     'critic_lr': 1e-3,
     'actor_epoch': 4,
@@ -73,6 +110,11 @@ dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
     'discrete_tau': 1.0,
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'q': [64, 64]
+    },
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -83,6 +125,11 @@ ddpg_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'discrete_tau': 1.0,
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'q': [64, 64]
+    },
     'batch_size': 1024,
     'buffer_size': 200000,
     'use_priority': False,
@@ -93,7 +140,11 @@ td3_config = {
     'ployak': 0.995,
     'lr': 5.0e-4,
     'discrete_tau': 1.0, # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
-    'batch_size': 1024,
+    'hidden_units': {
+        'actor_continuous': [64, 64],
+        'actor_discrete': [64, 64],
+        'q': [64, 64]
+    },
     'buffer_size': 200000,
     'use_priority': False,
     'n_step': False
@@ -102,6 +153,16 @@ sac_config = {
     'alpha': 0.2,
     'auto_adaption': True,
     'log_std_bound': [-20, 2],
+    'hidden_units': {
+        'actor_continuous': {
+            'share': [128, 128],
+            'mu': [64],
+            'log_std': [64]
+        },
+        'actor_discrete': [64, 64],
+        'q': [128, 128],
+        'v': [128, 128]
+    },
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
@@ -115,6 +176,15 @@ sac_no_v_config = {
     'alpha': 0.2,
     'auto_adaption': True,
     'log_std_bound': [-20, 2],
+    'hidden_units': {
+        'actor_continuous': {
+            'share': [128, 128],
+            'mu': [64],
+            'log_std': [64]
+        },
+        'actor_discrete': [64, 64],
+        'q': [128, 128]
+    },
     'lr': 5.0e-4,
     'gamma': 0.99,
     'ployak': 0.995,
@@ -130,7 +200,7 @@ maxsqn_config = {
     'epsilon': 0.2,
     'use_epsilon': False,
     'auto_adaption': True,
-    'lr': 5.0e-4,
+    'hidden_units': [64, 64],
     'gamma': 0.999,
     'ployak': 0.995,
     'batch_size': 1024,
@@ -141,14 +211,26 @@ maxsqn_config = {
 ma_dpg_config = {
     'gamma': 0.99,
     'lr': 5.0e-4,
+    'hidden_units': {
+        'actor': [64, 64],
+        'q': [64, 64]
+    }
 }
 ma_ddpg_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
+    'hidden_units': {
+        'actor': [64, 64],
+        'q': [64, 64]
+    }
 }
 ma_td3_config = {
     'gamma': 0.99,
     'ployak': 0.995,
     'lr': 5.0e-4,
+    'hidden_units': {
+        'actor': [64, 64],
+        'q': [64, 64]
+    }
 }

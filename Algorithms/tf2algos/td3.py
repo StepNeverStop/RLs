@@ -24,6 +24,11 @@ class TD3(Policy):
                  ployak=0.995,
                  lr=5.0e-4,
                  discrete_tau=1.0,
+                 hidden_units={
+                     'actor_continuous': [32, 32],
+                     'actor_discrete': [32, 32],
+                     'q': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -44,18 +49,18 @@ class TD3(Policy):
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
+            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_continuous'])
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net')
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
+            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net')
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units['q'])
+        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units['q'])
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units['q'])
+        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units['q'])
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights

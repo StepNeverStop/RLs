@@ -75,25 +75,44 @@ class ImageNet(tf.keras.Model):
         return vector_input
 
 
-class actor_discrete(ImageNet):
+class actor_dpg(ImageNet):
     '''
-    use for discrete action space.
+    use for DDPG and/or TD3 algorithms' actor network.
     input: vector of state
-    output: probability distribution of actions given a state
+    output: deterministic action(mu) and disturbed action(action) given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.logits = Sequential([
-            Dense(64, activation_fn),
-            Dense(32, activation_fn),
-            Dense(output_shape, None)
-        ])
+        self.net = Sequential()
+        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.net.add(Dense(output_shape, tf.keras.activations.tanh))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        logits = self.logits(super().call(vector_input, visual_input))
-        return logits
+        mu = self.net(super().call(vector_input, visual_input))
+        return mu
+
+
+class actor_mu(ImageNet):
+    '''
+    use for PPO/PG algorithms' actor network.
+    input: vector of state
+    output: stochastic action(mu), normally is the mean of a Normal distribution
+    '''
+
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
+        super().__init__(name=name)
+        self.net = Sequential()
+        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.net.add(Dense(output_shape, None))
+
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+
+    def call(self, vector_input, visual_input):
+        mu = self.net(super().call(vector_input, visual_input))
+        return mu
 
 
 class actor_continuous(ImageNet):
@@ -103,20 +122,19 @@ class actor_continuous(ImageNet):
     output: mean(mu) and log_variance(log_std) of Gaussian Distribution of actions given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn)
-        ])
-        self.mu = Sequential([
-            Dense(32, activation_fn),
-            Dense(output_shape, None)
-        ])
-        self.log_std = Sequential([
-            Dense(32, activation_fn),
-            Dense(output_shape, tf.keras.activations.tanh)
-        ])
+        self.share = Sequential()
+        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
+
+        self.mu = Sequential()
+        [self.mu.add(Dense(u, activation_fn)) for u in hidden_units['mu']]
+        self.mu.add(Dense(output_shape, None))
+
+        self.log_std = Sequential()
+        [self.log_std.add(Dense(u, activation_fn)) for u in hidden_units['log_std']]
+        self.log_std.add(Dense(output_shape, tf.keras.activations.tanh))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -126,45 +144,25 @@ class actor_continuous(ImageNet):
         return mu, log_std
 
 
-class actor_dpg(ImageNet):
+class actor_discrete(ImageNet):
     '''
-    use for DDPG and/or TD3 algorithms' actor network.
+    use for discrete action space.
     input: vector of state
-    output: deterministic action(mu) and disturbed action(action) given a state
+    output: probability distribution of actions given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn),
-            Dense(output_shape, tf.keras.activations.tanh)
-        ])
+        self.logits = Sequential()
+        [self.logits.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.logits.add(Dense(output_shape, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        mu = self.net(super().call(vector_input, visual_input))
-        return mu
+        logits = self.logits(super().call(vector_input, visual_input))
+        return logits
 
-class actor_mu(ImageNet):
-    '''
-    use for PPO/PG algorithms' actor network.
-    input: vector of state
-    output: stochastic action(mu), normally is the mean of a Normal distribution
-    '''
-
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
-        super().__init__(name=name)
-        self.net = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn),
-            Dense(output_shape, tf.keras.activations.tanh)
-        ])
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
-
-    def call(self, vector_input, visual_input):
-        mu = self.net(super().call(vector_input, visual_input))
-        return mu
 
 class critic_q_one(ImageNet):
     '''
@@ -173,13 +171,12 @@ class critic_q_one(ImageNet):
     output: q(s,a)
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, name):
+    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn),
-            Dense(1, None)
-        ])
+        self.net = Sequential()
+        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.net.add(Dense(1, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
 
     def call(self, vector_input, visual_input, action):
@@ -195,13 +192,12 @@ class critic_v(ImageNet):
     output: v(s)
     '''
 
-    def __init__(self, vector_dim, visual_dim, name):
+    def __init__(self, vector_dim, visual_dim, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential([
-            Dense(32, activation_fn),
-            Dense(32, activation_fn),
-            Dense(1, None)
-        ])
+        self.net = Sequential()
+        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.net.add(Dense(1, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -216,13 +212,12 @@ class critic_q_all(ImageNet):
     output: q(s, *)
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential([
-            Dense(128, activation_fn),
-            Dense(128, activation_fn),
-            Dense(output_shape, None)
-        ])
+        self.net = Sequential()
+        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
+        self.net.add(Dense(output_shape, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -231,56 +226,26 @@ class critic_q_all(ImageNet):
 
 
 class critic_dueling(ImageNet):
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Dense(128, activation_fn)
-        self.v = Sequential([
-            Dense(128, activation_fn),
-            Dense(1, None)
-        ])
-        self.a = Sequential([
-            Dense(128, activation_fn),
-            Dense(output_shape, None)
-        ])
+        self.share = Sequential()
+        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
+
+        self.v = Sequential()
+        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
+        self.v.add(Dense(1, None))
+
+        self.adv = Sequential()
+        [self.adv.add(Dense(u, activation_fn)) for u in hidden_units['adv']]
+        self.adv.add(Dense(output_shape, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
         v = self.v(features)
-        a = self.a(features)
-        return v, a
-
-
-class a_c_v_discrete(ImageNet):
-    '''
-    combine actor network and critic network, share some nn layers. use for discrete action space.
-    input: vector of state
-    output: probability distribution of actions given a state, v(s)
-    '''
-
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
-        super().__init__(name=name)
-        self.share = Sequential([
-            Dense(32, activation_fn),
-            Dense(32, activation_fn)
-        ])
-        self.logits = Sequential([
-            Dense(32, activation_fn),
-            Dense(32, activation_fn),
-            Dense(output_shape, None)
-        ])
-        self.value = Sequential([
-            Dense(32, activation_fn),
-            Dense(32, activation_fn),
-            Dense(1, None)
-        ])
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
-
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        logits = self.logits(features)
-        value = self.value(features)
-        return logits, value
+        adv = self.adv(features)
+        return v, adv
 
 
 class a_c_v_continuous(ImageNet):
@@ -290,22 +255,19 @@ class a_c_v_continuous(ImageNet):
     output: mean(mu) and variance(sigma) of Gaussian Distribution of actions given a state, v(s)
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name):
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential([
-            Dense(128, activation_fn),
-            Dense(128, activation_fn)
-        ])
-        self.mu = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn),
-            Dense(output_shape, None)
-        ])
-        self.value = Sequential([
-            Dense(64, activation_fn),
-            Dense(64, activation_fn),
-            Dense(1, None)
-        ])
+        self.share = Sequential()
+        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
+
+        self.mu = Sequential()
+        [self.mu.add(Dense(u, activation_fn)) for u in hidden_units['mu']]
+        self.mu.add(Dense(output_shape, None))
+
+        self.v = Sequential()
+        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
+        self.v.add(Dense(1, None))
+
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -313,3 +275,32 @@ class a_c_v_continuous(ImageNet):
         value = self.value(features)
         mu = self.mu(features)
         return mu, value
+
+
+class a_c_v_discrete(ImageNet):
+    '''
+    combine actor network and critic network, share some nn layers. use for discrete action space.
+    input: vector of state
+    output: probability distribution of actions given a state, v(s)
+    '''
+
+    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
+        super().__init__(name=name)
+        self.share = Sequential()
+        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
+
+        self.logits = Sequential()
+        [self.logits.add(Dense(u, activation_fn)) for u in hidden_units['logits']]
+        self.logits.add(Dense(output_shape, None))
+
+        self.v = Sequential()
+        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
+        self.v.add(Dense(1, None))
+
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+
+    def call(self, vector_input, visual_input):
+        features = self.share(super().call(vector_input, visual_input))
+        logits = self.logits(features)
+        value = self.value(features)
+        return logits, value

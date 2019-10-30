@@ -18,6 +18,10 @@ class MADDPG(Base):
                  max_episode=50000,
                  n=1,
                  i=0,
+                 hidden_units={
+                     'actor': [32, 32],
+                     'q': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'continuous', 'maddpg only support continuous action space'
@@ -32,10 +36,10 @@ class MADDPG(Base):
         self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net')
-        self.actor_target_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_target_net')
-        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net')
-        self.q_target_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_target_net')
+        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net', hidden_units['actor'])
+        self.actor_target_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_target_net', hidden_units['actor'])
+        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net', hidden_units['q'])
+        self.q_target_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_target_net', hidden_units['q'])
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,
             self.actor_net.weights + self.q_net.weights

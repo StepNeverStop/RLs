@@ -25,6 +25,15 @@ class SAC_NO_V(Policy):
                  ployak=0.995,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
+                 hidden_units={
+                     'actor_continuous': {
+                        'share': [128, 128],
+                        'mu': [64],
+                        'log_std': [64]
+                         },
+                     'actor_discrete': [64, 32],
+                     'q': [128, 128]
+                 },
                  auto_adaption=True,
                  lr=5.0e-4,
                  logger2file=False,
@@ -50,14 +59,14 @@ class SAC_NO_V(Policy):
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         if self.action_type == 'continuous':
-            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net')
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units['q'])
+        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units['q'])
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units['q'])
+        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units['q'])
         self.update_target_net_weights(
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
@@ -95,6 +104,7 @@ class SAC_NO_V(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu, log_std = self.actor_net(vector_input, visual_input)
+                mu = tf.tanh(mu) # squash mu
                 log_std = self.clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = self.squash_action(*self.gaussian_reparam_sample(mu, log_std))
             else:

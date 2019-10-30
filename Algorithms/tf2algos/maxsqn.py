@@ -27,7 +27,8 @@ class MAXSQN(Policy):
                  epsilon=0.2,
                  use_epsilon=False,
                  lr=5.0e-4,
-                 auto_adaption=True,
+                 auto_adapton=True,
+                 hidden_units=[32, 32],
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'discrete', 'maxsqn only support continuous action space'
@@ -52,10 +53,10 @@ class MAXSQN(Policy):
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         self.target_alpha = beta * np.log(self.a_counts)
-        self.q1_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_net')
-        self.q1_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net')
-        self.q2_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_net')
-        self.q2_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net')
+        self.q1_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units)
+        self.q1_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units)
+        self.q2_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units)
+        self.q2_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units)
         self.update_target_net_weights(
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights

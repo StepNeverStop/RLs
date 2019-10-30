@@ -27,6 +27,11 @@ class DDDQN(Policy):
                  lr=5.0e-4,
                  epsilon=0.2,
                  assign_interval=2,
+                 hidden_units={
+                     'share': [128],
+                     'v': [128],
+                     'adv': [128]
+                 },
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'discrete', 'dueling double dqn only support discrete action space'
@@ -47,8 +52,8 @@ class DDDQN(Policy):
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
-        self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_net')
-        self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net')
+        self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_net', hidden_units)
+        self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net', hidden_units)
         self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(

@@ -29,6 +29,23 @@ class PPO(Policy):
                  critic_lr=1e-3,
                  actor_epoch=4,
                  critic_epoch=4,
+                 hidden_units={
+                     'share': {
+                         'continuous': {
+                             'share': [32, 32],
+                             'mu': [32, 32],
+                             'v': [32, 32]
+                         },
+                         'discrete': {
+                             'share': [32, 32],
+                             'logits': [32, 32],
+                             'v': [32, 32]
+                         }
+                     },
+                     'actor_continuous': [32, 32],
+                     'actor_discrete': [32, 32],
+                     'critic': [32, 32]
+                 },
                  logger2file=False,
                  out_graph=False):
         super().__init__(
@@ -54,20 +71,20 @@ class PPO(Policy):
         if self.share_net:
             self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
             if self.action_type == 'continuous':
-                self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
+                self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net', hidden_units['share']['continuous'])
             else:
-                self.net = Nn.a_c_v_discrete(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net')
+                self.net = Nn.a_c_v_discrete(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net', hidden_units['share']['discrete'])
             self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         else:
             self.actor_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
             self.critic_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.action_type == 'continuous':
-                self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
+                self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             else:
-                self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net')
-            self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net')
+                self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
+            self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net', hidden_units['critic'])
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=actor_lr)
-            self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=critic_lr)  
+            self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=critic_lr)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
@@ -207,7 +224,6 @@ class PPO(Policy):
                 for _ in range(self.critic_epoch):
                     critic_loss = self.train_critic.get_concrete_function(
                         *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        print(self.log_std)
         self.global_step.assign_add(1)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)

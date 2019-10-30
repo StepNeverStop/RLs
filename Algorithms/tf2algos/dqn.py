@@ -23,6 +23,7 @@ class DQN(Policy):
                  lr=5.0e-4,
                  epsilon=0.2,
                  assign_interval=2,
+                 hidden_units=[32, 32],
                  logger2file=False,
                  out_graph=False):
         assert action_type == 'discrete', 'dqn only support discrete action space'
@@ -43,8 +44,8 @@ class DQN(Policy):
         self.epsilon = epsilon
         self.assign_interval = assign_interval
         self.lr = lr
-        self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net')
-        self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net')
+        self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
+        self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
