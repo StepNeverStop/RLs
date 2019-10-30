@@ -51,10 +51,10 @@ class DDDQN(Policy):
             n_step=n_step)
         self.epsilon = epsilon
         self.assign_interval = assign_interval
-        self.lr = lr
         self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_net', hidden_units)
         self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net', hidden_units)
         self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
+        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)(self.episode)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.generate_recorder(
             logger2file=logger2file,

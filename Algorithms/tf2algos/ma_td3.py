@@ -14,7 +14,8 @@ class MATD3(Base):
 
                  gamma=0.99,
                  ployak=0.995,
-                 lr=5.0e-4,
+                 actor_lr=5.0e-4,
+                 critic_lr=1.0e-3,
                  max_episode=50000,
                  n=1,
                  i=0,
@@ -33,7 +34,6 @@ class MATD3(Base):
         self.gamma = gamma
         self.max_episode = max_episode
         self.ployak = ployak
-        self.lr = lr
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net', hidden_units['actor'])
@@ -46,8 +46,10 @@ class MATD3(Base):
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
         )
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -96,7 +98,8 @@ class MATD3(Base):
         tf.summary.experimental.set_step(self.global_step)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)
-        tf.summary.scalar('LEARNING_RATE/lr', self.lr)
+        tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr)
+        tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr)
         self.recorder.writer.flush()
 
     def get_max_episode(self):

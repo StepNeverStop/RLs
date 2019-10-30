@@ -40,12 +40,12 @@ class PG(Policy):
             batch_size=batch_size)
         self.epoch = epoch
         self.epsilon = epsilon
-        self.lr = lr
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
             self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
         else:
             self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'])
+        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)(self.episode)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr)
         self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
@@ -116,7 +116,7 @@ class PG(Policy):
             s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
             loss, entropy = self.train.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r)
-        tf.summary.experimental.set_step(self.episode)
+        tf.summary.experimental.set_step
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/loss', loss)
         tf.summary.scalar('LEARNING_RATE/lr', self.lr)

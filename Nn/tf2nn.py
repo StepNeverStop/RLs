@@ -74,6 +74,20 @@ class ImageNet(tf.keras.Model):
             vector_input = tf.concat((features, vector_input), axis=-1)
         return vector_input
 
+class mlp(Sequential):
+    def __init__(self, hidden_units, output_shape=1, out_activation=None, out_layer=True):
+        """
+        inputs:
+            hidden_units: like [32, 32]
+            output_shape: units of last layer
+            out_activation: activation function of last layer
+            out_layer: whether need specifing last layer or not
+        """
+        super().__init__()
+        [self.add(Dense(u, activation_fn)) for u in hidden_units]
+        if out_layer:
+            self.add(Dense(output_shape, out_activation))
+
 
 class actor_dpg(ImageNet):
     '''
@@ -84,10 +98,7 @@ class actor_dpg(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential()
-        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.net.add(Dense(output_shape, tf.keras.activations.tanh))
-
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=tf.keras.activations.tanh)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -104,10 +115,7 @@ class actor_mu(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential()
-        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.net.add(Dense(output_shape, None))
-
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -124,17 +132,9 @@ class actor_continuous(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential()
-        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
-
-        self.mu = Sequential()
-        [self.mu.add(Dense(u, activation_fn)) for u in hidden_units['mu']]
-        self.mu.add(Dense(output_shape, None))
-
-        self.log_std = Sequential()
-        [self.log_std.add(Dense(u, activation_fn)) for u in hidden_units['log_std']]
-        self.log_std.add(Dense(output_shape, tf.keras.activations.tanh))
-
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
+        self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation=tf.keras.activations.tanh)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -153,10 +153,7 @@ class actor_discrete(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.logits = Sequential()
-        [self.logits.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.logits.add(Dense(output_shape, None))
-
+        self.logits = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -173,10 +170,7 @@ class critic_q_one(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential()
-        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.net.add(Dense(1, None))
-
+        self.net = mlp(hidden_units, output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
 
     def call(self, vector_input, visual_input, action):
@@ -194,10 +188,7 @@ class critic_v(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential()
-        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.net.add(Dense(1, None))
-
+        self.net = mlp(hidden_units, output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -214,10 +205,7 @@ class critic_q_all(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.net = Sequential()
-        [self.net.add(Dense(u, activation_fn)) for u in hidden_units]
-        self.net.add(Dense(output_shape, None))
-
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -228,17 +216,9 @@ class critic_q_all(ImageNet):
 class critic_dueling(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential()
-        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
-
-        self.v = Sequential()
-        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
-        self.v.add(Dense(1, None))
-
-        self.adv = Sequential()
-        [self.adv.add(Dense(u, activation_fn)) for u in hidden_units['adv']]
-        self.adv.add(Dense(output_shape, None))
-
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
+        self.adv = mlp(hidden_units['adv'], output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -257,24 +237,16 @@ class a_c_v_continuous(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential()
-        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
-
-        self.mu = Sequential()
-        [self.mu.add(Dense(u, activation_fn)) for u in hidden_units['mu']]
-        self.mu.add(Dense(output_shape, None))
-
-        self.v = Sequential()
-        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
-        self.v.add(Dense(1, None))
-
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
+        self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
-        value = self.value(features)
+        v = self.v(features)
         mu = self.mu(features)
-        return mu, value
+        return mu, v
 
 
 class a_c_v_discrete(ImageNet):
@@ -286,21 +258,13 @@ class a_c_v_discrete(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name)
-        self.share = Sequential()
-        [self.share.add(Dense(u, activation_fn)) for u in hidden_units['share']]
-
-        self.logits = Sequential()
-        [self.logits.add(Dense(u, activation_fn)) for u in hidden_units['logits']]
-        self.logits.add(Dense(output_shape, None))
-
-        self.v = Sequential()
-        [self.v.add(Dense(u, activation_fn)) for u in hidden_units['v']]
-        self.v.add(Dense(1, None))
-
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.logits = mlp(hidden_units['logits'], output_shape=output_shape, out_activation=None)
+        self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
         logits = self.logits(features)
-        value = self.value(features)
-        return logits, value
+        v = self.v(features)
+        return logits, v

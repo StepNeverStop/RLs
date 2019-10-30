@@ -22,7 +22,8 @@ class TD3(Policy):
                  base_dir=None,
 
                  ployak=0.995,
-                 lr=5.0e-4,
+                 actor_lr=5.0e-4,
+                 critic_lr=1.0e-3,
                  discrete_tau=1.0,
                  hidden_units={
                      'actor_continuous': [32, 32],
@@ -45,7 +46,6 @@ class TD3(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.lr = lr
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         if self.action_type == 'continuous':
@@ -65,8 +65,10 @@ class TD3(Policy):
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
         )
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr)
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -122,9 +124,10 @@ class TD3(Policy):
                     self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
                     self.ployak)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/actor_loss', tf.reduce_mean(actor_loss))
-                tf.summary.scalar('LOSS/critic_loss', tf.reduce_mean(critic_loss))
-                tf.summary.scalar('LEARNING_RATE/lr', tf.reduce_mean(self.lr))
+                tf.summary.scalar('LOSS/actor_loss', actor_loss)
+                tf.summary.scalar('LOSS/critic_loss', critic_loss)
+                tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr)
+                tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr)
                 self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)

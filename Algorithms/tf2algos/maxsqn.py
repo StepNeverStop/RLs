@@ -26,7 +26,8 @@ class MAXSQN(Policy):
                  ployak=0.995,
                  epsilon=0.2,
                  use_epsilon=False,
-                 lr=5.0e-4,
+                 q_lr=5.0e-4,
+                 alpha_lr=5.0e-4,
                  auto_adapton=True,
                  hidden_units=[32, 32],
                  logger2file=False,
@@ -46,7 +47,6 @@ class MAXSQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.lr = lr
         self.epsilon = epsilon
         self.use_epsilon = use_epsilon
         self.ployak = ployak
@@ -61,8 +61,10 @@ class MAXSQN(Policy):
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
         )
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.lr)
+        self.q_lr = tf.keras.optimizers.schedules.PolynomialDecay(q_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)(self.episode)
+        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.q_lr)
+        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -122,7 +124,8 @@ class MAXSQN(Policy):
                 tf.summary.scalar('LOSS/loss', loss)
                 tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
                 tf.summary.scalar('LOSS/entropy', entropy)
-                tf.summary.scalar('LEARNING_RATE/lr', self.lr)
+                tf.summary.scalar('LEARNING_RATE/q_lr', self.q_lr)
+                tf.summary.scalar('LEARNING_RATE/alpha_lr', self.alpha_lr)
                 self.recorder.writer.flush()
 
     @tf.function(experimental_relax_shapes=True)
