@@ -252,7 +252,7 @@ class a_c_v_continuous(ImageNet):
     '''
     combine actor network and critic network, share some nn layers. use for continuous action space.
     input: vector of state
-    output: mean(mu) and variance(sigma) of Gaussian Distribution of actions given a state, v(s)
+    output: mean(mu) of Gaussian Distribution of actions given a state, v(s)
     '''
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
