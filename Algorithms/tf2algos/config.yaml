@@ -5,9 +5,9 @@ dqn:
     batch_size: 1024
     buffer_size: 200000
     assign_interval: 1000
-    hidden_units: [128 128]
     use_priority: False
     n_step: False
+    hidden_units: [128, 128]
     
 ddqn:
     lr: 5.0e-4
@@ -16,9 +16,9 @@ ddqn:
     batch_size: 1024
     buffer_size: 200000
     assign_interval: 1000
-    hidden_units: [128, 128]
     use_priority: False
     n_step: False
+    hidden_units: [128, 128]
 
 dddqn:
     lr: 5.0e-4
@@ -27,12 +27,12 @@ dddqn:
     batch_size: 1024
     buffer_size: 200000
     assign_interval: 1000
+    use_priority: False
+    n_step: False
     hidden_units: 
         share: [128]
         v: [128]
         adv: [128]
-    use_priority: False
-    n_step: False
 
 pg: 
     epsilon: 0.2
@@ -51,12 +51,12 @@ ac:
     gamma: 0.99
     batch_size: 1024
     buffer_size: 200000
+    use_priority: False
+    n_step: False
     hidden_units: 
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         critic: [64, 64]
-    use_priority: False
-    n_step: False
 
 a2c: 
     epsilon: 0.2
@@ -65,11 +65,11 @@ a2c:
     gamma: 0.99
     beta: 1.0e-3
     batch_size: 1024
+    epoch: 4  # very important
     hidden_units: 
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         critic: [64, 64]
-    epoch: 4  # very important
 
 ppo: 
     share_net: True
@@ -80,6 +80,8 @@ ppo:
     lambda_: 0.97
     batch_size: 128
     epoch: 4  # very important
+    actor_lr: 3.0e-4
+    critic_lr: 1.0e-3
     hidden_units: 
         share: 
             continuous: 
@@ -93,22 +95,20 @@ ppo:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         critic: [64, 64]
-    actor_lr: 3e-4
-    critic_lr: 1e-3
 
 dpg: 
     gamma: 0.99
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    hidden_units: 
-        actor_continuous: [64, 64]
-        actor_discrete: [64, 64]
-        q: [64, 64]
     batch_size: 1024
     buffer_size: 200000
     use_priority: False
     n_step: False
+    hidden_units: 
+        actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
 
 ddpg: 
     gamma: 0.99
@@ -116,14 +116,14 @@ ddpg:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    hidden_units: 
-        actor_continuous: [64, 64]
-        actor_discrete: [64, 64]
-        q: [64, 64]
     batch_size: 1024
     buffer_size: 200000
     use_priority: False
     n_step: False
+    hidden_units: 
+        actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
 
 td3: 
     gamma: 0.99
@@ -131,27 +131,19 @@ td3:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
-    hidden_units: 
-        actor_continuous: [64, 64]
-        actor_discrete: [64, 64]
-        q: [64, 64]
     batch_size: 1024
     buffer_size: 200000
     use_priority: False
     n_step: False
+    hidden_units: 
+        actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
 
 sac: 
     alpha: 0.2
     auto_adaption: True
     log_std_bound: [-20, 2]
-    hidden_units: 
-        actor_continuous: 
-            share: [256, 256]
-            mu: [128]
-            log_std: [128]
-        actor_discrete: [64, 64]
-        q: [256, 128]
-        v: [256, 128]
     gamma: 0.99
     ployak: 0.995
     actor_lr: 5.0e-4
@@ -161,19 +153,20 @@ sac:
     batch_size: 2048
     buffer_size: 200000
     use_priority: False
-    n_step: True
+    n_step: False
+    hidden_units: 
+        actor_continuous: 
+            share: [128, 128]
+            mu: [128]
+            log_std: [128]
+        actor_discrete: [64, 64]
+        q: [128, 128]
+        v: [128, 128]
 
 sac_no_v: 
     alpha: 0.2
     auto_adaption: True
     log_std_bound: [-20, 2]
-    hidden_units: 
-        actor_continuous: 
-            share: [128, 128]
-            mu: [64]
-            log_std: [64]
-        actor_discrete: [64, 64]
-        q: [128, 128]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
@@ -184,6 +177,13 @@ sac_no_v:
     buffer_size: 200000
     use_priority: False
     n_step: False
+    hidden_units: 
+        actor_continuous: 
+            share: [128, 128]
+            mu: [64]
+            log_std: [64]
+        actor_discrete: [64, 64]
+        q: [128, 128]
 
 maxsqn: 
     alpha: 0.2
@@ -191,7 +191,6 @@ maxsqn:
     epsilon: 0.2
     use_epsilon: False
     auto_adaption: True
-    hidden_units: [64, 64]
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
     gamma: 0.999
@@ -200,6 +199,7 @@ maxsqn:
     buffer_size: 200000
     use_priority: False
     n_step: False
+    hidden_units: [64, 64]
 
 ma_dpg: 
     gamma: 0.99

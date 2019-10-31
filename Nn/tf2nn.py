@@ -13,7 +13,7 @@ initKernelAndBias = {
 
 
 class mlp(Sequential):
-    def __init__(self, hidden_units, output_shape=1, out_activation=None, out_layer=True):
+    def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
         """
         inputs:
             hidden_units: like [32, 32]
@@ -22,9 +22,10 @@ class mlp(Sequential):
             out_layer: whether need specifing last layer or not
         """
         super().__init__()
-        [self.add(Dense(u, activation_fn)) for u in hidden_units]
+        for u in hidden_units:
+            self.add(Dense(u, act_fn))
         if out_layer:
-            self.add(Dense(output_shape, out_activation))
+            self.add(Dense(output_shape, act_fn))
 
 
 class Noisy(Dense):
