@@ -83,7 +83,7 @@ ppo_config = {
     'beta': 1.0e-3,
     'lr': 5.0e-4,
     'lambda_': 0.97,
-    'batch_size': 1024,
+    'batch_size': 128,
     'sample_count': 1,  # 采样的次数
     'epoch': 1,  # very important
     'hidden_units': {

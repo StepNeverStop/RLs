@@ -198,8 +198,8 @@ class PPO(Policy):
         # self.data.to_excel(self.recorder.excel_writer, sheet_name=f'test{self.episode}', index=True)
         # self.recorder.excel_writer.save()
 
-    def get_sample_data(self):
-        i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
+    def get_sample_data(self, index):
+        i_data = self.data.iloc[index:index+self.batch_size]
         s = np.vstack(i_data.s.values)
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
@@ -209,10 +209,11 @@ class PPO(Policy):
         return s, visual_s, a, dc_r, old_log_prob, advantage
 
     def learn(self, **kwargs):
+        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
         self.calculate_statistics()
-        for _ in range(self.sample_count):
-            s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
+        for index in range(0, self.data.shape[0], self.batch_size):
+            s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
             if self.share_net:
                 for _ in range(self.epoch):
                     actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(

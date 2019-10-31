@@ -96,7 +96,8 @@ class Loop(object):
                 )
 
                 if all(dones_flag):
-                    last_done_step = step
+                    if last_done_step == -1:
+                        last_done_step = step
                     if policy_mode == 'off-policy':
                         break
 
@@ -112,7 +113,7 @@ class Loop(object):
             gym_model.writer_summary(
                 episode,
                 total_reward=r.mean(),
-                step=step
+                step=last_done_step
             )
             print(f'Episode: {episode:3d} step: {step:4d} last_done_step {last_done_step:4d} rewards: {r}')
             if episode % save_frequency == 0:

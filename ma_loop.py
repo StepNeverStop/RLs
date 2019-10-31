@@ -42,8 +42,9 @@ class Loop(object):
                     reward[i] = np.array(obs[brain_name].rewards)[:, np.newaxis]
                     next_state[i] = obs[brain_name].vector_observations
                     dones[i] = np.array(obs[brain_name].local_done)[:, np.newaxis]
+                    unfinished_index = np.where(dones_flag[i] == False)[0]
                     dones_flag[i] += obs[brain_name].local_done
-                    rewards[i] += np.array(obs[brain_name].rewards)
+                    rewards[i][unfinished_index] += np.array(obs[brain_name].rewards)[unfinished_index]
 
                 s = [np.array(e) for e in zip(*state)]
                 a = [np.array(e) for e in zip(*action)]
@@ -71,7 +72,8 @@ class Loop(object):
                         )
 
                 if all([all(dones_flag[i]) for i in range(brains_num)]):
-                    last_done_step = step
+                    if last_done_step == -1:
+                        last_done_step = step
                     if policy_mode == 'off-policy':
                         break
 
@@ -86,7 +88,7 @@ class Loop(object):
                 models[i].writer_summary(
                     episode,
                     total_reward=rewards[i].mean(),
-                    step=step
+                    step=last_done_step
                 )
             print(f'episode {episode:3d} step {step:4d} last_done_step {last_done_step:4d}')
             if episode % save_frequency == 0:

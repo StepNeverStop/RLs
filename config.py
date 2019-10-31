@@ -34,7 +34,7 @@ unity_file = {
 train_config = {
     'name': time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
     'save_frequency': 20,
-    'max_step': 10000,
+    'max_step': 2000,
     'max_episode': 5000,
     'share': {
         'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
