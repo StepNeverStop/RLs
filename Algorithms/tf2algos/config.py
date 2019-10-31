@@ -74,7 +74,6 @@ a2c_config = {
         'critic': [64, 64]
     },
     'epoch': 4,  # very important
-    'sample_count': 1,  # 采样的次数
 }
 ppo_config = {
     'share_net': True,
@@ -84,7 +83,6 @@ ppo_config = {
     'lr': 5.0e-4,
     'lambda_': 0.97,
     'batch_size': 128,
-    'sample_count': 1,  # 采样的次数
     'epoch': 1,  # very important
     'hidden_units': {
         'share': {
@@ -105,8 +103,6 @@ ppo_config = {
     },
     'actor_lr': 3e-4,
     'critic_lr': 1e-3,
-    'actor_epoch': 4,
-    'critic_epoch': 4,
 }
 dpg_config = {
     'gamma': 0.99,

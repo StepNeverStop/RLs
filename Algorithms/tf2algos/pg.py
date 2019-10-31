@@ -101,8 +101,8 @@ class PG(Policy):
         a /= np.std(a)
         self.data['discounted_reward'] = list(a)
 
-    def get_sample_data(self):
-        i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
+    def get_sample_data(self, index):
+        i_data = self.data.iloc[index:index+self.batch_size]
         s = np.vstack(i_data.s.values)
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
@@ -110,12 +110,14 @@ class PG(Policy):
         return s, visual_s, a, dc_r
 
     def learn(self, **kwargs):
+        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
         self.calculate_statistics()
         for _ in range(self.epoch):
-            s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
-            loss, entropy = self.train.get_concrete_function(
-                        *self.TensorSpecs)(s, visual_s, a, dc_r)
+            for index in range(0, self.data.shape[0], self.batch_size):
+                s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
+                loss, entropy = self.train.get_concrete_function(
+                            *self.TensorSpecs)(s, visual_s, a, dc_r)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
         tf.summary.scalar('LOSS/loss', loss)

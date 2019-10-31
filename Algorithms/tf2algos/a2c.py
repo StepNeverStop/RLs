@@ -20,7 +20,6 @@ class A2C(Policy):
 
                  epoch=5,
                  beta=1.0e-3,
-                 sample_count=1,
                  epsilon=0.2,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
@@ -44,7 +43,6 @@ class A2C(Policy):
             batch_size=batch_size)
         self.beta = beta
         self.epsilon = epsilon
-        self.sample_count = sample_count
         self.epoch = epoch
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
@@ -104,8 +102,8 @@ class A2C(Policy):
         init_value = np.squeeze(self.critic_net(s, visual_s))
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
 
-    def get_sample_data(self):
-        i_data = self.data.sample(n=self.batch_size) if self.batch_size < self.data.shape[0] else self.data
+    def get_sample_data(self, index):
+        i_data = self.data.iloc[index:index+self.batch_size]
         s = np.vstack(i_data.s.values)
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
@@ -113,11 +111,12 @@ class A2C(Policy):
         return s, visual_s, a, dc_r
 
     def learn(self, **kwargs):
+        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
         self.calculate_statistics()
-        for _ in range(self.sample_count):
-            s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data()]
-            for _ in range(self.epoch):
+        for _ in range(self.epoch):
+            for index in range(0, self.data.shape[0], self.batch_size):
+                s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
                 actor_loss, critic_loss, entropy = self.train.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)

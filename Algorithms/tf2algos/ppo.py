@@ -19,7 +19,6 @@ class PPO(Policy):
                  base_dir=None,
 
                  epoch=5,
-                 sample_count=1,
                  beta=1.0e-3,
                  lr=5.0e-4,
                  lambda_=0.95,
@@ -27,8 +26,6 @@ class PPO(Policy):
                  share_net=True,
                  actor_lr=3e-4,
                  critic_lr=1e-3,
-                 actor_epoch=4,
-                 critic_epoch=4,
                  hidden_units={
                      'share': {
                          'continuous': {
@@ -64,9 +61,6 @@ class PPO(Policy):
         self.lambda_ = lambda_
         self.epsilon = epsilon
         self.share_net = share_net
-        self.actor_epoch = actor_epoch
-        self.critic_epoch = critic_epoch
-        self.sample_count = sample_count
         if self.share_net:
             self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
             if self.action_type == 'continuous':
@@ -212,19 +206,17 @@ class PPO(Policy):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
         self.calculate_statistics()
-        for index in range(0, self.data.shape[0], self.batch_size):
-            s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
-            if self.share_net:
-                for _ in range(self.epoch):
+        for _ in range(self.epoch):
+            for index in range(0, self.data.shape[0], self.batch_size):
+                s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
+                if self.share_net:
                     actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)
-            else:
-                for _ in range(self.actor_epoch):
+                else:
                     actor_loss, entropy, kl = self.train_actor.get_concrete_function(
                         *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
                     # if kl > 1.5 * 0.01:
                     #     break
-                for _ in range(self.critic_epoch):
                     critic_loss = self.train_critic.get_concrete_function(
                         *self.critic_TensorSpecs)(s, visual_s, dc_r)
         self.global_step.assign_add(1)
