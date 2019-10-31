@@ -4,7 +4,8 @@ import numpy as np
 class Loop(object):
 
     @staticmethod
-    def train(env, brain_names, models, data, begin_episode, save_frequency, reset_config, max_step, max_episode, train_mode, sampler_manager, resampling_interval):
+    def train(env, brain_names, models, data, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval, policy_mode):
+        assert policy_mode == 'off-policy', "multi-agents algorithms now support off-policy only."
         brains_num = len(brain_names)
         batch_size = data.batch_size
         agents_num = [0] * brains_num
@@ -28,6 +29,7 @@ class Loop(object):
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
             step = 0
+            last_done_step = -1
             while True:
                 step += 1
                 for i, brain_name in enumerate(brain_names):
@@ -54,7 +56,7 @@ class Loop(object):
                     next_action[i] = models[i].get_target_action(s=s_[:, i])
                     new_action[i] = models[i].choose_inference_action(s=s[:, i])
                 a_ = np.array([np.array(e) for e in zip(*next_action)])
-                if train_mode == 'perStep':
+                if policy_mode == 'off-policy':
                     for i in range(brains_num):
                         models[i].learn(
                             episode=episode,
@@ -67,7 +69,13 @@ class Loop(object):
                             s=s[:, i],
                             r=r[:, i]
                         )
-                if all([all(dones_flag[i]) for i in range(brains_num)]) or step >= max_step:
+
+                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                    last_done_step = step
+                    if policy_mode == 'off-policy':
+                        break
+
+                if step >= max_step:
                     break
 
             # if train_mode == 'perEpisode':
@@ -80,7 +88,7 @@ class Loop(object):
                     total_reward=rewards[i].mean(),
                     step=step
                 )
-            print(f'episode {episode} step {step}')
+            print(f'episode {episode:3d} step {step:4d} last_done_step {last_done_step:4d}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)

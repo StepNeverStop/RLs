@@ -22,7 +22,7 @@ def get_visual_input(n, cameras, brain_obs):
 class Loop(object):
 
     @staticmethod
-    def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval):
+    def train(env, brain_names, models, begin_episode, save_frequency, reset_config, max_step, max_episode, sampler_manager, resampling_interval, policy_mode):
         """
         Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
         Inputs:
@@ -58,6 +58,7 @@ class Loop(object):
                 dones_flag[i] = np.zeros(agents_num[i])
                 rewards[i] = np.zeros(agents_num[i])
             step = 0
+            last_done_step = -1
             while True:
                 step += 1
                 for i, brain_name in enumerate(brain_names):
@@ -81,7 +82,13 @@ class Loop(object):
                         done=np.array(obs[brain_name].local_done)
                     )
                     rewards[i] += np.array(obs[brain_name].rewards)
-                if all([all(dones_flag[i]) for i in range(brains_num)]) or step >= max_step:
+
+                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                    last_done_step = step
+                    if policy_mode == 'off-policy':
+                        break
+
+                if step >= max_step:
                     break
 
             for i in range(brains_num):
@@ -91,7 +98,7 @@ class Loop(object):
                     total_reward=rewards[i].mean(),
                     step=step
                 )
-            print(f'episode {episode:3d} step {step:4d}')
+            print(f'episode {episode:3d} step {step:4d} last_done_step {last_done_step:4d}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)

@@ -105,9 +105,9 @@ class SAC(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu, log_std = self.actor_net(vector_input, visual_input)
-                mu = tf.tanh(mu)    # squash mu
                 log_std = self.clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = self.squash_action(*self.gaussian_reparam_sample(mu, log_std))
+                mu = tf.tanh(mu)    # squash mu
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 mu = tf.argmax(logits, axis=1)

@@ -181,7 +181,8 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'max_step': max_step,
         'max_episode': max_episode,
         'sampler_manager': sampler_manager,
-        'resampling_interval': resampling_interval
+        'resampling_interval': resampling_interval,
+        'policy_mode': policy_mode
     }
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']
@@ -291,7 +292,8 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         'eval_while_train': default_args['eval_while_train'],  # whether to eval while training.
         'max_eval_episode': default_args['max_eval_episode'],
         'render': default_args['render'],
-        'render_episode': render_episode
+        'render_episode': render_episode,
+        'policy_mode': policy_mode
     }
     if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
         steps = algorithm_config['batch_size']

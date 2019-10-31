@@ -52,7 +52,7 @@ def init_variables(env, action_type):
 class Loop(object):
 
     @staticmethod
-    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, eval_while_train, max_eval_episode, render, render_episode):
+    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, eval_while_train, max_eval_episode, render, render_episode, policy_mode):
         """
         Inputs:
             env:                gym environment
@@ -70,10 +70,11 @@ class Loop(object):
             obs = env.reset()
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
             dones_flag = np.full(env.n, False)
-            step_max_of_all = 0
+            step = 0
             r = np.zeros(env.n)
+            last_done_step = -1
             while True:
-                step_max_of_all += 1
+                step += 1
                 r_tem = np.zeros(env.n)
                 if render or episode > render_episode:
                     env.render()
@@ -93,21 +94,27 @@ class Loop(object):
                     visual_s_=new_state[1],
                     done=done
                 )
-                if all(dones_flag) or step_max_of_all >= max_step:
+
+                if all(dones_flag):
+                    last_done_step = step
+                    if policy_mode == 'off-policy':
+                        break
+
+                if step >= max_step:
                     break
-                
+
                 if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
                     new_episode_states = maybe_one_hot(env.patial_reset(), env.observation_space, len(env.dones_index))
                     new_state[i][env.dones_index] = new_episode_states
                 state[i] = new_state[i]
 
-            gym_model.learn(episode=episode, step=step_max_of_all)
+            gym_model.learn(episode=episode, step=step)
             gym_model.writer_summary(
                 episode,
                 total_reward=r.mean(),
-                step=step_max_of_all
+                step=step
             )
-            print(f'Episode: {episode:3d} step_max_of_all: {step_max_of_all:4d} rewards: {r}')
+            print(f'Episode: {episode:3d} step: {step:4d} last_done_step {last_done_step:4d} rewards: {r}')
             if episode % save_frequency == 0:
                 gym_model.save_checkpoint(episode)
 
