@@ -25,7 +25,7 @@ class mlp(Sequential):
         for u in hidden_units:
             self.add(Dense(u, act_fn))
         if out_layer:
-            self.add(Dense(output_shape, act_fn))
+            self.add(Dense(output_shape, out_activation))
 
 
 class Noisy(Dense):
