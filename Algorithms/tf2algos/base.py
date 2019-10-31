@@ -73,7 +73,7 @@ class Base(tf.keras.Model):
         """
         save the training model 
         """
-        self.recorder.logger.info(f'Save checkpoint success. episode: {global_step}')
+        self.recorder.logger.info(f'Save checkpoint success. Episode: {global_step}')
         self.recorder.saver.save(checkpoint_number=global_step)
 
     def writer_summary(self, global_step, **kargs):

@@ -100,7 +100,8 @@ class Loop(object):
                     total_reward=rewards[i].mean(),
                     step=last_done_step
                 )
-            print(f'episode {episode:3d} step {step:4d} last_done_step {last_done_step:4d}')
+            print('-' * 40)
+            print(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)
@@ -150,7 +151,7 @@ class Loop(object):
                 action[i] = np.zeros((agents_num[i], brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
             else:
                 action[i] = np.zeros((agents_num[i], len(brains[brain_name].vector_action_space_size)), dtype=np.int32)
-            
+
         steps = steps // min(agents_num) + 1
 
         for step in range(steps):
