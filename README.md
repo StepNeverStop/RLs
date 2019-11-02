@@ -1,6 +1,6 @@
 # RLs
 
-:evergreen_tree::evergreen_tree::evergreen_tree:This project include SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+:evergreen_tree::evergreen_tree::evergreen_tree:This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ## About
 
@@ -45,7 +45,7 @@ This project supports:
 
 ## Implemented Algorithms
 
-For now, those algorithms are available:
+For now, these algorithms are available:
 
 - Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
 
