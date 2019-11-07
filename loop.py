@@ -97,7 +97,9 @@ class Loop(object):
                 models[i].learn(episode=episode, step=step)
                 models[i].writer_summary(
                     episode,
-                    total_reward=rewards[i].mean(),
+                    reward_mean=rewards[i].mean(),
+                    reward_min=rewards[i].min(),
+                    reward_max=rewards[i].max(),
                     step=last_done_step
                 )
             print('-' * 40)

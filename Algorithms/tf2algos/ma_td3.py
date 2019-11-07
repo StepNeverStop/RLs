@@ -90,6 +90,7 @@ class MATD3(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
+        self.recorder.writer.set_as_default()
         actor_loss, critic_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,

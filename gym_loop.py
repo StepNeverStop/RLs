@@ -112,7 +112,9 @@ class Loop(object):
             gym_model.learn(episode=episode, step=step)
             gym_model.writer_summary(
                 episode,
-                total_reward=r.mean(),
+                reward_mean=r.mean(),
+                reward_min=r.min(),
+                reward_max=r.max(),
                 step=last_done_step
             )
             print('-' * 40)

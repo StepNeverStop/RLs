@@ -182,7 +182,7 @@ class Policy(Base):
 
     @staticmethod
     def gaussian_entropy(log_std):
-        return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2)))
+        return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2 + 1e-6)))
 
     @staticmethod
     def squash_action(pi, log_pi=None):

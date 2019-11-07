@@ -205,6 +205,7 @@ class PPO(Policy):
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
+        self.recorder.writer.set_as_default()
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):

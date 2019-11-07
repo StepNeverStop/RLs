@@ -123,6 +123,7 @@ class SAC_NO_V(Policy):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+        self.recorder.writer.set_as_default()
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()

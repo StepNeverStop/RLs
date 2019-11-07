@@ -89,6 +89,7 @@ class MADDPG(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
+        self.recorder.writer.set_as_default()
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,

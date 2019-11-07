@@ -77,6 +77,7 @@ class MADPG(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
+        self.recorder.writer.set_as_default()
         actor_loss, q_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         tf.summary.experimental.set_step(self.global_step)
         tf.summary.scalar('LOSS/actor_loss', actor_loss)

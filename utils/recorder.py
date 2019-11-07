@@ -48,7 +48,6 @@ class RecorderTf2(object):
     '''
     def __init__(self, cp_dir, log_dir, excel_dir, logger2file, model=None):
         self.writer = tf.summary.create_file_writer(log_dir)
-        self.writer.set_as_default()
         self.checkpoint = tf.train.Checkpoint(policy=model)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=cp_dir, max_to_keep=5, checkpoint_name='rb')
         self.excel_writer = pd.ExcelWriter(excel_dir + '/data.xlsx')

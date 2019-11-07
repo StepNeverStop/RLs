@@ -133,6 +133,7 @@ class AC(Policy):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+        self.recorder.writer.set_as_default()
         for i in range(kwargs['step']):
             s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
             if self.use_priority:

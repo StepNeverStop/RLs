@@ -80,6 +80,7 @@ class Base(tf.keras.Model):
         """
         record the data used to show in the tensorboard
         """
+        self.recorder.writer.set_as_default()
         tf.summary.experimental.set_step(global_step)
         for i in [{'tag': 'MAIN/' + key, 'value': kargs[key]} for key in kargs]:
             tf.summary.scalar(i['tag'], i['value'])
