@@ -118,7 +118,7 @@ class actor_mu(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
-        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -241,7 +241,7 @@ class a_c_v_continuous(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
-        self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
+        self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation='tanh')
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 

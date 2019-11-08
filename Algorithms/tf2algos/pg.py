@@ -84,7 +84,7 @@ class PG(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.net(vector_input, visual_input)
-                sample_op, _ = self.squash_action(*self.gaussian_reparam_sample(mu, self.log_std))
+                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 logits = self.net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -132,7 +132,7 @@ class PG(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.net(s, visual_s)
-                    log_act_prob = self.unsquash_action(mu, a, self.log_std)
+                    log_act_prob = self.gaussian_likelihood(mu, a, self.log_std)
                     entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.net(s, visual_s)

@@ -87,7 +87,7 @@ class A2C(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.actor_net(vector_input, visual_input)
-                sample_op, _ = self.squash_action(*self.gaussian_reparam_sample(mu, self.log_std))
+                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -126,7 +126,7 @@ class A2C(Policy):
         tf.summary.scalar('LOSS/actor_loss', actor_loss)
         tf.summary.scalar('LOSS/critic_loss', critic_loss)
         tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
-        tf.summary.scalar('LEARNING_RATE/actor_lr', self.critic_lr(self.episode))
+        tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
         self.recorder.writer.flush()
         self.clear()
 
@@ -144,7 +144,7 @@ class A2C(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    log_act_prob = self.unsquash_action(mu, a, self.log_std)
+                    log_act_prob = self.gaussian_likelihood(mu, a, self.log_std)
                     entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
@@ -166,7 +166,7 @@ class A2C(Policy):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    log_act_prob = self.unsquash_action(mu, a, self.log_std)
+                    log_act_prob = self.gaussian_likelihood(mu, a, self.log_std)
                     entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)

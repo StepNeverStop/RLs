@@ -114,7 +114,7 @@ class PPO(Policy):
                     mu, _ = self.net(vector_input, visual_input)
                 else:
                     mu = self.actor_net(vector_input, visual_input)
-                sample_op, _ = self.squash_action(*self.gaussian_reparam_sample(mu, self.log_std))
+                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(vector_input, visual_input)
@@ -160,7 +160,7 @@ class PPO(Policy):
                     mu, _ = self.net(s, visual_s)
                 else:
                     mu = self.actor_net(s, visual_s)
-                new_log_prob = self.unsquash_action(mu, a, self.log_std)
+                new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(s, visual_s)
@@ -239,7 +239,7 @@ class PPO(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, value = self.net(s, visual_s)
-                    new_log_prob = self.unsquash_action(mu, a, self.log_std)
+                    new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
                     entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits, value = self.net(s, visual_s)
@@ -269,7 +269,7 @@ class PPO(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    new_log_prob = self.unsquash_action(mu, a, self.log_std)
+                    new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
                     entropy = self.gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
