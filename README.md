@@ -21,7 +21,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). **Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.**
+- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). ~~Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.~~(****Because of GIL, It turned out to be pseudo-multithreading**)
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
@@ -135,9 +135,9 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. need 3 steps to implement a new algorithm
     1. write `.py` in `Algorithms/tf[x]algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf[x]algos/__init__.py`
-    2. write default configuration in `Algorithms/tf[x]algos/config.py`
+    2. write default configuration in `Algorithms/tf[x]algos/config.yaml`
     3. register new algorithm in `algos` of `Algorithms/register.py`
-7. set algorithms' hyper-parameters in [Algorithms/tf[x]algos/config.py](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.py)
+7. set algorithms' hyper-parameters in [Algorithms/tf[x]algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
 9. change neural network structure in [Nn/tf[x]nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
 10. set replay buffer default parameters in [utils/replay_buffer.py](https://github.com/StepNeverStop/RLs/blob/master/utils/replay_buffer.py)

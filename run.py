@@ -320,8 +320,8 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
                 sys.exit()
 
 
-def update_config(config):
-    _config = sth.load_config(options['--config-file'])
+def update_config(config, file_path):
+    _config = sth.load_config(file_path)
     try:
         for key in _config:
             config[key] = _config[key]
