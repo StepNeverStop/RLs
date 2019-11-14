@@ -106,7 +106,8 @@ class AC(Policy):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._get_log_prob(s, visual_s, a).numpy()
-        self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob.astype(np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+        self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob.astype(np.float32),
+                      r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
 
     @tf.function
     def _get_log_prob(self, s, visual_s, a):
@@ -129,7 +130,8 @@ class AC(Policy):
             old_log_prob = np.ones_like(r)
             if not self.action_type == 'continuous':
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob[:, np.newaxis].astype(np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+            self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob[:, np.newaxis].astype(
+                np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

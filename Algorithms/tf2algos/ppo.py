@@ -81,7 +81,8 @@ class PPO(Policy):
             self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
             self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
-        self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
+        if self.action_type == 'continuous':
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -193,7 +194,7 @@ class PPO(Policy):
         # self.recorder.excel_writer.save()
 
     def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index+self.batch_size]
+        i_data = self.data.iloc[index:index + self.batch_size]
         s = np.vstack(i_data.s.values)
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
@@ -257,10 +258,16 @@ class PPO(Policy):
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
                 loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
-            loss_grads = tape.gradient(loss, self.net.trainable_variables + [self.log_std])
-            self.optimizer.apply_gradients(
-                zip(loss_grads, self.net.trainable_variables + [self.log_std])
-            )
+            if self.action_type == 'continuous':
+                loss_grads = tape.gradient(loss, self.net.trainable_variables + [self.log_std])
+                self.optimizer.apply_gradients(
+                    zip(loss_grads, self.net.trainable_variables + [self.log_std])
+                )
+            else:
+                loss_grads = tape.gradient(loss, self.net.trainable_variables)
+                self.optimizer.apply_gradients(
+                    zip(loss_grads, self.net.trainable_variables)
+                )
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
@@ -281,10 +288,16 @@ class PPO(Policy):
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
                 actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
-            )
+            if self.action_type == 'continuous':
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
+                )
+            else:
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables)
+                )
             return actor_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)

@@ -17,9 +17,6 @@ class A2C(Policy):
                  max_episode=50000,
                  base_dir=None,
                  batch_size=128,
-                 buffer_size=10000,
-                 n_step=False,
-                 use_priority=False,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -51,7 +48,6 @@ class A2C(Policy):
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
-
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
         self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net', hidden_units['critic'])
@@ -107,7 +103,7 @@ class A2C(Policy):
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
 
     def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index+self.batch_size]
+        i_data = self.data.iloc[index:index + self.batch_size]
         s = np.vstack(i_data.s.values)
         visual_s = np.vstack(i_data.visual_s.values)
         a = np.vstack(i_data.a.values)
@@ -123,7 +119,7 @@ class A2C(Policy):
             for index in range(0, self.data.shape[0], self.batch_size):
                 s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
                 actor_loss, critic_loss, entropy = self.train.get_concrete_function(
-                        *self.TensorSpecs)(s, visual_s, a, dc_r)
+                    *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
         tf.summary.experimental.set_step(self.episode)
         tf.summary.scalar('LOSS/entropy', entropy)
