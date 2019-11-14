@@ -49,6 +49,7 @@ class AC(Policy):
         self.epsilon = epsilon
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
         self.critic_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'critic_net', hidden_units['critic'])
@@ -56,7 +57,6 @@ class AC(Policy):
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
-        self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True) if self.action_type == 'continuous' else []
         self.generate_recorder(
             logger2file=logger2file,
             model=self
@@ -182,10 +182,16 @@ class AC(Policy):
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
-            )
+            if self.action_type == 'continuous':
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
+                )
+            else:
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables)
+                )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error
 
@@ -218,9 +224,15 @@ class AC(Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
-            )
+            if self.action_type == 'continuous':
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
+                )
+            else:
+                actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+                self.optimizer_actor.apply_gradients(
+                    zip(actor_grads, self.actor_net.trainable_variables)
+                )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy, td_error
