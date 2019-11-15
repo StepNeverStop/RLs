@@ -56,9 +56,9 @@ class gym_envs(object):
         for th in threadpool:
             threading.Thread.join(th)
         if self.obs_type == 'visual':
-            return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)])
+            return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)]).astype(np.float32)
         else:
-            return np.array([threadpool[i].get_result() for i in range(self.n)])
+            return np.array([threadpool[i].get_result() for i in range(self.n)]).astype(np.float32)
 
     def step(self, actions):
         if self.a_type == 'discrete':
@@ -81,7 +81,7 @@ class gym_envs(object):
             results = [threadpool[i].get_result() for i in range(self.n)]
         obs, reward, done, info = [np.array(e) for e in zip(*results)]
         self.dones_index = np.where(done)[0]
-        return obs, reward, done, info
+        return obs.astype(np.float32), reward, done, info
     
     def patial_reset(self):
         threadpool = []
@@ -93,7 +93,7 @@ class gym_envs(object):
         for th in threadpool:
             threading.Thread.join(th)
         if self.obs_type == 'visual':
-            return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
+            return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])]).astype(np.float32)
         else:
-            return np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
+            return np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])]).astype(np.float32)
 

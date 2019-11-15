@@ -72,17 +72,17 @@ class Noisy(Dense):
 class ImageNet(tf.keras.Model):
     def __init__(self, name, visual_dim=[]):
         super().__init__(name=name)
-        if len(visual_dim) == 5:
+        self.build_visual = False
+        if len(visual_dim) == 4:
             self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
             self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
             self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
             self.flatten = Flatten()
             self.fc = Dense(128, activation_fn)
+            self.build_visual = True
 
     def call(self, vector_input, visual_input):
-        if visual_input is None or len(visual_input.shape) != 5:
-            pass
-        else:
+        if self.build_visual:
             features = self.conv1(visual_input)
             features = self.conv2(features)
             features = self.conv3(features)

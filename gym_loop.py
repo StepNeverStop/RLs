@@ -46,7 +46,7 @@ def init_variables(env, action_type):
     """
     i = 1 if len(env.observation_space.shape) == 3 else 0
     mu, sigma = get_action_normalize_factor(env.action_space, action_type)
-    return i, mu, sigma, [np.empty(env.n), np.array([[]] * env.n)], [np.empty(env.n), np.array([[]] * env.n)]
+    return i, mu, sigma, [np.array([[]] * env.n), np.array([[]] * env.n)], [np.array([[]] * env.n), np.array([[]] * env.n)]
 
 
 class Loop(object):
