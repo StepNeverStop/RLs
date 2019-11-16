@@ -2,7 +2,7 @@ import tensorflow as tf
 from .activations import swish, mish
 from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
-from tensorflow.keras.layers import Conv3D, Dense, Flatten
+from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten
 
 activation_fn = tf.keras.activations.tanh
 
@@ -77,6 +77,13 @@ class ImageNet(tf.keras.Model):
             self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
             self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
             self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
+            self.flatten = Flatten()
+            self.fc = Dense(128, activation_fn)
+            self.build_visual = True
+        elif len(visual_dim) == 3:
+            self.conv1 = Conv2D(filters=32, kernel_size=[8, 8], strides=[4, 4], padding='valid', activation=activation_fn)
+            self.conv2 = Conv2D(filters=64, kernel_size=[4, 4], strides=[2, 2], padding='valid', activation=activation_fn)
+            self.conv3 = Conv2D(filters=64, kernel_size=[3, 3], strides=[1, 1], padding='valid', activation=activation_fn)
             self.flatten = Flatten()
             self.fc = Dense(128, activation_fn)
             self.build_visual = True

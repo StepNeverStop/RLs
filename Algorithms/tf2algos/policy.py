@@ -28,7 +28,12 @@ class Policy(Base):
             base_dir=base_dir)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
-        self.visual_dim = [visual_sources, *visual_resolution] if visual_sources else [0]
+        if visual_sources == 1:
+            self.visual_dim = visual_resolution
+        elif visual_sources > 1:
+            self.visual_dim = [visual_sources, *visual_resolution]
+        else:
+            self.visual_dim = [0]
         self.a_dim_or_list = a_dim_or_list
         self.gamma = gamma
         self.max_episode = max_episode
@@ -174,7 +179,7 @@ class Policy(Base):
         pi = mu + tf.random.normal(mu.shape) * std
         log_pi = Policy.gaussian_likelihood(pi, mu, log_std)
         return pi, log_pi
-    
+
     @staticmethod
     def gaussian_clip_reparam_sample(mu, log_std, _min=-1, _max=1):
         """
@@ -218,4 +223,3 @@ class Policy(Base):
         clip_up = tf.cast(x > h, tf.float32)
         clip_low = tf.cast(x < l, tf.float32)
         return x + tf.stop_gradient((h - x) * clip_up + (l - x) * clip_low)
-

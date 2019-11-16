@@ -21,7 +21,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). ~~Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.~~(****Because of GIL, It turned out to be pseudo-multithreading**)
+- Gym, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). ~~Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.~~(**Because of GIL, It turned out to be pseudo-multithreading**)
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
