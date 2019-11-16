@@ -79,7 +79,7 @@ class Loop(object):
                 r_tem = np.zeros(env.n)
                 if render or episode > render_episode:
                     env.render()
-                action = gym_model.choose_action(s=state[0], visual_s=state[1])
+                action = gym_model.choose_action(s=state[0], visual_s=state[1], episode=episode)
                 obs, reward, done, info = env.step(action * sigma + mu)
                 unfinished_index = np.where(dones_flag == False)[0]
                 dones_flag += done
@@ -137,7 +137,7 @@ class Loop(object):
         total_r = np.zeros(env.n)
         total_steps = np.zeros(env.n)
         episodes = max_eval_episode // env.n
-        for _ in range(episodes):
+        for episode in range(episodes):
             obs = env.reset()
             state[i] = maybe_one_hot(obs, env.observation_space, env.n)
             dones_flag = np.full(env.n, False)
@@ -145,7 +145,7 @@ class Loop(object):
             r = np.zeros(env.n)
             while True:
                 r_tem = np.zeros(env.n)
-                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])
+                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1]) # In the future, this method can be combined with choose_action
                 obs, reward, done, info = env.step(action * sigma + mu)
                 unfinished_index = np.where(dones_flag == False)
                 dones_flag += done
