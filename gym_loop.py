@@ -52,7 +52,8 @@ def init_variables(env, action_type):
 class Loop(object):
 
     @staticmethod
-    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode, eval_while_train, max_eval_episode, render, render_episode, policy_mode):
+    def train(env, gym_model, action_type, begin_episode, save_frequency, max_step, max_episode,
+              eval_while_train, max_eval_episode, render, render_episode, policy_mode):
         """
         Inputs:
             env:                gym environment

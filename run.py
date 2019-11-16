@@ -234,7 +234,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
-        env = gym_envs(options['--gym-env'], int(options['--gym-agents']))
+        env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), render_mode=default_args['render_mode'])
         assert type(env.observation_space) in available_type and type(env.action_space) in available_type, 'action_space and observation_space must be one of available_type'
     except Exception as e:
         print(e)

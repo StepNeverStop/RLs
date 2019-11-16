@@ -36,6 +36,7 @@ train_config = {
     'save_frequency': 20,
     'max_step': 2000,
     'max_episode': 5000,
+    # share_args
     'share': {
         'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
         'logger2file': False,
@@ -45,6 +46,7 @@ train_config = {
             'capacity': 1000
         }
     },
+    # unity default_args
     'unity': {
         'no_op_steps': 100,
         'exe_file': unity_file['3DBall']['simple500'],
@@ -52,10 +54,12 @@ train_config = {
             #    'copy': 10
         },
     },
+    # gym default_args
     'gym': {
         'random_steps': 10000,
         'render': False,
         'render_episode': 50000,
+        'render_mode': 'random_1', # first, last, [list], random_[num], or all.
         'eval_while_train': False,
         'max_eval_episode': 100,
     },
