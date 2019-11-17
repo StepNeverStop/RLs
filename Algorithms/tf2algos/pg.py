@@ -19,7 +19,6 @@ class PG(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
-                 epsilon=0.2,
                  epoch=5,
                  hidden_units={
                      'actor_continuous': [32, 32],
@@ -39,7 +38,6 @@ class PG(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.epoch = epoch
-        self.epsilon = epsilon
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
             self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
@@ -66,14 +64,8 @@ class PG(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.action_type == 'continuous':
-            return self._get_action(s, visual_s).numpy()
-        else:
-            if np.random.uniform() < self.epsilon:
-                a = np.random.randint(0, self.a_counts, len(s))
-            else:
-                a = self._get_action(s, visual_s).numpy()
-            return sth.int2action_index(a, self.a_dim_or_list)
+        a = self._get_action(s, visual_s).numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
         a = self._get_action(s, visual_s).numpy()

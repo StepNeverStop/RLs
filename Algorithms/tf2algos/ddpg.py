@@ -106,7 +106,7 @@ class DDPG(Policy):
         return mu, pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

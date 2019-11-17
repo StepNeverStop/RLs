@@ -122,10 +122,10 @@ class Policy(Base):
             s.astype(np.float32),
             visual_s.astype(np.float32),
             a.astype(np.float32),
-            r.astype(np.float32),
+            r[:, np.newaxis].astype(np.float32),
             s_.astype(np.float32),
             visual_s_.astype(np.float32),
-            done.astype(np.float32)
+            done[:, np.newaxis].astype(np.float32)
         )
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):

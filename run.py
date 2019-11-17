@@ -235,7 +235,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
 
     try:
         env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), render_mode=default_args['render_mode'])
-        assert type(env.observation_space) in available_type and type(env.action_space) in available_type, 'action_space and observation_space must be one of available_type'
+        assert type(env.obs_space) in available_type and type(env.action_space) in available_type, 'action_space and obs_space must be one of available_type'
     except Exception as e:
         print(e)
 
@@ -245,14 +245,14 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
 
-    if type(env.observation_space) == Box:
-        s_dim = env.observation_space.shape[0] if len(env.observation_space.shape) == 1 else 0
+    if type(env.obs_space) == Box:
+        s_dim = env.obs_space.shape[0] if len(env.obs_space.shape) == 1 else 0
     else:
-        s_dim = int(env.observation_space.n)
+        s_dim = int(env.obs_space.n)
 
-    if len(env.observation_space.shape) == 3:
+    if len(env.obs_space.shape) == 3:
         visual_sources = 1
-        visual_resolution = list(env.observation_space.shape)
+        visual_resolution = list(env.obs_space.shape)
     else:
         visual_sources = 0
         visual_resolution = []
@@ -286,7 +286,6 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     params = {
         'env': env,
         'gym_model': gym_model,
-        'action_type': action_type,
         'begin_episode': begin_episode,
         'save_frequency': save_frequency,
         'max_step': max_step,
@@ -302,11 +301,11 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     else:
         steps = default_args['random_steps']
     if options['--inference']:
-        Loop.inference(env, gym_model, action_type)
+        Loop.inference(env, gym_model)
     else:
         sth.save_config(os.path.join(base_dir, 'config'), algorithm_config)
         try:
-            Loop.no_op(env, gym_model, action_type, steps, choose=options['--noop-choose'])
+            Loop.no_op(env, gym_model, steps, choose=options['--noop-choose'])
             Loop.train(**params)
         except Exception as e:
             print(e)

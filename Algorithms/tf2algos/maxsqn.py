@@ -24,7 +24,10 @@ class MAXSQN(Policy):
                  alpha=0.2,
                  beta=0.1,
                  ployak=0.995,
-                 epsilon=0.2,
+                 eps_init=1,
+                 eps_mid=0.2,
+                 eps_final=0.01,
+                 init2mid_annealing_episode=100,
                  use_epsilon=False,
                  q_lr=5.0e-4,
                  alpha_lr=5.0e-4,
@@ -47,7 +50,11 @@ class MAXSQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.epsilon = epsilon
+        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init, 
+                                                          eps_mid=eps_mid,
+                                                          eps_final=eps_final,
+                                                          init2mid_annealing_episode=init2mid_annealing_episode,
+                                                          max_episode=max_episode)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -83,17 +90,18 @@ class MAXSQN(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.use_epsilon and np.random.uniform() < self.epsilon:
+        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s)[-1].numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return sth.int2action_index(
-            self._get_action(s, visual_s)[0].numpy(),
-            self.a_dim_or_list
-        )
+        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+            a = np.random.randint(0, self.a_counts, len(s))
+        else:
+            a = self._get_action(s, visual_s)[-1].numpy()
+        return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
@@ -104,7 +112,7 @@ class MAXSQN(Policy):
         return tf.argmax(q, axis=1), pi
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

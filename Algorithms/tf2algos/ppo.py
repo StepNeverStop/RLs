@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
+from utils.tf2_utils import show_graph
 from .policy import Policy
 
 
@@ -203,6 +204,7 @@ class PPO(Policy):
         advantage = np.vstack(i_data.advantage.values).reshape(-1, 1)
         return s, visual_s, a, dc_r, old_log_prob, advantage
 
+    # @show_graph(name='ppo_net')
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']

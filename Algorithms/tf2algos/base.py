@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-
+from abc import abstractmethod
 from utils.recorder import RecorderTf2 as Recorder
 
 
@@ -28,6 +28,30 @@ class Base(tf.keras.Model):
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.episode = 0    # episode of now
         self.IS_w = 1       # the weights of NN variables by using Importance sampling.
+
+    @abstractmethod
+    def choose_action(self, s, visual_s):
+        '''
+        choose actions while training.
+        Input: 
+            s: vector observation
+            visual_s: visual observation
+        Output: 
+            actions
+        '''
+        pass
+    
+    @abstractmethod
+    def choose_inference_action(self, s, visual_s):
+        '''
+        choose actions while inferencing.
+        Input: 
+            s: vector observation
+            visual_s: visual observation
+        Output: 
+            actions
+        '''
+        pass
 
     def get_init_episode(self):
         """
@@ -113,7 +137,11 @@ class Base(tf.keras.Model):
         self.global_step = num
 
     def update_target_net_weights(self, tge, src, ployak=None):
+        '''
+        update weights of target neural network.
+        '''
         if ployak is None:
             tf.group([t.assign(s) for t, s in zip(tge, src)])
         else:
             tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
+    

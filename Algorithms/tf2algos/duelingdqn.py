@@ -25,7 +25,10 @@ class DDDQN(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
-                 epsilon=0.2,
+                 eps_init=1,
+                 eps_mid=0.2,
+                 eps_final=0.01,
+                 init2mid_annealing_episode=100,
                  assign_interval=2,
                  hidden_units={
                      'share': [128],
@@ -49,7 +52,11 @@ class DDDQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.epsilon = epsilon
+        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init, 
+                                                          eps_mid=eps_mid,
+                                                          eps_final=eps_final,
+                                                          init2mid_annealing_episode=init2mid_annealing_episode,
+                                                          max_episode=max_episode)
         self.assign_interval = assign_interval
         self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_net', hidden_units)
         self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net', hidden_units)
@@ -76,17 +83,18 @@ class DDDQN(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if np.random.uniform() < self.epsilon:
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return sth.int2action_index(
-            self._get_action(s, visual_s).numpy(),
-            self.a_dim_or_list
-        )
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+            a = np.random.randint(0, self.a_counts, len(s))
+        else:
+            a = self._get_action(s, visual_s).numpy()
+        return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
@@ -95,7 +103,7 @@ class DDDQN(Policy):
         return tf.argmax(advs, axis=1)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

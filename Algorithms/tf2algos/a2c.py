@@ -20,7 +20,6 @@ class A2C(Policy):
 
                  epoch=5,
                  beta=1.0e-3,
-                 epsilon=0.2,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  hidden_units={
@@ -42,7 +41,6 @@ class A2C(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.beta = beta
-        self.epsilon = epsilon
         self.epoch = epoch
         self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
@@ -72,11 +70,8 @@ class A2C(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.action_type == 'continuous':
-            return self._get_action(s, visual_s).numpy()
-        else:
-            a = self._get_action(s, visual_s).numpy()
-            return sth.int2action_index(a, self.a_dim_or_list)
+        a = self._get_action(s, visual_s).numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
         a = self._get_action(s, visual_s).numpy()

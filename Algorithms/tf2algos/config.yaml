@@ -15,7 +15,10 @@ dqn:
 ddqn:
     lr: 5.0e-4
     gamma: 0.99
-    epsilon: 0.2
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_episode: 10
     batch_size: 1024
     buffer_size: 200000
     assign_interval: 1000
@@ -26,7 +29,10 @@ ddqn:
 dddqn:
     lr: 5.0e-4
     gamma: 0.99
-    epsilon: 0.2
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_episode: 10
     batch_size: 1024
     buffer_size: 200000
     assign_interval: 1000
@@ -38,7 +44,6 @@ dddqn:
         adv: [128]
 
 pg: 
-    epsilon: 0.2
     lr: 5.0e-4
     gamma: 0.99
     batch_size: 1024
@@ -50,7 +55,6 @@ pg:
 ac: 
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    epsilon: 0.2
     gamma: 0.99
     batch_size: 1024
     buffer_size: 200000
@@ -62,7 +66,6 @@ ac:
         critic: [64, 64]
 
 a2c: 
-    epsilon: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     gamma: 0.99
@@ -191,8 +194,11 @@ sac_no_v:
 maxsqn: 
     alpha: 0.2
     beta: 0.1    # 0 <= beta < 1 when beta approaches 1 the distribution of convergence points is closer to uniform distribution means more entropy. when beta approaches 0 the final policy is more deterministic.
-    epsilon: 0.2
     use_epsilon: False
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_episode: 10
     auto_adaption: True
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4

@@ -24,7 +24,6 @@ class AC(Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 epsilon=0.2,
                  hidden_units={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -46,7 +45,6 @@ class AC(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.epsilon = epsilon
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
@@ -74,14 +72,8 @@ class AC(Policy):
         ''')
 
     def choose_action(self, s, visual_s):
-        if self.action_type == 'continuous':
-            return self._get_action(s, visual_s).numpy()
-        else:
-            if np.random.uniform() < self.epsilon:
-                a = np.random.randint(0, self.a_counts, len(s))
-            else:
-                a = self._get_action(s, visual_s).numpy()
-            return sth.int2action_index(a, self.a_dim_or_list)
+        a = self._get_action(s, visual_s).numpy()
+        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
         a = self._get_action(s, visual_s).numpy()

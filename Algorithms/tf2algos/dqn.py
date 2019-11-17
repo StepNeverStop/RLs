@@ -74,6 +74,7 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
         ''')
+        self.store_data = self.off_store
 
     def choose_action(self, s, visual_s):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
@@ -94,9 +95,6 @@ class DQN(Policy):
         with tf.device(self.device):
             q_values = self.q_net(vector_input, visual_input)
         return tf.argmax(q_values, axis=1)
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
