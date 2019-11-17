@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from utils.sth import sth
 from .policy import Policy
+from Algorithms.tf2algos.expl_expt import ExplorationExploitationClass
 
 
 class DQN(Policy):
@@ -21,7 +22,10 @@ class DQN(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
-                 epsilon=0.2,
+                 eps_initial=1,
+                 eps_final=0.2,
+                 eps_final_episode=0.01,
+                 eps_annealing_episode=100,
                  assign_interval=2,
                  hidden_units=[32, 32],
                  logger2file=False,
@@ -41,7 +45,10 @@ class DQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.epsilon = epsilon
+        self.expl_expt_mng = ExplorationExploitationClass(eps_initial=eps_initial, eps_final=eps_final,
+                                                          eps_final_episode=eps_final_episode,
+                                                          eps_annealing_episode=eps_annealing_episode,
+                                                          max_episode=max_episode)
         self.assign_interval = assign_interval
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
         self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
@@ -67,8 +74,8 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
         ''')
 
-    def choose_action(self, s, visual_s):
-        if np.random.uniform() < self.epsilon:
+    def choose_action(self, s, visual_s, episode=0):
+        if np.random.uniform() < self.expl_expt_mng.get_esp(episode):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()
