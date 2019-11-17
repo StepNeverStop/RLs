@@ -60,7 +60,7 @@ train_config = {
         'render': False,
         'render_episode': 50000,
         'render_mode': 'random_1', # first, last, [list], random_[num], or all.
-        'eval_while_train': True,
+        'eval_while_train': False,
         'max_eval_episode': 100,
     },
 

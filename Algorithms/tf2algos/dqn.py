@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from utils.sth import sth
 from .policy import Policy
-from Algorithms.tf2algos.expl_expt import ExplorationExploitationClass
+from utils.expl_expt import ExplorationExploitationClass
 
 
 class DQN(Policy):
@@ -22,11 +22,11 @@ class DQN(Policy):
                  base_dir=None,
 
                  lr=5.0e-4,
-                 eps_initial=1,
-                 eps_final=0.2,
-                 eps_final_episode=0.01,
-                 eps_annealing_episode=100,
-                 assign_interval=2,
+                 eps_init=1,
+                 eps_mid=0.2,
+                 eps_final=0.01,
+                 init2mid_annealing_episode=100,
+                 assign_interval=1000,
                  hidden_units=[32, 32],
                  logger2file=False,
                  out_graph=False):
@@ -45,9 +45,10 @@ class DQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.expl_expt_mng = ExplorationExploitationClass(eps_initial=eps_initial, eps_final=eps_final,
-                                                          eps_final_episode=eps_final_episode,
-                                                          eps_annealing_episode=eps_annealing_episode,
+        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init, 
+                                                          eps_mid=eps_mid,
+                                                          eps_final=eps_final,
+                                                          init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=max_episode)
         self.assign_interval = assign_interval
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
@@ -74,18 +75,19 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
         ''')
 
-    def choose_action(self, s, visual_s, episode=0):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(episode):
+    def choose_action(self, s, visual_s):
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     def choose_inference_action(self, s, visual_s):
-        return sth.int2action_index(
-            self._get_action(s, visual_s).numpy(),
-            self.a_dim_or_list
-        )
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+            a = np.random.randint(0, self.a_counts, len(s))
+        else:
+            a = self._get_action(s, visual_s).numpy()
+        return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, vector_input, visual_input):
