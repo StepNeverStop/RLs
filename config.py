@@ -2,15 +2,6 @@ import os
 import time
 import platform
 import tensorflow as tf
-try:
-    tf_version = tf.version.VERSION[0]
-except:
-    tf_version = tf.VERSION[0]
-finally:
-    if tf_version == '1':
-        version = 'tf1'
-    elif tf_version == '2':
-        version = 'tf2'
 
 unity_file = {
     '3DBall': {
@@ -38,7 +29,7 @@ train_config = {
     'max_episode': 5000,
     # share_args
     'share': {
-        'base_dir': f'C:/RLData/{version}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
+        'base_dir': f'C:/RLData/tf{tf.__version__[0]}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
         'logger2file': False,
         'out_graph': False,
         'ma': {

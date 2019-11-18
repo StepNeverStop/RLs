@@ -105,7 +105,7 @@ class Loop(object):
             r = np.zeros(env.n)
             while True:
                 r_tem = np.zeros(env.n)
-                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1]) # In the future, this method can be combined with choose_action
+                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])  # In the future, this method can be combined with choose_action
                 state[i], reward, done, info = env.step(action)
                 unfinished_index = np.where(dones_flag == False)
                 dones_flag += done
@@ -137,7 +137,7 @@ class Loop(object):
 
     @staticmethod
     def no_op(env, gym_model, steps, choose=False):
-        assert type(steps) == int and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
+        assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
         i, state, new_state = init_variables(env)
 
         state[i] = env.reset()

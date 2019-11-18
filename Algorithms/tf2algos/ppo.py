@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import show_graph
+from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
 from .policy import Policy
 
 
@@ -63,7 +63,7 @@ class PPO(Policy):
         self.epsilon = epsilon
         self.share_net = share_net
         if self.share_net:
-            self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
+            self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
             if self.action_type == 'continuous':
                 self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net', hidden_units['share']['continuous'])
             else:
@@ -71,8 +71,8 @@ class PPO(Policy):
             self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         else:
-            self.actor_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
-            self.critic_TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [1])
+            self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
+            self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.action_type == 'continuous':
                 self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             else:
@@ -116,7 +116,7 @@ class PPO(Policy):
                     mu, _ = self.net(vector_input, visual_input)
                 else:
                     mu = self.actor_net(vector_input, visual_input)
-                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
+                sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(vector_input, visual_input)
@@ -162,7 +162,7 @@ class PPO(Policy):
                     mu, _ = self.net(s, visual_s)
                 else:
                     mu = self.actor_net(s, visual_s)
-                new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
+                new_log_prob = gaussian_likelihood(mu, a, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(s, visual_s)
@@ -242,8 +242,8 @@ class PPO(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, value = self.net(s, visual_s)
-                    new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
-                    entropy = self.gaussian_entropy(self.log_std)
+                    new_log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    entropy =  gaussian_entropy(self.log_std)
                 else:
                     logits, value = self.net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -278,8 +278,8 @@ class PPO(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    new_log_prob = self.gaussian_likelihood(mu, a, self.log_std)
-                    entropy = self.gaussian_entropy(self.log_std)
+                    new_log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    entropy =  gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)

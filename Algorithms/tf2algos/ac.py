@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
+from utils.tf2_utils import gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
 from .policy import Policy
 
 
@@ -84,7 +85,7 @@ class AC(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.actor_net(vector_input, visual_input)
-                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
+                sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -107,7 +108,7 @@ class AC(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.actor_net(s, visual_s)
-                log_prob = self.gaussian_likelihood(mu, a, self.log_std)
+                log_prob = gaussian_likelihood(mu, a, self.log_std)
             else:
                 logits = self.actor_net(s, visual_s)
                 logp_all = tf.nn.log_softmax(logits)
@@ -165,8 +166,8 @@ class AC(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    log_prob = self.gaussian_likelihood(mu, a, self.log_std)
-                    entropy = self.gaussian_entropy(self.log_std)
+                    log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    entropy =  gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -197,8 +198,8 @@ class AC(Policy):
                     next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                     mu, sigma = self.actor_net(s, visual_s)
-                    log_prob = self.gaussian_likelihood(mu, a, self.log_std)
-                    entropy = self.gaussian_entropy(self.log_std)
+                    log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    entropy =  gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s_, visual_s_)
                     max_a = tf.argmax(logits, axis=1)

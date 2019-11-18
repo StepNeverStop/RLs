@@ -26,11 +26,11 @@ for i, env_info in enumerate(env_list):
         info = '|' + str(env_info.id).ljust(50) + str(env.observation_space).ljust(80) + str(env.action_space).rjust(80) + '|'
         print(i, info)
         available_file.write(info + '\n')
-        if type(env.observation_space) not in [Box, Discrete] or type(env.action_space) not in [Box, Discrete, Tuple]:
+        if not isinstance(env.observation_space, [Box, Discrete]) or not isinstance(env.action_space, [Box, Discrete, Tuple]):
             untrainable_file.write(info + '\n')
-        elif type(env.action_space) != Tuple and (len(env.action_space.shape) == 2 or len(env.observation_space.shape) == 2):
+        elif not isinstance(env.action_space, Tuple) and (len(env.action_space.shape) == 2 or len(env.observation_space.shape) == 2):
             untrainable_file.write(info + '\n')
-        elif type(env.action_space) == Tuple and not all([type(i) == Discrete for i in env.action_space]):
+        elif isinstance(env.action_space, Tuple) and not all([isinstance(i, Discrete) for i in env.action_space]):
             untrainable_file.write(info + '\n')
         else:
             trainable_file.write(info + '\n')

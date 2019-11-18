@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
+from utils.tf2_utils import get_TensorSpecs, gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
 from .policy import Policy
 
 
@@ -38,7 +39,7 @@ class PG(Policy):
             policy_mode='ON',
             batch_size=batch_size)
         self.epoch = epoch
-        self.TensorSpecs = self.get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
+        self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.action_type == 'continuous':
             self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
@@ -76,7 +77,7 @@ class PG(Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.net(vector_input, visual_input)
-                sample_op, _ = self.gaussian_clip_reparam_sample(mu, self.log_std)
+                sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 logits = self.net(vector_input, visual_input)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -124,8 +125,8 @@ class PG(Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.net(s, visual_s)
-                    log_act_prob = self.gaussian_likelihood(mu, a, self.log_std)
-                    entropy = self.gaussian_entropy(self.log_std)
+                    log_act_prob = gaussian_likelihood(mu, a, self.log_std)
+                    entropy =  gaussian_entropy(self.log_std)
                 else:
                     logits = self.net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)

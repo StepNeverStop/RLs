@@ -235,7 +235,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
 
     try:
         env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), render_mode=default_args['render_mode'])
-        assert type(env.obs_space) in available_type and type(env.action_space) in available_type, 'action_space and obs_space must be one of available_type'
+        assert isinstance(env.obs_space, available_type) and isinstance(env.action_space, available_type), 'action_space and obs_space must be one of available_type'
     except Exception as e:
         print(e)
 
@@ -245,7 +245,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
 
-    if type(env.obs_space) == Box:
+    if isinstance(env.obs_space, Box):
         s_dim = env.obs_space.shape[0] if len(env.obs_space.shape) == 1 else 0
     else:
         s_dim = int(env.obs_space.n)
@@ -257,12 +257,12 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         visual_sources = 0
         visual_resolution = []
 
-    if type(env.action_space) == Box:
+    if isinstance(env.action_space, Box):
         assert len(env.action_space.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
         a_dim_or_list = env.action_space.shape
         action_type = 'continuous'
-    elif type(env.action_space) == Tuple:
-        assert all([type(i) == Discrete for i in env.action_space]) == True, 'if action space is Tuple, each item in it must have type Discrete'
+    elif isinstance(env.action_space, Tuple):
+        assert all([isinstance(i, Discrete) for i in env.action_space]) == True, 'if action space is Tuple, each item in it must have type Discrete'
         a_dim_or_list = [i.n for i in env.action_space]
         action_type = 'discrete'
     else:

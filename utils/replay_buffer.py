@@ -35,8 +35,8 @@ er_config = {
 
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):
-        assert type(batch_size) == int and batch_size > 0, 'batch_size must be int and larger than 0'
-        assert type(capacity) == int and capacity > 0, 'capacity must be int and larger than 0'
+        assert isinstance(batch_size, int) and batch_size > 0, 'batch_size must be int and larger than 0'
+        assert isinstance(capacity, int) and capacity > 0, 'capacity must be int and larger than 0'
         self.batch_size = batch_size
         self.capacity = capacity
         self._size = 0

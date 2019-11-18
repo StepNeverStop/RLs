@@ -98,7 +98,7 @@ class Loop(object):
 
     @staticmethod
     def no_op(env, brain_names, models, data, brains, steps, choose=False, **kwargs):
-        assert type(steps) == int, 'multi-agent no_op.steps must have type of int'
+        assert isinstance(steps, int), 'multi-agent no_op.steps must have type of int'
         if steps < data.batch_size:
             steps = data.batch_size
         brains_num = len(brain_names)
