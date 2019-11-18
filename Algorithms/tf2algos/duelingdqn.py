@@ -3,6 +3,7 @@ import tensorflow as tf
 import Nn
 from utils.sth import sth
 from .policy import Policy
+from utils.expl_expt import ExplorationExploitationClass
 
 
 class DDDQN(Policy):

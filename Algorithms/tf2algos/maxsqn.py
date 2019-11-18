@@ -4,6 +4,7 @@ import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
 from .policy import Policy
+from utils.expl_expt import ExplorationExploitationClass
 
 
 class MAXSQN(Policy):
@@ -31,7 +32,7 @@ class MAXSQN(Policy):
                  use_epsilon=False,
                  q_lr=5.0e-4,
                  alpha_lr=5.0e-4,
-                 auto_adapton=True,
+                 auto_adaption=True,
                  hidden_units=[32, 32],
                  logger2file=False,
                  out_graph=False):
