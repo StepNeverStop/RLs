@@ -110,13 +110,13 @@ class DDQN(Policy):
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
-                q_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
                 if self.global_step % self.assign_interval == 0:
                     self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/loss', q_loss)
+                self.write_training_summaries(summaries)
                 tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
                 self.recorder.writer.flush()
 
@@ -140,4 +140,9 @@ class DDQN(Policy):
                 zip(grads, self.q_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return q_loss, td_error
+            return td_error, dict([
+                ['LOSS/loss', q_loss],
+                ['Statistics/q_max', tf.reduce_max(q_eval)],
+                ['Statistics/q_min', tf.reduce_min(q_eval)],
+                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
+            ])

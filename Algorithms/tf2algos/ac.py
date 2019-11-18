@@ -133,13 +133,11 @@ class AC(Policy):
             s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
-            actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
+            td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
             if self.use_priority:
                 self.data.update(td_error, self.episode)
             tf.summary.experimental.set_step(self.global_step)
-            tf.summary.scalar('LOSS/entropy', entropy)
-            tf.summary.scalar('LOSS/actor_loss', actor_loss)
-            tf.summary.scalar('LOSS/critic_loss', critic_loss)
+            self.write_training_summaries(summaries)
             tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
             tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
             self.recorder.writer.flush()
@@ -188,7 +186,15 @@ class AC(Policy):
                     zip(actor_grads, self.actor_net.trainable_variables)
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error
+            return td_error, dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/q_max', tf.reduce_max(q)],
+                ['Statistics/q_min', tf.reduce_min(q)],
+                ['Statistics/q_mean', tf.reduce_mean(q)],
+                ['Statistics/ratio', tf.reduce_mean(ratio)],
+                ['Statistics/entropy', entropy]
+            ])
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
@@ -230,4 +236,12 @@ class AC(Policy):
                     zip(actor_grads, self.actor_net.trainable_variables)
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error
+            return td_error, dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/q_max', tf.reduce_max(q)],
+                ['Statistics/q_min', tf.reduce_min(q)],
+                ['Statistics/q_mean', tf.reduce_mean(q)],
+                ['Statistics/ratio', tf.reduce_mean(ratio)],
+                ['Statistics/entropy', entropy]
+            ])

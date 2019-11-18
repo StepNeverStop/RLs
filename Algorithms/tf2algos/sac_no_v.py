@@ -130,7 +130,7 @@ class SAC_NO_V(Policy):
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
-                actor_loss, critic_loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
                 self.update_target_net_weights(
@@ -138,10 +138,7 @@ class SAC_NO_V(Policy):
                     self.q1_net.weights + self.q2_net.weights,
                     self.ployak)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/actor_loss', actor_loss)
-                tf.summary.scalar('LOSS/critic_loss', critic_loss)
-                tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
-                tf.summary.scalar('LOSS/entropy', entropy)
+                self.write_training_summaries(summaries)
                 tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
                 tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
                 tf.summary.scalar('LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode))
@@ -218,7 +215,24 @@ class SAC_NO_V(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/q1_loss', q1_loss],
+                ['LOSS/q2_loss', q2_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/log_alpha', self.log_alpha],
+                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/entropy', entropy],
+                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(q1)],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))],
+                ['Statistics/v_mean', tf.reduce_mean(v)]
+            ])
+            if self.auto_adaption:
+                summaries.update({
+                    'LOSS/alpha_loss': alpha_loss
+                    })
+            return td_error1 + td_error2 / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -278,4 +292,21 @@ class SAC_NO_V(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, entropy, td_error1 + td_error2 / 2
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/q1_loss', q1_loss],
+                ['LOSS/q2_loss', q2_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/log_alpha', self.log_alpha],
+                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/entropy', entropy],
+                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(q1)],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))],
+                ['Statistics/v_mean', tf.reduce_mean(v)]
+            ])
+            if self.auto_adaption:
+                summaries.update({
+                    'LOSS/alpha_loss': alpha_loss
+                    })
+            return td_error1 + td_error2 / 2, summaries

@@ -117,7 +117,7 @@ class TD3(Policy):
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
-                actor_loss, critic_loss, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
                 self.update_target_net_weights(
@@ -125,8 +125,7 @@ class TD3(Policy):
                     self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
                     self.ployak)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/actor_loss', actor_loss)
-                tf.summary.scalar('LOSS/critic_loss', critic_loss)
+                self.write_training_summaries(summaries)
                 tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
                 tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
                 self.recorder.writer.flush()
@@ -178,7 +177,13 @@ class TD3(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, td_error1 + td_error2 / 2
+            return td_error1 + td_error2 / 2, dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(q1)],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+            ])
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -224,4 +229,10 @@ class TD3(Policy):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss, td_error1 + td_error2 / 2
+            return td_error1 + td_error2 / 2, dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(q1)],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+            ])

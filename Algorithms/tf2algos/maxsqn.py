@@ -123,7 +123,7 @@ class MAXSQN(Policy):
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
-                loss, entropy, td_error = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
                 self.update_target_net_weights(
@@ -131,9 +131,7 @@ class MAXSQN(Policy):
                     self.q1_net.weights + self.q2_net.weights,
                     self.ployak)
                 tf.summary.experimental.set_step(self.global_step)
-                tf.summary.scalar('LOSS/loss', loss)
-                tf.summary.scalar('LOSS/alpha', tf.exp(self.log_alpha))
-                tf.summary.scalar('LOSS/entropy', entropy)
+                self.write_training_summaries(summaries)
                 tf.summary.scalar('LEARNING_RATE/q_lr', self.q_lr(self.episode))
                 tf.summary.scalar('LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode))
                 self.recorder.writer.flush()
@@ -181,4 +179,17 @@ class MAXSQN(Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            return loss, q1_entropy, td_error1 + td_error2 / 2
+            summaries = dict([
+                ['LOSS/loss', loss],
+                ['Statistics/log_alpha', self.log_alpha],
+                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/q1_entropy', q1_entropy],
+                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(q1)],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))],
+            ])
+            if self.auto_adaption:
+                summaries.update({
+                    'LOSS/alpha_loss': alpha_loss
+                    })
+            return td_error1 + td_error2 / 2, summaries

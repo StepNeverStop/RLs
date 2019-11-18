@@ -91,14 +91,13 @@ class MATD3(Base):
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
         self.recorder.writer.set_as_default()
-        actor_loss, critic_loss = self.train(ap, al, ss, ss_, aa, aa_, s, r)
+        summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
             self.ployak)
         tf.summary.experimental.set_step(self.global_step)
-        tf.summary.scalar('LOSS/actor_loss', actor_loss)
-        tf.summary.scalar('LOSS/critic_loss', critic_loss)
+        self.write_training_summaries(summaries)
         tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
         tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
         self.recorder.writer.flush()
@@ -139,7 +138,12 @@ class MATD3(Base):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss
+            return dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/q1_loss', q1_loss],
+                ['LOSS/q2_loss', q2_loss],
+                ['LOSS/critic_loss', critic_loss],
+            ])
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
@@ -170,4 +174,9 @@ class MATD3(Base):
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
             self.global_step.assign_add(1)
-            return actor_loss, critic_loss
+            return dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/q1_loss', q1_loss],
+                ['LOSS/q2_loss', q2_loss],
+                ['LOSS/critic_loss', critic_loss],
+            ])

@@ -145,3 +145,10 @@ class Base(tf.keras.Model):
         else:
             tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
     
+
+    def write_training_summaries(self, summaries:dict):
+        '''
+        write tf summaries showing in tensorboard.
+        '''
+        for key, value in summaries.items():
+            tf.summary.scalar(key, value)

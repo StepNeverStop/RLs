@@ -29,7 +29,7 @@ train_config = {
     'max_episode': 5000,
     # share_args
     'share': {
-        'base_dir': f'C:/RLData/tf{tf.__version__[0]}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/{version}',
+        'base_dir': f'C:/RLData/tf{tf.__version__[0]}' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData/tf{tf.__version__[0]}',
         'logger2file': False,
         'out_graph': False,
         'ma': {
