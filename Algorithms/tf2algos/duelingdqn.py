@@ -134,11 +134,11 @@ class DDDQN(Policy):
                 next_max_action = tf.argmax(adv_next, axis=1, name='next_action_int')
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                v_next_target, adv_next_taeget = self.dueling_target_net(s_, visual_s_)
-                average_a_target_next = tf.reduce_mean(adv_next_taeget, axis=1, keepdims=True)
+                v_next_target, adv_next_target = self.dueling_target_net(s_, visual_s_)
+                average_a_target_next = tf.reduce_mean(adv_next_target, axis=1, keepdims=True)
                 q_eval = tf.reduce_sum(tf.multiply(v + adv - average_adv, a), axis=1, keepdims=True)
                 q_target_next_max = tf.reduce_sum(
-                    tf.multiply(v_next_target + adv_next_taeget - average_a_target_next, next_max_action_one_hot),
+                    tf.multiply(v_next_target + adv_next_target - average_a_target_next, next_max_action_one_hot),
                     axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target

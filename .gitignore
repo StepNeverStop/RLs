@@ -109,3 +109,4 @@ server.py
 .vscode/
 s.py
 c.py
+/myyamlconf/

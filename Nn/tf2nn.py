@@ -2,7 +2,7 @@ import tensorflow as tf
 from .activations import swish, mish
 from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
-from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten
+from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten, GaussianNoise
 
 activation_fn = tf.keras.activations.tanh
 
@@ -25,6 +25,24 @@ class mlp(Sequential):
         for u in hidden_units:
             self.add(Dense(u, act_fn))
         if out_layer:
+            self.add(Dense(output_shape, out_activation))
+
+
+class mlp_witch_noisy(Sequential):
+    def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
+        """
+        inputs:
+            hidden_units: like [32, 32]
+            output_shape: units of last layer
+            out_activation: activation function of last layer
+            out_layer: whether need specifing last layer or not
+        """
+        super().__init__()
+        for u in hidden_units:
+            self.add(GaussianNoise(0.4))        #Or use kwargs
+            self.add(Dense(u, act_fn))
+        if out_layer:
+            self.add(GaussianNoise(0.4))
             self.add(Dense(output_shape, out_activation))
 
 
@@ -226,9 +244,9 @@ class critic_q_all(ImageNet):
 class critic_dueling(ImageNet):
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
-        self.share = mlp(hidden_units['share'], out_layer=False)
-        self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
-        self.adv = mlp(hidden_units['adv'], output_shape=output_shape, out_activation=None)
+        self.share = mlp_witch_noisy(hidden_units['share'], out_layer=False)
+        self.v = mlp_witch_noisy(hidden_units['v'], output_shape=1, out_activation=None)
+        self.adv = mlp_witch_noisy(hidden_units['adv'], output_shape=output_shape, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
