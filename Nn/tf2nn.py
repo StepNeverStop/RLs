@@ -15,7 +15,7 @@ initKernelAndBias = {
 class mlp(Sequential):
     def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
         """
-        inputs:
+        Args:
             hidden_units: like [32, 32]
             output_shape: units of last layer
             out_activation: activation function of last layer
@@ -31,7 +31,8 @@ class mlp(Sequential):
 class mlp_with_noisy(Sequential):
     def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
         """
-        inputs:
+        Add a gaussian noise to to the result of Dense layer. The added gaussian noise is not related to the origin input.
+        Args:
             hidden_units: like [32, 32]
             output_shape: units of last layer
             out_activation: activation function of last layer
@@ -39,7 +40,7 @@ class mlp_with_noisy(Sequential):
         """
         super().__init__()
         for u in hidden_units:
-            self.add(GaussianNoise(0.4))        #Or use kwargs
+            self.add(GaussianNoise(0.4))  # Or use kwargs
             self.add(Dense(u, act_fn))
         if out_layer:
             self.add(GaussianNoise(0.4))
@@ -47,6 +48,11 @@ class mlp_with_noisy(Sequential):
 
 
 class Noisy(Dense):
+    '''
+    Noisy Net: https://arxiv.org/abs/1706.10295
+    Add the result of another noisy net to the result of origin Dense layer.
+    '''
+
     def __init__(self, units, activation=None, **kwargs):
         super().__init__(units, activation=None, **kwargs)
         self.noise_sigma = 0.4 if 'noise_sigma' not in kwargs.keys() else kwargs['noise_sigma']
@@ -88,6 +94,12 @@ class Noisy(Dense):
 
 
 class ImageNet(tf.keras.Model):
+    '''
+    Processing image input observation information.
+    If there has multiple cameras, Conv3D will be used, otherwise Conv2D will be used. The feature obtained by forward propagation will be concatenate with the vector input.
+    If there is no visual image input, Conv layers won't be built and initialized.
+    '''
+
     def __init__(self, name, visual_dim=[]):
         super().__init__(name=name)
         self.build_visual = False
@@ -242,6 +254,15 @@ class critic_q_all(ImageNet):
 
 
 class critic_dueling(ImageNet):
+    '''
+    Neural network for dueling deep Q network.
+    Input:
+        states: [batch_size, state_dim]
+    Output:
+        state value: [batch_size, 1]
+        advantage: [batch_size, action_number]
+    '''
+
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)

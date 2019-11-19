@@ -141,7 +141,7 @@ class A2C(Policy):
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
                     log_act_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -169,7 +169,7 @@ class A2C(Policy):
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
                     log_act_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)

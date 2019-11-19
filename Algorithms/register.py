@@ -44,7 +44,15 @@ elif tf.__version__[0] == '2':
         'ma_td3': [MATD3, 'off-policy', 'perStep'],
     }
 
+
 def get_model_info(name):
+    '''
+    Args:
+        name: name of algorithms
+    Return:
+        version of tensorflow, 'tf1algos' or 'tf2algos'
+        class of the algorithm model named `name`.
+    '''
     if name not in algos.keys():
         raise NotImplementedError
     else:

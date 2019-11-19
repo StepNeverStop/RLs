@@ -28,10 +28,10 @@ class SAC(Policy):
                  log_std_bound=[-20, 2],
                  hidden_units={
                      'actor_continuous': {
-                        'share': [128, 128],
-                        'mu': [64],
-                        'log_std': [64]
-                         },
+                         'share': [128, 128],
+                         'mu': [64],
+                         'log_std': [64]
+                     },
                      'actor_discrete': [64, 32],
                      'q': [128, 128],
                      'v': [128, 128]
@@ -146,7 +146,7 @@ class SAC(Policy):
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_reprmter_action(mu, log_std)
-                    entropy =  gaussian_entropy(log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -227,7 +227,7 @@ class SAC(Policy):
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
-                    })
+                })
             return td_error1 + td_error2 / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
@@ -238,7 +238,7 @@ class SAC(Policy):
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_reprmter_action(mu, log_std)
-                    entropy =  gaussian_entropy(log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -298,5 +298,5 @@ class SAC(Policy):
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
-                    })
+                })
             return td_error1 + td_error2 / 2, summaries

@@ -243,7 +243,7 @@ class PPO(Policy):
                 if self.action_type == 'continuous':
                     mu, value = self.net(s, visual_s)
                     new_log_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits, value = self.net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -279,7 +279,7 @@ class PPO(Policy):
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
                     new_log_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)

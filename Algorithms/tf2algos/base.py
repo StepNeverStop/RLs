@@ -40,7 +40,7 @@ class Base(tf.keras.Model):
             actions
         '''
         pass
-    
+
     @abstractmethod
     def choose_inference_action(self, s, visual_s):
         '''
@@ -144,9 +144,8 @@ class Base(tf.keras.Model):
             tf.group([t.assign(s) for t, s in zip(tge, src)])
         else:
             tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
-    
 
-    def write_training_summaries(self, summaries:dict):
+    def write_training_summaries(self, summaries: dict):
         '''
         write tf summaries showing in tensorboard.
         '''

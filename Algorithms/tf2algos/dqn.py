@@ -45,7 +45,7 @@ class DQN(Policy):
             buffer_size=buffer_size,
             use_priority=use_priority,
             n_step=n_step)
-        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init, 
+        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
@@ -135,4 +135,3 @@ class DQN(Policy):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
-    

@@ -165,7 +165,7 @@ class AC(Policy):
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
                     log_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -205,7 +205,7 @@ class AC(Policy):
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                     mu, sigma = self.actor_net(s, visual_s)
                     log_prob = gaussian_likelihood(mu, a, self.log_std)
-                    entropy =  gaussian_entropy(self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s_, visual_s_)
                     max_a = tf.argmax(logits, axis=1)

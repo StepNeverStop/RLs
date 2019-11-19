@@ -35,6 +35,7 @@ This project supports:
     - n-step ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
     - n-step Prioritized ER
+- [Noisy Net](https://arxiv.org/abs/1706.10295) for better exploration.
 
 ### Advantages
 

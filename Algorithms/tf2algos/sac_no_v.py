@@ -28,10 +28,10 @@ class SAC_NO_V(Policy):
                  log_std_bound=[-20, 2],
                  hidden_units={
                      'actor_continuous': {
-                        'share': [128, 128],
-                        'mu': [64],
-                        'log_std': [64]
-                         },
+                         'share': [128, 128],
+                         'mu': [64],
+                         'log_std': [64]
+                     },
                      'actor_discrete': [64, 32],
                      'q': [128, 128]
                  },
@@ -111,7 +111,7 @@ class SAC_NO_V(Policy):
                 mu, log_std = self.actor_net(vector_input, visual_input)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_reprmter_action(mu, log_std)
-                mu = tf.tanh(mu) # squash mu
+                mu = tf.tanh(mu)  # squash mu
             else:
                 logits = self.actor_net(vector_input, visual_input)
                 mu = tf.argmax(logits, axis=1)
@@ -179,7 +179,7 @@ class SAC_NO_V(Policy):
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_reprmter_action(mu, log_std)
-                    entropy =  gaussian_entropy(log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -231,7 +231,7 @@ class SAC_NO_V(Policy):
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
-                    })
+                })
             return td_error1 + td_error2 / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
@@ -242,7 +242,7 @@ class SAC_NO_V(Policy):
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_reprmter_action(mu, log_std)
-                    entropy =  gaussian_entropy(log_std)
+                    entropy = gaussian_entropy(log_std)
                     target_mu, target_log_std = self.actor_net(s_, visual_s_)
                     target_log_std = clip_nn_log_std(target_log_std)
                     target_pi, target_log_pi = squash_reprmter_action(target_mu, target_log_std)
@@ -308,5 +308,5 @@ class SAC_NO_V(Policy):
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
-                    })
+                })
             return td_error1 + td_error2 / 2, summaries

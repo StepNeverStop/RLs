@@ -8,6 +8,7 @@ class Recorder(object):
     '''
     TF 1.x Recorder
     '''
+
     def __init__(self, log_dir, excel_dir, logger2file, graph=None):
         self.saver = tf.train.Saver(max_to_keep=5, pad_step_number=True)
         self.writer = tf.summary.FileWriter(log_dir, graph=graph)
@@ -42,10 +43,12 @@ class Recorder(object):
                     tf.Summary.Value(tag=y['tag'], simple_value=y['value']) for y in ys
                 ]), x)
 
+
 class RecorderTf2(object):
     '''
     TF 2.0 Recorder
     '''
+
     def __init__(self, cp_dir, log_dir, excel_dir, logger2file, model=None):
         self.writer = tf.summary.create_file_writer(log_dir)
         self.checkpoint = tf.train.Checkpoint(policy=model)

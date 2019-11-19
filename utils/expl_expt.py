@@ -3,7 +3,7 @@ class ExplorationExploitationClass(object):
        calculates epsilon value depending on parameters and current episode number"""
 
     def __init__(self, eps_init=1, eps_mid=0.2, eps_final=0.01, eps_eval=0,
-                init2mid_annealing_episode=500, start_episode=0, max_episode=5000):
+                 init2mid_annealing_episode=500, start_episode=0, max_episode=5000):
         """
         From eps_init decay to eps_mid within period start_episode to start_episode+init2mid_annealing_episode,
         Then, from eps_mid decay to eps_final within period start_episode+init2mid_annealing_episode to max_episode.
