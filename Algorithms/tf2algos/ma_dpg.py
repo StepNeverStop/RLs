@@ -77,13 +77,12 @@ class MADPG(Base):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
-        self.recorder.writer.set_as_default()
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
-        tf.summary.experimental.set_step(self.global_step)
-        self.write_training_summaries(summaries)
-        tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
-        tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
-        self.recorder.writer.flush()
+        summaries.update(dict([
+            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+            ]))
+        self.write_training_summaries(self.global_step, summaries)
 
     def get_max_episode(self):
         """

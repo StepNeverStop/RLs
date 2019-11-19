@@ -109,7 +109,6 @@ class A2C(Policy):
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
-        self.recorder.writer.set_as_default()
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
@@ -117,13 +116,13 @@ class A2C(Policy):
                 actor_loss, critic_loss, entropy = self.train.get_concrete_function(
                     *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
-        tf.summary.experimental.set_step(self.episode)
-        tf.summary.scalar('LOSS/entropy', entropy)
-        tf.summary.scalar('LOSS/actor_loss', actor_loss)
-        tf.summary.scalar('LOSS/critic_loss', critic_loss)
-        tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
-        tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
-        self.recorder.writer.flush()
+        self.write_training_summaries(self.episode, dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/critic_loss', critic_loss],
+            ['Statistics/entropy', entropy],
+            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+        ]))
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)

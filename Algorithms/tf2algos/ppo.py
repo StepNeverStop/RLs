@@ -208,7 +208,6 @@ class PPO(Policy):
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
-        self.recorder.writer.set_as_default()
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
@@ -224,16 +223,19 @@ class PPO(Policy):
                     critic_loss = self.train_critic.get_concrete_function(
                         *self.critic_TensorSpecs)(s, visual_s, dc_r)
         self.global_step.assign_add(1)
-        tf.summary.experimental.set_step(self.episode)
-        tf.summary.scalar('LOSS/entropy', entropy)
-        tf.summary.scalar('LOSS/actor_loss', actor_loss)
-        tf.summary.scalar('LOSS/critic_loss', critic_loss)
+        summaries = dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/critic_loss', critic_loss]
+            ['Statistics/entropy', entropy]
+        ])
         if self.share_net:
-            tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
+            summaries.update(dict([['LEARNING_RATE/lr', self.lr(self.episode)]]))
         else:
-            tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
-            tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
-        self.recorder.writer.flush()
+            summaries.update(dict([
+                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ]))
+        self.write_training_summaries(self.episode, summaries)
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)

@@ -110,6 +110,16 @@ class Base(tf.keras.Model):
             tf.summary.scalar(i['tag'], i['value'])
         self.recorder.writer.flush()
 
+    def write_training_summaries(self, global_step, summaries: dict):
+        '''
+        write tf summaries showing in tensorboard.
+        '''
+        self.recorder.writer.set_as_default()
+        tf.summary.experimental.set_step(global_step)
+        for key, value in summaries.items():
+            tf.summary.scalar(key, value)
+        self.recorder.writer.flush()
+
     def check_or_create(self, dicpath, name=''):
         """
         check dictionary whether existing, if not then create it.
@@ -144,10 +154,3 @@ class Base(tf.keras.Model):
             tf.group([t.assign(s) for t, s in zip(tge, src)])
         else:
             tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
-
-    def write_training_summaries(self, summaries: dict):
-        '''
-        write tf summaries showing in tensorboard.
-        '''
-        for key, value in summaries.items():
-            tf.summary.scalar(key, value)

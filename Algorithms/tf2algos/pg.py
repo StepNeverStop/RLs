@@ -105,18 +105,17 @@ class PG(Policy):
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
-        self.recorder.writer.set_as_default()
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
                 s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
                 loss, entropy = self.train.get_concrete_function(
                     *self.TensorSpecs)(s, visual_s, a, dc_r)
-        tf.summary.experimental.set_step(self.episode)
-        tf.summary.scalar('LOSS/entropy', entropy)
-        tf.summary.scalar('LOSS/loss', loss)
-        tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
-        self.recorder.writer.flush()
+        self.write_training_summaries(self.episode, dict([
+            ['LOSS/loss', loss],
+            ['Statistics/entropy', entropy],
+            ['LEARNING_RATE/lr', self.lr(self.episode)]
+        ]))
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)

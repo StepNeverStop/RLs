@@ -102,7 +102,6 @@ class DPG(Policy):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
-        self.recorder.writer.set_as_default()
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
@@ -111,11 +110,11 @@ class DPG(Policy):
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
-                tf.summary.experimental.set_step(self.global_step)
-                self.write_training_summaries(summaries)
-                tf.summary.scalar('LEARNING_RATE/actor_lr', self.actor_lr(self.episode))
-                tf.summary.scalar('LEARNING_RATE/critic_lr', self.critic_lr(self.episode))
-                self.recorder.writer.flush()
+                summaries.update(dict([
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                    ]))
+                self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
