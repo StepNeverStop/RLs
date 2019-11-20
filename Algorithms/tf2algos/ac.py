@@ -99,8 +99,8 @@ class AC(Policy):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._get_log_prob(s, visual_s, a).numpy()
-        self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob.astype(np.float32),
-                      r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+        self.data.add(s, visual_s, a, old_log_prob,
+                      r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     @tf.function
     def _get_log_prob(self, s, visual_s, a):
@@ -123,8 +123,8 @@ class AC(Policy):
             old_log_prob = np.ones_like(r)
             if not self.action_type == 'continuous':
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob[:, np.newaxis].astype(
-                np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+            self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis],
+                          r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -132,7 +132,12 @@ class AC(Policy):
             s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
-            td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
+            # td_error, summaries = self.train(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32),
+            #                                  r.astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32),
+            #                                 done.astype(np.float32), old_log_prob.astype(np.float32))
+            td_error, summaries = self.train(s, visual_s, a,
+                                             r, s_, visual_s_,
+                                             done, old_log_prob)
             if self.use_priority:
                 self.data.update(td_error, self.episode)
             summaries.update(dict([
@@ -144,6 +149,14 @@ class AC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
         with tf.device(self.device):
+            s = tf.cast(s, tf.float32)
+            visual_s = tf.cast(visual_s, tf.float32)
+            a = tf.cast(a, tf.float32)
+            r = tf.cast(r, tf.float32)
+            s_ = tf.cast(s_, tf.float32)
+            visual_s_ = tf.cast(visual_s_, tf.float32)
+            done = tf.cast(done, tf.float32)
+            old_log_prob = tf.cast(old_log_prob, tf.float32)
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     next_mu = self.actor_net(s_, visual_s_)
@@ -198,6 +211,14 @@ class AC(Policy):
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
         with tf.device(self.device):
+            s = tf.cast(s, tf.float32)
+            visual_s = tf.cast(visual_s, tf.float32)
+            a = tf.cast(a, tf.float32)
+            r = tf.cast(r, tf.float32)
+            s_ = tf.cast(s_, tf.float32)
+            visual_s_ = tf.cast(visual_s_, tf.float32)
+            done = tf.cast(done, tf.float32)
+            old_log_prob = tf.cast(old_log_prob, tf.float32)
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':
                     next_mu = self.actor_net(s_, visual_s_)

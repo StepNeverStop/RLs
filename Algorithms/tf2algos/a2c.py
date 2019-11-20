@@ -100,10 +100,10 @@ class A2C(Policy):
 
     def get_sample_data(self, index):
         i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values)
-        visual_s = np.vstack(i_data.visual_s.values)
-        a = np.vstack(i_data.a.values)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
+        s = np.vstack(i_data.s.values).astype('float32')
+        visual_s = np.vstack(i_data.visual_s.values).astype('float32')
+        a = np.vstack(i_data.a.values).astype('float32')
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype('float32')
         return s, visual_s, a, dc_r
 
     def learn(self, **kwargs):

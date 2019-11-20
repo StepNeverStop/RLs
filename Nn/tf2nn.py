@@ -120,7 +120,8 @@ class ImageNet(tf.keras.Model):
 
     def call(self, vector_input, visual_input):
         if self.build_visual:
-            features = self.conv1(visual_input)
+            features = visual_input/255
+            features = self.conv1(features)
             features = self.conv2(features)
             features = self.conv3(features)
             features = self.flatten(features)

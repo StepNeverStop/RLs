@@ -107,7 +107,7 @@ class gym_envs(object):
             threading.Thread.join(th)
         obs = np.array([threadpool[i].get_result() for i in range(self.n)])
         obs = self._maybe_one_hot(obs)
-        return obs.astype(np.float32)
+        return obs
 
         # if self.obs_type == 'visual':
         #     return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)]).astype(np.float32)
@@ -140,7 +140,7 @@ class gym_envs(object):
         obs, reward, done, info = [np.array(e) for e in zip(*results)]
         obs = self._maybe_one_hot(obs)
         self.dones_index = np.where(done)[0]
-        return obs.astype(np.float32), reward.astype(np.float32), done, info
+        return obs, reward, done, info
 
     def partial_reset(self):
         threadpool = []
@@ -153,7 +153,7 @@ class gym_envs(object):
             threading.Thread.join(th)
         obs = np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
         obs = self._maybe_one_hot(obs, is_partial=True)
-        return obs.astype(np.float32)
+        return obs
 
         # if self.obs_type == 'visual':
         #     return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])]).astype(np.float32)
