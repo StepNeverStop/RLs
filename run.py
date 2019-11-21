@@ -82,8 +82,8 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from utils.sampler import create_sampler_manager
 
     try:
-        tf_version, (model, policy_mode, _) = get_model_info(options['--algorithm'])
-        algorithm_config = sth.load_config(f'./Algorithms/{tf_version}/config.yaml')[options['--algorithm']]
+        model, policy_mode, _ = get_model_info(options['--algorithm'])
+        algorithm_config = sth.load_config(f'./Algorithms/tf2algos/config.yaml')[options['--algorithm']]
         ma = options['--algorithm'][:3] == 'ma_'
     except KeyError:
         raise NotImplementedError
@@ -225,8 +225,8 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     from gym_wrapper import gym_envs
 
     try:
-        tf_version, (model, policy_mode, _) = get_model_info(options['--algorithm'])
-        algorithm_config = sth.load_config(f'./Algorithms/{tf_version}/config.yaml')[options['--algorithm']]
+        model, policy_mode, _ = get_model_info(options['--algorithm'])
+        algorithm_config = sth.load_config(f'./Algorithms/tf2algos/config.yaml')[options['--algorithm']]
     except KeyError:
         raise NotImplementedError
 

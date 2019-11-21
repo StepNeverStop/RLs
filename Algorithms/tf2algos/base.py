@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from abc import abstractmethod
 from utils.tf2_utils import cast2float32, cast2float64
-from utils.recorder import RecorderTf2 as Recorder
+from utils.recorder import Recorder
 
 
 class Base(tf.keras.Model):

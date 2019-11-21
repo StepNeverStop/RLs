@@ -1,6 +1,10 @@
 # RLs
 
-:evergreen_tree::evergreen_tree::evergreen_tree:This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+:evergreen_tree::evergreen_tree::evergreen_tree:
+
+Reinforcement Learning Algorithm Based On TensorFlow2.0.
+
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.10.0) v0.10.0 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ## About
 
@@ -9,7 +13,6 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 ### Characteristics
 
 - Suitable for Windows, Linux, and OSX
-- **Support TensorFlow 1.x and TensorFlow 2.0**
 - Almost reimplementation and competitive performance of original papers
 - Reusable modules
 - Clear hierarchical structure and easy code control
@@ -30,7 +33,7 @@ This project supports:
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input. Images should have the same input format, like `[84, 84, 3]` (only for ml-agents).
-- Four types of ReplayBuffer(**only for algorithms based on TF2.0**), Default is ER: 
+- Four types of ReplayBuffer, Default is ER: 
     - ER
     - n-step ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
@@ -68,24 +71,24 @@ For now, these algorithms are available:
     - Multi-Agent Deterministic Policy Gradient, MADPG
     - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 
-|     Algorithms     | Discrete | Continuous | TF 1.x | TF 2.0 | Command parameter |
-| :----------------: | :------: | :--------: | :----: | :----: | :---------------: |
-|         PG         |    √     |     √      |   √    |   √    |        pg         |
-|         AC         |    √     |     √      |   √    |   √    |        ac         |
-|        A2C         |    √     |     √      |   √    |   √    |        a2c        |
-|        PPO         |    √     |     √      |   √    |   √    |        ppo        |
-|        DQN         |    √     |            |   √    |   √    |        dqn        |
-|     Double DQN     |    √     |            |   √    |   √    |       ddqn        |
-| Dueling Double DQN |    √     |            |   √    |   √    |       dddqn       |
-|        DPG         |    √     |     √      |   √    |   √    |        dpg        |
-|        DDPG        |    √     |     √      |   √    |   √    |       ddpg        |
-|        TD3         |    √     |     √      |   √    |   √    |        td3        |
-|        SAC         |    √     |     √      |   √    |   √    |        sac        |
-| SAC(no V Network)  |    √     |     √      |   √    |   √    |     sac_no_v      |
-|       MaxSQN       |    √     |            |        |   √    |      maxsqn       |
-|       MADPG        |          |     √      |   √    |   √    |      ma_dpg       |
-|       MADDPG       |          |     √      |   √    |   √    |      ma_ddpg      |
-|       MATD3        |          |     √      |   √    |   √    |      ma_td3       |
+|     Algorithms     | Discrete | Continuous | Command parameter |
+| :----------------: | :------: | :--------: | :---------------: |
+|         PG         |    √     |     √      |        pg         |
+|         AC         |    √     |     √      |        ac         |
+|        A2C         |    √     |     √      |        a2c        |
+|        PPO         |    √     |     √      |        ppo        |
+|        DQN         |    √     |            |        dqn        |
+|     Double DQN     |    √     |            |       ddqn        |
+| Dueling Double DQN |    √     |            |       dddqn       |
+|        DPG         |    √     |     √      |        dpg        |
+|        DDPG        |    √     |     √      |       ddpg        |
+|        TD3         |    √     |     √      |        td3        |
+|        SAC         |    √     |     √      |        sac        |
+| SAC(no V Network)  |    √     |     √      |     sac_no_v      |
+|       MaxSQN       |    √     |            |      maxsqn       |
+|       MADPG        |          |     √      |      ma_dpg       |
+|       MADDPG       |          |     √      |      ma_ddpg      |
+|       MATD3        |          |     √      |      ma_td3       |
 
 ## Getting started
 
@@ -135,12 +138,12 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. need 3 steps to implement a new algorithm
-    1. write `.py` in `Algorithms/tf[x]algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf[x]algos/__init__.py`
-    2. write default configuration in `Algorithms/tf[x]algos/config.yaml`
+    1. write `.py` in `Algorithms/tf2algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf2algos/__init__.py`
+    2. write default configuration in `Algorithms/tf2algos/config.yaml`
     3. register new algorithm in `algos` of `Algorithms/register.py`
-7. set algorithms' hyper-parameters in [Algorithms/tf[x]algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.yaml)
+7. set algorithms' hyper-parameters in [Algorithms/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [Nn/tf[x]nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
+9. change neural network structure in [Nn/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
 10. set replay buffer default parameters in [utils/replay_buffer.py](https://github.com/StepNeverStop/RLs/blob/master/utils/replay_buffer.py)
 
 ## Ongoing things
@@ -154,7 +157,7 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ### Dependencies
 
 - python>3.6, <3.7
-- tensorflow>=1.7.0, <=1.12.0 or tensorflow==2.0.0
+- tensorflow==2.0.0
 - pandas
 - numpy
 - pywin32==224
