@@ -2,24 +2,17 @@ import Nn
 import numpy as np
 import tensorflow as tf
 from utils.sth import sth
-from .policy import Policy
+from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class DQN(Policy):
+class DQN(Off_Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
-                 base_dir=None,
 
                  lr=5.0e-4,
                  eps_init=1,
@@ -28,8 +21,7 @@ class DQN(Policy):
                  init2mid_annealing_episode=100,
                  assign_interval=1000,
                  hidden_units=[32, 32],
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         assert action_type == 'discrete', 'dqn only support discrete action space'
         super().__init__(
             s_dim=s_dim,
@@ -37,29 +29,18 @@ class DQN(Policy):
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='OFF',
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            use_priority=use_priority,
-            n_step=n_step)
+            **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=max_episode)
+                                                          max_episode=self.max_episode)
         self.assign_interval = assign_interval
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
         self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
         self.recorder.logger.info('''
     　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
     　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
@@ -74,17 +55,9 @@ class DQN(Policy):
     　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
         ''')
-        self.store_data = self.off_store
 
-    def choose_action(self, s, visual_s):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
-            a = np.random.randint(0, self.a_counts, len(s))
-        else:
-            a = self._get_action(s, visual_s).numpy()
-        return sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+    def choose_action(self, s, visual_s, evaluation=False):
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()

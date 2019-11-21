@@ -105,7 +105,7 @@ class Loop(object):
             r = np.zeros(env.n)
             while True:
                 r_tem = np.zeros(env.n)
-                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])  # In the future, this method can be combined with choose_action
+                action = gym_model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
                 state[i], reward, done, info = env.step(action)
                 unfinished_index = np.where(dones_flag == False)
                 dones_flag += done
@@ -130,7 +130,7 @@ class Loop(object):
             state[i] = env.reset()
             while True:
                 env.render()
-                action = gym_model.choose_inference_action(s=state[0], visual_s=state[1])
+                action = gym_model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
                 state[i], reward, done, info = env.step(action)
                 if len(env.dones_index):    # 判断是否有线程中的环境需要局部reset
                     state[i][env.dones_index] = env.partial_reset()

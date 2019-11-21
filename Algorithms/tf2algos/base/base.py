@@ -1,14 +1,13 @@
 import os
 import numpy as np
 import tensorflow as tf
-from abc import abstractmethod
 from utils.tf2_utils import cast2float32, cast2float64
 from utils.recorder import Recorder
 
 
 class Base(tf.keras.Model):
 
-    def __init__(self, a_dim_or_list, action_type, base_dir):
+    def __init__(self, *args, **kwargs):
         '''
         inputs:
             a_dim_or_list: action spaces, if continuous, it will like [2,], if discrete, it will like [2,3,4]
@@ -16,20 +15,24 @@ class Base(tf.keras.Model):
             base_dir: the directory that store data, like model, logs, and other data
         '''
         super().__init__()
+        base_dir = kwargs.get('base_dir')
+        logger2file = kwargs.get('logger2file', False)
+        tf_dtype = kwargs.get('tf_dtype', 'float32')
+
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:
             self.device = "/gpu:0"
             tf.config.experimental.set_memory_growth(physical_devices[0], True)
         else:
             self.device = "/cpu:0"
-        tf.keras.backend.set_floatx('float32')
+        tf.keras.backend.set_floatx(tf_dtype)
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
-        self.action_type = action_type
-        self.a_counts = int(np.array(a_dim_or_list).prod())
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
-        self.episode = 0    # episode of now
-        self.IS_w = 1       # the weights of NN variables by using Importance sampling.
-        self.cast = self._cast(dtype='float32')
+        self.cast = self._cast(dtype=tf_dtype)
+        self.generate_recorder(
+            logger2file=logger2file,
+            model=self
+        )
     
     def _cast(self, dtype='float32'):
         if dtype == 'float32':
@@ -38,34 +41,11 @@ class Base(tf.keras.Model):
             func = cast2float64
         else:
             raise Exception('Cast to this type has not been implemented.')
-        def inner(*args):
+        def inner(*args, **kwargs):
             with tf.device(self.device):
-                return func(*args)
+                return func(*args, **kwargs)
         return inner
 
-    @abstractmethod
-    def choose_action(self, s, visual_s):
-        '''
-        choose actions while training.
-        Input: 
-            s: vector observation
-            visual_s: visual observation
-        Output: 
-            actions
-        '''
-        pass
-
-    @abstractmethod
-    def choose_inference_action(self, s, visual_s):
-        '''
-        choose actions while inferencing.
-        Input: 
-            s: vector observation
-            visual_s: visual observation
-        Output: 
-            actions
-        '''
-        pass
 
     def get_init_episode(self):
         """
@@ -158,13 +138,4 @@ class Base(tf.keras.Model):
         """
         set the start training step.
         """
-        self.global_step = num
-
-    def update_target_net_weights(self, tge, src, ployak=None):
-        '''
-        update weights of target neural network.
-        '''
-        if ployak is None:
-            tf.group([t.assign(s) for t, s in zip(tge, src)])
-        else:
-            tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
+        self.global_step.assign(num)

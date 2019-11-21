@@ -1,38 +1,35 @@
 import numpy as np
 import tensorflow as tf
 import Nn
-from .base import Base
+from .policy import Policy
 
 
-class MADPG(Base):
+class MADPG(Policy):
     def __init__(self,
                  s_dim,
-
                  a_dim_or_list,
                  action_type,
-                 base_dir=None,
 
-                 gamma=0.99,
                  ployak=0.995,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 max_episode=50000,
                  n=1,
                  i=0,
                  hidden_units={
                      'actor': [32, 32],
                      'q': [32, 32]
                  },
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         assert action_type == 'continuous', 'madpg only support continuous action space'
-        super().__init__(a_dim_or_list=a_dim_or_list, action_type=action_type, base_dir=base_dir)
+        super().__init__(
+            s_dim=s_dim,
+            visual_sources=0,
+            visual_resolution=0,
+            a_dim_or_list=a_dim_or_list,
+            action_type=action_type,
+            **kwargs)
         self.n = n
         self.i = i
-        self.s_dim = s_dim
-        self.a_dim_or_list = a_dim_or_list
-        self.gamma = gamma
-        self.max_episode = max_episode
         self.ployak = ployak
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
@@ -41,11 +38,7 @@ class MADPG(Base):
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
+        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode)) 
         self.recorder.logger.info('''
 　　ｘｘｘｘ　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　ｘｘｘ　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　
@@ -60,21 +53,21 @@ class MADPG(Base):
         ''')
         self.recorder.logger.info(self.action_noise)
 
-    def choose_action(self, s):
-        return self._get_action(s)[-1].numpy()
+    def choose_action(self, s, evaluation=False):
+        return self._get_action(s, evaluation).numpy()
 
     def get_target_action(self, s):
-        return self._get_action(s)[-1].numpy()
-
-    def choose_inference_action(self, s):
-        return self._get_action(s)[0].numpy()
+        return self._get_action(s, evaluation=False).numpy()
 
     @tf.function
-    def _get_action(self, vector_input):
+    def _get_action(self, vector_input, evaluation):
         vector_input = self.cast(vector_input)
         with tf.device(self.device):
             mu = self.actor_net(vector_input, None)
-        return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
+            if evaluation == True:
+                return mu
+            else:
+                return tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode

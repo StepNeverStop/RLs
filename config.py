@@ -31,7 +31,6 @@ train_config = {
     'share': {
         'base_dir': f'C:/RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData',
         'logger2file': False,
-        'out_graph': False,
         'ma': {
             'batch_size': 10,
             'capacity': 1000

@@ -3,23 +3,16 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from .policy import Policy
+from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
-class TD3(Policy):
+class TD3(Off_Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
-                 base_dir=None,
 
                  ployak=0.995,
                  actor_lr=5.0e-4,
@@ -30,22 +23,14 @@ class TD3(Policy):
                      'actor_discrete': [32, 32],
                      'q': [32, 32]
                  },
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='OFF',
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            use_priority=use_priority,
-            n_step=n_step)
+            **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         if self.action_type == 'continuous':
@@ -69,10 +54,6 @@ class TD3(Policy):
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　
 　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　
@@ -85,16 +66,12 @@ class TD3(Policy):
 　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　
         ''')
 
-    def choose_action(self, s, visual_s):
-        a = self._get_action(s, visual_s)[-1].numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        a = self._get_action(s, visual_s)[0].numpy()
+    def choose_action(self, s, visual_s, evaluation=False):
+        a = self._get_action(s, visual_s, evaluation).numpy()
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
+    def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
@@ -105,10 +82,10 @@ class TD3(Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-        return mu, pi
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
+            if evaluation == True:
+                return mu
+            else:
+                return pi
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

@@ -4,23 +4,16 @@ import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
 from utils.tf2_utils import clip_nn_log_std, squash_reprmter_action, gaussian_entropy
-from .policy import Policy
+from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
-class SAC(Policy):
+class SAC(Off_Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
-                 base_dir=None,
 
                  alpha=0.2,
                  ployak=0.995,
@@ -40,22 +33,14 @@ class SAC(Policy):
                  critic_lr=1.0e-3,
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='OFF',
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            use_priority=use_priority,
-            n_step=n_step)
+            **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
@@ -76,11 +61,7 @@ class SAC(Policy):
         self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
-        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
+        self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))     
         self.recorder.logger.info('''
 　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
 　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
@@ -93,16 +74,12 @@ class SAC(Policy):
 　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
-    def choose_action(self, s, visual_s):
-        a = self._get_action(s, visual_s)[-1].numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        a = self._get_action(s, visual_s)[0].numpy()
+    def choose_action(self, s, visual_s, evaluation=False):
+        a = self._get_action(s, visual_s, evaluation).numpy()
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
+    def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
@@ -115,10 +92,10 @@ class SAC(Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-        return mu, pi
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
+            if evaluation == True:
+                return mu
+            else:
+                return pi
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

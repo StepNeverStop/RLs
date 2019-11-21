@@ -3,24 +3,17 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from .policy import Policy
+from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class MAXSQN(Policy):
+class MAXSQN(Off_Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
-                 base_dir=None,
 
                  alpha=0.2,
                  beta=0.1,
@@ -34,8 +27,7 @@ class MAXSQN(Policy):
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
                  hidden_units=[32, 32],
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         assert action_type == 'discrete', 'maxsqn only support continuous action space'
         super().__init__(
             s_dim=s_dim,
@@ -43,14 +35,7 @@ class MAXSQN(Policy):
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='OFF',
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            use_priority=use_priority,
-            n_step=n_step)
+            **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -73,10 +58,6 @@ class MAXSQN(Policy):
         self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.q_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
         self.recorder.logger.info('''
 　　　ｘｘ　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘ　　　ｘｘ　　　
 　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘ　　　
@@ -90,15 +71,8 @@ class MAXSQN(Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
-    def choose_action(self, s, visual_s):
-        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
-            a = np.random.randint(0, self.a_counts, len(s))
-        else:
-            a = self._get_action(s, visual_s)[-1].numpy()
-        return sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+    def choose_action(self, s, visual_s, evaluation=False):
+        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s)[-1].numpy()
@@ -112,9 +86,6 @@ class MAXSQN(Policy):
             cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']

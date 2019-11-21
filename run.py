@@ -82,8 +82,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from utils.sampler import create_sampler_manager
 
     try:
-        model, policy_mode = get_model_info(options['--algorithm'])
-        algorithm_config = sth.load_config(f'./Algorithms/tf2algos/config.yaml')[options['--algorithm']]
+        model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
         ma = options['--algorithm'][:3] == 'ma_'
     except KeyError:
         raise NotImplementedError
@@ -147,7 +146,6 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, i),
         'logger2file': share_args['logger2file'],
-        'out_graph': share_args['out_graph'],
     } for i in brain_names]
 
     if ma:
@@ -225,8 +223,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     from gym_wrapper import gym_envs
 
     try:
-        model, policy_mode = get_model_info(options['--algorithm'])
-        algorithm_config = sth.load_config(f'./Algorithms/tf2algos/config.yaml')[options['--algorithm']]
+        model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
     except KeyError:
         raise NotImplementedError
 
@@ -278,7 +275,6 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         max_episode=max_episode,
         base_dir=base_dir,
         logger2file=share_args['logger2file'],
-        out_graph=share_args['out_graph'],
         **algorithm_config
     )
     gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))

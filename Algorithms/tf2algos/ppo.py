@@ -4,20 +4,16 @@ import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
-from .policy import Policy
+from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
-class PPO(Policy):
+class PPO(On_Policy):
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 base_dir=None,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -44,19 +40,14 @@ class PPO(Policy):
                      'actor_discrete': [32, 32],
                      'critic': [32, 32]
                  },
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='ON',
-            batch_size=batch_size)
+            **kwargs)
         self.beta = beta
         self.epoch = epoch
         self.lambda_ = lambda_
@@ -84,10 +75,6 @@ class PPO(Policy):
             self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         if self.action_type == 'continuous':
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
 　　　　　ｘｘ　　ｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　
@@ -100,12 +87,8 @@ class PPO(Policy):
 　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　
         ''')
 
-    def choose_action(self, s, visual_s):
-        a = self._get_action(s, visual_s).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        a = self._get_action(s, visual_s).numpy()
+    def choose_action(self, s, visual_s, evaluation=False):
+        a = self._get_action(s, visual_s, evaluation).numpy()
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function

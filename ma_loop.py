@@ -55,7 +55,7 @@ class Loop(object):
                 s, a, r, s_, done = data.sample()
                 for i, brain_name in enumerate(brain_names):
                     next_action[i] = models[i].get_target_action(s=s_[:, i])
-                    new_action[i] = models[i].choose_inference_action(s=s[:, i])
+                    new_action[i] = models[i].choose_action(s=s[:, i], evaluation=True)
                 a_ = np.array([np.array(e) for e in zip(*next_action)])
                 if policy_mode == 'off-policy':
                     for i in range(brains_num):
@@ -152,6 +152,6 @@ class Loop(object):
             while True:
                 for i, brain_name in enumerate(brain_names):
                     state[i] = obs[brain_name].vector_observations
-                    action[i] = models[i].choose_inference_action(s=state[i])
+                    action[i] = models[i].choose_action(s=state[i], evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)

@@ -128,7 +128,7 @@ class Loop(object):
                 for i, brain_name in enumerate(brain_names):
                     state[i] = obs[brain_name].vector_observations
                     visual_state[i] = get_visual_input(agents_num[i], models[i].visual_sources, obs[brain_name])
-                    action[i] = models[i].choose_inference_action(s=state[i], visual_s=visual_state[i])
+                    action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i], evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
                 obs = env.step(vector_action=actions)
 

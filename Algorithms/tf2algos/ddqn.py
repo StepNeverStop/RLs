@@ -2,11 +2,11 @@ import numpy as np
 import tensorflow as tf
 import Nn
 from utils.sth import sth
-from .policy import Policy
+from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class DDQN(Policy):
+class DDQN(Off_Policy):
     '''
     Double DQN
     '''
@@ -17,13 +17,6 @@ class DDQN(Policy):
                  visual_resolution,
                  a_dim_or_list,
                  action_type,
-                 gamma=0.99,
-                 max_episode=50000,
-                 batch_size=128,
-                 buffer_size=10000,
-                 use_priority=False,
-                 n_step=False,
-                 base_dir=None,
 
                  lr=5.0e-4,
                  eps_init=1,
@@ -32,8 +25,7 @@ class DDQN(Policy):
                  init2mid_annealing_episode=100,
                  assign_interval=2,
                  hidden_units=[32, 32],
-                 logger2file=False,
-                 out_graph=False):
+                 **kwargs):
         assert action_type == 'discrete', 'double dqn only support discrete action space'
         super().__init__(
             s_dim=s_dim,
@@ -41,14 +33,7 @@ class DDQN(Policy):
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
-            gamma=gamma,
-            max_episode=max_episode,
-            base_dir=base_dir,
-            policy_mode='OFF',
-            batch_size=batch_size,
-            buffer_size=buffer_size,
-            use_priority=use_priority,
-            n_step=n_step)
+            **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -60,10 +45,6 @@ class DDQN(Policy):
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
@@ -79,15 +60,8 @@ class DDQN(Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　
         ''')
 
-    def choose_action(self, s, visual_s):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode):
-            a = np.random.randint(0, self.a_counts, len(s))
-        else:
-            a = self._get_action(s, visual_s).numpy()
-        return sth.int2action_index(a, self.a_dim_or_list)
-
-    def choose_inference_action(self, s, visual_s):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=True):
+    def choose_action(self, s, visual_s, evaluation=False):
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
             a = self._get_action(s, visual_s).numpy()
@@ -99,9 +73,6 @@ class DDQN(Policy):
         with tf.device(self.device):
             q_values = self.q_net(s, visual_s)
         return tf.argmax(q_values, axis=1)
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.off_store(s, visual_s, a, r, s_, visual_s_, done)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
