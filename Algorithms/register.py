@@ -1,24 +1,24 @@
 import tensorflow as tf
+import importlib
 assert tf.__version__[0] == '2'
-from .tf2algos import *
 # algorithms based on TF 2.0
 algos = {
-    'pg': [PG, 'on-policy', 'perEpisode'],
-    'ppo': [PPO, 'on-policy', 'perEpisode'],
-    'ac': [AC, 'off-policy', 'perStep'],  # could be on-policy, but also doesn't work well.
-    'a2c': [A2C, 'on-policy', 'perEpisode'],
-    'dpg': [DPG, 'off-policy', 'perStep'],
-    'ddpg': [DDPG, 'off-policy', 'perStep'],
-    'td3': [TD3, 'off-policy', 'perStep'],
-    'sac': [SAC, 'off-policy', 'perStep'],
-    'sac_no_v': [SAC_NO_V, 'off-policy', 'perStep'],
-    'dqn': [DQN, 'off-policy', 'perStep'],
-    'ddqn': [DDQN, 'off-policy', 'perStep'],
-    'dddqn': [DDDQN, 'off-policy', 'perStep'],
-    'maxsqn': [MAXSQN, 'off-policy', 'perStep'],
-    'ma_dpg': [MADPG, 'off-policy', 'perStep'],
-    'ma_ddpg': [MADDPG, 'off-policy', 'perStep'],
-    'ma_td3': [MATD3, 'off-policy', 'perStep'],
+    'pg': ['PG', 'on-policy', 'perEpisode'],
+    'ppo': ['PPO', 'on-policy', 'perEpisode'],
+    'ac': ['AC', 'off-policy', 'perStep'],  # could be on-policy, but also doesn't work well.
+    'a2c': ['A2C', 'on-policy', 'perEpisode'],
+    'dpg': ['DPG', 'off-policy', 'perStep'],
+    'ddpg': ['DDPG', 'off-policy', 'perStep'],
+    'td3': ['TD3', 'off-policy', 'perStep'],
+    'sac': ['SAC', 'off-policy', 'perStep'],
+    'sac_no_v': ['SAC_NO_V', 'off-policy', 'perStep'],
+    'dqn': ['DQN', 'off-policy', 'perStep'],
+    'ddqn': ['DDQN', 'off-policy', 'perStep'],
+    'dddqn': ['DDDQN', 'off-policy', 'perStep'],
+    'maxsqn': ['MAXSQN', 'off-policy', 'perStep'],
+    'ma_dpg': ['MADPG', 'off-policy', 'perStep'],
+    'ma_ddpg': ['MADDPG', 'off-policy', 'perStep'],
+    'ma_td3': ['MATD3', 'off-policy', 'perStep'],
 }
 
 
@@ -32,4 +32,6 @@ def get_model_info(name):
     if name not in algos.keys():
         raise NotImplementedError
     else:
-        return algos[name]
+        model_file = importlib.import_module('Algorithms.tf2algos.' + name)
+        model = eval('model_file.' + algos[name][0])
+        return model, algos[name][1]
