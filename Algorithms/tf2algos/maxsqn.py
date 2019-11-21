@@ -185,7 +185,7 @@ class MAXSQN(Policy):
                 ['Statistics/q1_entropy', q1_entropy],
                 ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(q1)],
-                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))],
+                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
             ])
             if self.auto_adaption:
                 summaries.update({

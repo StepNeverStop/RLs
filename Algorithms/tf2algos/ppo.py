@@ -225,7 +225,7 @@ class PPO(Policy):
         self.global_step.assign_add(1)
         summaries = dict([
             ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss]
+            ['LOSS/critic_loss', critic_loss],
             ['Statistics/entropy', entropy]
         ])
         if self.share_net:

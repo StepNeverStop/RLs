@@ -115,7 +115,7 @@ class MADPG(Base):
             self.global_step.assign_add(1)
             return dict([
                 ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', q_loss],
+                ['LOSS/critic_loss', q_loss]
             ])
 
     @tf.function(experimental_relax_shapes=True)
@@ -142,5 +142,5 @@ class MADPG(Base):
             self.global_step.assign_add(1)
             return dict([
                 ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', q_loss],
+                ['LOSS/critic_loss', q_loss]
             ])

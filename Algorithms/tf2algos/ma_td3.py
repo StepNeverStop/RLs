@@ -141,7 +141,7 @@ class MATD3(Base):
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
-                ['LOSS/critic_loss', critic_loss],
+                ['LOSS/critic_loss', critic_loss]
             ])
 
     @tf.function(experimental_relax_shapes=True)
@@ -177,5 +177,5 @@ class MATD3(Base):
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
-                ['LOSS/critic_loss', critic_loss],
+                ['LOSS/critic_loss', critic_loss]
             ])
