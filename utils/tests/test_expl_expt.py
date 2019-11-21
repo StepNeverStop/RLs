@@ -1,3 +1,5 @@
+import sys
+sys.path.append('../..')
 from utils.expl_expt import ExplorationExploitationClass
 
 def test_exploration_exploitation_class():

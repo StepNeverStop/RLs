@@ -105,15 +105,16 @@ class SAC_NO_V(Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu, log_std = self.actor_net(vector_input, visual_input)
+                mu, log_std = self.actor_net(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_reprmter_action(mu, log_std)
                 mu = tf.tanh(mu)  # squash mu
             else:
-                logits = self.actor_net(vector_input, visual_input)
+                logits = self.actor_net(s, visual_s)
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
@@ -145,6 +146,7 @@ class SAC_NO_V(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
@@ -235,6 +237,7 @@ class SAC_NO_V(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':

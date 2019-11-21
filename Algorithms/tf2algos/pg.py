@@ -73,13 +73,14 @@ class PG(Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu = self.net(vector_input, visual_input)
+                mu = self.net(s, visual_s)
                 sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
-                logits = self.net(vector_input, visual_input)
+                logits = self.net(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
@@ -96,10 +97,10 @@ class PG(Policy):
 
     def get_sample_data(self, index):
         i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values)
-        visual_s = np.vstack(i_data.visual_s.values)
-        a = np.vstack(i_data.a.values)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
+        s = np.vstack(i_data.s.values).astype(np.float32)
+        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
+        a = np.vstack(i_data.a.values).astype(np.float32)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
         return s, visual_s, a, dc_r
 
     def learn(self, **kwargs):
@@ -120,6 +121,7 @@ class PG(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, dc_r):
+        s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':

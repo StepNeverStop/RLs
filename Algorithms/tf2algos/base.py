@@ -2,6 +2,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from abc import abstractmethod
+from utils.tf2_utils import cast2float32, cast2float64
 from utils.recorder import RecorderTf2 as Recorder
 
 
@@ -28,6 +29,19 @@ class Base(tf.keras.Model):
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.episode = 0    # episode of now
         self.IS_w = 1       # the weights of NN variables by using Importance sampling.
+        self.cast = self._cast(dtype='float32')
+    
+    def _cast(self, dtype='float32'):
+        if dtype == 'float32':
+            func = cast2float32
+        elif dtype == 'float64':
+            func = cast2float64
+        else:
+            raise Exception('Cast to this type has not been implemented.')
+        def inner(*args):
+            with tf.device(self.device):
+                return func(*args)
+        return inner
 
     @abstractmethod
     def choose_action(self, s, visual_s):

@@ -81,13 +81,14 @@ class AC(Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
-                mu = self.actor_net(vector_input, visual_input)
+                mu = self.actor_net(s, visual_s)
                 sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
-                logits = self.actor_net(vector_input, visual_input)
+                logits = self.actor_net(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
@@ -99,12 +100,12 @@ class AC(Policy):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._get_log_prob(s, visual_s, a).numpy()
-        self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob.astype(np.float32),
-                      r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+        self.data.add(s, visual_s, a, old_log_prob,
+                      r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     @tf.function
     def _get_log_prob(self, s, visual_s, a):
-        a = tf.cast(a, tf.float32)
+        s, visual_s, a = self.cast(s, visual_s, a)
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.actor_net(s, visual_s)
@@ -123,8 +124,8 @@ class AC(Policy):
             old_log_prob = np.ones_like(r)
             if not self.action_type == 'continuous':
                 a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.data.add(s.astype(np.float32), visual_s.astype(np.float32), a.astype(np.float32), old_log_prob[:, np.newaxis].astype(
-                np.float32), r[:, np.newaxis].astype(np.float32), s_.astype(np.float32), visual_s_.astype(np.float32), done[:, np.newaxis].astype(np.float32))
+            self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis].astype(
+                np.float32), r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -143,6 +144,7 @@ class AC(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
+        s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
@@ -197,6 +199,7 @@ class AC(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
+        s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.action_type == 'continuous':

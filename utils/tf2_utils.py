@@ -82,7 +82,7 @@ def gaussian_likelihood(x, mu, log_std):
     Return:
         log probability of sample
     """
-    pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + np.log(2 * np.pi))
+    pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
     return tf.reduce_sum(pre_sum, axis=1, keepdims=True)
 
 
@@ -145,3 +145,16 @@ def squash_reprmter_action(mu, log_std):
         actions range from [-1, 1], like [batch, action_value]
     '''
     return squash_action(*gaussian_reparam_sample(mu, log_std))
+
+def cast2float32(*args):
+    '''
+    cast data to tf.float32
+    '''
+    return [tf.cast(i, tf.float32) for i in args]
+    
+
+def cast2float64(*args):
+    '''
+    cast data to tf.float32
+    '''
+    return [tf.cast(i, tf.float64) for i in args]

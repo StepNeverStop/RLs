@@ -94,9 +94,10 @@ class DDQN(Policy):
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q_values = self.q_net(vector_input, visual_input)
+            q_values = self.q_net(s, visual_s)
         return tf.argmax(q_values, axis=1)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -122,6 +123,7 @@ class DDQN(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.q_net(s, visual_s)

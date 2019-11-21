@@ -77,12 +77,14 @@ class MADDPG(Base):
 
     @tf.function
     def _get_action(self, vector_input):
+        vector_input = self.cast(vector_input)
         with tf.device(self.device):
             mu = self.actor_net(vector_input, None)
         return mu, tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
     @tf.function
     def _get_target_action(self, vector_input):
+        vector_input = self.cast(vector_input)
         with tf.device(self.device):
             target_mu = self.actor_target_net(vector_input, None)
         return target_mu, tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -108,6 +110,7 @@ class MADDPG(Base):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
+        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.q_net(ss, None, aa)
@@ -136,6 +139,7 @@ class MADDPG(Base):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
+        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 q = self.q_net(ss, None, aa)

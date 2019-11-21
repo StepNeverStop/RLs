@@ -98,9 +98,10 @@ class DDDQN(Policy):
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            _, advs = self.dueling_net(vector_input, visual_input)
+            _, advs = self.dueling_net(s, visual_s)
         return tf.argmax(advs, axis=1)
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -125,6 +126,7 @@ class DDDQN(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 v, adv = self.dueling_net(s, visual_s)

@@ -105,9 +105,10 @@ class MAXSQN(Policy):
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.q1_net(vector_input, visual_input)
+            q = self.q1_net(s, visual_s)
             cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi
@@ -137,6 +138,7 @@ class MAXSQN(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q1 = self.q1_net(s, visual_s)

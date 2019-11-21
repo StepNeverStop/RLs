@@ -109,19 +109,20 @@ class PPO(Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, vector_input, visual_input):
+    def _get_action(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 if self.share_net:
-                    mu, _ = self.net(vector_input, visual_input)
+                    mu, _ = self.net(s, visual_s)
                 else:
-                    mu = self.actor_net(vector_input, visual_input)
+                    mu = self.actor_net(s, visual_s)
                 sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
             else:
                 if self.share_net:
-                    logits, _ = self.net(vector_input, visual_input)
+                    logits, _ = self.net(s, visual_s)
                 else:
-                    logits = self.actor_net(vector_input, visual_input)
+                    logits = self.actor_net(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
@@ -133,19 +134,20 @@ class PPO(Policy):
         if not self.action_type == 'continuous':
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
-            's': s.astype(np.float32),
-            'visual_s': visual_s.astype(np.float32),
-            'a': a.astype(np.float32),
-            'r': r.astype(np.float32),
-            'done': done.astype(np.float32),
-            'value': np.squeeze(self._get_value(s, visual_s).numpy().astype(np.float32)),
-            'log_prob': self._get_log_prob(s, visual_s, a).numpy().astype(np.float32) + 1e-10
+            's': s,
+            'visual_s': visual_s,
+            'a': a,
+            'r': r,
+            'done': done,
+            'value': np.squeeze(self._get_value(s, visual_s).numpy()),
+            'log_prob': self._get_log_prob(s, visual_s, a).numpy() + 1e-10
         }, ignore_index=True)
         self.s_ = s_
         self.visual_s_ = visual_s_
 
     @tf.function
     def _get_value(self, s, visual_s):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.share_net:
                 _, value = self.net(s, visual_s)
@@ -155,7 +157,7 @@ class PPO(Policy):
 
     @tf.function
     def _get_log_prob(self, s, visual_s, a):
-        a = tf.cast(a, tf.float32)
+        s, visual_s, a = self.cast(s, visual_s, a)
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 if self.share_net:
@@ -196,12 +198,12 @@ class PPO(Policy):
 
     def get_sample_data(self, index):
         i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values)
-        visual_s = np.vstack(i_data.visual_s.values)
-        a = np.vstack(i_data.a.values)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1)
-        old_log_prob = np.vstack(i_data.log_prob.values)
-        advantage = np.vstack(i_data.advantage.values).reshape(-1, 1)
+        s = np.vstack(i_data.s.values).astype(np.float32)
+        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
+        a = np.vstack(i_data.a.values).astype(np.float32)
+        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
+        old_log_prob = np.vstack(i_data.log_prob.values).astype(np.float32)
+        advantage = np.vstack(i_data.advantage.values).reshape(-1, 1).astype(np.float32)
         return s, visual_s, a, dc_r, old_log_prob, advantage
 
     # @show_graph(name='ppo_net')
@@ -240,6 +242,7 @@ class PPO(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
+        s, visual_s, a, dc_r, old_log_prob, advantage = self.cast(s, visual_s, a, dc_r, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
@@ -276,6 +279,7 @@ class PPO(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
+        s, visual_s, a, old_log_prob, advantage = self.cast(s, visual_s, a, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
@@ -306,6 +310,7 @@ class PPO(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_critic(self, s, visual_s, dc_r):
+        s, visual_s, dc_r = self.cast(s, visual_s, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 value = self.critic_net(s, visual_s)
