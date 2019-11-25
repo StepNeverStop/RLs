@@ -40,7 +40,7 @@ class MAXSQN(Off_Policy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=max_episode)
+                                                          max_episode=self.max_episode)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)

@@ -42,7 +42,7 @@ class DDDQN(Off_Policy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=max_episode)
+                                                          max_episode=self.max_episode)
         self.assign_interval = assign_interval
         self.dueling_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_net', hidden_units)
         self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net', hidden_units)

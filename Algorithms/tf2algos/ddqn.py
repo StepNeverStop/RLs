@@ -38,7 +38,7 @@ class DDQN(Off_Policy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=max_episode)
+                                                          max_episode=self.max_episode)
         self.assign_interval = assign_interval
         self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
         self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
