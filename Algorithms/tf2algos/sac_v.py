@@ -7,7 +7,10 @@ from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
-class SAC_NO_V(Off_Policy):
+class SAC_V(Off_Policy):
+    """Soft Actor Critic with Value neural network.
+    """
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -26,12 +29,13 @@ class SAC_NO_V(Off_Policy):
                          'log_std': [64]
                      },
                      'actor_discrete': [64, 32],
-                     'q': [128, 128]
+                     'q': [128, 128],
+                     'v': [128, 128]
                  },
-                 auto_adaption=True,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  alpha_lr=5.0e-4,
+                 auto_adaption=True,
                  **kwargs):
         super().__init__(
             s_dim=s_dim,
@@ -51,13 +55,10 @@ class SAC_NO_V(Off_Policy):
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units['q'])
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units['q'])
         self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units['q'])
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units['q'])
-        self.update_target_net_weights(
-            self.q1_target_net.weights + self.q2_target_net.weights,
-            self.q1_net.weights + self.q2_net.weights
-        )
+        self.v_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_net', hidden_units['v'])
+        self.v_target_net = Nn.critic_v(self.s_dim, self.visual_dim, 'v_target_net', hidden_units['v'])
+        self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights)
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
@@ -65,16 +66,16 @@ class SAC_NO_V(Off_Policy):
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
         self.recorder.logger.info('''
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　ｘｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　ｘ　　　　
-　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘｘ　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　
-　　　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　　　　　　ｘ　　　ｘ　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
-　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　ｘ　　　ｘ　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　ｘ　　　ｘ　　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘ　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　ｘ　　　
+　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　ｘｘｘ　　　
+　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　ｘ　　　　
+　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　
+　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　
+　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　　ｘｘ　ｘｘ　　　　　
+　　　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　
+　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　
+　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　
+　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -89,7 +90,7 @@ class SAC_NO_V(Off_Policy):
                 mu, log_std = self.actor_net(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
-                mu = tf.tanh(mu)  # squash mu
+                mu = tf.tanh(mu)    # squash mu
             else:
                 logits = self.actor_net(s, visual_s)
                 mu = tf.argmax(logits, axis=1)
@@ -110,48 +111,18 @@ class SAC_NO_V(Off_Policy):
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     self.data.update(td_error, self.episode)
-                self.update_target_net_weights(
-                    self.q1_target_net.weights + self.q2_target_net.weights,
-                    self.q1_net.weights + self.q2_net.weights,
-                    self.ployak)
+                self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
                 summaries.update(dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
-                    target_mu, target_log_std = self.actor_net(s_, visual_s_)
-                    target_log_std = clip_nn_log_std(target_log_std)
-                    target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
-                else:
-                    target_logits = self.actor_net(s_, visual_s_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
-                    target_pi = target_cate_dist.sample()
-                    target_log_pi = target_cate_dist.log_prob(target_pi)
-                    target_pi = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
-                q1 = self.q1_net(s, visual_s, a)
-                q1_target = self.q1_target_net(s_, visual_s_, target_pi)
-                q2 = self.q2_net(s, visual_s, a)
-                q2_target = self.q2_target_net(s_, visual_s_, target_pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
-                td_error1 = q1 - dc_r_q1
-                td_error2 = q2 - dc_r_q2
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
-            self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
-            )
-
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
@@ -168,20 +139,48 @@ class SAC_NO_V(Off_Policy):
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                q1_s_pi = self.q1_net(s, visual_s, pi)
-                q2_s_pi = self.q2_net(s, visual_s, pi)
-                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
+                q1_pi = self.q1_net(s, visual_s, pi)
+                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_pi)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
             )
-
+            with tf.GradientTape() as tape:
+                if self.action_type == 'continuous':
+                    mu, log_std = self.actor_net(s, visual_s)
+                    log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
+                    pi, log_pi = squash_rsample(mu, log_std)
+                else:
+                    logits = self.actor_net(s, visual_s)
+                    cate_dist = tfp.distributions.Categorical(logits)
+                    pi = cate_dist.sample()
+                    log_pi = cate_dist.log_prob(pi)
+                    pi = tf.one_hot(pi, self.a_counts, dtype=tf.float32)
+                q1 = self.q1_net(s, visual_s, a)
+                q2 = self.q2_net(s, visual_s, a)
+                v = self.v_net(s, visual_s)
+                q1_pi = self.q1_net(s, visual_s, pi)
+                q2_pi = self.q2_net(s, visual_s, pi)
+                v_target = self.v_target_net(s_, visual_s_)
+                dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_pi)
+                td_v = v - v_from_q_stop
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
+                v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
+            )
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     if self.action_type == 'continuous':
                         mu, log_std = self.actor_net(s, visual_s)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                        pi, log_pi = squash_(mu, log_std)
+                        pi, log_pi = squash_rsample(mu, log_std)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -197,6 +196,7 @@ class SAC_NO_V(Off_Policy):
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
+                ['LOSS/v_loss', v_loss_stop],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
                 ['Statistics/alpha', tf.exp(self.log_alpha)],
@@ -222,9 +222,6 @@ class SAC_NO_V(Off_Policy):
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
-                    target_mu, target_log_std = self.actor_net(s_, visual_s_)
-                    target_log_std = clip_nn_log_std(target_log_std)
-                    target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
@@ -235,35 +232,31 @@ class SAC_NO_V(Off_Policy):
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-
-                    target_logits = self.actor_net(s_, visual_s_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
-                    target_pi = target_cate_dist.sample()
-                    target_pi = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
-                    target_log_pi = target_cate_dist.log_prob(target_pi)
                 q1 = self.q1_net(s, visual_s, a)
-                q1_target = self.q1_target_net(s_, visual_s_, target_pi)
                 q2 = self.q2_net(s, visual_s, a)
-                q2_target = self.q2_target_net(s_, visual_s_, target_pi)
-                q1_s_pi = self.q1_net(s, visual_s, pi)
-                q2_s_pi = self.q2_net(s, visual_s, pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
-                td_error1 = q1 - dc_r_q1
-                td_error2 = q2 - dc_r_q2
+                v = self.v_net(s, visual_s)
+                q1_pi = self.q1_net(s, visual_s, pi)
+                q2_pi = self.q2_net(s, visual_s, pi)
+                v_target = self.v_target_net(s_, visual_s_)
+                dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_pi)
+                td_v = v - v_from_q_stop
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
+                v_loss_stop = tf.reduce_mean(tf.square(td_v) * self.IS_w)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
+                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_pi)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
-            self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
-            )
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net.trainable_variables)
+            )
+            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.v_net.trainable_variables)
             )
             if self.auto_adaption:
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
@@ -275,6 +268,7 @@ class SAC_NO_V(Off_Policy):
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
+                ['LOSS/v_loss', v_loss_stop],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
                 ['Statistics/alpha', tf.exp(self.log_alpha)],

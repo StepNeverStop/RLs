@@ -38,13 +38,13 @@ algos = {
         'policy': 'off-policy',
         'update': 'perStep'
     },
-    'sac': {
-        'class': 'SAC',
+    'sac_v': {
+        'class': 'SAC_V',
         'policy': 'off-policy',
         'update': 'perStep'
     },
-    'sac_no_v': {
-        'class': 'SAC_NO_V',
+    'sac': {
+        'class': 'SAC',
         'policy': 'off-policy',
         'update': 'perStep'
     },

@@ -84,8 +84,8 @@ For now, these algorithms are available:
 |        DPG         |    √     |     √      |        dpg        |
 |        DDPG        |    √     |     √      |       ddpg        |
 |        TD3         |    √     |     √      |        td3        |
+| SAC(has V network) |    √     |     √      |       sac_v       |
 |        SAC         |    √     |     √      |        sac        |
-| SAC(no V Network)  |    √     |     √      |     sac_no_v      |
 |        TAC         |   sac    |     √      |        tac        |
 |       MaxSQN       |    √     |            |      maxsqn       |
 |       MADPG        |          |     √      |      ma_dpg       |
