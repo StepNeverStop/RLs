@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import clip_nn_log_std, squash_reprmter_action, gaussian_entropy
+from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
@@ -88,7 +88,7 @@ class SAC_NO_V(Off_Policy):
             if self.action_type == 'continuous':
                 mu, log_std = self.actor_net(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                pi, _ = squash_reprmter_action(mu, log_std)
+                pi, _ = squash_rsample(mu, log_std)
                 mu = tf.tanh(mu)  # squash mu
             else:
                 logits = self.actor_net(s, visual_s)
@@ -129,7 +129,7 @@ class SAC_NO_V(Off_Policy):
                 if self.action_type == 'continuous':
                     target_mu, target_log_std = self.actor_net(s_, visual_s_)
                     target_log_std = clip_nn_log_std(target_log_std)
-                    target_pi, target_log_pi = squash_reprmter_action(target_mu, target_log_std)
+                    target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(s_, visual_s_)
                     target_cate_dist = tfp.distributions.Categorical(target_logits)
@@ -156,7 +156,7 @@ class SAC_NO_V(Off_Policy):
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                    pi, log_pi = squash_reprmter_action(mu, log_std)
+                    pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
@@ -181,7 +181,7 @@ class SAC_NO_V(Off_Policy):
                     if self.action_type == 'continuous':
                         mu, log_std = self.actor_net(s, visual_s)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                        pi, log_pi = squash_reprmter_action(mu, log_std)
+                        pi, log_pi = squash_(mu, log_std)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -220,11 +220,11 @@ class SAC_NO_V(Off_Policy):
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                    pi, log_pi = squash_reprmter_action(mu, log_std)
+                    pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                     target_mu, target_log_std = self.actor_net(s_, visual_s_)
                     target_log_std = clip_nn_log_std(target_log_std)
-                    target_pi, target_log_pi = squash_reprmter_action(target_mu, target_log_std)
+                    target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)

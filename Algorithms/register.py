@@ -4,13 +4,13 @@ assert tf.__version__[0] == '2'
 # algorithms based on TF 2.0
 algos = {
     'pg': {
-        'class': 'PG', 
-        'policy': 'on-policy', 
+        'class': 'PG',
+        'policy': 'on-policy',
         'update': 'perEpisode'
     },
     'ppo': {
-        'class': 'PPO', 
-        'policy': 'on-policy', 
+        'class': 'PPO',
+        'policy': 'on-policy',
         'update': 'perEpisode'
     },
     'ac': {
@@ -45,6 +45,11 @@ algos = {
     },
     'sac_no_v': {
         'class': 'SAC_NO_V',
+        'policy': 'off-policy',
+        'update': 'perStep'
+    },
+    'tac': {
+        'class': 'TAC',
         'policy': 'off-policy',
         'update': 'perStep'
     },
@@ -86,7 +91,7 @@ algos = {
 }
 
 
-def get_model_info(name:str):
+def get_model_info(name: str):
     '''
     Args:
         name: name of algorithms

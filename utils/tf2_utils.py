@@ -37,7 +37,7 @@ def clip_nn_log_std(log_std, _min=-20, _max=2):
     return _min + 0.5 * (_max - _min) * (log_std + 1)
 
 
-def gaussian_reparam_sample(mu, log_std):
+def gaussian_rsample(mu, log_std):
     """
     Reparameter
     Args:
@@ -53,7 +53,7 @@ def gaussian_reparam_sample(mu, log_std):
     return pi, log_pi
 
 
-def gaussian_clip_reparam_sample(mu, log_std, _min=-1, _max=1):
+def gaussian_clip_rsample(mu, log_std, _min=-1, _max=1):
     """
     Reparameter sample and clip the value of sample to range [_min, _max]
     Args:
@@ -80,10 +80,10 @@ def gaussian_likelihood(x, mu, log_std):
         mu: mean of the gaussian distribution
         log_std: log standard deviation of the gaussian distribution
     Return:
-        log probability of sample
+        log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
     pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
-    return tf.reduce_sum(pre_sum, axis=1, keepdims=True)
+    return pre_sum
 
 
 def gaussian_entropy(log_std):
@@ -97,7 +97,7 @@ def gaussian_entropy(log_std):
     return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2 + 1e-8)))
 
 
-def squash_action(pi, log_pi=None):
+def squash_action(pi, log_pi=None, *, need_sum=True):
     """
     Enforcing action bounds.
     squash action to range [-1, 1] and calculate the correct log probability value.
@@ -110,7 +110,12 @@ def squash_action(pi, log_pi=None):
     """
     pi = tf.tanh(pi)
     if log_pi is not None:
-        sub = tf.reduce_sum(tf.math.log(clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8), axis=1, keepdims=True)
+        sub = tf.math.log(clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8)
+        log_pi -= sub
+    if need_sum:
+        log_pi = tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+        log_pi -= tf.reduce_sum(sub, axis=-1, keepdims=True)
+    else:
         log_pi -= sub
     return pi, log_pi
 
@@ -135,7 +140,7 @@ def clip_but_pass_gradient(x, l=-1., h=1.):
     return x + tf.stop_gradient((h - x) * clip_up + (l - x) * clip_low)
 
 
-def squash_reprmter_action(mu, log_std):
+def squash_rsample(mu, log_std):
     '''
     Reparameter sample from guassian distribution. Sqashing output from [-inf, inf] to [-1, 1]
     Args:
@@ -144,14 +149,31 @@ def squash_reprmter_action(mu, log_std):
     Return:
         actions range from [-1, 1], like [batch, action_value]
     '''
-    return squash_action(*gaussian_reparam_sample(mu, log_std))
+    return squash_action(*gaussian_rsample(mu, log_std), need_sum=True)
+
+
+def tsallis_squash_rsample(mu, log_std, q):
+    pi, log_pi = squash_action(*gaussian_rsample(mu, log_std), need_sum=False)
+    log_q_pi = tsallis_entropy_log_q(log_pi, q)
+    return pi, log_q_pi
+
+
+def tsallis_entropy_log_q(log_pi, q):
+    if q == 1.:
+        return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+    else:
+        pi_p = tf.exp(log_pi)
+        safe_x = tf.math.maximum(pi_p, 1e-6)
+        log_q_pi = (tf.pow(safe_x, (1 - q)) - 1) / (1 - q)
+        return tf.reduce_sum(log_q_pi, axis=-1, keepdims=True)
+
 
 def cast2float32(*args):
     '''
     cast data to tf.float32
     '''
     return [tf.cast(i, tf.float32) for i in args]
-    
+
 
 def cast2float64(*args):
     '''

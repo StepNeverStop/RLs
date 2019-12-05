@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import get_TensorSpecs, gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
+from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
@@ -61,7 +61,7 @@ class PG(On_Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.net(s, visual_s)
-                sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
+                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
                 logits = self.net(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)

@@ -169,6 +169,30 @@ sac:
         q: [128, 128]
         v: [128, 128]
 
+tac: 
+    alpha: 0.2
+    auto_adaption: True
+    log_std_bound: [-20, 2]
+    entropic_index: 1.5 # maybe equal or greater than 1.0 
+    gamma: 0.99
+    ployak: 0.995
+    actor_lr: 5.0e-4
+    critic_lr: 1.0e-3
+    alpha_lr: 5.0e-4
+    discrete_tau: 1.0
+    batch_size: 2048
+    buffer_size: 200000
+    use_priority: False
+    n_step: False
+    hidden_units: 
+        actor_continuous: 
+            share: [128, 128]
+            mu: [128]
+            log_std: [128]
+        actor_discrete: [64, 64]
+        q: [128, 128]
+        v: [128, 128]
+
 sac_no_v: 
     alpha: 0.2
     auto_adaption: True

@@ -3,11 +3,13 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
+from utils.tf2_utils import clip_nn_log_std, tsallis_squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
-class SAC(Off_Policy):
+class TAC(Off_Policy):
+    """Tsallis Actor Critic, TAC with V neural Network. https://arxiv.org/abs/1902.00137
+    """
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -17,6 +19,7 @@ class SAC(Off_Policy):
 
                  alpha=0.2,
                  ployak=0.995,
+                 entropic_index=1.5,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
                  hidden_units={
@@ -42,6 +45,7 @@ class SAC(Off_Policy):
             action_type=action_type,
             **kwargs)
         self.ployak = ployak
+        self.entropic_index = 2 - entropic_index
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
         self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -63,15 +67,15 @@ class SAC(Off_Policy):
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
         self.recorder.logger.info('''
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
+　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
+　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
+　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
+　　　　　　　ｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
+　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
+　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
+　　　　　　　ｘ　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
+　　　　　　　ｘ　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
+　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -85,7 +89,7 @@ class SAC(Off_Policy):
             if self.action_type == 'continuous':
                 mu, log_std = self.actor_net(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                pi, _ = squash_rsample(mu, log_std)
+                pi, _ = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                 mu = tf.tanh(mu)    # squash mu
             else:
                 logits = self.actor_net(s, visual_s)
@@ -123,7 +127,7 @@ class SAC(Off_Policy):
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                    pi, log_pi = squash_rsample(mu, log_std)
+                    pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
@@ -145,7 +149,7 @@ class SAC(Off_Policy):
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                    pi, log_pi = squash_rsample(mu, log_std)
+                    pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                 else:
                     logits = self.actor_net(s, visual_s)
                     cate_dist = tfp.distributions.Categorical(logits)
@@ -176,7 +180,7 @@ class SAC(Off_Policy):
                     if self.action_type == 'continuous':
                         mu, log_std = self.actor_net(s, visual_s)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                        pi, log_pi = squash_rsample(mu, log_std)
+                        pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
@@ -216,7 +220,7 @@ class SAC(Off_Policy):
                 if self.action_type == 'continuous':
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                    pi, log_pi = squash_rsample(mu, log_std)
+                    pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(s, visual_s)

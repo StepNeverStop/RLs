@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_reparam_sample, gaussian_likelihood, gaussian_entropy
+from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
@@ -100,7 +100,7 @@ class PPO(On_Policy):
                     mu, _ = self.net(s, visual_s)
                 else:
                     mu = self.actor_net(s, visual_s)
-                sample_op, _ = gaussian_clip_reparam_sample(mu, self.log_std)
+                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(s, visual_s)
