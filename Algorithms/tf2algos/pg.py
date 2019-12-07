@@ -70,7 +70,7 @@ class PG(On_Policy):
 
     def calculate_statistics(self):
         self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
-        a = np.array(sth.discounted_sum(self.data.r.values, self.gamma, 0, self.data.done.values))
+        a = np.asarray(sth.discounted_sum(self.data.r.values, self.gamma, 0, self.data.done.values))
         a -= np.mean(a)
         a /= np.std(a)
         self.data['discounted_reward'] = list(a)

@@ -77,12 +77,12 @@ class Loop(object):
                         s=state[i],
                         visual_s=visual_state[i],
                         a=action[i],
-                        r=np.array(obs[brain_name].rewards),
+                        r=np.asarray(obs[brain_name].rewards),
                         s_=next_state,
                         visual_s_=next_visual_state,
-                        done=np.array(obs[brain_name].local_done)
+                        done=np.asarray(obs[brain_name].local_done)
                     )
-                    rewards[i][unfinished_index] += np.array(obs[brain_name].rewards)[unfinished_index]
+                    rewards[i][unfinished_index] += np.asarray(obs[brain_name].rewards)[unfinished_index]
 
                 if all([all(dones_flag[i]) for i in range(brains_num)]):
                     if last_done_step == -1:
@@ -172,8 +172,8 @@ class Loop(object):
                     s=state[i],
                     visual_s=visual_state[i],
                     a=action[i],
-                    r=np.array(obs[brain_name].rewards),
+                    r=np.asarray(obs[brain_name].rewards),
                     s_=next_state,
                     visual_s_=next_visual_state,
-                    done=np.array(obs[brain_name].local_done)
+                    done=np.asarray(obs[brain_name].local_done)
                 )

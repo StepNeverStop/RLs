@@ -39,30 +39,30 @@ class Loop(object):
                 obs = env.step(vector_action=actions)
 
                 for i, brain_name in enumerate(brain_names):
-                    reward[i] = np.array(obs[brain_name].rewards)[:, np.newaxis]
+                    reward[i] = np.asarray(obs[brain_name].rewards)[:, np.newaxis]
                     next_state[i] = obs[brain_name].vector_observations
-                    dones[i] = np.array(obs[brain_name].local_done)[:, np.newaxis]
+                    dones[i] = np.asarray(obs[brain_name].local_done)[:, np.newaxis]
                     unfinished_index = np.where(dones_flag[i] == False)[0]
                     dones_flag[i] += obs[brain_name].local_done
-                    rewards[i][unfinished_index] += np.array(obs[brain_name].rewards)[unfinished_index]
+                    rewards[i][unfinished_index] += np.asarray(obs[brain_name].rewards)[unfinished_index]
 
-                s = [np.array(e) for e in zip(*state)]
-                a = [np.array(e) for e in zip(*action)]
-                r = [np.array(e) for e in zip(*reward)]
-                s_ = [np.array(e) for e in zip(*next_state)]
-                done = [np.array(e) for e in zip(*dones)]
+                s = [np.asarray(e) for e in zip(*state)]
+                a = [np.asarray(e) for e in zip(*action)]
+                r = [np.asarray(e) for e in zip(*reward)]
+                s_ = [np.asarray(e) for e in zip(*next_state)]
+                done = [np.asarray(e) for e in zip(*dones)]
                 data.add(s, a, r, s_, done)
                 s, a, r, s_, done = data.sample()
                 for i, brain_name in enumerate(brain_names):
                     next_action[i] = models[i].get_target_action(s=s_[:, i])
                     new_action[i] = models[i].choose_action(s=s[:, i], evaluation=True)
-                a_ = np.array([np.array(e) for e in zip(*next_action)])
+                a_ = np.asarray([np.asarray(e) for e in zip(*next_action)])
                 if policy_mode == 'off-policy':
                     for i in range(brains_num):
                         models[i].learn(
                             episode=episode,
-                            ap=np.array([np.array(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
-                            al=np.array([np.array(e) for e in zip(*next_action[-(brains_num - i - 1):])]).reshape(batch_size, -1) if brains_num - i != 1 else np.zeros((batch_size, 0)),
+                            ap=np.asarray([np.asarray(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
+                            al=np.asarray([np.asarray(e) for e in zip(*next_action[-(brains_num - i - 1):])]).reshape(batch_size, -1) if brains_num - i != 1 else np.zeros((batch_size, 0)),
                             ss=s.reshape(batch_size, -1),
                             ss_=s_.reshape(batch_size, -1),
                             aa=a.reshape(batch_size, -1),
@@ -117,7 +117,7 @@ class Loop(object):
             else:
                 action[i] = np.zeros((agents_num[i], len(brains[brain_name].vector_action_space_size)), dtype=np.int32)
                 
-        a = [np.array(e) for e in zip(*action)]
+        a = [np.asarray(e) for e in zip(*action)]
         for step in range(steps):
             print(f'no op step {step}')
             for i, brain_name in enumerate(brain_names):
@@ -127,14 +127,14 @@ class Loop(object):
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(brain_names)}
             obs = env.step(vector_action=actions)
             for i, brain_name in enumerate(brain_names):
-                reward[i] = np.array(obs[brain_name].rewards)[:, np.newaxis]
+                reward[i] = np.asarray(obs[brain_name].rewards)[:, np.newaxis]
                 next_state[i] = obs[brain_name].vector_observations
-                dones[i] = np.array(obs[brain_name].local_done)[:, np.newaxis]
-            s = [np.array(e) for e in zip(*state)]
-            a = [np.array(e) for e in zip(*action)]
-            r = [np.array(e) for e in zip(*reward)]
-            s_ = [np.array(e) for e in zip(*next_state)]
-            done = [np.array(e) for e in zip(*dones)]
+                dones[i] = np.asarray(obs[brain_name].local_done)[:, np.newaxis]
+            s = [np.asarray(e) for e in zip(*state)]
+            a = [np.asarray(e) for e in zip(*action)]
+            r = [np.asarray(e) for e in zip(*reward)]
+            s_ = [np.asarray(e) for e in zip(*next_state)]
+            done = [np.asarray(e) for e in zip(*dones)]
             data.add(s, a, r, s_, done)
 
     @staticmethod

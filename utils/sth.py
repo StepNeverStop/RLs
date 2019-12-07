@@ -154,7 +154,7 @@ class sth(object):
         assert isinstance(index, np.ndarray), 'type of sth.action_index2one_hot.index must be np.ndarray'
         if len(index.shape) == 1:
             index = index[:, np.newaxis]
-        return sth.int2one_hot(sth.action_index2int(index, action_dim_list), np.array(action_dim_list).prod())
+        return sth.int2one_hot(sth.action_index2int(index, action_dim_list), np.asarray(action_dim_list).prod())
 
     @staticmethod
     def get_batch_one_hot(action, action_multiplication_factor, cols):

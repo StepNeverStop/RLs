@@ -25,7 +25,7 @@ class Policy(Base):
         self.a_dim_or_list = a_dim_or_list
         self.gamma = kwargs.get('gamma', 0.999)
         self.max_episode = kwargs.get('max_episode', 1000)
-        self.a_counts = int(np.array(a_dim_or_list).prod())
+        self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
         self.IS_w = 1       # the weights of NN variables by using Importance sampling.
 

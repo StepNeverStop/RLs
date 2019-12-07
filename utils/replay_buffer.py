@@ -83,10 +83,10 @@ class ExperienceReplay(ReplayBuffer):
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        return [np.array(e) for e in zip(*t)]
+        return [np.asarray(e) for e in zip(*t)]
 
     def get_all(self):
-        return [np.array(e) for e in zip(*self._buffer[:self._size])]
+        return [np.asarray(e) for e in zip(*self._buffer[:self._size])]
 
     def update_rb_after_add(self):
         self._data_pointer += 1
@@ -163,8 +163,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         interval = self.tree.total / n_sample
         segment = [self.tree.total - i * interval for i in range(n_sample + 1)]
         t = [self.tree.get(np.random.uniform(segment[i], segment[i + 1], 1)) for i in range(n_sample)]
-        t = [np.array(e) for e in zip(*t)]
-        d = [np.array(e) for e in zip(*t[-1])]
+        t = [np.asarray(e) for e in zip(*t)]
+        d = [np.asarray(e) for e in zip(*t[-1])]
         self.last_indexs = t[0]
         self.IS_w = np.power(self.min_p / t[-2], self.beta) if self.global_v else np.power(t[-2].min() / t[-2], self.beta)
         return d
@@ -219,7 +219,7 @@ class NStepExperienceReplay(ExperienceReplay):
         '''
         # if self.exps_pointer[i] > 0 and self.exps[i][self.exps_pointer[i] - 1][3] != data[0]:
         if self.exps_pointer[i] > 0 and ((data[0] != self.exps[i][self.exps_pointer[i] - 1][4]).any() or data[1] != self.exps[i][self.exps_pointer[i] - 1][5]):
-            # if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.array, np.array]组成，所以比较这样一个列表十分麻烦
+            # if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.asarray, np.asarray]组成，所以比较这样一个列表十分麻烦
             # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
             # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
             for k in range(self.exps_pointer[i]):

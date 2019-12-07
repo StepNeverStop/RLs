@@ -95,7 +95,7 @@ class gym_envs(object):
         '''
         generate ramdom actions for all training environment.
         '''
-        return np.array([env.action_space.sample() for env in self.envs])
+        return np.asarray([env.action_space.sample() for env in self.envs])
 
     def reset(self):
         self.dones_index = []
@@ -107,14 +107,14 @@ class gym_envs(object):
             th.start()
         for th in threadpool:
             threading.Thread.join(th)
-        obs = np.array([threadpool[i].get_result() for i in range(self.n)])
+        obs = np.asarray([threadpool[i].get_result() for i in range(self.n)])
         obs = self._maybe_one_hot(obs)
         return obs
 
         # if self.obs_type == 'visual':
-        #     return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)])
+        #     return np.asarray([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)])
         # else:
-        #     return np.array([threadpool[i].get_result() for i in range(self.n)])
+        #     return np.asarray([threadpool[i].get_result() for i in range(self.n)])
 
     def step(self, actions, scale=True):
         if scale == True:
@@ -139,7 +139,7 @@ class gym_envs(object):
         #         for i in range(self.n)]
         # else:
         #     results = [threadpool[i].get_result() for i in range(self.n)]
-        obs, reward, done, info = [np.array(e) for e in zip(*results)]
+        obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
         obs = self._maybe_one_hot(obs)
         self.dones_index = np.where(done)[0]
         return obs, reward, done, info
@@ -153,14 +153,14 @@ class gym_envs(object):
             th.start()
         for th in threadpool:
             threading.Thread.join(th)
-        obs = np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
+        obs = np.asarray([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
         obs = self._maybe_one_hot(obs, is_partial=True)
         return obs
 
         # if self.obs_type == 'visual':
-        #     return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
+        #     return np.asarray([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
         # else:
-        #     return np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
+        #     return np.asarray([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
 
     def _get_action_normalize_factor(self):
         '''
@@ -195,7 +195,7 @@ class gym_envs(object):
             else:
                 dim = list(self.obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
             multiplication_factor = dim[1:] + [1]
-            n = np.array(dim).prod()
+            n = np.asarray(dim).prod()
             ints = obs.dot(multiplication_factor)
             x = np.zeros([obs.shape[0], n])
             for i, j in enumerate(ints):

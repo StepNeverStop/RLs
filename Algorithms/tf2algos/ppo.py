@@ -169,7 +169,7 @@ class PPO(On_Policy):
             self.data.value.values
         )
         # GAE
-        adv = np.array(sth.discounted_sum(
+        adv = np.asarray(sth.discounted_sum(
             self.data.td_error.values,
             self.lambda_ * self.gamma,
             0,
