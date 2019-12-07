@@ -23,6 +23,7 @@ Options:
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
+    --gym-env-seed=<n>          指定gym环境的随机种子 [default: 10]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
@@ -227,11 +228,11 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     except KeyError:
         raise NotImplementedError
 
-    available_type = [Box, Discrete]
+    available_type = (Box, Discrete)
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
-        env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), render_mode=default_args['render_mode'])
+        env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), seed=int(options['--gym-env-seed']), render_mode=default_args['render_mode'])
         assert isinstance(env.obs_space, available_type) and isinstance(env.action_space, available_type), 'action_space and obs_space must be one of available_type'
     except Exception as e:
         print(e)

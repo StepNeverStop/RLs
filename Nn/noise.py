@@ -46,6 +46,18 @@ class NormalActionNoise(ActionNoise):
         return 'NormalActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
 
 
+class ClippedNormalActionNoise(NormalActionNoise):
+    def __init__(self, mu, sigma, bound):
+        super().__init__(mu, sigma)
+        self.bound = bound
+
+    def __call__(self):
+        return np.clip(np.random.normal(self.mu, self.sigma), -self.bound, self.bound)
+
+    def __repr__(self):
+        return 'ClippedNormalActionNoise(mu={}, sigma={}, bound={})'.format(self.mu, self.sigma, self.bound)
+
+
 # Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
 class OrnsteinUhlenbeckActionNoise(ActionNoise):
     def __init__(self, mu, sigma, theta=.15, dt=1e-2, x0=None):

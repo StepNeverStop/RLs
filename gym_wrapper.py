@@ -22,7 +22,7 @@ class FakeMultiThread(threading.Thread):
 
 class gym_envs(object):
 
-    def __init__(self, gym_env_name, n, render_mode='first'):
+    def __init__(self, gym_env_name, n, seed=0, render_mode='first'):
         '''
         Input:
             gym_env_name: gym training environment id, i.e. CartPole-v0
@@ -31,6 +31,8 @@ class gym_envs(object):
         '''
         self.n = n  # environments number
         self.envs = [gym.make(gym_env_name) for _ in range(self.n)]
+        self.seeds = [seed + i for i in range(n)]
+        [env.seed(s) for env, s in zip(self.envs, self.seeds)]
         # process observation
         self.obs_space = self.envs[0].observation_space
         if isinstance(self.obs_space, gym.spaces.box.Box):
@@ -159,7 +161,7 @@ class gym_envs(object):
         #     return np.array([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
         # else:
         #     return np.array([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
-    
+
     def _get_action_normalize_factor(self):
         '''
         get action mu and sigma. mu: action bias. sigma: action scale

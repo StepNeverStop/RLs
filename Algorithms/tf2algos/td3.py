@@ -15,6 +15,10 @@ class TD3(Off_Policy):
                  action_type,
 
                  ployak=0.995,
+                 delay_num=2,
+                 noise_type='gaussian',
+                 gaussian_noise_sigma=0.2,
+                 gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
@@ -32,12 +36,17 @@ class TD3(Off_Policy):
             action_type=action_type,
             **kwargs)
         self.ployak = ployak
+        self.delay_num = delay_num
         self.discrete_tau = discrete_tau
+        self.gaussian_noise_sigma = gaussian_noise_sigma
+        self.gaussian_noise_bound = gaussian_noise_bound
         if self.action_type == 'continuous':
             self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_continuous'])
-            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
-            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
+            if noise_type == 'gaussian':
+                self.action_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_counts), sigma=self.gaussian_noise_sigma * np.ones(self.a_counts), bound=self.gaussian_noise_bound)
+            elif noise_type == 'ou':
+                self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
             self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_discrete'])
@@ -104,14 +113,14 @@ class TD3(Off_Policy):
                 summaries.update(dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
-            for _ in range(2):
+            for _ in range(self.delay_num):
                 with tf.GradientTape() as tape:
                     if self.action_type == 'continuous':
                         target_mu = self.actor_target_net(s_, visual_s_)

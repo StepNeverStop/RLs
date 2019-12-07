@@ -220,6 +220,45 @@ class critic_q_one(ImageNet):
         return q
 
 
+class critic_q_one2(ImageNet):
+    '''
+    Original architecture in DDPG paper.
+    s-> layer -> feature, them tf.concat(feature, a) -> layer -> output
+    '''
+
+    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
+        assert len(hidden_units) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
+        super().__init__(name=name, visual_dim=visual_dim)
+        self.state_feature_net = mlp(hidden_units[0:1])
+        self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+
+    def call(self, vector_input, visual_input, action):
+        features = self.state_feature_net(super().call(vector_input, visual_input))
+        q = self.net(tf.concat((features, action), axis=-1))
+        return q
+
+
+class critic_q_one3(ImageNet):
+    '''
+    Original architecture in TD3 paper.
+    tf.concat(s,a) -> layer -> feature, them tf.concat(feature, a) -> layer -> output
+    '''
+
+    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
+        assert len(hidden_units) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
+        super().__init__(name=name, visual_dim=visual_dim)
+        self.feature_net = mlp(hidden_units[0:1])
+        self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+
+    def call(self, vector_input, visual_input, action):
+        features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
+        features = self.feature_net(features)
+        q = self.net(tf.concat((features, action), axis=-1))
+        return q
+
+
 class critic_v(ImageNet):
     '''
     use for evaluate the value given a state.
