@@ -1,5 +1,5 @@
 import numpy as np
-
+from utils.np_utils import SMA
 
 def get_visual_input(n, cameras, brain_obs):
     '''
@@ -49,6 +49,8 @@ class Loop(object):
         dones_flag = [0] * brains_num
         agents_num = [0] * brains_num
         rewards = [0] * brains_num
+        sma = [SMA(100) for i in range(brains_num)]
+
         for episode in range(begin_episode, max_episode):
             if episode % resampling_interval == 0:
                 reset_config.update(sampler_manager.sample_all())
@@ -94,13 +96,15 @@ class Loop(object):
                     break
 
             for i in range(brains_num):
+                sma[i].update(rewards[i])
                 models[i].learn(episode=episode, step=step)
                 models[i].writer_summary(
                     episode,
                     reward_mean=rewards[i].mean(),
                     reward_min=rewards[i].min(),
                     reward_max=rewards[i].max(),
-                    step=last_done_step
+                    step=last_done_step,
+                    **sma[i].rs
                 )
             print('-' * 40)
             print(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')

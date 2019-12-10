@@ -25,6 +25,7 @@ Options:
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 10]
+    --gym-models=<n>            同时训练多少个模型 [default: 1]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
@@ -37,11 +38,13 @@ Example:
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
+import time
 from Algorithms.register import get_model_info
 from docopt import docopt
 from config import train_config
 from utils.replay_buffer import ExperienceReplay
 from utils.sth import sth
+from multiprocessing import Process
 
 
 def run():
@@ -65,6 +68,7 @@ def run():
     max_episode = train_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
     save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
+    seed = int(options['--seed'])
     share_args, unity_args, gym_args = train_config['share'], train_config['unity'], train_config['gym']
 
     # gym > unity > unity_env
@@ -74,12 +78,38 @@ def run():
         'max_step': max_step,
         'max_episode': max_episode,
         'save_frequency': save_frequency,
-        'name': name
+        'name': name,
+        'seed': seed,
     }
-    gym_run(default_args=gym_args, **run_params) if options['--gym'] else unity_run(default_args=unity_args, **run_params)
+    if options['--gym']:
+        trails = int(options['--gym-models'])
+        if trails == 1:
+            gym_run(default_args=gym_args, **run_params)
+        elif trails > 1:
+            processes = []
+            for i in range(trails):
+                p = Process(target=gym_run,
+                            args=(
+                                gym_args,
+                                share_args,
+                                options,
+                                max_step,
+                                max_episode,
+                                save_frequency,
+                                name + '-' + str(i),
+                                seed + i * 10
+                            ))
+                p.start()
+                time.sleep(1)
+                processes.append(p)
+            [p.join() for p in processes]
+        else:
+            raise Exception('trials must be greater than 0.')
+    else:
+        unity_run(default_args=unity_args, **run_params)
 
 
-def unity_run(default_args, share_args, options, max_step, max_episode, save_frequency, name):
+def unity_run(default_args, share_args, options, max_step, max_episode, save_frequency, name, seed):
     from mlagents.envs import UnityEnvironment
     from utils.sampler import create_sampler_manager
 
@@ -148,7 +178,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, i),
         'logger2file': share_args['logger2file'],
-        'seed': int(options['--seed']),
+        'seed': seed,
     } for i in brain_names]
 
     if ma:
@@ -220,7 +250,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
                 sys.exit()
 
 
-def gym_run(default_args, share_args, options, max_step, max_episode, save_frequency, name):
+def gym_run(default_args, share_args, options, max_step, max_episode, save_frequency, name, seed):
     from gym_loop import Loop
     from gym.spaces import Box, Discrete, Tuple
     from gym_wrapper import gym_envs
@@ -278,7 +308,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         'max_episode': max_episode,
         'base_dir': base_dir,
         'logger2file': share_args['logger2file'],
-        'seed': int(options['--seed']),
+        'seed': seed,
     }
     gym_model = model(
         **model_params,

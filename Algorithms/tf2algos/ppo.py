@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood, gaussian_entropy
+from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
@@ -147,7 +147,7 @@ class PPO(On_Policy):
                     mu, _ = self.net(s, visual_s)
                 else:
                     mu = self.actor_net(s, visual_s)
-                new_log_prob = gaussian_likelihood(mu, a, self.log_std)
+                new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
             else:
                 if self.share_net:
                     logits, _ = self.net(s, visual_s)
@@ -230,7 +230,7 @@ class PPO(On_Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu, value = self.net(s, visual_s)
-                    new_log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits, value = self.net(s, visual_s)
@@ -267,7 +267,7 @@ class PPO(On_Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    new_log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)

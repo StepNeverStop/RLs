@@ -1,4 +1,5 @@
 import numpy as np
+from utils.np_utils import SMA
 
 
 def init_variables(env):
@@ -31,6 +32,7 @@ class Loop(object):
             render_episode:     if 'render' is false, specify from which episode to render the env
         """
         i, state, new_state = init_variables(env)
+        sma = SMA(100)
         for episode in range(begin_episode, max_episode):
             state[i] = env.reset()
             dones_flag = np.full(env.n, False)
@@ -71,13 +73,15 @@ class Loop(object):
                     new_state[i][env.dones_index] = env.partial_reset()
                 state[i] = new_state[i]
 
+            sma.update(r)
             gym_model.learn(episode=episode, step=step)
             gym_model.writer_summary(
                 episode,
                 reward_mean=r.mean(),
                 reward_min=r.min(),
                 reward_max=r.max(),
-                step=last_done_step
+                step=last_done_step,
+                **sma.rs
             )
             print('-' * 40)
             print(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {r}')

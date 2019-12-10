@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood, gaussian_entropy
+from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
@@ -106,7 +106,7 @@ class PG(On_Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.net(s, visual_s)
-                    log_act_prob = gaussian_likelihood(mu, a, self.log_std)
+                    log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.net(s, visual_s)

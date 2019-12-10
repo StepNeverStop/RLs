@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood, gaussian_entropy
+from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
@@ -86,7 +86,7 @@ class AC(Off_Policy):
         with tf.device(self.device):
             if self.action_type == 'continuous':
                 mu = self.actor_net(s, visual_s)
-                log_prob = gaussian_likelihood(mu, a, self.log_std)
+                log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
             else:
                 logits = self.actor_net(s, visual_s)
                 logp_all = tf.nn.log_softmax(logits)
@@ -97,12 +97,10 @@ class AC(Off_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if self.policy_mode == 'OFF':
-            old_log_prob = np.ones_like(r)
-            if not self.action_type == 'continuous':
-                a = sth.action_index2one_hot(a, self.a_dim_or_list)
-            self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis].astype(
-                np.float32), r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        old_log_prob = np.ones_like(r)
+        if not self.action_type == 'continuous':
+            a = sth.action_index2one_hot(a, self.a_dim_or_list)
+        self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -116,7 +114,7 @@ class AC(Off_Policy):
             summaries.update(dict([
                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                ]))
+            ]))
             self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
@@ -142,7 +140,7 @@ class AC(Off_Policy):
             with tf.GradientTape() as tape:
                 if self.action_type == 'continuous':
                     mu = self.actor_net(s, visual_s)
-                    log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s, visual_s)
@@ -183,7 +181,7 @@ class AC(Off_Policy):
                     next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                     mu, sigma = self.actor_net(s, visual_s)
-                    log_prob = gaussian_likelihood(mu, a, self.log_std)
+                    log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(s_, visual_s_)

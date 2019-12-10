@@ -85,6 +85,9 @@ def gaussian_likelihood(x, mu, log_std):
     pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
     return pre_sum
 
+def gaussian_likelihood_sum(x, mu, log_std):
+    log_pi = gaussian_likelihood(x, mu, log_std)
+    return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
 
 def gaussian_entropy(log_std):
     '''
