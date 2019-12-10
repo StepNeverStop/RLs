@@ -19,7 +19,7 @@ class On_Policy(Policy):
                  a_dim_or_list=a_dim_or_list,
                  action_type=action_type,
                  **kwargs)
-        self.batch_size = kwargs.get('batch_size', 128)
+        self.batch_size = int(kwargs.get('batch_size', 128))
         self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):

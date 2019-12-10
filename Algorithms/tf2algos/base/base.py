@@ -18,6 +18,7 @@ class Base(tf.keras.Model):
         base_dir = kwargs.get('base_dir')
         logger2file = kwargs.get('logger2file', False)
         tf_dtype = kwargs.get('tf_dtype', 'float32')
+        tf.random.set_seed(int(kwargs.get('seed', 0)))
 
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         if len(physical_devices) > 0:

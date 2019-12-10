@@ -19,8 +19,8 @@ class Off_Policy(Policy):
             a_dim_or_list=a_dim_or_list,
             action_type=action_type,
             **kwargs)
-        self.batch_size = kwargs.get('batch_size', 128)
-        self.buffer_size = kwargs.get('buffer_size', 10000)
+        self.batch_size = int(kwargs.get('batch_size', 128))
+        self.buffer_size = int(kwargs.get('buffer_size', 10000))
         self.use_priority = kwargs.get('use_priority', False)
         self.n_step = kwargs.get('n_step', False)
         self.init_data_memory()

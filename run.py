@@ -14,6 +14,7 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    --seed=<n>                  指定模型的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
     --max-episode=<n>           总的训练回合数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
@@ -147,6 +148,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, i),
         'logger2file': share_args['logger2file'],
+        'seed': int(options['--seed']),
     } for i in brain_names]
 
     if ma:
@@ -267,15 +269,19 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         a_dim_or_list = [env.action_space.n]
         action_type = 'discrete'
 
+    model_params = {
+        's_dim': s_dim,
+        'visual_sources': visual_sources,
+        'visual_resolution': visual_resolution,
+        'a_dim_or_list': a_dim_or_list,
+        'action_type': action_type,
+        'max_episode': max_episode,
+        'base_dir': base_dir,
+        'logger2file': share_args['logger2file'],
+        'seed': int(options['--seed']),
+    }
     gym_model = model(
-        s_dim=s_dim,
-        visual_sources=visual_sources,
-        visual_resolution=visual_resolution,
-        a_dim_or_list=a_dim_or_list,
-        action_type=action_type,
-        max_episode=max_episode,
-        base_dir=base_dir,
-        logger2file=share_args['logger2file'],
+        **model_params,
         **algorithm_config
     )
     gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
