@@ -92,7 +92,7 @@ class PPO(On_Policy):
         return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
+    def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.action_type == 'continuous':
