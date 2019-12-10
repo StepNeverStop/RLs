@@ -162,7 +162,13 @@ def tsallis_entropy_log_q(log_pi, q):
     if q == 1.:
         return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
     else:
-        pi_p = tf.exp(log_pi)
+        if q > 0.:
+            '''
+            cite from original implementation: https://github.com/rllab-snu/tsallis_actor_critic_mujoco/blob/9f9ba8e4dc8f9680f1e516d3b1391c9ded3934e3/spinup/algos/tac/core.py#L47
+            '''
+            pi_p = tf.exp(log_pi)
+        else:
+            pi_p = tf.minimum(tf.exp(log_pi), tf.pow(10., 8 / (1 - q)))
         safe_x = tf.math.maximum(pi_p, 1e-6)
         log_q_pi = (tf.pow(safe_x, (1 - q)) - 1) / (1 - q)
         return tf.reduce_sum(log_q_pi, axis=-1, keepdims=True)
