@@ -172,14 +172,14 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
             visual_resolutions[f'{i}'] = []
 
     model_params = [{
-        's_dim': brains[i].vector_observation_space_size * brains[i].num_stacked_vector_observations,
-        'a_dim_or_list': brains[i].vector_action_space_size,
-        'action_type': brains[i].vector_action_space_type,
+        's_dim': brains[b].vector_observation_space_size * brains[b].num_stacked_vector_observations,
+        'a_dim_or_list': brains[b].vector_action_space_size,
+        'action_type': brains[b].vector_action_space_type,
         'max_episode': max_episode,
-        'base_dir': os.path.join(base_dir, i),
+        'base_dir': os.path.join(base_dir, b),
         'logger2file': share_args['logger2file'],
-        'seed': seed,
-    } for i in brain_names]
+        'seed': seed + i * 10,
+    } for i, b in enumerate(brain_names)]
 
     if ma:
         assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
