@@ -10,7 +10,7 @@ class Policy(Base):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
                  **kwargs):
         super().__init__(**kwargs)
         self.s_dim = s_dim
@@ -21,7 +21,7 @@ class Policy(Base):
             self.visual_dim = [visual_sources, *visual_resolution]
         else:
             self.visual_dim = [0]
-        self.action_type = action_type
+        self.is_continuous = is_continuous
         self.a_dim_or_list = a_dim_or_list
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_episode = int(kwargs.get('max_episode', 1000))

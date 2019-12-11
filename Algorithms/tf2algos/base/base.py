@@ -11,7 +11,7 @@ class Base(tf.keras.Model):
         '''
         inputs:
             a_dim_or_list: action spaces, if continuous, it will like [2,], if discrete, it will like [2,3,4]
-            action_type: action type, refer to whether this control problem is 'continuous' or 'discrete'
+            is_continuous: action type, refer to whether this control problem is continuous(True) or discrete(False)
             base_dir: the directory that store data, like model, logs, and other data
         '''
         super().__init__()

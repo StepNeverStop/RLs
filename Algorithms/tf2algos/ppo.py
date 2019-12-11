@@ -13,7 +13,7 @@ class PPO(On_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -46,7 +46,7 @@ class PPO(On_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.beta = beta
         self.epoch = epoch
@@ -55,7 +55,7 @@ class PPO(On_Policy):
         self.share_net = share_net
         if self.share_net:
             self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 self.net = Nn.a_c_v_continuous(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net', hidden_units['share']['continuous'])
             else:
                 self.net = Nn.a_c_v_discrete(self.s_dim, self.visual_dim, self.a_counts, 'ppo_net', hidden_units['share']['discrete'])
@@ -64,7 +64,7 @@ class PPO(On_Policy):
         else:
             self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
             self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             else:
                 self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
@@ -73,7 +73,7 @@ class PPO(On_Policy):
             self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
             self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
@@ -89,13 +89,13 @@ class PPO(On_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 if self.share_net:
                     mu, _ = self.net(s, visual_s)
                 else:
@@ -114,7 +114,7 @@ class PPO(On_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if not self.action_type == 'continuous':
+        if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
             's': s,
@@ -142,7 +142,7 @@ class PPO(On_Policy):
     def _get_log_prob(self, s, visual_s, a):
         s, visual_s, a = self.cast(s, visual_s, a)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 if self.share_net:
                     mu, _ = self.net(s, visual_s)
                 else:
@@ -228,7 +228,7 @@ class PPO(On_Policy):
         s, visual_s, a, dc_r, old_log_prob, advantage = self.cast(s, visual_s, a, dc_r, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu, value = self.net(s, visual_s)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -248,7 +248,7 @@ class PPO(On_Policy):
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
                 loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 loss_grads = tape.gradient(loss, self.net.trainable_variables + [self.log_std])
                 self.optimizer.apply_gradients(
                     zip(loss_grads, self.net.trainable_variables + [self.log_std])
@@ -265,7 +265,7 @@ class PPO(On_Policy):
         s, visual_s, a, old_log_prob, advantage = self.cast(s, visual_s, a, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -279,7 +279,7 @@ class PPO(On_Policy):
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
                 actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
                 self.optimizer_actor.apply_gradients(
                     zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])

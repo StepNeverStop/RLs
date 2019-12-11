@@ -56,7 +56,6 @@ class ReplayBuffer(ABC):
         pass
 
 
-
 class ExperienceReplay(ReplayBuffer):
     def __init__(self, batch_size, capacity):
         super().__init__(batch_size, capacity)
@@ -68,8 +67,7 @@ class ExperienceReplay(ReplayBuffer):
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            for i in range(len(args[0])):
-                self._store_op(list(arg[i] for arg in args))
+            [self._store_op(data) for data in zip(*args)]
         else:
             self._store_op(args)
 
@@ -145,8 +143,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            for i in range(len(args[0])):
-                self._store_op(list(arg[i] for arg in args))
+            [self._store_op(data) for data in zip(*args)]
         else:
             self._store_op(args)
 
@@ -207,9 +204,7 @@ class NStepExperienceReplay(ExperienceReplay):
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            for i in range(len(args[0])):
-                self._store_op(list(arg[i] for arg in args), i)
-
+            [self._store_op(list(data), i) for i, data in enumerate(zip(*args))]
         else:
             self._store_op(args)
 
@@ -270,8 +265,7 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            for i in range(len(args[0])):
-                self._store_op(list(arg[i] for arg in args), i)
+            [self._store_op(list(data), i) for i, data in enumerate(zip(*args))]
         else:
             self._store_op(args)
 
@@ -346,8 +340,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         '''
         if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
             self.agents_num = len(args[0])
-            for i in range(len(args[0])):
-                self._store_op(i, list(arg[i] for arg in args))
+            [self._store_op(data) for data in zip(*args)]
         else:
             self.agents_num = 1
             self._store_op(i, args)

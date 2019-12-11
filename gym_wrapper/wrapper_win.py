@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import threading
+from gym.spaces import Box, Discrete, Tuple
 
 
 class FakeMultiThread(threading.Thread):
@@ -30,29 +31,66 @@ class gym_envs(object):
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
         self.n = n  # environments number
+        self._initialize(gym_env_name)
         self.envs = [gym.make(gym_env_name) for _ in range(self.n)]
         self.seeds = [seed + i for i in range(n)]
         [env.seed(s) for env, s in zip(self.envs, self.seeds)]
-        # process observation
-        self.obs_space = self.envs[0].observation_space
-        if isinstance(self.obs_space, gym.spaces.box.Box):
-            self.obs_high = self.obs_space.high
-            self.obs_low = self.obs_space.low
-        self.obs_type = 'visual' if len(self.obs_space.shape) == 3 else 'vector'
+        self._get_render_index(render_mode)
 
-        self.reward_threshold = self.envs[0].env.spec.reward_threshold  # reward threshold refer to solved
+    def _initialize(self, gym_env_name):
+        env = gym.make(gym_env_name)
+        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        # process observation
+        ObsSpace = env.observation_space
+        if isinstance(ObsSpace, Box):
+            self.s_dim = ObsSpace.shape[0] if len(ObsSpace.shape) == 1 else 0
+            self.obs_high = ObsSpace.high
+            self.obs_low = ObsSpace.low
+        else:
+            self.s_dim = int(ObsSpace.n)
+        if len(ObsSpace.shape) == 3:
+            self.obs_type = 'visual'
+            self.visual_sources = 1
+            self.visual_resolution = list(ObsSpace.shape)
+        else:
+            self.obs_type = 'vector'
+            self.visual_sources = 0
+            self.visual_resolution = []
+
+        if hasattr(ObsSpace, 'n'):
+            self.toOneHot = True
+            if isinstance(ObsSpace.n, (int, np.int32)):
+                obs_dim = [int(ObsSpace.n)]
+            else:
+                obs_dim = list(ObsSpace.n)    # 在CliffWalking-v0环境其类型为numpy.int32
+            self.multiplication_factor = np.asarray(obs_dim[1:] + [1])
+            self.one_hot_len = self.multiplication_factor.prod()
+        else:
+            self.toOneHot = False
+
         # process action
-        self.action_space = self.envs[0].action_space
-        if isinstance(self.action_space, gym.spaces.box.Box):
+        ActSpace = env.action_space
+        if isinstance(ActSpace, Box):
+            assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self.action_type = 'continuous'
-            self.action_high = self.action_space.high
-            self.action_low = self.action_space.low
-        elif isinstance(self.action_space, gym.spaces.tuple.Tuple):
+            self.action_high = ActSpace.high
+            self.action_low = ActSpace.low
+            self.a_dim_or_list = ActSpace.shape
+        elif isinstance(ActSpace, Tuple):
+            assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self.action_type = 'Tuple(Discrete)'
+            self.a_dim_or_list = [i.n for i in ActSpace]
         else:
             self.action_type = 'discrete'
+            self.a_dim_or_list = [env.action_space.n]
         self.action_mu, self.action_sigma = self._get_action_normalize_factor()
-        self._get_render_index(render_mode)
+
+        self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
+        env.close()
+
+    @property
+    def is_continuous(self):
+        return True if self.action_type == 'continuous' else False
 
     def _get_render_index(self, render_mode):
         '''
@@ -111,11 +149,6 @@ class gym_envs(object):
         obs = self._maybe_one_hot(obs)
         return obs
 
-        # if self.obs_type == 'visual':
-        #     return np.asarray([threadpool[i].get_result()[np.newaxis, :] for i in range(self.n)])
-        # else:
-        #     return np.asarray([threadpool[i].get_result() for i in range(self.n)])
-
     def step(self, actions, scale=True):
         if scale == True:
             actions = self.action_sigma * actions + self.action_mu
@@ -133,12 +166,6 @@ class gym_envs(object):
             threading.Thread.join(th)
         results = [threadpool[i].get_result() for i in range(self.n)]
 
-        # if self.obs_type == 'visual':
-        #     results = [
-        #         [threadpool[i].get_result()[0][np.newaxis, :], *threadpool[i].get_result()[1:]]
-        #         for i in range(self.n)]
-        # else:
-        #     results = [threadpool[i].get_result() for i in range(self.n)]
         obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
         obs = self._maybe_one_hot(obs)
         self.dones_index = np.where(done)[0]
@@ -156,11 +183,6 @@ class gym_envs(object):
         obs = np.asarray([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
         obs = self._maybe_one_hot(obs, is_partial=True)
         return obs
-
-        # if self.obs_type == 'visual':
-        #     return np.asarray([threadpool[i].get_result()[np.newaxis, :] for i in range(self.dones_index.shape[0])])
-        # else:
-        #     return np.asarray([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
 
     def _get_action_normalize_factor(self):
         '''
@@ -187,17 +209,11 @@ class gym_envs(object):
             then, output: [[0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
                            [0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0.]]
         """
-        obs_number = len(self.dones_index) if is_partial else self.n
-        if hasattr(self.obs_space, 'n'):
+        if self.toOneHot:
+            obs_number = len(self.dones_index) if is_partial else self.n
             obs = obs.reshape(obs_number, -1)
-            if isinstance(self.obs_space.n, (int, np.int32)):
-                dim = [int(self.obs_space.n)]
-            else:
-                dim = list(self.obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
-            multiplication_factor = dim[1:] + [1]
-            n = np.asarray(dim).prod()
-            ints = obs.dot(multiplication_factor)
-            x = np.zeros([obs.shape[0], n])
+            ints = obs.dot(self.multiplication_factor)
+            x = np.zeros([obs.shape[0], self.one_hot_len])
             for i, j in enumerate(ints):
                 x[i, j] = 1
             return x

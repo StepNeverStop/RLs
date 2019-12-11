@@ -39,12 +39,14 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 import time
-from Algorithms.register import get_model_info
+
 from docopt import docopt
+from multiprocessing import Process
+
+from utils.sth import sth
 from config import train_config
 from utils.replay_buffer import ExperienceReplay
-from utils.sth import sth
-from multiprocessing import Process
+from Algorithms.register import get_model_info
 
 
 def run():
@@ -113,11 +115,8 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from mlagents.envs import UnityEnvironment
     from utils.sampler import create_sampler_manager
 
-    try:
-        model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
-        ma = options['--algorithm'][:3] == 'ma_'
-    except KeyError:
-        raise NotImplementedError
+    model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
+    ma = options['--algorithm'][:3] == 'ma_'
 
     reset_config = default_args['reset_config']
     if options['--unity']:
@@ -174,7 +173,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     model_params = [{
         's_dim': brains[b].vector_observation_space_size * brains[b].num_stacked_vector_observations,
         'a_dim_or_list': brains[b].vector_action_space_size,
-        'action_type': brains[b].vector_action_space_type,
+        'is_continuous': True if brains[b].vector_action_space_type == 'continuous' else False,
         'max_episode': max_episode,
         'base_dir': os.path.join(base_dir, b),
         'logger2file': share_args['logger2file'],
@@ -241,31 +240,23 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         except Exception as e:
             print(e)
         finally:
-            try:
-                [models[i].close() for i in range(len(models))]
-            except Exception as e:
-                print(e)
-            finally:
-                env.close()
-                sys.exit()
+            [models[i].close() for i in range(len(models))]
+            env.close()
+            sys.exit()
 
 
 def gym_run(default_args, share_args, options, max_step, max_episode, save_frequency, name, seed):
     from gym_loop import Loop
-    from gym.spaces import Box, Discrete, Tuple
     from gym_wrapper import gym_envs
 
-    try:
-        model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
-    except KeyError:
-        raise NotImplementedError
-
-    available_type = (Box, Discrete)
+    model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
-        env = gym_envs(gym_env_name=options['--gym-env'], n=int(options['--gym-agents']), seed=int(options['--gym-env-seed']), render_mode=default_args['render_mode'])
-        assert isinstance(env.obs_space, available_type) and isinstance(env.action_space, available_type), 'action_space and obs_space must be one of available_type'
+        env = gym_envs(gym_env_name=options['--gym-env'],
+                       n=int(options['--gym-agents']),
+                       seed=int(options['--gym-env-seed']),
+                       render_mode=default_args['render_mode'])
     except Exception as e:
         print(e)
 
@@ -275,36 +266,12 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
 
-    if isinstance(env.obs_space, Box):
-        s_dim = env.obs_space.shape[0] if len(env.obs_space.shape) == 1 else 0
-    else:
-        s_dim = int(env.obs_space.n)
-
-    if len(env.obs_space.shape) == 3:
-        visual_sources = 1
-        visual_resolution = list(env.obs_space.shape)
-    else:
-        visual_sources = 0
-        visual_resolution = []
-
-    if isinstance(env.action_space, Box):
-        assert len(env.action_space.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
-        a_dim_or_list = env.action_space.shape
-        action_type = 'continuous'
-    elif isinstance(env.action_space, Tuple):
-        assert all([isinstance(i, Discrete) for i in env.action_space]) == True, 'if action space is Tuple, each item in it must have type Discrete'
-        a_dim_or_list = [i.n for i in env.action_space]
-        action_type = 'discrete'
-    else:
-        a_dim_or_list = [env.action_space.n]
-        action_type = 'discrete'
-
     model_params = {
-        's_dim': s_dim,
-        'visual_sources': visual_sources,
-        'visual_resolution': visual_resolution,
-        'a_dim_or_list': a_dim_or_list,
-        'action_type': action_type,
+        's_dim': env.s_dim,
+        'visual_sources': env.visual_sources,
+        'visual_resolution': env.visual_resolution,
+        'a_dim_or_list': env.a_dim_or_list,
+        'is_continuous': env.is_continuous,
         'max_episode': max_episode,
         'base_dir': base_dir,
         'logger2file': share_args['logger2file'],
@@ -343,13 +310,9 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         except Exception as e:
             print(e)
         finally:
-            try:
-                gym_model.close()
-            except Exception as e:
-                print(e)
-            finally:
-                env.close()
-                sys.exit()
+            gym_model.close()
+            env.close()
+            sys.exit()
 
 
 def update_config(config, file_path):
@@ -365,9 +328,9 @@ def update_config(config, file_path):
 
 def show_config(config):
     for key in config:
-        print('-' * 46)
-        print('|', str(key).ljust(20), str(config[key]).rjust(20), '|')
-    print('-' * 46)
+        print('-' * 60)
+        print('|', str(key).ljust(28), str(config[key]).rjust(28), '|')
+    print('-' * 60)
 
 
 if __name__ == "__main__":

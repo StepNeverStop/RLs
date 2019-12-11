@@ -1,6 +1,7 @@
 import gym
 import ray
 import numpy as np
+from gym.spaces import Box, Discrete, Tuple
 
 
 @ray.remote
@@ -76,32 +77,57 @@ class gym_envs(object):
         '''
         ray.init()
         self.n = n  # environments number
+        self._initialize(gym_env_name)
         self.envs = [ENV.remote(gym_env_name) for i in range(self.n)]
         self.seeds = [seed + i for i in range(self.n)]
         [env.seed.remote(s) for env, s in zip(self.envs, self.seeds)]
         # process observation
         self.e = gym.make(gym_env_name)
-        self.obs_space = self.e.observation_space
-        if isinstance(self.obs_space, gym.spaces.box.Box):
-            self.obs_high = self.obs_space.high
-            self.obs_low = self.obs_space.low
-        self.obs_type = 'visual' if len(self.obs_space.shape) == 3 else 'vector'
+        self._get_render_index(render_mode)
 
-        self.reward_threshold = self.e.env.spec.reward_threshold  # reward threshold refer to solved
+    def _initialize(self, gym_env_name):
+        env = gym.make(gym_env_name)
+        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        # process observation
+        ObsSpace = env.observation_space
+        if isinstance(ObsSpace, Box):
+            self.s_dim = ObsSpace.shape[0] if len(ObsSpace.shape) == 1 else 0
+            self.obs_high = ObsSpace.high
+            self.obs_low = ObsSpace.low
+        else:
+            self.s_dim = int(ObsSpace.n)
+        if len(ObsSpace.shape) == 3:
+            self.obs_type = 'visual'
+            self.visual_sources = 1
+            self.visual_resolution = list(ObsSpace.shape)
+        else:
+            self.obs_type = 'vector'
+            self.visual_sources = 0
+            self.visual_resolution = []
+
         # process action
-        self.action_space = self.e.action_space
-        if isinstance(self.action_space, gym.spaces.box.Box):
+        ActSpace = env.action_space
+        if isinstance(ActSpace, Box):
+            assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self.action_type = 'continuous'
-            self.action_high = self.action_space.high
-            self.action_low = self.action_space.low
-        elif isinstance(self.action_space, gym.spaces.tuple.Tuple):
+            self.action_high = ActSpace.high
+            self.action_low = ActSpace.low
+            self.a_dim_or_list = ActSpace.shape
+        elif isinstance(ActSpace, Tuple):
+            assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self.action_type = 'Tuple(Discrete)'
+            self.a_dim_or_list = [i.n for i in ActSpace]
         else:
             self.action_type = 'discrete'
-        self.e.close()
-
+            self.a_dim_or_list = [env.action_space.n]
         self.action_mu, self.action_sigma = self._get_action_normalize_factor()
-        self._get_render_index(render_mode)
+
+        self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
+        env.close()
+
+    @property
+    def is_continuous(self):
+        return True if self.action_type == 'continuous' else False
 
     def _get_render_index(self, render_mode):
         '''

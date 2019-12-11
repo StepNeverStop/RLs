@@ -13,7 +13,7 @@ class A2C(On_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -30,12 +30,12 @@ class A2C(On_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.beta = beta
         self.epoch = epoch
         self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         else:
@@ -59,13 +59,13 @@ class A2C(On_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)\
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)\
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu = self.actor_net(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
@@ -119,7 +119,7 @@ class A2C(On_Policy):
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -131,7 +131,7 @@ class A2C(On_Policy):
                 v = self.critic_net(s, visual_s)
                 advantage = tf.stop_gradient(dc_r - v)
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
                 self.optimizer_actor.apply_gradients(
                     zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
@@ -148,7 +148,7 @@ class A2C(On_Policy):
         s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -166,7 +166,7 @@ class A2C(On_Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
                 self.optimizer_actor.apply_gradients(
                     zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])

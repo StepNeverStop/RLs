@@ -14,7 +14,7 @@ class AC(Off_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
@@ -29,9 +29,9 @@ class AC(Off_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         else:
@@ -55,13 +55,13 @@ class AC(Off_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu = self.actor_net(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
@@ -74,7 +74,7 @@ class AC(Off_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if not self.action_type == 'continuous':
+        if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._get_log_prob(s, visual_s, a).numpy()
         self.data.add(s, visual_s, a, old_log_prob,
@@ -84,7 +84,7 @@ class AC(Off_Policy):
     def _get_log_prob(self, s, visual_s, a):
         s, visual_s, a = self.cast(s, visual_s, a)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu = self.actor_net(s, visual_s)
                 log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
             else:
@@ -98,7 +98,7 @@ class AC(Off_Policy):
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         old_log_prob = np.ones_like(r)
-        if not self.action_type == 'continuous':
+        if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
 
@@ -122,7 +122,7 @@ class AC(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                 else:
@@ -138,7 +138,7 @@ class AC(Off_Policy):
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -151,7 +151,7 @@ class AC(Off_Policy):
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
                 self.optimizer_actor.apply_gradients(
                     zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])
@@ -177,7 +177,7 @@ class AC(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     next_mu = self.actor_net(s_, visual_s_)
                     max_q_next = tf.stop_gradient(self.critic_net(s_, visual_s_, next_mu))
                     mu, sigma = self.actor_net(s, visual_s)
@@ -202,7 +202,7 @@ class AC(Off_Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables + [self.log_std])
                 self.optimizer_actor.apply_gradients(
                     zip(actor_grads, self.actor_net.trainable_variables + [self.log_std])

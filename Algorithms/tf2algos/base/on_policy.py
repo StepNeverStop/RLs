@@ -10,14 +10,14 @@ class On_Policy(Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
                  **kwargs):
         super().__init__(
                  s_dim=s_dim,
                  visual_sources=visual_sources,
                  visual_resolution=visual_resolution,
                  a_dim_or_list=a_dim_or_list,
-                 action_type=action_type,
+                 is_continuous=is_continuous,
                  **kwargs)
         self.batch_size = int(kwargs.get('batch_size', 128))
         self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
@@ -29,7 +29,7 @@ class On_Policy(Policy):
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        if not self.action_type == 'continuous':
+        if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data = self.data.append({
             's': s,

@@ -16,7 +16,7 @@ class DDQN(Off_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  lr=5.0e-4,
                  eps_init=1,
@@ -26,13 +26,13 @@ class DDQN(Off_Policy):
                  assign_interval=2,
                  hidden_units=[32, 32],
                  **kwargs):
-        assert action_type == 'discrete', 'double dqn only support discrete action space'
+        assert not is_continuous, 'double dqn only support discrete action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,

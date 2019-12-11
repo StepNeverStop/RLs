@@ -13,7 +13,7 @@ class PG(On_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  lr=5.0e-4,
                  epoch=5,
@@ -27,11 +27,11 @@ class PG(On_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.epoch = epoch
         self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         else:
@@ -53,13 +53,13 @@ class PG(On_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu = self.net(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
@@ -104,7 +104,7 @@ class PG(On_Policy):
         s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.net(s, visual_s)
                     log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
@@ -114,7 +114,7 @@ class PG(On_Policy):
                     log_act_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 loss_grads = tape.gradient(loss, self.net.trainable_variables + [self.log_std])
                 self.optimizer.apply_gradients(
                     zip(loss_grads, self.net.trainable_variables + [self.log_std])

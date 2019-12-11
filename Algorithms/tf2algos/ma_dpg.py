@@ -8,7 +8,7 @@ class MADPG(Policy):
     def __init__(self,
                  s_dim,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  ployak=0.995,
                  actor_lr=5.0e-4,
@@ -20,13 +20,13 @@ class MADPG(Policy):
                      'q': [32, 32]
                  },
                  **kwargs):
-        assert action_type == 'continuous', 'madpg only support continuous action space'
+        assert is_continuous, 'madpg only support continuous action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=0,
             visual_resolution=0,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.n = n
         self.i = i

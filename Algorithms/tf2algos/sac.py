@@ -16,7 +16,7 @@ class SAC(Off_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  alpha=0.2,
                  ployak=0.995,
@@ -41,14 +41,14 @@ class SAC(Off_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
         self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
@@ -81,13 +81,13 @@ class SAC(Off_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu, log_std = self.actor_net(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
@@ -128,7 +128,7 @@ class SAC(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(s_, visual_s_)
                     target_log_std = clip_nn_log_std(target_log_std)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
@@ -155,7 +155,7 @@ class SAC(Off_Policy):
             )
 
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)
@@ -180,7 +180,7 @@ class SAC(Off_Policy):
 
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
-                    if self.action_type == 'continuous':
+                    if self.is_continuous:
                         mu, log_std = self.actor_net(s, visual_s)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         pi, log_pi = squash_rsample(mu, log_std)
@@ -218,7 +218,7 @@ class SAC(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu, log_std = self.actor_net(s, visual_s)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)

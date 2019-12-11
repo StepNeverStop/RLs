@@ -13,7 +13,7 @@ class DPG(Off_Policy):
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
-                 action_type,
+                 is_continuous,
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
@@ -29,10 +29,10 @@ class DPG(Off_Policy):
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
-            action_type=action_type,
+            is_continuous=is_continuous,
             **kwargs)
         self.discrete_tau = discrete_tau
-        if self.action_type == 'continuous':
+        if self.is_continuous:
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
             self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
@@ -59,13 +59,13 @@ class DPG(Off_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         a = self._get_action(s, visual_s, evaluation).numpy()
-        return a if self.action_type == 'continuous' else sth.int2action_index(a, self.a_dim_or_list)
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            if self.action_type == 'continuous':
+            if self.is_continuous:
                 mu = self.actor_net(s, visual_s)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
             else:
@@ -100,7 +100,7 @@ class DPG(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     target_mu = self.actor_net(s_, visual_s_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                 else:
@@ -118,7 +118,7 @@ class DPG(Off_Policy):
                 zip(q_grads, self.q_net.trainable_variables)
             )
             with tf.GradientTape() as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
                 else:
@@ -149,7 +149,7 @@ class DPG(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                if self.action_type == 'continuous':
+                if self.is_continuous:
                     target_mu = self.actor_net(s_, visual_s_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                     mu = self.actor_net(s, visual_s)

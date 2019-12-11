@@ -11,7 +11,7 @@ def init_variables(env):
         state: [vector_obs, visual_obs]
         newstate: [vector_obs, visual_obs]
     """
-    i = 1 if len(env.obs_space.shape) == 3 else 0
+    i = 1 if env.obs_type == 'visual' else 0
     return i, [np.array([[]] * env.n), np.array([[]] * env.n)], [np.array([[]] * env.n), np.array([[]] * env.n)]
 
 
