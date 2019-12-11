@@ -7,15 +7,53 @@ import numpy as np
 class ENV:
     def __init__(self, gym_env_name):
         self.env = gym.make(gym_env_name)
+        self.obs_space = self.env.observation_space
+        self.need_one_hot_or_not()
+
+    def need_one_hot_or_not(self):
+        if hasattr(self.obs_space, 'n'):
+            self.toOneHot = True
+            if isinstance(self.obs_space.n, (int, np.int32)):
+                obs_dim = [int(self.obs_space.n)]
+            else:
+                obs_dim = list(self.obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
+            self.multiplication_factor = np.asarray(obs_dim[1:] + [1])
+            self.one_hot_len = self.multiplication_factor.prod()
+        else:
+            self.toOneHot = False
+
+    def _maybe_one_hot(self, obs):
+        """
+        Change discrete observation from list(int) to list(one_hot) format.
+        for example:
+            action: [1, 0]
+            observation space: [3, 4]
+            then, output: [0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
+        """
+        if self.toOneHot:
+            obs = np.reshape(obs, (1, -1))
+            ints = obs.dot(self.multiplication_factor)
+            x = np.zeros([obs.shape[0], self.one_hot_len])
+            for i, j in enumerate(ints):
+                x[i, j] = 1
+            return x
+        else:
+            return obs
 
     def seed(self, s):
         self.env.seed(s)
 
     def reset(self):
-        return self.env.reset()
+        obs = self.env.reset()
+        return self._maybe_one_hot(obs)
 
     def step(self, action):
-        return self.env.step(action)
+        obs, reward, done, info = self.env.step(action)
+        return (self._maybe_one_hot(obs),
+                reward,
+                done,
+                info
+                )
 
     def render(self):
         self.env.render()
@@ -90,49 +128,6 @@ class gym_envs(object):
         else:
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
-    def render(self):
-        '''
-        render game windows.
-        '''
-        [self.envs[i].render.remote() for i in self.render_index]
-
-    def close(self):
-        '''
-        close all environments.
-        '''
-        [env.close.remote() for env in self.envs]
-        ray.shutdown()
-
-    def sample_action(self):
-        '''
-        generate ramdom actions for all training environment.
-        '''
-        return np.asarray(ray.get([env.sample.remote() for env in self.envs]))
-
-    def reset(self):
-        self.dones_index = []
-        obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
-        obs = self._maybe_one_hot(obs)
-        return obs
-
-    def step(self, actions, scale=True):
-        if scale == True:
-            actions = self.action_sigma * actions + self.action_mu
-        if self.action_type == 'discrete':
-            actions = actions.reshape(-1,)
-        elif self.action_type == 'Tuple(Discrete)':
-            actions = actions.reshape(self.n, -1).tolist()
-        obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
-        obs, reward, done, info = [np.asarray(e) for e in (obs, reward, done, info)]
-        obs = self._maybe_one_hot(obs)
-        self.dones_index = np.where(done)[0]
-        return obs, reward, done, info
-
-    def partial_reset(self):
-        obs = np.asarray(ray.get([self.envs[i].reset.remote() for i in self.dones_index]))
-        obs = self._maybe_one_hot(obs, is_partial=True)
-        return obs
-
     def _get_action_normalize_factor(self):
         '''
         get action mu and sigma. mu: action bias. sigma: action scale
@@ -148,29 +143,44 @@ class gym_envs(object):
         else:
             return 0, 1
 
-    def _maybe_one_hot(self, obs, is_partial=False):
-        """
-        Change discrete observation from list(int) to list(one_hot) format.
-        for example:
-            action: [[1, 0], [2, 1]]
-            observation space: [3, 4]
-            environment number: 2
-            then, output: [[0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
-                           [0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0.]]
-        """
-        obs_number = len(self.dones_index) if is_partial else self.n
-        if hasattr(self.obs_space, 'n'):
-            obs = obs.reshape(obs_number, -1)
-            if isinstance(self.obs_space.n, (int, np.int32)):
-                dim = [int(self.obs_space.n)]
-            else:
-                dim = list(self.obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
-            multiplication_factor = dim[1:] + [1]
-            n = np.asarray(dim).prod()
-            ints = obs.dot(multiplication_factor)
-            x = np.zeros([obs.shape[0], n])
-            for i, j in enumerate(ints):
-                x[i, j] = 1
-            return x
-        else:
-            return obs
+    def reset(self):
+        self.dones_index = []
+        obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
+        return obs
+
+    def partial_reset(self):
+        obs = np.asarray(ray.get([self.envs[i].reset.remote() for i in self.dones_index]))
+        return obs
+
+    def render(self):
+        '''
+        render game windows.
+        '''
+        [self.envs[i].render.remote() for i in self.render_index]
+
+    def sample_action(self):
+        '''
+        generate ramdom actions for all training environment.
+        '''
+        return np.asarray(ray.get([env.sample.remote() for env in self.envs]))
+
+    def step(self, actions, scale=True):
+        if scale == True:
+            actions = self.action_sigma * actions + self.action_mu
+        if self.action_type == 'discrete':
+            actions = actions.reshape(-1,)
+        elif self.action_type == 'Tuple(Discrete)':
+            actions = actions.reshape(self.n, -1).tolist()
+        obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
+        self.dones_index = np.where(done)[0]
+        return (np.asarray(obs),
+                np.asarray(reward),
+                np.asarray(done),
+                info)
+
+    def close(self):
+        '''
+        close all environments.
+        '''
+        [env.close.remote() for env in self.envs]
+        ray.shutdown()
