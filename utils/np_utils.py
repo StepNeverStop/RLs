@@ -44,9 +44,9 @@ class SMA:
             self.mean += (r.mean() - r_old.mean()) / self.n
         else:
             self.now = min(self.now + 1, self.n)
-            self.max += r.max() / self.now
-            self.min += r.min() / self.now
-            self.mean += r.mean() / self.now
+            self.max += (r.max() - self.max) / self.now
+            self.min += (r.min() - self.min) / self.now
+            self.mean += (r.mean() - self.mean) / self.now
 
     @property
     def rs(self):
@@ -55,3 +55,12 @@ class SMA:
             ['sma_min', self.min],
             ['sma_mean', self.mean]
         ])
+
+
+if __name__ == "__main__":
+    a = SMA(10)
+    for i in range(20):
+        a.update([i, i + 1, i + 2])
+        print(i, a.r_list)
+        print(a.now)
+        print(a.rs)
