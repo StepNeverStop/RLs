@@ -2,6 +2,9 @@ import gym
 import numpy as np
 import threading
 from gym.spaces import Box, Discrete, Tuple
+import cv2
+cv2.ocl.setUseOpenCL(False)
+from collections import deque
 
 
 class FakeMultiThread(threading.Thread):
@@ -20,6 +23,78 @@ class FakeMultiThread(threading.Thread):
         except Exception:
             return None
 
+class StackAndGrey(gym.Wrapper):
+    # TODO: skip, stack, grey, resize for atari
+    def __init__(self, env):
+        super().__init__(env)
+        self.k = 4
+        self.obss = deque([], maxlen=self.k)
+    
+    def grey_resize(self, obs):
+        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        obs = cv2.resize(
+            obs, (84, 84), interpolation=cv2.INTER_AREA
+        )
+        obs = np.expand_dims(obs, -1)
+        return obs
+            
+    def reset(self):
+        obs = self.env.reset()
+        obs = self.grey_resize(obs)
+        for _ in range(self.k):
+            self.obss.append(obs)
+        return LazyFrames(list(self.obss))
+
+    def step(self, action):
+        r = 0.
+        for _ in range(4):
+            obs, reward, done, info = self.env.step(action)
+            r += reward
+            if done:
+                break
+        obs = self.grey_resize(obs)
+        self.obss.append(obs)
+        return LazyFrames(list(self.obss)), r, done, info
+
+class LazyFrames(object):
+    '''
+    stole this from baselines.
+    '''
+    def __init__(self, frames):
+        """This object ensures that common frames between the observations are only stored once.
+        It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
+        buffers.
+
+        This object should only be converted to numpy array before being passed to the model.
+
+        You'd not believe how complex the previous solution was."""
+        self._frames = frames
+        self._out = None
+
+    def _force(self):
+        if self._out is None:
+            self._out = np.concatenate(self._frames, axis=-1)
+            self._frames = None
+        return self._out
+
+    def __array__(self, dtype=None):
+        out = self._force()
+        if dtype is not None:
+            out = out.astype(dtype)
+        return out
+
+    def __len__(self):
+        return len(self._force())
+
+    def __getitem__(self, i):
+        return self._force()[i]
+
+    def count(self):
+        frames = self._force()
+        return frames.shape[frames.ndim - 1]
+
+    def frame(self, i):
+        return self._force()[..., i]
 
 class gym_envs(object):
 
@@ -33,6 +108,7 @@ class gym_envs(object):
         self.n = n  # environments number
         self._initialize(gym_env_name)
         self.envs = [gym.make(gym_env_name) for _ in range(self.n)]
+        # self.envs = [StackAndGrey(env) for env in self.envs]
         self.seeds = [seed + i for i in range(n)]
         [env.seed(s) for env, s in zip(self.envs, self.seeds)]
         self._get_render_index(render_mode)

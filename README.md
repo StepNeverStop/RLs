@@ -170,6 +170,8 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 - pillow
 - openpyxl
 - gym
+- cv2
+- ray, ray[debug] for OS based on Linux
 
 ### Install
 
@@ -180,7 +182,7 @@ pip package coming soon.
 
 ## Giving credit
 
-If you use this repository for you research, please cite:
+If using this repository for your research, please cite:
 ```
 @misc{RLs,
   author = {Keavnn},
