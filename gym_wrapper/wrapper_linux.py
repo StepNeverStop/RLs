@@ -2,59 +2,22 @@ import gym
 import ray
 import numpy as np
 from gym.spaces import Box, Discrete, Tuple
+from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv
 
 
 @ray.remote
-class ENV:
-    def __init__(self, gym_env_name):
-        self.env = gym.make(gym_env_name)
-        self.obs_space = self.env.observation_space
-        self.need_one_hot_or_not()
-
-    def need_one_hot_or_not(self):
-        if hasattr(self.obs_space, 'n'):
-            self.toOneHot = True
-            if isinstance(self.obs_space.n, (int, np.int32)):
-                obs_dim = [int(self.obs_space.n)]
-            else:
-                obs_dim = list(self.obs_space.n)    # 在CliffWalking-v0环境其类型为numpy.int32
-            self.multiplication_factor = np.asarray(obs_dim[1:] + [1])
-            self.one_hot_len = self.multiplication_factor.prod()
-        else:
-            self.toOneHot = False
-
-    def _maybe_one_hot(self, obs):
-        """
-        Change discrete observation from list(int) to list(one_hot) format.
-        for example:
-            action: [1, 0]
-            observation space: [3, 4]
-            then, output: [0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0.]
-        """
-        if self.toOneHot:
-            obs = np.reshape(obs, (1, -1))
-            ints = obs.dot(self.multiplication_factor)
-            x = np.zeros([obs.shape[0], self.one_hot_len])
-            for i, j in enumerate(ints):
-                x[i, j] = 1
-            return x
-        else:
-            return obs
+class RayEnv:
+    def __init__(self, env_func, kwargs):
+        self.env = env_func(**kwargs)
 
     def seed(self, s):
         self.env.seed(s)
 
-    def reset(self):
-        obs = self.env.reset()
-        return self._maybe_one_hot(obs)
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
 
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        return (self._maybe_one_hot(obs),
-                reward,
-                done,
-                info
-                )
+        return self.env.step(action)
 
     def render(self):
         self.env.render()
@@ -63,12 +26,12 @@ class ENV:
         self.env.close()
 
     def sample(self):
-        return self.env.action_space.sample()
+        return self.env.action_sample()
 
 
 class gym_envs(object):
 
-    def __init__(self, gym_env_name, n, seed=0, render_mode='first'):
+    def __init__(self, gym_env_name, n, seed=0, render_mode='first', **kwargs):
         '''
         Input:
             gym_env_name: gym training environment id, i.e. CartPole-v0
@@ -76,17 +39,51 @@ class gym_envs(object):
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
         ray.init()
+
+        _skip = bool(kwargs.get('skip', False))
+        _stack = bool(kwargs.get('stack', False))
+        _grayscale = bool(kwargs.get('grayscale', False))
+        _resize = bool(kwargs.get('resize', False))
+        _scale = bool(kwargs.get('scale', False))
+        env_params = {
+            'gym_env_name': gym_env_name,
+            'skip': _skip,
+            'stack': _stack,
+            'grayscale': _grayscale,
+            'resize': _resize,
+            'scale': _scale,
+        }
+
+        def get_env(gym_env_name, skip=False, stack=False, grayscale=False, resize=False, scale=False):
+            env = gym.make(gym_env_name)
+            env = BaseEnv(env)
+            if skip:
+                env = SkipEnv(env)
+            if isinstance(env.observation_space, Box):
+                if len(env.observation_space.shape) == 3:
+                    if grayscale or resize:
+                        env = GrayResizeEnv(env, resize=resize, grayscale=grayscale)
+                    if scale:
+                        env = ScaleEnv(env)
+                if stack:
+                    env = StackEnv(env)
+            else:
+                env = OneHotObsEnv(env)
+
+            if isinstance(env.action_space, Box) and len(env.action_space.shape) == 1:
+                env = BoxActEnv(env)
+            return env
+
         self.n = n  # environments number
-        self._initialize(gym_env_name)
-        self.envs = [ENV.remote(gym_env_name) for i in range(self.n)]
+        self._initialize(
+            env=get_env(**env_params)
+        )
+        self.envs = [RayEnv.remote(get_env, env_params) for i in range(self.n)]
         self.seeds = [seed + i for i in range(self.n)]
         [env.seed.remote(s) for env, s in zip(self.envs, self.seeds)]
-        # process observation
-        self.e = gym.make(gym_env_name)
         self._get_render_index(render_mode)
 
-    def _initialize(self, gym_env_name):
-        env = gym.make(gym_env_name)
+    def _initialize(self, env):
         assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
         # process observation
         ObsSpace = env.observation_space
@@ -110,24 +107,24 @@ class gym_envs(object):
         if isinstance(ActSpace, Box):
             assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self.action_type = 'continuous'
-            self.action_high = ActSpace.high
-            self.action_low = ActSpace.low
+            self._is_continuous = True
             self.a_dim_or_list = ActSpace.shape
         elif isinstance(ActSpace, Tuple):
             assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self.action_type = 'Tuple(Discrete)'
+            self._is_continuous = False
             self.a_dim_or_list = [i.n for i in ActSpace]
         else:
             self.action_type = 'discrete'
+            self._is_continuous = False
             self.a_dim_or_list = [env.action_space.n]
-        self.action_mu, self.action_sigma = self._get_action_normalize_factor()
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
         env.close()
 
     @property
     def is_continuous(self):
-        return True if self.action_type == 'continuous' else False
+        return self._is_continuous
 
     def _get_render_index(self, render_mode):
         '''
@@ -154,21 +151,6 @@ class gym_envs(object):
         else:
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
-    def _get_action_normalize_factor(self):
-        '''
-        get action mu and sigma. mu: action bias. sigma: action scale
-        input: 
-            self.action_low: [-2, -3],
-            self.action_high: [2, 6]
-        return: 
-            mu: [0, 1.5], 
-            sigma: [2, 4.5]
-        '''
-        if self.action_type == 'continuous':
-            return (self.action_high + self.action_low) / 2, (self.action_high - self.action_low) / 2
-        else:
-            return 0, 1
-
     def reset(self):
         self.dones_index = []
         obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
@@ -184,15 +166,13 @@ class gym_envs(object):
         '''
         [self.envs[i].render.remote() for i in self.render_index]
 
-    def sample_action(self):
+    def sample_actions(self):
         '''
-        generate ramdom actions for all training environment.
+        generate random actions for all training environment.
         '''
         return np.asarray(ray.get([env.sample.remote() for env in self.envs]))
 
-    def step(self, actions, scale=True):
-        if scale == True:
-            actions = self.action_sigma * actions + self.action_mu
+    def step(self, actions):
         if self.action_type == 'discrete':
             actions = actions.reshape(-1,)
         elif self.action_type == 'Tuple(Discrete)':
@@ -208,5 +188,5 @@ class gym_envs(object):
         '''
         close all environments.
         '''
-        [env.close.remote() for env in self.envs]
+        ray.get([env.close.remote() for env in self.envs])
         ray.shutdown()

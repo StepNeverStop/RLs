@@ -170,7 +170,7 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 - pillow
 - openpyxl
 - gym
-- cv2
+- opencv-python
 - ray, ray[debug] for OS based on Linux
 
 ### Install

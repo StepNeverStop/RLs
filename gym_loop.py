@@ -152,10 +152,9 @@ class Loop(object):
             print(f'no op step {step}')
             if choose:
                 action = gym_model.choose_action(s=state[0], visual_s=state[1])
-                new_state[i], reward, done, info = env.step(action)
             else:
-                action = env.sample_action()
-                new_state[i], reward, done, info = env.step(action, scale=False)
+                action = env.sample_actions()
+            new_state[i], reward, done, info = env.step(action)
             gym_model.no_op_store(
                 s=state[0],
                 visual_s=state[1],
