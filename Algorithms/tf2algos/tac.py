@@ -189,8 +189,7 @@ class TAC(Off_Policy):
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
-                        pi = cate_dist.sample()
-                        log_pi = cate_dist.log_prob(pi)
+                        log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(

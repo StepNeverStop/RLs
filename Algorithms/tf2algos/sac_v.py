@@ -180,12 +180,13 @@ class SAC_V(Off_Policy):
                     if self.is_continuous:
                         mu, log_std = self.actor_net(s, visual_s)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
-                        pi, log_pi = squash_rsample(mu, log_std)
+                        # pi, log_pi = squash_rsample(mu, log_std)
+                        norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
+                        log_pi = norm_dist.log_prob(norm_dist.sample())
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
-                        pi = cate_dist.sample()
-                        log_pi = cate_dist.log_prob(pi)
+                        log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
                 self.optimizer_alpha.apply_gradients(

@@ -85,9 +85,11 @@ def gaussian_likelihood(x, mu, log_std):
     pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
     return pre_sum
 
+
 def gaussian_likelihood_sum(x, mu, log_std):
     log_pi = gaussian_likelihood(x, mu, log_std)
     return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+
 
 def gaussian_entropy(log_std):
     '''
@@ -114,12 +116,11 @@ def squash_action(pi, log_pi=None, *, need_sum=True):
     pi = tf.tanh(pi)
     if log_pi is not None:
         sub = tf.math.log(clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8)
-        log_pi -= sub
-    if need_sum:
-        log_pi = tf.reduce_sum(log_pi, axis=-1, keepdims=True)
-        log_pi -= tf.reduce_sum(sub, axis=-1, keepdims=True)
-    else:
-        log_pi -= sub
+        if need_sum:
+            log_pi = tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+            log_pi -= tf.reduce_sum(sub, axis=-1, keepdims=True)
+        else:
+            log_pi -= sub
     return pi, log_pi
 
 
