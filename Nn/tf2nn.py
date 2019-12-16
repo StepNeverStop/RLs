@@ -104,24 +104,23 @@ class ImageNet(tf.keras.Model):
         super().__init__(name=name)
         self.build_visual = False
         if len(visual_dim) == 4:
-            self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation=activation_fn)
-            self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation=activation_fn)
-            self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation=activation_fn)
+            self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation='relu')
+            self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation='relu')
+            self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation='relu')
             self.flatten = Flatten()
             self.fc = Dense(128, activation_fn)
             self.build_visual = True
         elif len(visual_dim) == 3:
-            self.conv1 = Conv2D(filters=32, kernel_size=[8, 8], strides=[4, 4], padding='valid', activation=activation_fn)
-            self.conv2 = Conv2D(filters=64, kernel_size=[4, 4], strides=[2, 2], padding='valid', activation=activation_fn)
-            self.conv3 = Conv2D(filters=64, kernel_size=[3, 3], strides=[1, 1], padding='valid', activation=activation_fn)
+            self.conv1 = Conv2D(filters=32, kernel_size=[8, 8], strides=[4, 4], padding='valid', activation='relu')
+            self.conv2 = Conv2D(filters=64, kernel_size=[4, 4], strides=[2, 2], padding='valid', activation='relu')
+            self.conv3 = Conv2D(filters=64, kernel_size=[3, 3], strides=[1, 1], padding='valid', activation='relu')
             self.flatten = Flatten()
             self.fc = Dense(128, activation_fn)
             self.build_visual = True
 
     def call(self, vector_input, visual_input):
         if self.build_visual:
-            features = visual_input / 255
-            features = self.conv1(features)
+            features = self.conv1(visual_input)
             features = self.conv2(features)
             features = self.conv3(features)
             features = self.flatten(features)

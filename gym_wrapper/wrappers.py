@@ -68,12 +68,12 @@ class StackEnv(gym.Wrapper):
 
 
 class GrayResizeEnv(gym.ObservationWrapper):
-    def __init__(self, env, resize=True, grayscale=True):
+    def __init__(self, env, resize=True, grayscale=True, *, width=84, height=84):
         super().__init__(env)
         self._resize = resize
         if resize:
-            self._width = 84
-            self._height = 84
+            self._width = width
+            self._height = height
         else:
             shp = env.observation_space.shape
             assert len(shp) == 3

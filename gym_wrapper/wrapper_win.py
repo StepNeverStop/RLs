@@ -49,15 +49,15 @@ class gym_envs(object):
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
             if skip:
-                env = SkipEnv(env)
+                env = SkipEnv(env, skip=4)
             if isinstance(env.observation_space, Box):
                 if len(env.observation_space.shape) == 3:
                     if grayscale or resize:
-                        env = GrayResizeEnv(env, resize=resize, grayscale=grayscale)
+                        env = GrayResizeEnv(env, resize=resize, grayscale=grayscale, width=84, height=84)
                     if scale:
                         env = ScaleEnv(env)
                 if stack:
-                    env = StackEnv(env)
+                    env = StackEnv(env, stack=4)
             else:
                 env = OneHotObsEnv(env)
 

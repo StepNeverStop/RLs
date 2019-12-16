@@ -253,6 +253,13 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
+        env_kargs={
+            'skip': default_args['action_skip'],
+            'stack': default_args['obs_stack'],
+            'grayscale': default_args['obs_grayscale'],
+            'resize': default_args['obs_resize'],
+            'scale': default_args['obs_scale'],
+        }
         env = gym_envs(gym_env_name=options['--gym-env'],
                        n=int(options['--gym-agents']),
                        seed=int(options['--gym-env-seed']),

@@ -52,6 +52,11 @@ train_config = {
         'render_mode': 'random_1',  # first, last, [list], random_[num], or all.
         'eval_while_train': False,
         'max_eval_episode': 100,
+        'action_skip': False,
+        'obs_stack': False,
+        'obs_grayscale': False,
+        'obs_resize': False,
+        'obs_scale': False,
     },
 
 }
