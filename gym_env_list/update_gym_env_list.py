@@ -26,7 +26,7 @@ for i, env_info in enumerate(env_list):
         info = '|' + str(env_info.id).ljust(50) + str(env.observation_space).ljust(80) + str(env.action_space).rjust(80) + '|'
         print(i, info)
         available_file.write(info + '\n')
-        if not isinstance(env.observation_space, [Box, Discrete]) or not isinstance(env.action_space, [Box, Discrete, Tuple]):
+        if not isinstance(env.observation_space, (Box, Discrete)) or not isinstance(env.action_space, (Box, Discrete, Tuple)):
             untrainable_file.write(info + '\n')
         elif not isinstance(env.action_space, Tuple) and (len(env.action_space.shape) == 2 or len(env.observation_space.shape) == 2):
             untrainable_file.write(info + '\n')
@@ -36,6 +36,7 @@ for i, env_info in enumerate(env_list):
             trainable_file.write(info + '\n')
         env.close()
     except Exception as e:
+        untrainable_file.write(str(env_info.id) + '\n')
         pass
 
 available_file.close()

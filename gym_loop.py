@@ -1,5 +1,5 @@
 import numpy as np
-from utils.np_utils import SMA
+from utils.np_utils import SMA, arrprint
 
 
 def init_variables(env):
@@ -60,6 +60,8 @@ class Loop(object):
                     done=done
                 )
 
+                if policy_mode == 'off-policy':
+                    gym_model.learn(episode=episode, step=1)
                 if all(dones_flag):
                     if last_done_step == -1:
                         last_done_step = step
@@ -74,7 +76,8 @@ class Loop(object):
                 state[i] = new_state[i]
 
             sma.update(r)
-            gym_model.learn(episode=episode, step=step)
+            if policy_mode == 'on-policy':
+                gym_model.learn(episode=episode, step=step)
             gym_model.writer_summary(
                 episode,
                 reward_mean=r.mean(),
@@ -84,7 +87,7 @@ class Loop(object):
                 **sma.rs
             )
             print('-' * 40)
-            print(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {r}')
+            print(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 3)}')
             if episode % save_frequency == 0:
                 gym_model.save_checkpoint(episode)
 

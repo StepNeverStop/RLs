@@ -1,5 +1,6 @@
 import numpy as np
-from utils.np_utils import SMA
+from utils.np_utils import SMA, arrprint
+
 
 def get_visual_input(n, cameras, brain_obs):
     '''
@@ -85,6 +86,8 @@ class Loop(object):
                         done=np.asarray(obs[brain_name].local_done)
                     )
                     rewards[i][unfinished_index] += np.asarray(obs[brain_name].rewards)[unfinished_index]
+                    if policy_mode == 'off-policy':
+                        models[i].learn(episode=episode, step=1)
 
                 if all([all(dones_flag[i]) for i in range(brains_num)]):
                     if last_done_step == -1:
@@ -97,7 +100,8 @@ class Loop(object):
 
             for i in range(brains_num):
                 sma[i].update(rewards[i])
-                models[i].learn(episode=episode, step=step)
+                if policy_mode == 'on-policy':
+                    models[i].learn(episode=episode, step=step)
                 models[i].writer_summary(
                     episode,
                     reward_mean=rewards[i].mean(),
@@ -108,6 +112,8 @@ class Loop(object):
                 )
             print('-' * 40)
             print(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
+            for i in range(brains_num):
+                print(f'brain {i:2d} reward: {arrprint(rewards[i], 3)}')
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     models[i].save_checkpoint(episode)

@@ -17,7 +17,7 @@
 |CarRacing-v0                                      Box(96, 96, 3)                                                                                                                                           Box(3,)|
 |Blackjack-v0                                      Tuple(Discrete(32), Discrete(11), Discrete(2))                                                                                                       Discrete(2)|
 |KellyCoinflip-v0                                  Tuple(Box(1,), Discrete(301))                                                                                                                    Discrete(25000)|
-|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(307), Discrete(307), Discrete(307), Box(1,))                                                                             Discrete(40500)|
+|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(286), Discrete(286), Discrete(286), Box(1,))                                                                             Discrete(28100)|
 |FrozenLake-v0                                     Discrete(16)                                                                                                                                         Discrete(4)|
 |FrozenLake8x8-v0                                  Discrete(64)                                                                                                                                         Discrete(4)|
 |CliffWalking-v0                                   Discrete(48)                                                                                                                                         Discrete(4)|

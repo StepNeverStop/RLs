@@ -22,6 +22,11 @@ def is_inf_inside(x):
     return np.isinf(x).any()
 
 
+def arrprint(x, n):
+    assert isinstance(x, np.ndarray)
+    return ', '.join([str(round(i, n)) for i in sorted(x)])
+
+
 class SMA:
     '''
     Simple Moving Average
