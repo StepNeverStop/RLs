@@ -4,7 +4,7 @@ from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
 from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten, GaussianNoise
 
-activation_fn = tf.keras.activations.tanh
+activation_fn = 'tanh'
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),
@@ -138,7 +138,7 @@ class actor_dpg(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
-        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=tf.keras.activations.tanh)
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
@@ -174,7 +174,7 @@ class actor_continuous(ImageNet):
         super().__init__(name=name, visual_dim=visual_dim)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
-        self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation=tf.keras.activations.tanh)
+        self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation='tanh')
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):

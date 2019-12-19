@@ -14,6 +14,7 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
     --max-episode=<n>           总的训练回合数 [default: None]
@@ -24,7 +25,7 @@ Options:
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
-    --gym-env-seed=<n>          指定gym环境的随机种子 [default: 10]
+    --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --gym-models=<n>            同时训练多少个模型 [default: 1]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
@@ -40,6 +41,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 import time
 
+from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
 
@@ -72,6 +74,10 @@ def run():
     name = train_config['name'] if options['--name'] == 'None' else options['--name']
     seed = int(options['--seed'])
     share_args, unity_args, gym_args = train_config['share'], train_config['unity'], train_config['gym']
+    if options['--store-dir'] == 'None':
+        pass
+    else:
+        share_args['base_dir'] = options['--store-dir']
 
     # gym > unity > unity_env
     run_params = {
@@ -99,10 +105,10 @@ def run():
                                 max_episode,
                                 save_frequency,
                                 name + '-' + str(i),
-                                seed + i * 10
+                                seed + i * 10,   # [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
                             ))
                 p.start()
-                time.sleep(1)
+                time.sleep(10)
                 processes.append(p)
             [p.join() for p in processes]
         else:
@@ -115,6 +121,16 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     from mlagents.envs import UnityEnvironment
     from utils.sampler import create_sampler_manager
 
+    configRecordDict = {
+        'max_step': max_step,
+        'max_episode': max_episode,
+        'save_frequency': save_frequency,
+        'name': name,
+        'seed': seed,
+        'default_args': default_args,
+        'share_args': share_args,
+        'options': dict(options)
+    }
     model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
     ma = options['--algorithm'][:3] == 'ma_'
 
@@ -150,7 +166,8 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
             from loop import Loop
 
     if options['--config-file'] != 'None':
-        algorithm_config = update_config(algorithm_config, options['--config-file'])
+        algorithm_config = update_config(algorithm_config, options['--config-file'], 'algo')
+    configRecordDict['algo'] = algorithm_config
     _base_dir = os.path.join(share_args['base_dir'], env_name, options['--algorithm'])
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
@@ -160,15 +177,15 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
     brain_num = len(brain_names)
 
     visual_resolutions = {}
-    for i in brain_names:
-        if brains[i].number_visual_observations:
-            visual_resolutions[f'{i}'] = [
-                brains[i].camera_resolutions[0]['height'],
-                brains[i].camera_resolutions[0]['width'],
-                1 if brains[i].camera_resolutions[0]['blackAndWhite'] else 3
+    for b in brain_names:
+        if brains[b].number_visual_observations:
+            visual_resolutions[f'{b}'] = [
+                brains[b].camera_resolutions[0]['height'],
+                brains[b].camera_resolutions[0]['width'],
+                1 if brains[b].camera_resolutions[0]['blackAndWhite'] else 3
             ]
         else:
-            visual_resolutions[f'{i}'] = []
+            visual_resolutions[f'{b}'] = []
 
     model_params = [{
         's_dim': brains[b].vector_observation_space_size * brains[b].num_stacked_vector_observations,
@@ -179,6 +196,11 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         'logger2file': share_args['logger2file'],
         'seed': seed + i * 10,
     } for i, b in enumerate(brain_names)]
+
+    records = {}
+    for i, b in enumerate(brain_names):
+        records[b] = deepcopy(configRecordDict)
+        records[b]['model'] = model_params[i]
 
     if ma:
         assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
@@ -234,7 +256,7 @@ def unity_run(default_args, share_args, options, max_step, max_episode, save_fre
         Loop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
     else:
         try:
-            [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
+            [sth.save_config(os.path.join(base_dir, b, 'config'), records[b]) for b in brain_names]
             Loop.no_op(**no_op_params)
             Loop.train(**params)
         except Exception as e:
@@ -249,11 +271,21 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     from gym_loop import Loop
     from gym_wrapper import gym_envs
 
+    configRecordDict = {
+        'max_step': max_step,
+        'max_episode': max_episode,
+        'save_frequency': save_frequency,
+        'name': name,
+        'seed': seed,
+        'default_args': default_args,
+        'share_args': share_args,
+        'options': dict(options)
+    }
     model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
     render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
 
     try:
-        env_kargs={
+        env_kargs = {
             'skip': default_args['action_skip'],
             'stack': default_args['obs_stack'],
             'grayscale': default_args['obs_grayscale'],
@@ -268,7 +300,8 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         print(e)
 
     if options['--config-file'] != 'None':
-        algorithm_config = update_config(algorithm_config, options['--config-file'])
+        algorithm_config = update_config(algorithm_config, options['--config-file'], 'algo')
+    configRecordDict['algo'] = algorithm_config
     _base_dir = os.path.join(share_args['base_dir'], options['--gym-env'], options['--algorithm'])
     base_dir = os.path.join(_base_dir, name)
     show_config(algorithm_config)
@@ -284,6 +317,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
         'logger2file': share_args['logger2file'],
         'seed': seed,
     }
+    configRecordDict['model'] = model_params
     gym_model = model(
         **model_params,
         **algorithm_config
@@ -310,7 +344,7 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
     if options['--inference']:
         Loop.inference(env, gym_model)
     else:
-        sth.save_config(os.path.join(base_dir, 'config'), algorithm_config)
+        sth.save_config(os.path.join(base_dir, 'config'), configRecordDict)
         try:
             Loop.no_op(env, gym_model, steps, choose=options['--noop-choose'])
             Loop.train(**params)
@@ -322,10 +356,10 @@ def gym_run(default_args, share_args, options, max_step, max_episode, save_frequ
             sys.exit()
 
 
-def update_config(config, file_path):
+def update_config(config, file_path, key_name='algo'):
     _config = sth.load_config(file_path)
     try:
-        for key in _config:
+        for key in _config[key_name]:
             config[key] = _config[key]
     except Exception as e:
         print(e)

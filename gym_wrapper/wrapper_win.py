@@ -72,7 +72,7 @@ class gym_envs(object):
         self.envs = [
             get_env(**env_params)
             for _ in range(self.n)]
-        self.seeds = [seed + i for i in range(n)]
+        self.seeds = [seed + i for i in range(n)] # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         [env.seed(s) for env, s in zip(self.envs, self.seeds)]
         self._get_render_index(render_mode)
 

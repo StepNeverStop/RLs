@@ -30,6 +30,7 @@ class Loop(object):
             max_episode:        maximum number of episodes in this training task
             render:             specify whether render the env or not
             render_episode:     if 'render' is false, specify from which episode to render the env
+            policy_mode:        'on-policy' or 'off-policy'
         """
         i, state, new_state = init_variables(env)
         sma = SMA(100)
