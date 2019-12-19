@@ -1,3 +1,4 @@
+from copy import deepcopy
 from gym_wrapper import gym_envs
 from mlagents.envs import UnityEnvironment
 from common.unity_wrapper import UnityWrapper
@@ -14,18 +15,8 @@ def make_env(env_args):
 
 
 def make_gym_env(env_args):
-    env_kargs = {
-        'skip': env_args['action_skip'],
-        'stack': env_args['obs_stack'],
-        'grayscale': env_args['obs_grayscale'],
-        'resize': env_args['obs_resize'],
-        'scale': env_args['obs_scale'],
-    }
-    env = gym_envs(gym_env_name=env_args['env_name'],
-                   n=env_args['env_num'],
-                   seed=env_args['env_seed'],
-                   render_mode=env_args['render_mode'],
-                   **env_kargs)
+    env_kargs = deepcopy(env_args)
+    env = gym_envs(env_kargs)
     return env
 
 

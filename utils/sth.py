@@ -1,5 +1,4 @@
 import os
-import yaml
 import numpy as np
 
 
@@ -27,23 +26,6 @@ class sth(object):
             init_value = z[i]
         return y
 
-    @staticmethod
-    def save_config(dicpath, config):
-        if not os.path.exists(dicpath):
-            os.makedirs(dicpath)
-        with open(os.path.join(dicpath, 'config.yaml'), 'w', encoding='utf-8') as fw:
-            yaml.dump(config, fw)
-        print(f'save config to {dicpath}')
-
-    @staticmethod
-    def load_config(filename):
-        if os.path.exists(filename):
-            with open(filename, 'r', encoding='utf-8') as f:
-                x = yaml.safe_load(f.read())
-        else:
-            raise Exception('cannot find this config.')
-        print(f'load config from {filename}')
-        return x
 
     @staticmethod
     def int2action_index(x, action_dim_list):

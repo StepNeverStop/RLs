@@ -1,6 +1,6 @@
 import importlib
 import tensorflow as tf
-from common.load import load_yaml
+from common.yaml_ops import load_yaml
 assert tf.__version__[0] == '2'
 # algorithms based on TF 2.0
 algos = {
@@ -104,11 +104,9 @@ def get_model_info(name: str):
     if name not in algos.keys():
         raise NotImplementedError
     else:
-        model_file = importlib.import_module('Algorithms.tf2algos.' + name)
-        model = getattr(model_file, algos[name]['class'])
-        import os
-        import yaml
-        x = load_yaml(f'Algorithms/config.yaml')
-        algo_config = x[name]
+        class_name = algos[name]['class']
         policy_mode = algos[name]['policy']
+        model_file = importlib.import_module('Algorithms.tf2algos.' + name)
+        model = getattr(model_file, class_name)
+        algo_config = load_yaml(f'Algorithms/config.yaml')[name]
         return model, algo_config, policy_mode

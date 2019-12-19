@@ -1,6 +1,7 @@
 import gym
 import ray
 import numpy as np
+from typing import Dict
 from gym.spaces import Box, Discrete, Tuple
 from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv
 
@@ -31,7 +32,7 @@ class RayEnv:
 
 class gym_envs(object):
 
-    def __init__(self, gym_env_name, n, seed=0, render_mode='first', **kwargs):
+    def __init__(self, kwargs: Dict):
         '''
         Input:
             gym_env_name: gym training environment id, i.e. CartPole-v0
@@ -40,33 +41,33 @@ class gym_envs(object):
         '''
         ray.init()
 
-        _skip = bool(kwargs.get('skip', False))
-        _stack = bool(kwargs.get('stack', False))
-        _grayscale = bool(kwargs.get('grayscale', False))
-        _resize = bool(kwargs.get('resize', False))
-        _scale = bool(kwargs.get('scale', False))
-        env_params = {
-            'gym_env_name': gym_env_name,
-            'skip': _skip,
-            'stack': _stack,
-            'grayscale': _grayscale,
-            'resize': _resize,
-            'scale': _scale,
-        }
+        self.n = kwargs['env_num']  # environments number
+        seed = kwargs['env_seed']
+        render_mode = kwargs.get('render_mode', 'first')
 
-        def get_env(gym_env_name, skip=False, stack=False, grayscale=False, resize=False, scale=False):
+        def get_env(kwargs):
+            gym_env_name = kwargs['env_name']
+            action_skip = bool(kwargs.get('action_skip', False))
+            skip = int(kwargs.get('skip', 4))
+            obs_stack = bool(kwargs.get('obs_stack', False))
+            stack = int(kwargs.get('stack', 4))
+            obs_grayscale = bool(kwargs.get('obs_grayscale', False))
+            obs_resize = bool(kwargs.get('obs_resize', False))
+            resize = kwargs.get('resize', [84, 84])
+            obs_scale = bool(kwargs.get('obs_scale', False))
+
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
-            if skip:
-                env = SkipEnv(env, skip=4)
+            if action_skip:
+                env = SkipEnv(env, skip=skip)
             if isinstance(env.observation_space, Box):
                 if len(env.observation_space.shape) == 3:
-                    if grayscale or resize:
-                        env = GrayResizeEnv(env, resize=resize, grayscale=grayscale, width=84, height=84)
-                    if scale:
+                    if obs_grayscale or obs_resize:
+                        env = GrayResizeEnv(env, resize=obs_resize, grayscale=obs_grayscale, width=resize[0], height=resize[-1])
+                    if obs_scale:
                         env = ScaleEnv(env)
-                if stack:
-                    env = StackEnv(env, stack=4)
+                if obs_stack:
+                    env = StackEnv(env, stack=stack)
             else:
                 env = OneHotObsEnv(env)
 
@@ -74,11 +75,10 @@ class gym_envs(object):
                 env = BoxActEnv(env)
             return env
 
-        self.n = n  # environments number
         self._initialize(
-            env=get_env(**env_params)
+            env=get_env(kwargs)
         )
-        self.envs = [RayEnv.remote(get_env, env_params) for i in range(self.n)]
+        self.envs = [RayEnv.remote(get_env, kwargs) for i in range(self.n)]
         self.seeds = [seed + i for i in range(self.n)]
         [env.seed.remote(s) for env, s in zip(self.envs, self.seeds)]
         self._get_render_index(render_mode)
@@ -129,6 +129,13 @@ class gym_envs(object):
     def _get_render_index(self, render_mode):
         '''
         get render windows list, i.e. [0, 1] when there are 4 training enviornment.
+        render_mode: mode of rendering, 
+        optional: 
+            - first, 
+            - last, 
+            - all, 
+            - random_[num] -> i.e. random_2, 
+            - [list] -> i.e. [0, 2, 4]
         '''
         assert isinstance(render_mode, (list, str)), 'render_mode must have type of str or list.'
         if isinstance(render_mode, list):

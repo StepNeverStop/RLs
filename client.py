@@ -6,7 +6,7 @@ from rpyc import Service
 import platform
 import Algorithms
 from mlagents.envs import UnityEnvironment
-from utils.sth import sth
+from common.yaml_ops import save_config
 import pandas as pd
 import zipfile
 import numpy as np
@@ -168,7 +168,7 @@ def initialize_env_model(filepath, algo, name, port):
         out_graph=False,
         **algorithm_config
     ) for i in brain_names]
-    [sth.save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
+    [save_config(os.path.join(base_dir, i, 'config'), algorithm_config) for i in brain_names]
 
     begin_episode = models[0].get_init_step()
     max_episode = models[0].get_max_episode()

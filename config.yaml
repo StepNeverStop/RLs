@@ -1,3 +1,10 @@
+save_frequency: 20
+max_step: 2000
+max_episode: 5000
+logger2file: False
+all_learner_print: True
+info: None
+
 UnityEnvFile:
     3DBall:
         simple500: &env C:\UnityBuild\Ball\simple500\train.exe
@@ -13,12 +20,6 @@ UnityEnvFile:
         no_border: C:/UnityBuild/Boat/no_border/BoatTrain.exe
         no_border2: C:/UnityBuild/Boat/no_border2/BoatTrain.exe
 
-save_frequency: 20
-max_step: 2000
-max_episode: 5000
-logger2file: False
-all_learner_print: True
-
 unity:
     no_op_steps: 100
     exe_file: *env
@@ -32,9 +33,12 @@ gym:
     eval_while_train: False
     max_eval_episode: 100
     action_skip: False
+    skip: 4
     obs_stack: False
+    stack: 4
     obs_grayscale: False
     obs_resize: False
+    resize: [84, 84]
     obs_scale: False
 
 buffer:

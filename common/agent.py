@@ -2,8 +2,8 @@ import os
 import numpy as np
 from copy import deepcopy
 from common.make_env import make_env
+from common.yaml_ops import save_config, load_config
 from Algorithms.register import get_model_info
-from utils.sth import sth
 from utils.np_utils import SMA, arrprint
 from utils.replay_buffer import ExperienceReplay
 
@@ -16,7 +16,7 @@ def ShowConfig(config):
 
 
 def UpdateConfig(config, file_path, key_name='algo'):
-    _config = sth.load_config(file_path)
+    _config = load_config(file_path)
     try:
         for key in _config[key_name]:
             config[key] = _config[key]
@@ -139,7 +139,7 @@ class Agent:
                     'train': self.train_args,
                     'algo': algorithm_config
                 }
-                sth.save_config(os.path.join(base_dir, 'config'), records_dict)
+                save_config(os.path.join(base_dir, 'config'), records_dict)
         else:
             # buffer -----------------------------------
             self.buffer_args_s = []
@@ -200,7 +200,7 @@ class Agent:
                         'train': self.train_args,
                         'algo': algorithm_config
                     }
-                    sth.save_config(os.path.join(base_dir, b, 'config'), records_dict)
+                    save_config(os.path.join(base_dir, b, 'config'), records_dict)
         pass
 
     def pwi(self, *args):

@@ -196,7 +196,7 @@ class PPO(On_Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r, old_log_prob, advantage = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
+                s, visual_s, a, dc_r, old_log_prob, advantage = map(tf.convert_to_tensor, self.get_sample_data(index))
                 if self.share_net:
                     actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)

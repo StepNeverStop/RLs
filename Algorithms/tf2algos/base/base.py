@@ -124,6 +124,22 @@ class Base(tf.keras.Model):
             os.makedirs(dicpath)
             print(f'create {name} directionary :', dicpath)
 
+    def save_weights(self, path):
+        """
+        save trained weights
+        :return: None
+        """
+        # self.net.save_weights(os.path.join(path, 'net.ckpt'))
+        pass
+
+    def load_weights(self, path):
+        """
+        load trained weights
+        :return: None
+        """
+        # self.net.load_weights(os.path.join(path, 'net.ckpt'))
+        pass
+
     def close(self):
         """
         end training, and export the training model

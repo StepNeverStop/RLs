@@ -29,6 +29,7 @@ Options:
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
+    --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
     python run.py -a ppo -u -n train_in_unity --load last_train_name
@@ -42,6 +43,7 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 import time
+NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
 import platform
 BASE_DIR = f'C:/RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
@@ -49,7 +51,7 @@ from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
 from common.agent import Agent
-from common.load import load_yaml
+from common.yaml_ops import load_yaml
 
 
 def agent_run(*args):
@@ -86,13 +88,14 @@ def run():
 
     train_args['index'] = 0
     train_args['all_learner_print'] = default_config['all_learner_print']
-    train_args['name'] = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())) if options['--name'] == 'None' else str(options['--name'])
+    train_args['name'] = NAME if options['--name'] == 'None' else str(options['--name'])
     train_args['max_step'] = default_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
     train_args['max_episode'] = default_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
     train_args['save_frequency'] = default_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
     train_args['inference'] = bool(options['--inference'])
     train_args['fill_in'] = bool(options['--fill-in'])
     train_args['no_op_choose'] = bool(options['--noop-choose'])
+    train_args['info'] = default_config['info'] if options['--info'] == 'None' else str(options['--info'])
 
     if options['--gym']:
         env_args['type'] = 'gym'
@@ -101,9 +104,12 @@ def run():
         env_args['env_seed'] = int(options['--gym-env-seed'])
         env_args['render_mode'] = gym_args['render_mode']
         env_args['action_skip'] = gym_args['action_skip']
+        env_args['skip'] = gym_args['skip']
         env_args['obs_stack'] = gym_args['obs_stack']
+        env_args['stack'] = gym_args['stack']
         env_args['obs_grayscale'] = gym_args['obs_grayscale']
         env_args['obs_resize'] = gym_args['obs_resize']
+        env_args['resize'] = gym_args['resize']
         env_args['obs_scale'] = gym_args['obs_scale']
 
         train_args['render_episode'] = gym_args['render_episode'] if options['--render-episode'] == 'None' else int(options['--render-episode'])

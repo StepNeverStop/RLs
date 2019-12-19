@@ -93,7 +93,7 @@ class A2C(On_Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r = [tf.convert_to_tensor(i) for i in self.get_sample_data(index)]
+                s, visual_s, a, dc_r = map(tf.convert_to_tensor, self.get_sample_data(index))
                 actor_loss, critic_loss, entropy = self.train.get_concrete_function(
                     *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
