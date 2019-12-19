@@ -1,3 +1,4 @@
+
 # coding: utf-8
 """
 Usage:
@@ -14,6 +15,7 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    -m,--modes=<n>              同时训练多少个模型 [default: 1]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
@@ -26,7 +28,6 @@ Options:
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
-    --gym-models=<n>            同时训练多少个模型 [default: 1]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
@@ -36,19 +37,23 @@ Example:
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
     python run.py -u -a ddpg -n pre_fill--fill-in --noop-choose
 """
+
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 import time
+import platform
+BASE_DIR = f'C:/RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
+from common.agent import Agent
+from common.load import load_yaml
 
-from utils.sth import sth
-from config import train_config
-from utils.replay_buffer import ExperienceReplay
-from Algorithms.register import get_model_info
+
+def agent_run(*args):
+    Agent(*args)()
 
 
 def run():
@@ -68,310 +73,97 @@ def run():
     options = docopt(__doc__)
     print(options)
 
-    max_step = train_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
-    max_episode = train_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
-    save_frequency = train_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
-    name = train_config['name'] if options['--name'] == 'None' else options['--name']
-    seed = int(options['--seed'])
-    share_args, unity_args, gym_args = train_config['share'], train_config['unity'], train_config['gym']
-    if options['--store-dir'] == 'None':
-        pass
-    else:
-        share_args['base_dir'] = options['--store-dir']
-
+    default_config = load_yaml(f'config.yaml')
     # gym > unity > unity_env
-    run_params = {
-        'share_args': share_args,
-        'options': options,
-        'max_step': max_step,
-        'max_episode': max_episode,
-        'save_frequency': save_frequency,
-        'name': name,
-        'seed': seed,
-    }
+    env_args, model_args, train_args = {}, {}, {}
+    unity_args, gym_args, buffer_args = default_config['unity'], default_config['gym'], default_config['buffer']
+
+    model_args['algo'] = str(options['--algorithm'])
+    model_args['algo_config'] = None if options['--config-file'] == 'None' else str(options['--config-file'])
+    model_args['seed'] = int(options['--seed'])
+    model_args['load'] = None if options['--load'] == 'None' else str(options['--load'])
+    model_args['logger2file'] = default_config['logger2file']
+
+    train_args['index'] = 0
+    train_args['all_learner_print'] = default_config['all_learner_print']
+    train_args['name'] = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())) if options['--name'] == 'None' else str(options['--name'])
+    train_args['max_step'] = default_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
+    train_args['max_episode'] = default_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
+    train_args['save_frequency'] = default_config['save_frequency'] if options['--save-frequency'] == 'None' else int(options['--save-frequency'])
+    train_args['inference'] = bool(options['--inference'])
+    train_args['fill_in'] = bool(options['--fill-in'])
+    train_args['no_op_choose'] = bool(options['--noop-choose'])
+
     if options['--gym']:
-        trails = int(options['--gym-models'])
-        if trails == 1:
-            gym_run(default_args=gym_args, **run_params)
-        elif trails > 1:
-            processes = []
-            for i in range(trails):
-                p = Process(target=gym_run,
-                            args=(
-                                gym_args,
-                                share_args,
-                                options,
-                                max_step,
-                                max_episode,
-                                save_frequency,
-                                name + '-' + str(i),
-                                seed + i * 10,   # [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-                            ))
-                p.start()
-                time.sleep(10)
-                processes.append(p)
-            [p.join() for p in processes]
+        env_args['type'] = 'gym'
+        env_args['env_name'] = str(options['--gym-env'])
+        env_args['env_num'] = int(options['--gym-agents'])
+        env_args['env_seed'] = int(options['--gym-env-seed'])
+        env_args['render_mode'] = gym_args['render_mode']
+        env_args['action_skip'] = gym_args['action_skip']
+        env_args['obs_stack'] = gym_args['obs_stack']
+        env_args['obs_grayscale'] = gym_args['obs_grayscale']
+        env_args['obs_resize'] = gym_args['obs_resize']
+        env_args['obs_scale'] = gym_args['obs_scale']
+
+        train_args['render_episode'] = gym_args['render_episode'] if options['--render-episode'] == 'None' else int(options['--render-episode'])
+        train_args['no_op_steps'] = gym_args['random_steps']
+        train_args['render'] = gym_args['render']
+        train_args['eval_while_train'] = gym_args['eval_while_train']
+        train_args['max_eval_episode'] = gym_args['max_eval_episode']
+    else:
+        env_args['type'] = 'unity'
+        if options['--unity']:
+            env_args['file_path'] = None
+            env_args['env_name'] = 'unity'
         else:
-            raise Exception('trials must be greater than 0.')
-    else:
-        unity_run(default_args=unity_args, **run_params)
-
-
-def unity_run(default_args, share_args, options, max_step, max_episode, save_frequency, name, seed):
-    from mlagents.envs import UnityEnvironment
-    from utils.sampler import create_sampler_manager
-
-    configRecordDict = {
-        'max_step': max_step,
-        'max_episode': max_episode,
-        'save_frequency': save_frequency,
-        'name': name,
-        'seed': seed,
-        'default_args': default_args,
-        'share_args': share_args,
-        'options': dict(options)
-    }
-    model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
-    ma = options['--algorithm'][:3] == 'ma_'
-
-    reset_config = default_args['reset_config']
-    if options['--unity']:
-        env = UnityEnvironment()
-        env_name = 'unity'
-    else:
-        file_name = default_args['exe_file'] if options['--env'] == 'None' else options['--env']
-        if os.path.exists(file_name):
-            env = UnityEnvironment(
-                file_name=file_name,
-                base_port=int(options['--port']),
-                no_graphics=False if options['--inference'] else not options['--graphic']
-            )
-            env_dir = os.path.split(file_name)[0]
-            env_name = os.path.join(*env_dir.replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
-            sys.path.append(env_dir)
-            if os.path.exists(env_dir + '/env_config.py'):
-                import env_config
-                reset_config = env_config.reset_config
-                max_step = env_config.max_step
-            if os.path.exists(env_dir + '/env_loop.py'):
-                from env_loop import Loop
+            env_args['file_path'] = unity_args['exe_file'] if options['--env'] == 'None' else str(options['--env'])
+            if os.path.exists(env_args['file_path']):
+                env_args['env_name'] = os.path.join(
+                    *os.path.split(env_args['file_path'])[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
+                )
+            else:
+                raise Exception('can not find this file.')
+        if bool(options['--inference']):
+            env_args['train_mode'] = False
         else:
-            raise Exception('can not find this file.')
-    sampler_manager, resampling_interval = create_sampler_manager(options['--sampler'], env.reset_parameters)
+            env_args['train_mode'] = True
 
-    if 'Loop' not in locals().keys():
-        if ma:
-            from ma_loop import Loop
-        else:
-            from loop import Loop
+        env_args['port'] = int(options['--port'])
+        env_args['render'] = bool(options['--graphic'])
+        env_args['sampler_path'] = None if options['--sampler'] == 'None' else str(options['--sampler'])
+        env_args['reset_config'] = unity_args['reset_config']
 
-    if options['--config-file'] != 'None':
-        algorithm_config = update_config(algorithm_config, options['--config-file'], 'algo')
-    configRecordDict['algo'] = algorithm_config
-    _base_dir = os.path.join(share_args['base_dir'], env_name, options['--algorithm'])
-    base_dir = os.path.join(_base_dir, name)
-    show_config(algorithm_config)
+        train_args['no_op_steps'] = unity_args['no_op_steps']
 
-    brain_names = env.external_brain_names
-    brains = env.brains
-    brain_num = len(brain_names)
+    train_args['base_dir'] = os.path.join(
+        BASE_DIR if options['--store-dir'] == 'None' else str(options['--store-dir']),
+        env_args['env_name'], model_args['algo'])
 
-    visual_resolutions = {}
-    for b in brain_names:
-        if brains[b].number_visual_observations:
-            visual_resolutions[f'{b}'] = [
-                brains[b].camera_resolutions[0]['height'],
-                brains[b].camera_resolutions[0]['width'],
-                1 if brains[b].camera_resolutions[0]['blackAndWhite'] else 3
-            ]
-        else:
-            visual_resolutions[f'{b}'] = []
+    if bool(options['--inference']):
+        Agent(env_args, model_args, buffer_args, train_args).evaluate()
 
-    model_params = [{
-        's_dim': brains[b].vector_observation_space_size * brains[b].num_stacked_vector_observations,
-        'a_dim_or_list': brains[b].vector_action_space_size,
-        'is_continuous': True if brains[b].vector_action_space_type == 'continuous' else False,
-        'max_episode': max_episode,
-        'base_dir': os.path.join(base_dir, b),
-        'logger2file': share_args['logger2file'],
-        'seed': seed + i * 10,
-    } for i, b in enumerate(brain_names)]
-
-    records = {}
-    for i, b in enumerate(brain_names):
-        records[b] = deepcopy(configRecordDict)
-        records[b]['model'] = model_params[i]
-
-    if ma:
-        assert brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
-        data = ExperienceReplay(share_args['ma']['batch_size'], share_args['ma']['capacity'])
-        extra_params = {'data': data}
-        models = [model(
-            n=brain_num,
-            i=i,
-            **model_params[i],
-            **algorithm_config
-        ) for i in range(brain_num)]
+    trails = int(options['--modes'])
+    if trails == 1:
+        agent_run(env_args, model_args, buffer_args, train_args)
+    elif trails > 1:
+        processes = []
+        for i in range(trails):
+            _env_args = deepcopy(env_args)
+            _model_args = deepcopy(model_args)
+            _model_args['seed'] += i * 10
+            _buffer_args = deepcopy(buffer_args)
+            _train_args = deepcopy(train_args)
+            _train_args['index'] = i
+            if _env_args['type'] == 'unity':
+                _env_args['port'] = env_args['port'] + i
+            p = Process(target=agent_run, args=(_env_args, _model_args, _buffer_args, _train_args))
+            p.start()
+            time.sleep(10)
+            processes.append(p)
+        [p.join() for p in processes]
     else:
-        extra_params = {}
-        models = [model(
-            visual_sources=brains[i].number_visual_observations,
-            visual_resolution=visual_resolutions[f'{i}'],
-            **model_params[index],
-            **algorithm_config
-        ) for index, i in enumerate(brain_names)]
-
-    [models[index].init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load'], i)) for index, i in enumerate(brain_names)]
-    begin_episode = models[0].get_init_episode()
-
-    params = {
-        'env': env,
-        'brain_names': brain_names,
-        'models': models,
-        'begin_episode': begin_episode,
-        'save_frequency': save_frequency,
-        'reset_config': reset_config,
-        'max_step': max_step,
-        'max_episode': max_episode,
-        'sampler_manager': sampler_manager,
-        'resampling_interval': resampling_interval,
-        'policy_mode': policy_mode
-    }
-    if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
-        steps = algorithm_config['batch_size']
-    else:
-        steps = default_args['no_op_steps']
-    no_op_params = {
-        'env': env,
-        'brain_names': brain_names,
-        'models': models,
-        'brains': brains,
-        'steps': steps,
-        'choose': options['--noop-choose']
-    }
-    params.update(extra_params)
-    no_op_params.update(extra_params)
-
-    if options['--inference']:
-        Loop.inference(env, brain_names, models, reset_config=reset_config, sampler_manager=sampler_manager, resampling_interval=resampling_interval)
-    else:
-        try:
-            [sth.save_config(os.path.join(base_dir, b, 'config'), records[b]) for b in brain_names]
-            Loop.no_op(**no_op_params)
-            Loop.train(**params)
-        except Exception as e:
-            print(e)
-        finally:
-            [models[i].close() for i in range(len(models))]
-            env.close()
-            sys.exit()
-
-
-def gym_run(default_args, share_args, options, max_step, max_episode, save_frequency, name, seed):
-    from gym_loop import Loop
-    from gym_wrapper import gym_envs
-
-    configRecordDict = {
-        'max_step': max_step,
-        'max_episode': max_episode,
-        'save_frequency': save_frequency,
-        'name': name,
-        'seed': seed,
-        'default_args': default_args,
-        'share_args': share_args,
-        'options': dict(options)
-    }
-    model, algorithm_config, policy_mode = get_model_info(options['--algorithm'])
-    render_episode = int(options['--render-episode']) if options['--render-episode'] != 'None' else default_args['render_episode']
-
-    try:
-        env_kargs = {
-            'skip': default_args['action_skip'],
-            'stack': default_args['obs_stack'],
-            'grayscale': default_args['obs_grayscale'],
-            'resize': default_args['obs_resize'],
-            'scale': default_args['obs_scale'],
-        }
-        env = gym_envs(gym_env_name=options['--gym-env'],
-                       n=int(options['--gym-agents']),
-                       seed=int(options['--gym-env-seed']),
-                       render_mode=default_args['render_mode'])
-    except Exception as e:
-        print(e)
-
-    if options['--config-file'] != 'None':
-        algorithm_config = update_config(algorithm_config, options['--config-file'], 'algo')
-    configRecordDict['algo'] = algorithm_config
-    _base_dir = os.path.join(share_args['base_dir'], options['--gym-env'], options['--algorithm'])
-    base_dir = os.path.join(_base_dir, name)
-    show_config(algorithm_config)
-
-    model_params = {
-        's_dim': env.s_dim,
-        'visual_sources': env.visual_sources,
-        'visual_resolution': env.visual_resolution,
-        'a_dim_or_list': env.a_dim_or_list,
-        'is_continuous': env.is_continuous,
-        'max_episode': max_episode,
-        'base_dir': base_dir,
-        'logger2file': share_args['logger2file'],
-        'seed': seed,
-    }
-    configRecordDict['model'] = model_params
-    gym_model = model(
-        **model_params,
-        **algorithm_config
-    )
-    gym_model.init_or_restore(os.path.join(_base_dir, name if options['--load'] == 'None' else options['--load']))
-    begin_episode = gym_model.get_init_episode()
-    params = {
-        'env': env,
-        'gym_model': gym_model,
-        'begin_episode': begin_episode,
-        'save_frequency': save_frequency,
-        'max_step': max_step,
-        'max_episode': max_episode,
-        'eval_while_train': default_args['eval_while_train'],  # whether to eval while training.
-        'max_eval_episode': default_args['max_eval_episode'],
-        'render': default_args['render'],
-        'render_episode': render_episode,
-        'policy_mode': policy_mode
-    }
-    if 'batch_size' in algorithm_config.keys() and options['--fill-in']:
-        steps = algorithm_config['batch_size']
-    else:
-        steps = default_args['random_steps']
-    if options['--inference']:
-        Loop.inference(env, gym_model)
-    else:
-        sth.save_config(os.path.join(base_dir, 'config'), configRecordDict)
-        try:
-            Loop.no_op(env, gym_model, steps, choose=options['--noop-choose'])
-            Loop.train(**params)
-        except Exception as e:
-            print(e)
-        finally:
-            gym_model.close()
-            env.close()
-            sys.exit()
-
-
-def update_config(config, file_path, key_name='algo'):
-    _config = sth.load_config(file_path)
-    try:
-        for key in _config[key_name]:
-            config[key] = _config[key]
-    except Exception as e:
-        print(e)
-        sys.exit()
-    return config
-
-
-def show_config(config):
-    for key in config:
-        print('-' * 60)
-        print('|', str(key).ljust(28), str(config[key]).rjust(28), '|')
-    print('-' * 60)
+        raise Exception('trials must be greater than 0.')
 
 
 if __name__ == "__main__":

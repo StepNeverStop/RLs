@@ -29,13 +29,11 @@ class Policy(Base):
         self.episode = 0    # episode of now
         self.IS_w = 1       # the weights of NN variables by using Importance sampling.
 
-
     def get_max_episode(self):
         """
         get the max episode of this training model.
         """
         return self.max_episode
-
 
     @abstractmethod
     def choose_action(self, s, visual_s, evaluation=False):
@@ -49,7 +47,6 @@ class Policy(Base):
         '''
         pass
 
-
     def update_target_net_weights(self, tge, src, ployak=None):
         '''
         update weights of target neural network.
@@ -58,7 +55,10 @@ class Policy(Base):
             tf.group([t.assign(s) for t, s in zip(tge, src)])
         else:
             tf.group([t.assign(self.ployak * t + (1 - self.ployak) * s) for t, s in zip(tge, src)])
-        
+
     @tf.function
     def _get_action(self, s, visual_s, is_training=True):
         raise NotImplementedError
+
+    def set_buffer(self, buffer):
+        pass

@@ -4,34 +4,6 @@ from abc import ABC, abstractmethod
 
 # [s, visual_s, a, r, s_, visual_s_, done] must be this format.
 
-er_config = {
-    'episode_er_config': {
-        'max_agents': 20,
-        'er_size': 1000
-    },
-
-    'per_config': {
-        'alpha': 0.6,
-        'beta': 0.4,
-        'epsilon': 0.01,
-        'global_v': False
-    },
-
-    'ner_config': {
-        'n': 4,
-        'max_agents': 20
-    },
-
-    'nper_config': {
-        'alpha': 0.6,
-        'beta': 0.4,
-        'epsilon': 0.01,
-        'n': 4,
-        'max_agents': 20,
-        'global_v': False
-    }
-}
-
 
 class ReplayBuffer(ABC):
     def __init__(self, batch_size, capacity):

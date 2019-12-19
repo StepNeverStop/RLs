@@ -1,5 +1,6 @@
 import importlib
 import tensorflow as tf
+from common.load import load_yaml
 assert tf.__version__[0] == '2'
 # algorithms based on TF 2.0
 algos = {
@@ -107,12 +108,7 @@ def get_model_info(name: str):
         model = getattr(model_file, algos[name]['class'])
         import os
         import yaml
-        filename = f'Algorithms/config.yaml'
-        if os.path.exists(filename):
-            with open(filename, 'r', encoding='utf-8') as f:
-                x = yaml.safe_load(f.read())
-        else:
-            raise Exception('cannot find this config.')
+        x = load_yaml(f'Algorithms/config.yaml')
         algo_config = x[name]
         policy_mode = algos[name]['policy']
         return model, algo_config, policy_mode

@@ -1,0 +1,55 @@
+UnityEnvFile:
+    3DBall:
+        simple500: &env C:\UnityBuild\Ball\simple500\train.exe
+        hard1: C:\UnityBuild\Ball\hard1\hard1.exe
+        hard3: C:\UnityBuild\Ball\hard3\hard3.exe
+    RollerBall:
+        OneFloor: C:/UnityBuild/RollerBall/OneFloor/RollerBall-custom.exe
+        PureCamera: C:\UnityBuild\RollerBall\PureCamera\train.exe
+    Boat:
+        first: C:/UnityBuild/Boat/first/BoatTrain.exe
+        second: C:/UnityBuild/Boat/second/BoatTrain.exe
+        interval1: C:/UnityBuild/Boat/interval1/BoatTrain.exe
+        no_border: C:/UnityBuild/Boat/no_border/BoatTrain.exe
+        no_border2: C:/UnityBuild/Boat/no_border2/BoatTrain.exe
+
+save_frequency: 20
+max_step: 2000
+max_episode: 5000
+logger2file: False
+all_learner_print: True
+
+unity:
+    no_op_steps: 100
+    exe_file: *env
+    reset_config: {}
+
+gym:
+    random_steps: 10000
+    render: False
+    render_episode: 50000
+    render_mode: random_1 # first last [list] random_[num] or all.
+    eval_while_train: False
+    max_eval_episode: 100
+    action_skip: False
+    obs_stack: False
+    obs_grayscale: False
+    obs_resize: False
+    obs_scale: False
+
+buffer:
+    Pandas: {}
+    ER: {}
+    PER:
+        alpha: 0.6
+        beta: 0.4
+        epsilon: 0.01
+        global_v: False
+    NSTEP-ER:
+        n: 4
+    NSTEP-PER:
+        alpha: 0.6
+        beta: 0.4
+        epsilon: 0.01
+        global_v: False
+        n: 4

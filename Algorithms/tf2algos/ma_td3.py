@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import Nn
-from .policy import Policy
+from Algorithms.tf2algos.base.policy import Policy
 
 
 class MATD3(Policy):
@@ -93,7 +93,7 @@ class MATD3(Policy):
         summaries.update(dict([
             ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
             ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-            ]))
+        ]))
         self.write_training_summaries(self.global_step, summaries)
 
     def get_max_episode(self):

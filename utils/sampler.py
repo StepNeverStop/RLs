@@ -10,7 +10,7 @@ def create_sampler_manager(sampler_file_path, env_reset_params):
     '''
     sampler_config = None
     resample_interval = float("inf")
-    if sampler_file_path != 'None':
+    if sampler_file_path is not None:
         sampler_config = load_config(sampler_file_path)
         if ("resampling-interval") in sampler_config:
             # Filter arguments that do not exist in the environment

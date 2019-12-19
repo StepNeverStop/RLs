@@ -34,7 +34,7 @@ class Base(tf.keras.Model):
             logger2file=logger2file,
             model=self
         )
-    
+
     def _cast(self, dtype='float32'):
         if dtype == 'float32':
             func = cast2float32
@@ -42,11 +42,11 @@ class Base(tf.keras.Model):
             func = cast2float64
         else:
             raise Exception('Cast to this type has not been implemented.')
+
         def inner(*args, **kwargs):
             with tf.device(self.device):
                 return func(*args, **kwargs)
         return inner
-
 
     def get_init_episode(self):
         """
@@ -82,9 +82,10 @@ class Base(tf.keras.Model):
             try:
                 self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)
             except:
-                self.recorder.logger.error('restore model from checkpoint FAILED.')
+                self.recorder.logger.error(f'restore model from {base_dir} FAILED.')
+                raise Exception(f'restore model from {base_dir} FAILED.')
             else:
-                self.recorder.logger.info('restore model from checkpoint SUCCUESS.')
+                self.recorder.logger.info(f'restore model from {base_dir} SUCCUESS.')
         else:
             self.recorder.logger.info('initialize model SUCCUESS.')
 

@@ -110,6 +110,9 @@ Options:
     -g,--graphic                是否显示图形界面 [default: False]
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
+    -m,--modes=<n>              同时训练多少个模型 [default: 1]
+    --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
+    --seed=<n>                  指定模型的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
     --max-episode=<n>           总的训练回合数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
@@ -119,8 +122,7 @@ Options:
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
-    --gym-env-seed=<n>          指定gym环境的随机种子 [default: 10]
-    --gym-models=<n>            同时训练多少个模型 [default: 1]
+    --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml

@@ -13,14 +13,20 @@ class On_Policy(Policy):
                  is_continuous,
                  **kwargs):
         super().__init__(
-                 s_dim=s_dim,
-                 visual_sources=visual_sources,
-                 visual_resolution=visual_resolution,
-                 a_dim_or_list=a_dim_or_list,
-                 is_continuous=is_continuous,
-                 **kwargs)
+            s_dim=s_dim,
+            visual_sources=visual_sources,
+            visual_resolution=visual_resolution,
+            a_dim_or_list=a_dim_or_list,
+            is_continuous=is_continuous,
+            **kwargs)
         self.batch_size = int(kwargs.get('batch_size', 128))
         self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
+
+    def set_buffer(self, buffer):
+        if buffer is None:
+            self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
+        else:
+            self.data = buffer
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         """
@@ -40,7 +46,6 @@ class On_Policy(Policy):
             'visual_s_': visual_s_,
             'done': done
         }, ignore_index=True)
-
 
     def no_op_store(self, *args, **kwargs):
         pass
