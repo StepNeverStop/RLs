@@ -529,6 +529,42 @@ class Agent:
             if episode % save_frequency == 0:
                 for i in range(brains_num):
                     self.models[i].save_checkpoint(episode)
+                        
+            if episode % 4 == 0:
+                self.unity_random_sample(500)
+    
+
+    def unity_random_sample(self, steps):
+        brains_num = len(self.env.brain_names)
+        state = [0] * brains_num
+        visual_state = [0] * brains_num
+        action = [0] * brains_num
+        agents_num = [0] * brains_num
+
+        obs = self.env.reset()
+        for i, brain_name in enumerate(self.env.brain_names):
+            agents_num[i] = len(obs[brain_name].agents)
+            
+        for i in range(steps):
+            for i, brain_name in enumerate(self.env.brain_names):
+                state[i] = obs[brain_name].vector_observations
+                visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+                action[i] = np.random.randn(agents_num[i], self.models[i].a_counts)
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
+            obs = self.env.step(vector_action=actions)
+            for i, brain_name in enumerate(self.env.brain_names):
+                next_state = obs[brain_name].vector_observations
+                next_visual_state = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+                self.models[i].store_data(
+                    s=state[i],
+                    visual_s=visual_state[i],
+                    a=action[i],
+                    r=np.asarray(obs[brain_name].rewards),
+                    s_=next_state,
+                    visual_s_=next_visual_state,
+                    done=np.asarray(obs[brain_name].local_done)
+                )
+
 
     def unity_no_op(self):
         '''
