@@ -594,8 +594,8 @@ class Agent:
             while True:
                 for i, brain_name in enumerate(self.env.brain_names):
                     state[i] = obs[brain_name].vector_observations
-                    visual_state[i] = self.get_visual_input(agents_num[i], self.modes[i].visual_sources, obs[brain_name])
-                    action[i] = self.modes[i].choose_action(s=state[i], visual_s=visual_state[i], evaluation=True)
+                    visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+                    action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i], evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
                 obs = self.env.step(vector_action=actions)
 

@@ -203,9 +203,9 @@ class SAC(Off_Policy):
                 ['Statistics/log_alpha', self.log_alpha],
                 ['Statistics/alpha', tf.exp(self.log_alpha)],
                 ['Statistics/entropy', entropy],
-                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(q1)],
-                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
             ])
             if self.auto_adaption:
                 summaries.update({
@@ -280,9 +280,9 @@ class SAC(Off_Policy):
                 ['Statistics/log_alpha', self.log_alpha],
                 ['Statistics/alpha', tf.exp(self.log_alpha)],
                 ['Statistics/entropy', entropy],
-                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(q1)],
-                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
             ])
             if self.auto_adaption:
                 summaries.update({

@@ -6,11 +6,11 @@ dqn:
     eps_final: 0.01
     init2mid_annealing_episode: 10
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     assign_interval: 1000
     use_priority: False
-    n_step: False
-    hidden_units: [128, 128]
+    n_step: True
+    hidden_units: [64, 64]
 
 ddqn:
     lr: 5.0e-4
@@ -20,11 +20,11 @@ ddqn:
     eps_final: 0.01
     init2mid_annealing_episode: 10
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     assign_interval: 1000
     use_priority: False
-    n_step: False
-    hidden_units: [128, 128]
+    n_step: True
+    hidden_units: [64, 64]
 
 dddqn:
     lr: 5.0e-4
@@ -34,14 +34,14 @@ dddqn:
     eps_final: 0.01
     init2mid_annealing_episode: 10
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     assign_interval: 1000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
-        share: [128]
-        v: [128]
-        adv: [128]
+        share: [64]
+        v: [64]
+        adv: [64]
 
 pg:
     lr: 5.0e-4
@@ -57,9 +57,9 @@ ac:
     critic_lr: 1.0e-3
     gamma: 0.99
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -84,7 +84,7 @@ ppo:
     beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 128
+    batch_size: 64
     epoch: 4 # very important
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
@@ -108,9 +108,9 @@ dpg:
     critic_lr: 1.0e-3
     discrete_tau: 1.0
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -123,9 +123,9 @@ ddpg:
     critic_lr: 1.0e-3
     discrete_tau: 1.0
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -142,9 +142,9 @@ td3:
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -160,18 +160,18 @@ sac_v:
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
     discrete_tau: 1.0
-    batch_size: 2048
-    buffer_size: 200000
+    batch_size: 1024
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous:
-            share: [128, 128]
-            mu: [128]
-            log_std: [128]
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
         actor_discrete: [64, 64]
-        q: [128, 128]
-        v: [128, 128]
+        q: [64, 64]
+        v: [64, 64]
 
 tac:
     alpha: 0.2
@@ -188,17 +188,17 @@ tac:
     gamma: 0.99
     ployak: 0.995
     discrete_tau: 1.0
-    batch_size: 128
-    buffer_size: 200000
+    batch_size: 64
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous:
-            share: [256, 256]
-            mu: [128]
-            log_std: [128]
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
         actor_discrete: [64, 64]
-        q: [256, 256]
+        q: [64, 64]
 
 sac:
     alpha: 0.2
@@ -210,17 +210,17 @@ sac:
     gamma: 0.99
     ployak: 0.995
     discrete_tau: 1.0
-    batch_size: 128
-    buffer_size: 200000
+    batch_size: 1024
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units:
         actor_continuous:
-            share: [128, 128]
+            share: [64, 64]
             mu: [64]
             log_std: [64]
         actor_discrete: [64, 64]
-        q: [128, 128]
+        q: [64, 64]
 
 maxsqn:
     alpha: 0.2
@@ -236,9 +236,9 @@ maxsqn:
     gamma: 0.999
     ployak: 0.995
     batch_size: 1024
-    buffer_size: 200000
+    buffer_size: 100000
     use_priority: False
-    n_step: False
+    n_step: True
     hidden_units: [64, 64]
 
 ma_dpg:

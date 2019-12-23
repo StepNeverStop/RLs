@@ -27,6 +27,38 @@ def arrprint(x, n):
     return ', '.join([str(round(i, n)) for i in sorted(x)])
 
 
+def normalization(data):
+    '''
+    归一化，规范化，规范化给定数据集中的所有数值(或者分别对每个feature列处理)属性值，类属性除外。结果值默认在区间[0,1]，但是利用缩放和平移参数，我们能将数值属性值规范到任何区间。
+    data -> [0, 1]
+    '''
+    assert isinstance(data, np.ndarray)
+    _min = np.min(data)
+    _max = np.max(data)
+    return (data - _min) / (_max - _min)
+
+
+def normalization_neg(data):
+    '''
+    归一化，规范化，规范化给定数据集中的所有数值(或者分别对每个feature列处理)属性值，类属性除外。结果值默认在区间[0,1]，但是利用缩放和平移参数，我们能将数值属性值规范到任何区间。
+    data -> [-1, 1]
+    '''
+    assert isinstance(data, np.ndarray)
+    _max = np.max(abs(data))
+    return data / _max
+
+
+def standardization(data):
+    '''
+    标准化，标准化给定数据集中所有数值属性(或者分别对每个feature列处理)的值到一个0均值和单位方差的正态分布。
+    data -> Normal(0, 1)
+    '''
+    assert isinstance(data, np.ndarray)
+    mu = np.mean(data)
+    sigma = np.std(data)
+    return (data - mu) / sigma
+
+
 class SMA:
     '''
     Simple Moving Average

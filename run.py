@@ -132,11 +132,13 @@ def run():
                 raise Exception('can not find this file.')
         if bool(options['--inference']):
             env_args['train_mode'] = False
+            env_args['render'] = True
         else:
             env_args['train_mode'] = True
+            env_args['render'] = bool(options['--graphic'])
 
         env_args['port'] = int(options['--port'])
-        env_args['render'] = bool(options['--graphic'])
+
         env_args['sampler_path'] = None if options['--sampler'] == 'None' else str(options['--sampler'])
         env_args['reset_config'] = unity_args['reset_config']
 

@@ -82,10 +82,10 @@ class Base(tf.keras.Model):
             try:
                 self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)
             except:
-                self.recorder.logger.error(f'restore model from {base_dir} FAILED.')
-                raise Exception(f'restore model from {base_dir} FAILED.')
+                self.recorder.logger.error(f'restore model from {self.recorder.saver.latest_checkpoint} FAILED.')
+                raise Exception(f'restore model from {self.recorder.saver.latest_checkpoint} FAILED.')
             else:
-                self.recorder.logger.info(f'restore model from {base_dir} SUCCUESS.')
+                self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
         else:
             self.recorder.logger.info('initialize model SUCCUESS.')
 

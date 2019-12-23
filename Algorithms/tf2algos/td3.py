@@ -167,9 +167,9 @@ class TD3(Off_Policy):
             return td_error1 + td_error2 / 2, dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
-                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(q1)],
-                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))],
             ])
 
     @tf.function(experimental_relax_shapes=True)
@@ -220,7 +220,7 @@ class TD3(Off_Policy):
             return td_error1 + td_error2 / 2, dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
-                ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(q1)],
-                ['Statistics/q_max', tf.reduce_mean(tf.maximum(q1, q2))]
+                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
+                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
+                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
             ])

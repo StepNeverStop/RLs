@@ -3,6 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
+from utils.np_utils import normalization, standardization
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
@@ -175,7 +176,7 @@ class PPO(On_Policy):
             0,
             self.data.done.values
         ))
-        self.data['advantage'] = [i for i in (adv - adv.mean()) / adv.std()]
+        self.data['advantage'] = list(standardization(adv))
         # self.data.to_excel(self.recorder.excel_writer, sheet_name=f'test{self.episode}', index=True)
         # self.recorder.excel_writer.save()
 
