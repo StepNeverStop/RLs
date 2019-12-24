@@ -1,7 +1,7 @@
 from copy import deepcopy
 from gym_wrapper import gym_envs
 from mlagents.envs import UnityEnvironment
-from common.unity_wrapper import UnityWrapper
+from common.unity_wrapper import InfoWrapper, UnityReturnWrapper, SamplerWrapper
 
 
 def make_env(env_args):
@@ -29,5 +29,7 @@ def make_unity_env(env_args):
             base_port=env_args['port'],
             no_graphics=not env_args['render']
         )
-    env = UnityWrapper(env, env_args)
+    env = InfoWrapper(env)
+    env = UnityReturnWrapper(env)
+    env = SamplerWrapper(env, env_args)
     return env

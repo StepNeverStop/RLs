@@ -5,6 +5,7 @@ from common.make_env import make_env
 from common.yaml_ops import save_config, load_config
 from Algorithms.register import get_model_info
 from utils.np_utils import SMA, arrprint
+from utils.list_utils import zeros_initializer
 from utils.replay_buffer import ExperienceReplay
 
 
@@ -253,23 +254,6 @@ class Agent:
         i = 1 if self.env.obs_type == 'visual' else 0
         return i, [np.array([[]] * self.env.n), np.array([[]] * self.env.n)], [np.array([[]] * self.env.n), np.array([[]] * self.env.n)]
 
-    def get_visual_input(self, n, cameras, brain_obs):
-        '''
-        inputs:
-            n: agents number
-            cameras: camera number
-            brain_obs: observations of specified brain, include visual and vector observation.
-        output:
-            [vector_information, [visual_info0, visual_info1, visual_info2, ...]]
-        '''
-        ss = []
-        for j in range(n):
-            s = []
-            for k in range(cameras):
-                s.append(brain_obs.visual_observations[k][j])
-            ss.append(np.array(s))
-        return np.array(ss)
-
     def gym_train(self):
         """
         Inputs:
@@ -292,6 +276,9 @@ class Agent:
         eval_while_train = int(self.train_args['eval_while_train'])
         max_eval_episode = int(self.train_args.get('max_eval_episode'))
         policy_mode = str(self.model_args['policy_mode'])
+        add_noise2buffer = bool(self.train_args['add_noise2buffer'])
+        add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
+        add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
 
         i, state, new_state = self.init_variables()
         sma = SMA(100)
@@ -353,10 +340,34 @@ class Agent:
             if episode % save_frequency == 0:
                 self.model.save_checkpoint(episode)
 
+            if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
+                self.gym_random_sample(steps=add_noise2buffer_steps)
+
             if eval_while_train and self.env.reward_threshold is not None:
                 if r.max() >= self.env.reward_threshold:
                     self.pwi(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                     self.gym_evaluate()
+
+    def gym_random_sample(self, steps):
+        i, state, new_state = self.init_variables()
+        state[i] = self.env.reset()
+
+        for _ in range(steps):
+            action = self.env.sample_actions()
+            new_state[i], reward, done, info = self.env.step(action)
+            self.model.no_op_store(
+                s=state[0],
+                visual_s=state[1],
+                a=action,
+                r=reward,
+                s_=new_state[0],
+                visual_s_=new_state[1],
+                done=done
+            )
+            if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
+                new_state[i][self.env.dones_index] = self.env.partial_reset()
+            state[i] = new_state[i]
+        self.pwi('Noise added complete.')
 
     def gym_evaluate(self):
         max_step = int(self.train_args['max_step'])
@@ -448,7 +459,6 @@ class Agent:
             visual_state:   store a list of visual state information for each brain.
             action:         store a list of actions for each brain.
             dones_flag:     store a list of 'done' for each brain. use for judge whether an episode is finished for every agents.
-            agents_num:     use to record 'number' of agents for each brain.
             rewards:        use to record rewards of agents for each brain.
         """
         begin_episode = int(self.train_args['begin_episode'])
@@ -456,52 +466,48 @@ class Agent:
         max_step = int(self.train_args['max_step'])
         max_episode = int(self.train_args['max_episode'])
         policy_mode = str(self.model_args['policy_mode'])
+        add_noise2buffer = bool(self.train_args['add_noise2buffer'])
+        add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
+        add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
 
-        brains_num = len(self.env.brain_names)
-        state = [0] * brains_num
-        visual_state = [0] * brains_num
-        action = [0] * brains_num
-        dones_flag = [0] * brains_num
-        agents_num = [0] * brains_num
-        rewards = [0] * brains_num
-        sma = [SMA(100) for i in range(brains_num)]
+        state, visual_state, action, dones_flag, rewards = zeros_initializer(self.env.brain_num, 5)
+        sma = [SMA(100) for i in range(self.env.brain_num)]
 
         for episode in range(begin_episode, max_episode):
-            obs = self.env.reset()
-            for i, brain_name in enumerate(self.env.brain_names):
-                agents_num[i] = len(obs[brain_name].agents)
-                dones_flag[i] = np.zeros(agents_num[i])
-                rewards[i] = np.zeros(agents_num[i])
+            ObsRewDone = self.env.reset()
+            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                dones_flag[i] = np.zeros(self.env.brain_agents[i])
+                rewards[i] = np.zeros(self.env.brain_agents[i])
+                state[i] = _v
+                visual_state[i] = _vs
             step = 0
             last_done_step = -1
             while True:
                 step += 1
-                for i, brain_name in enumerate(self.env.brain_names):
-                    state[i] = obs[brain_name].vector_observations
-                    visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+                for i in range(self.env.brain_num):
                     action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                obs = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(vector_action=actions)
 
-                for i, brain_name in enumerate(self.env.brain_names):
+                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                     unfinished_index = np.where(dones_flag[i] == False)[0]
-                    dones_flag[i] += obs[brain_name].local_done
-                    next_state = obs[brain_name].vector_observations
-                    next_visual_state = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+                    dones_flag[i] += _d
                     self.models[i].store_data(
                         s=state[i],
                         visual_s=visual_state[i],
                         a=action[i],
-                        r=np.asarray(obs[brain_name].rewards),
-                        s_=next_state,
-                        visual_s_=next_visual_state,
-                        done=np.asarray(obs[brain_name].local_done)
+                        r=_r,
+                        s_=_v,
+                        visual_s_=_vs,
+                        done=_d
                     )
-                    rewards[i][unfinished_index] += np.asarray(obs[brain_name].rewards)[unfinished_index]
+                    rewards[i][unfinished_index] += _r[unfinished_index]
+                    state[i] = _v
+                    visual_state[i] = _vs
                     if policy_mode == 'off-policy':
                         self.models[i].learn(episode=episode, step=1)
 
-                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                if all([all(dones_flag[i]) for i in range(self.env.brain_num)]):
                     if last_done_step == -1:
                         last_done_step = step
                     if policy_mode == 'off-policy':
@@ -510,7 +516,7 @@ class Agent:
                 if step >= max_step:
                     break
 
-            for i in range(brains_num):
+            for i in range(self.env.brain_num):
                 sma[i].update(rewards[i])
                 if policy_mode == 'on-policy':
                     self.models[i].learn(episode=episode, step=step)
@@ -524,47 +530,40 @@ class Agent:
                 )
             self.pwi('-' * 40)
             self.pwi(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
-            for i in range(brains_num):
+            for i in range(self.env.brain_num):
                 self.pwi(f'brain {i:2d} reward: {arrprint(rewards[i], 3)}')
             if episode % save_frequency == 0:
-                for i in range(brains_num):
+                for i in range(self.env.brain_num):
                     self.models[i].save_checkpoint(episode)
-                        
-            if episode % 4 == 0:
-                self.unity_random_sample(500)
-    
+
+            if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
+                self.unity_random_sample(steps=add_noise2buffer_steps)
 
     def unity_random_sample(self, steps):
-        brains_num = len(self.env.brain_names)
-        state = [0] * brains_num
-        visual_state = [0] * brains_num
-        action = [0] * brains_num
-        agents_num = [0] * brains_num
+        state, visual_state = zeros_initializer(self.env.brain_num, 2)
 
-        obs = self.env.reset()
-        for i, brain_name in enumerate(self.env.brain_names):
-            agents_num[i] = len(obs[brain_name].agents)
-            
-        for i in range(steps):
-            for i, brain_name in enumerate(self.env.brain_names):
-                state[i] = obs[brain_name].vector_observations
-                visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
-                action[i] = np.random.randn(agents_num[i], self.models[i].a_counts)
+        ObsRewDone = self.env.reset()
+        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            state[i] = _v
+            visual_state[i] = _vs
+
+        for _ in range(steps):
+            action = self.env.random_action()
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            obs = self.env.step(vector_action=actions)
-            for i, brain_name in enumerate(self.env.brain_names):
-                next_state = obs[brain_name].vector_observations
-                next_visual_state = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+            ObsRewDone = self.env.step(vector_action=actions)
+            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                 self.models[i].store_data(
                     s=state[i],
                     visual_s=visual_state[i],
                     a=action[i],
-                    r=np.asarray(obs[brain_name].rewards),
-                    s_=next_state,
-                    visual_s_=next_visual_state,
-                    done=np.asarray(obs[brain_name].local_done)
+                    r=_r,
+                    s_=_v,
+                    visual_s_=_vs,
+                    done=_d
                 )
-
+                state[i] = _v
+                visual_state[i] = _vs
+        self.pwi('Noise added complete.')
 
     def unity_no_op(self):
         '''
@@ -575,107 +574,86 @@ class Agent:
         choose = self.train_args['no_op_choose']
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
-        brains_num = len(self.env.brain_names)
-        state = [0] * brains_num
-        visual_state = [0] * brains_num
-        agents_num = [0] * brains_num
-        action = [0] * brains_num
-        obs = self.env.reset()
+        state, visual_state, action = zeros_initializer(self.env.brain_num, 3)
+        ObsRewDone = self.env.reset()
+        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            state[i] = _v
+            visual_state[i] = _vs
 
-        for i, brain_name in enumerate(self.env.brain_names):
-            # initialize actions to zeros
-            agents_num[i] = len(obs[brain_name].agents)
-            if self.env.brains[brain_name].vector_action_space_type == 'continuous':
-                action[i] = np.zeros((agents_num[i], self.env.brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
-            else:
-                action[i] = np.zeros((agents_num[i], len(self.env.brains[brain_name].vector_action_space_size)), dtype=np.int32)
-
-        steps = steps // min(agents_num) + 1
+        steps = steps // min(self.env.brain_agents) + 1
 
         for step in range(steps):
             self.pwi(f'no op step {step}')
-            for i, brain_name in enumerate(self.env.brain_names):
-                state[i] = obs[brain_name].vector_observations
-                visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
-                if choose:
+            if choose:
+                for i in range(self.env.brain_num):
                     action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i])
+            else:
+                action = self.env.random_action()
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            obs = self.env.step(vector_action=actions)
-            for i, brain_name in enumerate(self.env.brain_names):
-                next_state = obs[brain_name].vector_observations
-                next_visual_state = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
+            ObsRewDone = self.env.step(vector_action=actions)
+            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                 self.models[i].no_op_store(
                     s=state[i],
                     visual_s=visual_state[i],
                     a=action[i],
-                    r=np.asarray(obs[brain_name].rewards),
-                    s_=next_state,
-                    visual_s_=next_visual_state,
-                    done=np.asarray(obs[brain_name].local_done)
+                    r=_r,
+                    s_=_v,
+                    visual_s_=_vs,
+                    done=_d
                 )
+                state[i] = _v
+                visual_state[i] = _vs
 
     def unity_inference(self):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
-        brains_num = len(self.env.brain_names)
-        state = [0] * brains_num
-        visual_state = [0] * brains_num
-        action = [0] * brains_num
-        agents_num = [0] * brains_num
+        action = zeros_initializer(self.env.brain_num, 1)
         while True:
-            obs = self.env.reset()
-            for i, brain_name in enumerate(self.env.brain_names):
-                agents_num[i] = len(obs[brain_name].agents)
+            ObsRewDone = self.env.reset()
             while True:
-                for i, brain_name in enumerate(self.env.brain_names):
-                    state[i] = obs[brain_name].vector_observations
-                    visual_state[i] = self.get_visual_input(agents_num[i], self.models[i].visual_sources, obs[brain_name])
-                    action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i], evaluation=True)
+                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                    action[i] = self.models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                obs = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(vector_action=actions)
 
     def ma_unity_no_op(self):
         steps = self.train_args['no_op_steps']
         choose = self.train_args['no_op_choose']
         assert isinstance(steps, int), 'multi-agent no_op.steps must have type of int'
+
         if steps < self.ma_data.batch_size:
             steps = self.ma_data.batch_size
-        brains_num = len(self.env.brain_names)
-        agents_num = [0] * brains_num
-        state = [0] * brains_num
-        action = [0] * brains_num
-        reward = [0] * brains_num
-        next_state = [0] * brains_num
-        dones = [0] * brains_num
-        obs = self.env.reset(train_mode=False)
+        state, action, reward, next_state, dones = zeros_initializer(self.env.brain_num, 5)
+        ObsRewDone = self.env.reset(train_mode=False)
+        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            state[i] = _v
 
-        for i, brain_name in enumerate(self.env.brain_names):
-            agents_num[i] = len(obs[brain_name].agents)
-            if self.env.brains[brain_name].vector_action_space_type == 'continuous':
-                action[i] = np.zeros((agents_num[i], self.env.brains[brain_name].vector_action_space_size[0]), dtype=np.int32)
+        for i in range(self.env.brain_num):
+            # initialize actions to zeros
+            if self.env.is_continuous[i]:
+                action[i] = np.zeros((self.env.brain_agents[i], self.env.a_dim_or_list[i][0]), dtype=np.int32)
             else:
-                action[i] = np.zeros((agents_num[i], len(self.env.brains[brain_name].vector_action_space_size)), dtype=np.int32)
+                action[i] = np.zeros((self.env.brain_agents[i], len(self.env.a_dim_or_list[i])), dtype=np.int32)
 
         a = [np.asarray(e) for e in zip(*action)]
         for step in range(steps):
-            print(f'no op step {step}')
-            for i, brain_name in enumerate(self.env.brain_names):
-                state[i] = obs[brain_name].vector_observations
+            self.pwi(f'no op step {step}')
+            for i in range(self.env.brain_num):
                 if choose:
                     action[i] = self.models[i].choose_action(s=state[i])
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            obs = self.env.step(vector_action=actions)
-            for i, brain_name in enumerate(self.env.brain_names):
-                reward[i] = np.asarray(obs[brain_name].rewards)[:, np.newaxis]
-                next_state[i] = obs[brain_name].vector_observations
-                dones[i] = np.asarray(obs[brain_name].local_done)[:, np.newaxis]
-            s = [np.asarray(e) for e in zip(*state)]
-            a = [np.asarray(e) for e in zip(*action)]
-            r = [np.asarray(e) for e in zip(*reward)]
-            s_ = [np.asarray(e) for e in zip(*next_state)]
-            done = [np.asarray(e) for e in zip(*dones)]
+            ObsRewDone = self.env.step(vector_action=actions)
+            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                reward[i] = _r[:, np.newaxis]
+                next_state[i] = _vs
+                dones[i] = _d[:, np.newaxis]
+
+            def func(x): return [np.asarray(e) for e in zip(*x)]
+            s, a, r, s_, done = map(func, [state, action, reward, next_state, dones])
             self.ma_data.add(s, a, r, s_, done)
+            for i in range(self.env.brain_num):
+                state[i] = next_state[i]
 
     def ma_unity_train(self):
         begin_episode = int(self.train_args['begin_episode'])
@@ -684,61 +662,52 @@ class Agent:
         max_episode = int(self.train_args['max_episode'])
         policy_mode = str(self.model_args['policy_mode'])
         assert policy_mode == 'off-policy', "multi-agents algorithms now support off-policy only."
-        brains_num = len(self.env.brain_names)
-        batch_size = self.ma_data.batch_size
-        agents_num = [0] * brains_num
-        state = [0] * brains_num
-        action = [0] * brains_num
-        new_action = [0] * brains_num
-        next_action = [0] * brains_num
-        reward = [0] * brains_num
-        next_state = [0] * brains_num
-        dones = [0] * brains_num
 
-        dones_flag = [0] * brains_num
-        rewards = [0] * brains_num
+        batch_size = self.ma_data.batch_size
+        state, action, new_action, next_action, reward, next_state, dones, dones_flag, rewards = zeros_initializer(self.env.brain_num, 9)
 
         for episode in range(begin_episode, max_episode):
-            obs = self.env.reset()
-            for i, brain_name in enumerate(self.env.brain_names):
-                agents_num[i] = len(obs[brain_name].agents)
-                dones_flag[i] = np.zeros(agents_num[i])
-                rewards[i] = np.zeros(agents_num[i])
+            ObsRewDone = self.env.reset()
+            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                dones_flag[i] = np.zeros(self.env.brain_agents[i])
+                rewards[i] = np.zeros(self.env.brain_agents[i])
+                state[i] = _v
             step = 0
             last_done_step = -1
             while True:
                 step += 1
-                for i, brain_name in enumerate(self.env.brain_names):
-                    state[i] = obs[brain_name].vector_observations
+                for i in range(self.env.brain_num):
                     action[i] = self.models[i].choose_action(s=state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                obs = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(vector_action=actions)
 
-                for i, brain_name in enumerate(self.env.brain_names):
-                    reward[i] = np.asarray(obs[brain_name].rewards)[:, np.newaxis]
-                    next_state[i] = obs[brain_name].vector_observations
-                    dones[i] = np.asarray(obs[brain_name].local_done)[:, np.newaxis]
+                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                    reward[i] = _r[:, np.newaxis]
+                    next_state = _v
+                    dones[i] = _d[:, np.newaxis]
                     unfinished_index = np.where(dones_flag[i] == False)[0]
-                    dones_flag[i] += obs[brain_name].local_done
-                    rewards[i][unfinished_index] += np.asarray(obs[brain_name].rewards)[unfinished_index]
+                    dones_flag[i] += _d
+                    rewards[i][unfinished_index] += _r[unfinished_index]
 
-                s = [np.asarray(e) for e in zip(*state)]
-                a = [np.asarray(e) for e in zip(*action)]
-                r = [np.asarray(e) for e in zip(*reward)]
-                s_ = [np.asarray(e) for e in zip(*next_state)]
-                done = [np.asarray(e) for e in zip(*dones)]
+                def func(x): return [np.asarray(e) for e in zip(*x)]
+                s, a, r, s_, done = map(func, [state, action, reward, next_state, dones])
                 self.ma_data.add(s, a, r, s_, done)
+
+                for i in range(self.env.brain_num):
+                    state[i] = next_state[i]
+
                 s, a, r, s_, done = self.ma_data.sample()
                 for i, brain_name in enumerate(self.env.brain_names):
                     next_action[i] = self.models[i].get_target_action(s=s_[:, i])
                     new_action[i] = self.models[i].choose_action(s=s[:, i], evaluation=True)
                 a_ = np.asarray([np.asarray(e) for e in zip(*next_action)])
                 if policy_mode == 'off-policy':
-                    for i in range(brains_num):
+                    for i in range(self.env.brain_num):
                         self.models[i].learn(
                             episode=episode,
                             ap=np.asarray([np.asarray(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
-                            al=np.asarray([np.asarray(e) for e in zip(*next_action[-(brains_num - i - 1):])]).reshape(batch_size, -1) if brains_num - i != 1 else np.zeros((batch_size, 0)),
+                            al=np.asarray([np.asarray(e) for e in zip(*next_action[-(self.env.brain_num - i - 1):])]
+                                          ).reshape(batch_size, -1) if self.env.brain_num - i != 1 else np.zeros((batch_size, 0)),
                             ss=s.reshape(batch_size, -1),
                             ss_=s_.reshape(batch_size, -1),
                             aa=a.reshape(batch_size, -1),
@@ -747,7 +716,7 @@ class Agent:
                             r=r[:, i]
                         )
 
-                if all([all(dones_flag[i]) for i in range(brains_num)]):
+                if all([all(dones_flag[i]) for i in range(self.env.brain_num)]):
                     if last_done_step == -1:
                         last_done_step = step
                     if policy_mode == 'off-policy':
@@ -756,11 +725,7 @@ class Agent:
                 if step >= max_step:
                     break
 
-            # if train_mode == 'perEpisode':
-            #     for i in range(brains_num):
-            #         self.models[i].learn(episode)
-
-            for i in range(brains_num):
+            for i in range(self.env.brain_num):
                 self.models[i].writer_summary(
                     episode,
                     total_reward=rewards[i].mean(),
@@ -769,21 +734,18 @@ class Agent:
             self.pwi('-' * 40)
             self.pwi(f'episode {episode:3d} | step {step:4d} last_done_step | {last_done_step:4d}')
             if episode % save_frequency == 0:
-                for i in range(brains_num):
+                for i in range(self.env.brain_num):
                     self.models[i].save_checkpoint(episode)
 
     def ma_unity_inference(self):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
-        brains_num = len(self.env.brain_names)
-        state = [0] * brains_num
-        action = [0] * brains_num
+        action = zeros_initializer(self.env.brain_num, 1)
         while True:
-            obs = self.env.reset()
+            ObsRewDone = self.env.reset()
             while True:
-                for i, brain_name in enumerate(self.env.brain_names):
-                    state[i] = obs[brain_name].vector_observations
-                    action[i] = self.models[i].choose_action(s=state[i], evaluation=True)
+                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                    action[i] = self.models[i].choose_action(s=_v, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                obs = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(vector_action=actions)

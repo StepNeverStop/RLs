@@ -88,6 +88,9 @@ def run():
 
     train_args['index'] = 0
     train_args['all_learner_print'] = default_config['all_learner_print']
+    train_args['add_noise2buffer'] = default_config['add_noise2buffer']
+    train_args['add_noise2buffer_episode_interval'] = default_config['add_noise2buffer_episode_interval']
+    train_args['add_noise2buffer_steps'] = default_config['add_noise2buffer_steps']
     train_args['name'] = NAME if options['--name'] == 'None' else str(options['--name'])
     train_args['max_step'] = default_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
     train_args['max_episode'] = default_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
