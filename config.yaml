@@ -3,7 +3,7 @@ max_step: 2000
 max_episode: 5000
 logger2file: False
 all_learner_print: True
-add_noise2buffer: True                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
+add_noise2buffer: False                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
 add_noise2buffer_episode_interval: 10    # episode interval when adding noise into replay buffer while training
 add_noise2buffer_steps: 1000             # how many steps should be added into replay buffer
 info: None
