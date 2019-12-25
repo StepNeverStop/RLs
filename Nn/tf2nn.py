@@ -56,6 +56,7 @@ class Noisy(Dense):
     def __init__(self, units, activation=None, **kwargs):
         super().__init__(units, activation=activation, **kwargs)
         self.noise_sigma = float(kwargs.get('noise_sigma', .4))
+        self.mode = str(kwargs.get('noisy_distribution', 'independent'))  # independent or factorised
 
     def build(self, input_shape):
         super().build(input_shape)
@@ -82,15 +83,31 @@ class Noisy(Dense):
             self.bias = None
         self.build = True
 
-    def noisy_layer(self, inputs):
-        epsilon_w = tf.random.truncated_normal([self.last_dim, self.units], stddev=self.noise_sigma)
-        epsilon_b = tf.random.truncated_normal([self.units, ], stddev=self.noise_sigma)
-        return tf.matmul(inputs, self.noisy_w * epsilon_w) + self.noisy_b * epsilon_b
+    def funcForFactor(self, x):
+        return tf.sign(x) * tf.pow(tf.abs(x), 0.5)
 
-    def call(self, inputs):
+    @property
+    def epsilon_w(self):
+        if self.mode == 'independent':
+            return tf.random.truncated_normal([self.last_dim, self.units], stddev=self.noise_sigma)
+        elif self.mode == 'factorised':
+            return self.funcForFactor(tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma)) \
+                * self.funcForFactor(tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma))
+
+    @property
+    def epsilon_b(self):
+        return tf.random.truncated_normal([self.units, ], stddev=self.noise_sigma)
+
+    def noisy_layer(self, inputs):
+        return tf.matmul(inputs, self.noisy_w * self.epsilon_w) + self.noisy_b * self.epsilon_b
+
+    def call(self, inputs, need_noise=True):
         y = super().call(inputs)
-        noise = self.noisy_layer(inputs)
-        return y + noise
+        if need_noise:
+            noise = self.noisy_layer(inputs)
+            return y + noise
+        else:
+            return y
 
 
 class ImageNet(tf.keras.Model):
@@ -356,3 +373,18 @@ class a_c_v_discrete(ImageNet):
         logits = self.logits(features)
         v = self.v(features)
         return logits, v
+
+class c51_distributional(ImageNet):
+    '''
+    neural network for C51
+    '''
+
+    def __init__(self, vector_dim, visual_dim, action_dim, atoms, name, hidden_units):
+        super().__init__(name=name, visual_dim=visual_dim)
+        self.net = mlp(hidden_units, output_shape=atoms, out_activation='softmax')
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+
+    def call(self, vector_input, visual_input, action):
+        features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
+        q_dist = self.net(features)
+        return q_dist

@@ -69,6 +69,11 @@ algos = {
         'policy': 'off-policy',
         'update': 'perStep'
     },
+    'c51': {
+        'class': 'C51',
+        'policy': 'off-policy',
+        'update': 'perStep'
+    },
     'maxsqn': {
         'class': 'MAXSQN',
         'policy': 'off-policy',
