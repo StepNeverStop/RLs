@@ -54,7 +54,7 @@ class Noisy(Dense):
     '''
 
     def __init__(self, units, activation=None, **kwargs):
-        super().__init__(units, activation=None, **kwargs)
+        super().__init__(units, activation=activation, **kwargs)
         self.noise_sigma = float(kwargs.get('noise_sigma', .4))
 
     def build(self, input_shape):

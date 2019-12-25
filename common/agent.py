@@ -87,12 +87,14 @@ class Agent:
                 self.buffer_args['type'] = 'NSTEP-PER'
                 self.buffer_args['NSTEP-PER']['max_episode'] = self.train_args['max_episode']
                 self.buffer_args['NSTEP-PER']['gamma'] = algorithm_config['gamma']
+                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NSTEP-PER']['n'])  # update gamma for n-step training.
             elif _use_priority:
                 self.buffer_args['type'] = 'PER'
                 self.buffer_args['PER']['max_episode'] = self.train_args['max_episode']
             elif _n_step:
                 self.buffer_args['type'] = 'NSTEP-ER'
                 self.buffer_args['NSTEP-ER']['gamma'] = algorithm_config['gamma']
+                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NSTEP-ER']['n'])
             else:
                 self.buffer_args['type'] = 'ER'
         else:

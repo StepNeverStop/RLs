@@ -80,17 +80,19 @@ def run():
     env_args, model_args, train_args = {}, {}, {}
     unity_args, gym_args, buffer_args = default_config['unity'], default_config['gym'], default_config['buffer']
 
+    model_args['logger2file'] = default_config['logger2file']
+
     model_args['algo'] = str(options['--algorithm'])
     model_args['algo_config'] = None if options['--config-file'] == 'None' else str(options['--config-file'])
     model_args['seed'] = int(options['--seed'])
     model_args['load'] = None if options['--load'] == 'None' else str(options['--load'])
-    model_args['logger2file'] = default_config['logger2file']
 
     train_args['index'] = 0
     train_args['all_learner_print'] = default_config['all_learner_print']
     train_args['add_noise2buffer'] = default_config['add_noise2buffer']
     train_args['add_noise2buffer_episode_interval'] = default_config['add_noise2buffer_episode_interval']
     train_args['add_noise2buffer_steps'] = default_config['add_noise2buffer_steps']
+
     train_args['name'] = NAME if options['--name'] == 'None' else str(options['--name'])
     train_args['max_step'] = default_config['max_step'] if options['--max-step'] == 'None' else int(options['--max-step'])
     train_args['max_episode'] = default_config['max_episode'] if options['--max-episode'] == 'None' else int(options['--max-episode'])
@@ -102,9 +104,11 @@ def run():
 
     if options['--gym']:
         env_args['type'] = 'gym'
+
         env_args['env_name'] = str(options['--gym-env'])
         env_args['env_num'] = int(options['--gym-agents'])
         env_args['env_seed'] = int(options['--gym-env-seed'])
+
         env_args['render_mode'] = gym_args['render_mode']
         env_args['action_skip'] = gym_args['action_skip']
         env_args['skip'] = gym_args['skip']
@@ -115,11 +119,12 @@ def run():
         env_args['resize'] = gym_args['resize']
         env_args['obs_scale'] = gym_args['obs_scale']
 
-        train_args['render_episode'] = gym_args['render_episode'] if options['--render-episode'] == 'None' else int(options['--render-episode'])
         train_args['no_op_steps'] = gym_args['random_steps']
         train_args['render'] = gym_args['render']
         train_args['eval_while_train'] = gym_args['eval_while_train']
         train_args['max_eval_episode'] = gym_args['max_eval_episode']
+        
+        train_args['render_episode'] = gym_args['render_episode'] if options['--render-episode'] == 'None' else int(options['--render-episode'])
     else:
         env_args['type'] = 'unity'
         if options['--unity']:
