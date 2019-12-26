@@ -88,6 +88,7 @@ def run():
     model_args['load'] = None if options['--load'] == 'None' else str(options['--load'])
 
     train_args['index'] = 0
+    train_args['moving_average_episode'] = default_config['moving_average_episode']
     train_args['all_learner_print'] = default_config['all_learner_print']
     train_args['add_noise2buffer'] = default_config['add_noise2buffer']
     train_args['add_noise2buffer_episode_interval'] = default_config['add_noise2buffer_episode_interval']
@@ -119,7 +120,7 @@ def run():
         env_args['resize'] = gym_args['resize']
         env_args['obs_scale'] = gym_args['obs_scale']
 
-        train_args['no_op_steps'] = gym_args['random_steps']
+        train_args['pre_fill_steps'] = gym_args['pre_fill_steps']
         train_args['render'] = gym_args['render']
         train_args['eval_while_train'] = gym_args['eval_while_train']
         train_args['max_eval_episode'] = gym_args['max_eval_episode']
@@ -150,7 +151,7 @@ def run():
         env_args['sampler_path'] = None if options['--sampler'] == 'None' else str(options['--sampler'])
         env_args['reset_config'] = unity_args['reset_config']
 
-        train_args['no_op_steps'] = unity_args['no_op_steps']
+        train_args['pre_fill_steps'] = unity_args['pre_fill_steps']
 
     train_args['base_dir'] = os.path.join(
         BASE_DIR if options['--store-dir'] == 'None' else str(options['--store-dir']),

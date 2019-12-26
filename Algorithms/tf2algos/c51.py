@@ -14,8 +14,8 @@ class C51(Off_Policy):
                  visual_resolution,
                  a_dim_or_list,
                  is_continuous,
-                
-                 
+
+
                  v_min=-10,
                  v_max=10,
                  atoms=51,
@@ -72,7 +72,7 @@ class C51(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            list_q_ = [self.get_q(s, visual_s, tf.one_hot([i]*s.shape[0], self.a_counts)) for i in range(self.a_counts)]
+            list_q_ = [self.get_q(s, visual_s, tf.one_hot([i] * s.shape[0], self.a_counts)) for i in range(self.a_counts)]
         return tf.argmax(list_q_, axis=0)
 
     def learn(self, **kwargs):
@@ -84,6 +84,7 @@ class C51(Off_Policy):
                     self.IS_w = self.data.get_IS_w()
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
+                    td_error = np.squeeze(td_error.numpy())
                     self.data.update(td_error, self.episode)
                 if self.global_step % self.assign_interval == 0:
                     self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
@@ -98,7 +99,7 @@ class C51(Off_Policy):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q_dist = self.q_dist_net(s, visual_s, a)
-                list_q_ = [self.get_target_q(s_, visual_s_, tf.one_hot([i] * batch_size, self.a_counts)) for i in range(self.a_counts)] # [a_counts, batch_size]
+                list_q_ = [self.get_target_q(s_, visual_s_, tf.one_hot([i] * batch_size, self.a_counts)) for i in range(self.a_counts)]  # [a_counts, batch_size]
                 a_ = tf.argmax(list_q_, axis=0)                                                             # [batch_size, ]
                 m = np.zeros(shape=(batch_size, self.atoms))                                                # [batch_size, atoms]
                 target_q_dist = self.q_target_dist_net(s_, visual_s_, tf.one_hot(a_, self.a_counts))               # [batch_size, atoms]
@@ -109,9 +110,11 @@ class C51(Off_Policy):
                     pj = target_q_dist[:, j]                               # [batch_size, ]
                     m[indexs, tf.cast(l, tf.int32)] += pj * (u - bj)
                     m[indexs, tf.cast(u, tf.int32)] += pj * (bj - l)
-                loss = -tf.reduce_sum(m * tf.math.log(q_dist)) * self.IS_w
-                q_eval = self.get_q(s, visual_s, a)
-                td_error = q_eval - (r + self.gamma * (1 - done) * tf.reduce_max(list_q_, axis=0))
+                cross_entropy = -tf.reduce_sum(m * tf.math.log(q_dist), axis=1)  # [batch_size, 1]
+                loss = tf.reduce_mean(cross_entropy) * self.IS_w
+                # q_eval = self.get_q(s, visual_s, a)
+                # td_error = q_eval - (r + self.gamma * (1 - done) * tf.reduce_max(list_q_, axis=0))
+                td_error = cross_entropy
             grads = tape.gradient(loss, self.q_dist_net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(grads, self.q_dist_net.trainable_variables)
@@ -124,13 +127,11 @@ class C51(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
-
-    @tf.function(experimental_relax_shapes=True) 
+    @tf.function(experimental_relax_shapes=True)
     def get_q(self, s, visual_s, a):
         s, visual_s, a = self.cast(s, visual_s, a)
         with tf.device(self.device):
             return tf.reduce_sum(self.z * self.q_dist_net(s, visual_s, a), axis=1)  # [batch_size, ]
-
 
     @tf.function(experimental_relax_shapes=True)
     def get_target_q(self, s, visual_s, a):

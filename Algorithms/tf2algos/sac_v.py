@@ -110,6 +110,7 @@ class SAC_V(Off_Policy):
                     self.IS_w = self.data.get_IS_w()
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
+                    td_error = np.squeeze(td_error.numpy())
                     self.data.update(td_error, self.episode)
                 self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
                 summaries.update(dict([

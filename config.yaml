@@ -1,6 +1,7 @@
 save_frequency: 20
 max_step: 2000
 max_episode: 5000
+moving_average_episode: 100
 logger2file: False
 all_learner_print: True
 add_noise2buffer: False                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
@@ -24,12 +25,12 @@ UnityEnvFile:
         no_border2: C:/UnityBuild/Boat/no_border2/BoatTrain.exe
 
 unity:
-    no_op_steps: 100
+    pre_fill_steps: 100
     exe_file: *env
     reset_config: {}
 
 gym:
-    random_steps: 10000
+    pre_fill_steps: 10000
     render: False
     render_episode: 50000
     render_mode: random_1 # first last [list] random_[num] or all.
@@ -43,6 +44,8 @@ gym:
     obs_resize: False
     resize: [84, 84]
     obs_scale: False
+    noop: True
+    noop_max: 30
 
 buffer:
     Pandas: {}

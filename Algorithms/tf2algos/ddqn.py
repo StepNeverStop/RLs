@@ -83,6 +83,7 @@ class DDQN(Off_Policy):
                     self.IS_w = self.data.get_IS_w()
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
+                    td_error = np.squeeze(td_error.numpy())
                     self.data.update(td_error, self.episode)
                 if self.global_step % self.assign_interval == 0:
                     self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)

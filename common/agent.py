@@ -103,9 +103,9 @@ class Agent:
         # MODEL
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
         if 'batch_size' in algorithm_config.keys() and train_args['fill_in']:
-            self.train_args['no_op_steps'] = algorithm_config['batch_size']
+            self.train_args['pre_fill_steps'] = algorithm_config['batch_size']
         else:
-            self.train_args['no_op_steps'] = train_args['no_op_steps']
+            self.train_args['pre_fill_steps'] = train_args['pre_fill_steps']
 
         if self.env_args['type'] == 'gym':
             # buffer ------------------------------
@@ -278,12 +278,13 @@ class Agent:
         eval_while_train = int(self.train_args['eval_while_train'])
         max_eval_episode = int(self.train_args.get('max_eval_episode'))
         policy_mode = str(self.model_args['policy_mode'])
+        moving_average_episode = int(self.train_args['moving_average_episode'])
         add_noise2buffer = bool(self.train_args['add_noise2buffer'])
         add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
         add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
 
         i, state, new_state = self.init_variables()
-        sma = SMA(100)
+        sma = SMA(moving_average_episode)
         for episode in range(begin_episode, max_episode):
             state[i] = self.env.reset()
             dones_flag = np.full(self.env.n, False)
@@ -403,7 +404,7 @@ class Agent:
         self.pwi('----------------------------------------------------------------------------------------------------------------------------')
 
     def gym_no_op(self):
-        steps = self.train_args['no_op_steps']
+        steps = self.train_args['pre_fill_steps']
         choose = self.train_args['no_op_choose']
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
@@ -468,12 +469,13 @@ class Agent:
         max_step = int(self.train_args['max_step'])
         max_episode = int(self.train_args['max_episode'])
         policy_mode = str(self.model_args['policy_mode'])
+        moving_average_episode = int(self.train_args['moving_average_episode'])
         add_noise2buffer = bool(self.train_args['add_noise2buffer'])
         add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
         add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
 
         state, visual_state, action, dones_flag, rewards = zeros_initializer(self.env.brain_num, 5)
-        sma = [SMA(100) for i in range(self.env.brain_num)]
+        sma = [SMA(moving_average_episode) for i in range(self.env.brain_num)]
 
         for episode in range(begin_episode, max_episode):
             ObsRewDone = self.env.reset()
@@ -572,7 +574,7 @@ class Agent:
         Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
         Make sure steps is greater than n-step if using any n-step ReplayBuffer.
         '''
-        steps = self.train_args['no_op_steps']
+        steps = self.train_args['pre_fill_steps']
         choose = self.train_args['no_op_choose']
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
@@ -620,7 +622,7 @@ class Agent:
                 ObsRewDone = self.env.step(vector_action=actions)
 
     def ma_unity_no_op(self):
-        steps = self.train_args['no_op_steps']
+        steps = self.train_args['pre_fill_steps']
         choose = self.train_args['no_op_choose']
         assert isinstance(steps, int), 'multi-agent no_op.steps must have type of int'
 

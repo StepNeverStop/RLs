@@ -51,6 +51,9 @@ class gym_envs(object):
             skip = int(kwargs.get('skip', 4))
             obs_stack = bool(kwargs.get('obs_stack', False))
             stack = int(kwargs.get('stack', 4))
+
+            noop = bool(kwargs.get('noop', False))
+            noop_max = int(kwargs.get('noop_max', 30))
             obs_grayscale = bool(kwargs.get('obs_grayscale', False))
             obs_resize = bool(kwargs.get('obs_resize', False))
             resize = kwargs.get('resize', [84, 84])
@@ -58,6 +61,8 @@ class gym_envs(object):
 
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
+            if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
+                env = NoopResetEnv(env, noop_max=noop_max)
             if action_skip:
                 env = SkipEnv(env, skip=skip)
             if isinstance(env.observation_space, Box):

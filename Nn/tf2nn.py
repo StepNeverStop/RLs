@@ -374,6 +374,7 @@ class a_c_v_discrete(ImageNet):
         v = self.v(features)
         return logits, v
 
+
 class c51_distributional(ImageNet):
     '''
     neural network for C51

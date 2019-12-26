@@ -3,7 +3,7 @@ import threading
 import numpy as np
 from typing import Dict
 from gym.spaces import Box, Discrete, Tuple
-from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv
+from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, NoopResetEnv
 
 
 class FakeMultiThread(threading.Thread):
@@ -42,6 +42,9 @@ class gym_envs(object):
             skip = int(kwargs.get('skip', 4))
             obs_stack = bool(kwargs.get('obs_stack', False))
             stack = int(kwargs.get('stack', 4))
+
+            noop = bool(kwargs.get('noop', False))
+            noop_max = int(kwargs.get('noop_max', 30))
             obs_grayscale = bool(kwargs.get('obs_grayscale', False))
             obs_resize = bool(kwargs.get('obs_resize', False))
             resize = kwargs.get('resize', [84, 84])
@@ -49,6 +52,8 @@ class gym_envs(object):
 
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
+            if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
+                env = NoopResetEnv(env, noop_max=noop_max)
             if action_skip:
                 env = SkipEnv(env, skip=skip)
             if isinstance(env.observation_space, Box):
@@ -72,7 +77,7 @@ class gym_envs(object):
         self.envs = [
             get_env(kwargs)
             for _ in range(self.n)]
-        self.seeds = [seed + i for i in range(self.n)] # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        self.seeds = [seed + i for i in range(self.n)]  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         [env.seed(s) for env, s in zip(self.envs, self.seeds)]
         self._get_render_index(render_mode)
 
