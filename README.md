@@ -66,6 +66,7 @@ For now, these algorithms are available:
     - [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
     - [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
     - [Category 51, C51](https://arxiv.org/abs/1707.06887)
+    - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
 
 - Multi-Agent training algorithms(*not support visual input yet*):
@@ -83,6 +84,7 @@ For now, these algorithms are available:
 |     Double DQN     |    √     |            |       ddqn        |
 | Dueling Double DQN |    √     |            |       dddqn       |
 |        C51         |    √     |            |        c51        |
+|      Rainbow       |    √     |            |      Rainbow      |
 |        DPG         |    √     |     √      |        dpg        |
 |        DDPG        |    √     |     √      |       ddpg        |
 |        TD3         |    √     |     √      |        td3        |
@@ -159,7 +161,6 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 - RNN
 - Better episode experience replay buffer
 - TRPO
-- Rainbow
 
 ## Installation
 

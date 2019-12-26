@@ -8,7 +8,13 @@ from utils.expl_expt import ExplorationExploitationClass
 
 class RAINBOW(Off_Policy):
     '''
-    Dueling Double DQN
+    Rainbow DQN:
+        1. Double
+        2. Dueling
+        3. PrioritizedExperienceReplay
+        4. N-Step
+        5. Distributional
+        6. Noisy Net
     '''
 
     def __init__(self,
@@ -45,7 +51,7 @@ class RAINBOW(Off_Policy):
         self.v_max = v_max
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
-        self.z = np.asarray([self.v_min + i * self.delta_z for i in range(self.atoms)])
+        self.z = tf.reshape(tf.constant([self.v_min + i * self.delta_z for i in range(self.atoms)], dtype=tf.float32), [-1, self.atoms])  # [1, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -82,8 +88,8 @@ class RAINBOW(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            _, advs = self.rainbow_net(s, visual_s)
-        return tf.argmax(advs, axis=1)
+            q = self.get_q(s, visual_s) # [B, A]
+        return tf.argmax(q, axis=-1)  # [B, 1]
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -103,56 +109,49 @@ class RAINBOW(Off_Policy):
                 ]))
                 self.write_training_summaries(self.global_step, summaries)
 
-    # @tf.function(experimental_relax_shapes=True)
+    @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        # batch_size = s.shape[0]
-        # indexs = list(range(batch_size))
-        # s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
-        # with tf.device(self.device):
-        #     with tf.GradientTape() as tape:
-        #         q_dist = self.q_dist_net(s, visual_s, a)
-        #         list_q_ = [self.get_target_q(s_, visual_s_, tf.one_hot([i] * batch_size, self.a_counts)) for i in range(self.a_counts)]  # [a_counts, batch_size]
-        #         a_ = tf.argmax(list_q_, axis=0)                                                             # [batch_size, ]
-        #         m = np.zeros(shape=(batch_size, self.atoms))                                                # [batch_size, atoms]
-        #         target_q_dist = self.q_target_dist_net(s_, visual_s_, tf.one_hot(a_, self.a_counts))               # [batch_size, atoms]
-        #         for j in range(self.atoms):
-        #             Tz = tf.squeeze(tf.clip_by_value(r + self.gamma * self.z[j], self.v_min, self.v_max))   # [batch_size, ]
-        #             bj = (Tz - self.v_min) / self.delta_z           # [batch_size, ]
-        #             l, u = tf.math.floor(bj), tf.math.ceil(bj)      # [batch_size, ]
-        #             pj = target_q_dist[:, j]                               # [batch_size, ]
-        #             m[indexs, tf.cast(l, tf.int32)] += pj * (u - bj)
-        #             m[indexs, tf.cast(u, tf.int32)] += pj * (bj - l)
-        #         cross_entropy = -tf.reduce_sum(m * tf.math.log(q_dist), axis=1)  # [batch_size, 1]
-        #         loss = tf.reduce_mean(cross_entropy) * self.IS_w
-
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                v, adv = self.rainbow_net(s, visual_s)
-                average_adv = tf.reduce_mean(adv, axis=1, keepdims=True)
-                v_next, adv_next = self.rainbow_net(s_, visual_s_)
-                next_max_action = tf.argmax(adv_next, axis=1, name='next_action_int')
-                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
-                next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                v_next_target, adv_next_target = self.rainbow_target_net(s_, visual_s_)
-                average_a_target_next = tf.reduce_mean(adv_next_target, axis=1, keepdims=True)
-                q_eval = tf.reduce_sum(tf.multiply(v + adv - average_adv, a), axis=1, keepdims=True)
-                q_target_next_max = tf.reduce_sum(
-                    tf.multiply(v_next_target + adv_next_target - average_a_target_next, next_max_action_one_hot),
-                    axis=1, keepdims=True)
-                q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
-                td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
-            grads = tape.gradient(q_loss, self.rainbow_net.trainable_variables)
+                indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1]) # [B, 1]
+                q_dist = self.rainbow_net(s, visual_s)    #[B, A, N]
+                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0]) # [B, N]
+                target_q = self.get_q(s_, visual_s_)    # [B, A]
+                a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1,1])       #[B, 1]
+                target_q_dist = self.rainbow_target_net(s_, visual_s_)   #[B, A, N]
+                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis = -1))   # [B, N]
+                target = tf.tile(r, tf.constant([1, self.atoms])) \
+                    + self.gamma * tf.multiply(self.z,   # [1, N]
+                      (1.0 - tf.tile(done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
+                target = tf.clip_by_value(target, self.v_min, self.v_max) # [B, N]
+                b = (target - self.v_min) / self.delta_z  # [B, N]
+                u, l = tf.math.ceil(b), tf.math.floor(b)  # [B, N]
+                u_id, l_id = tf.cast(u, tf.int32), tf.cast(l, tf.int32) # [B, N]
+                u_minus_b, b_minus_l = u - b, b - l # [B, N]
+                index_help = tf.tile(indexs, tf.constant([1, self.atoms]))  # [B, N]
+                index_help = tf.expand_dims(index_help, -1) # [B, N, 1]
+                u_id = tf.concat([index_help, tf.expand_dims(u_id, -1)], axis=-1)    # [B, N, 2]
+                l_id = tf.concat([index_help, tf.expand_dims(l_id, -1)], axis=-1)    # [B, N, 2]
+                _cross_entropy = tf.stop_gradient(target_q_dist * u_minus_b) * tf.math.log(tf.gather_nd(q_dist, l_id)) \
+                                + tf.stop_gradient(target_q_dist * b_minus_l) * tf.math.log(tf.gather_nd(q_dist, u_id))    #[B, N]
+                cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1) # [B,]
+                loss = tf.reduce_mean(cross_entropy * self.IS_w)
+                td_error = cross_entropy
+            grads = tape.gradient(loss, self.rainbow_net.trainable_variables)
             self.optimizer.apply_gradients(
                 zip(grads, self.rainbow_net.trainable_variables)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
-                ['LOSS/loss', q_loss],
-                ['Statistics/v_mean', tf.reduce_max(v)],
-                ['Statistics/advantage_mean', tf.reduce_max(adv)],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
+                ['LOSS/loss', loss],
+                ['Statistics/q_max', tf.reduce_max(target_q)],
+                ['Statistics/q_min', tf.reduce_min(target_q)],
+                ['Statistics/q_mean', tf.reduce_mean(target_q)]
             ])
+    
+    @tf.function(experimental_relax_shapes=True)
+    def get_q(self, s, visual_s):
+        with tf.device(self.device):
+            zb = tf.tile(self.z, tf.constant([self.a_counts, 1])) # [A, N]
+            return tf.reduce_sum(zb * self.rainbow_net(s, visual_s), axis=-1) # [B, A, N] => [B, A]

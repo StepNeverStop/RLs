@@ -13,7 +13,7 @@ initKernelAndBias = {
 
 
 class mlp(Sequential):
-    def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
+    def __init__(self, hidden_units, *, layer=Dense, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
         """
         Args:
             hidden_units: like [32, 32]
@@ -23,9 +23,9 @@ class mlp(Sequential):
         """
         super().__init__()
         for u in hidden_units:
-            self.add(Dense(u, act_fn))
+            self.add(layer(u, act_fn))
         if out_layer:
-            self.add(Dense(output_shape, out_activation))
+            self.add(layer(output_shape, out_activation))
 
 
 class mlp_with_noisy(Sequential):
@@ -74,7 +74,7 @@ class Noisy(Dense):
             self.noisy_b = self.add_weight(
                 'noise_bias',
                 shape=[self.units, ],
-                initializer=tf.constant_initializer(self.noise_sigma / np.sqrt(self.units)),
+                initializer=tf.constant_initializer(self.noise_sigma / (self.units**0.5)),
                 regularizer=self.bias_regularizer,
                 constraint=self.bias_constraint,
                 dtype=self.dtype,
@@ -382,12 +382,14 @@ class c51_distributional(ImageNet):
 
     def __init__(self, vector_dim, visual_dim, action_dim, atoms, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
-        self.net = mlp(hidden_units, output_shape=atoms, out_activation='softmax')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+        self.action_dim = action_dim
+        self.atoms = atoms
+        self.net = mlp(hidden_units, output_shape=atoms*action_dim, out_activation='softmax')
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
-    def call(self, vector_input, visual_input, action):
-        features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
-        q_dist = self.net(features)
+    def call(self, vector_input, visual_input):
+        q_dist = self.net(super().call(vector_input, visual_input)) # [B, A*N]
+        q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
 
 class rainbow_dueling(ImageNet):
@@ -400,15 +402,22 @@ class rainbow_dueling(ImageNet):
         advantage: [batch_size, action_number * atoms]
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, atoms, name, hidden_units):
+    def __init__(self, vector_dim, visual_dim, action_dim, atoms, name, hidden_units):
         super().__init__(name=name, visual_dim=visual_dim)
-        self.share = mlp(hidden_units['share'], out_layer=False)
-        self.v = mlp(hidden_units['v'], output_shape=atoms, out_activation=None)
-        self.adv = mlp(hidden_units['adv'], output_shape=output_shape * atoms, out_activation=None)
+        self.action_dim = action_dim
+        self.atoms = atoms
+        self.share = mlp(hidden_units['share'], layer=Noisy, out_layer=False)
+        self.v = mlp(hidden_units['v'], layer=Noisy, output_shape=atoms, out_activation=None)
+        self.adv = mlp(hidden_units['adv'], layer=Noisy, output_shape=action_dim * atoms, out_activation=None)
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
-        v = self.v(features)
-        adv = self.adv(features)
-        return v, adv
+        v = self.v(features)    # [B, N]
+        adv = self.adv(features)    #[B, A*N]
+        adv = tf.reshape(adv, [-1, self.action_dim, self.atoms])   # [B, A, N]
+        adv -= tf.reduce_mean(adv)  # [B, A, N]
+        adv = tf.transpose(adv, [1, 0, 2])  # [A, B, N]
+        q = tf.transpose(v + adv, [1, 0, 2])    # [B, A, N]
+        q = tf.nn.softmax(q)    # [B, A, N]
+        return q    #[B, A, N]

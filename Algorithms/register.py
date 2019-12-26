@@ -74,6 +74,11 @@ algos = {
         'policy': 'off-policy',
         'update': 'perStep'
     },
+    'rainbow': {
+        'class': 'RAINBOW',
+        'policy': 'off-policy',
+        'update': 'perStep'
+    },
     'maxsqn': {
         'class': 'MAXSQN',
         'policy': 'off-policy',
