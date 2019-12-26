@@ -8,13 +8,15 @@ from common.decorator import lazy_property
 
 
 class C51(Off_Policy):
+    '''
+    Category 51
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,
                  visual_resolution,
                  a_dim_or_list,
                  is_continuous,
-
 
                  v_min=-10,
                  v_max=10,
@@ -25,7 +27,7 @@ class C51(Off_Policy):
                  eps_final=0.01,
                  init2mid_annealing_episode=100,
                  assign_interval=1000,
-                 hidden_units=[32, 32],
+                 hidden_units=[128, 128],
                  **kwargs):
         assert not is_continuous, 'c51 only support discrete action space'
         super().__init__(
@@ -52,13 +54,17 @@ class C51(Off_Policy):
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.recorder.logger.info('''
-            ######      ########      ##   
-            ##    ##    ##          ####   
-            ##          ##            ##   
-            ##          #######       ##   
-            ##                ##      ##   
-            ##    ##    ##    ##      ##   
-            ######      ######      ###### 
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　
+　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　
+　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　
+　　　　ｘｘｘｘｘ　ｘｘ　　　　　　　　ｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　
+　　　　ｘｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　ｘｘｘ　　　　　　
+　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
+　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
+　　　ｘｘｘｘ　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　
+　　　　ｘｘｘｘ　　ｘｘ　　　　　　　ｘ　　　ｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　
+　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　
+　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -104,7 +110,7 @@ class C51(Off_Policy):
                 m = np.zeros(shape=(batch_size, self.atoms))                                                # [batch_size, atoms]
                 target_q_dist = self.q_target_dist_net(s_, visual_s_, tf.one_hot(a_, self.a_counts))               # [batch_size, atoms]
                 for j in range(self.atoms):
-                    Tz = tf.squeeze(tf.clip_by_value(r + self.gamma * self.z[j], self.v_min, self.v_max))   # [batch_size, ]
+                    Tz = tf.squeeze(tf.clip_by_value(r + self.gamma * self.z[j] * done, self.v_min, self.v_max))   # [batch_size, ]
                     bj = (Tz - self.v_min) / self.delta_z           # [batch_size, ]
                     l, u = tf.math.floor(bj), tf.math.ceil(bj)      # [batch_size, ]
                     pj = target_q_dist[:, j]                               # [batch_size, ]

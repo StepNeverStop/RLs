@@ -57,8 +57,28 @@ c51:
     buffer_size: 100000
     assign_interval: 1000
     use_priority: False
-    n_step: True
+    n_step: False
     hidden_units: [128, 128]
+
+rainbow:
+    v_min: 0
+    v_max: 200
+    atoms: 51
+    lr: 5.0e-4
+    gamma: 0.99
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_episode: 10
+    batch_size: 1024
+    buffer_size: 100000
+    assign_interval: 1000
+    use_priority: False
+    n_step: True
+    hidden_units:
+        share: [128]
+        v: [128, 128]
+        adv: [128, 128]
 
 pg:
     lr: 5.0e-4

@@ -389,3 +389,26 @@ class c51_distributional(ImageNet):
         features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
         q_dist = self.net(features)
         return q_dist
+
+class rainbow_dueling(ImageNet):
+    '''
+    Neural network for Rainbow.
+    Input:
+        states: [batch_size, state_dim]
+    Output:
+        state value: [batch_size, atoms]
+        advantage: [batch_size, action_number * atoms]
+    '''
+
+    def __init__(self, vector_dim, visual_dim, output_shape, atoms, name, hidden_units):
+        super().__init__(name=name, visual_dim=visual_dim)
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.v = mlp(hidden_units['v'], output_shape=atoms, out_activation=None)
+        self.adv = mlp(hidden_units['adv'], output_shape=output_shape * atoms, out_activation=None)
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+
+    def call(self, vector_input, visual_input):
+        features = self.share(super().call(vector_input, visual_input))
+        v = self.v(features)
+        adv = self.adv(features)
+        return v, adv
