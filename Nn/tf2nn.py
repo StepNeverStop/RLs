@@ -328,9 +328,10 @@ class critic_dueling(ImageNet):
 
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
-        v = self.v(features)
-        adv = self.adv(features)
-        return v, adv
+        v = self.v(features)    # [B, 1]
+        adv = self.adv(features)    # [B, A]
+        q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
+        return q
 
 
 class a_c_v_continuous(ImageNet):
@@ -384,13 +385,14 @@ class c51_distributional(ImageNet):
         super().__init__(name=name, visual_dim=visual_dim)
         self.action_dim = action_dim
         self.atoms = atoms
-        self.net = mlp(hidden_units, output_shape=atoms*action_dim, out_activation='softmax')
+        self.net = mlp(hidden_units, output_shape=atoms * action_dim, out_activation='softmax')
         self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        q_dist = self.net(super().call(vector_input, visual_input)) # [B, A*N]
+        q_dist = self.net(super().call(vector_input, visual_input))  # [B, A*N]
         q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
+
 
 class rainbow_dueling(ImageNet):
     '''
@@ -414,10 +416,10 @@ class rainbow_dueling(ImageNet):
     def call(self, vector_input, visual_input):
         features = self.share(super().call(vector_input, visual_input))
         v = self.v(features)    # [B, N]
-        adv = self.adv(features)    #[B, A*N]
+        adv = self.adv(features)  # [B, A*N]
         adv = tf.reshape(adv, [-1, self.action_dim, self.atoms])   # [B, A, N]
         adv -= tf.reduce_mean(adv)  # [B, A, N]
         adv = tf.transpose(adv, [1, 0, 2])  # [A, B, N]
         q = tf.transpose(v + adv, [1, 0, 2])    # [B, A, N]
         q = tf.nn.softmax(q)    # [B, A, N]
-        return q    #[B, A, N]
+        return q  # [B, A, N]

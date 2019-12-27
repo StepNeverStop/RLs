@@ -48,7 +48,7 @@ class DDDQN(Off_Policy):
         self.dueling_target_net = Nn.critic_dueling(self.s_dim, self.visual_dim, self.a_counts, 'dueling_target_net', hidden_units)
         self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode)) 
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
@@ -75,9 +75,8 @@ class DDDQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            _, advs = self.dueling_net(s, visual_s)
-        return tf.argmax(advs, axis=1)
-
+            q = self.dueling_net(s, visual_s)
+        return tf.argmax(q, axis=-1)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -94,7 +93,7 @@ class DDDQN(Off_Policy):
                     self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
                 summaries.update(dict([
                     ['LEARNING_RATE/lr', self.lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
@@ -102,17 +101,16 @@ class DDDQN(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                v, adv = self.dueling_net(s, visual_s)
-                average_adv = tf.reduce_mean(adv, axis=1, keepdims=True)
-                v_next, adv_next = self.dueling_net(s_, visual_s_)
-                next_max_action = tf.argmax(adv_next, axis=1, name='next_action_int')
+                q = self.dueling_net(s, visual_s)
+                q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
+                next_q = self.dueling_net(s_, visual_s_)
+                next_max_action = tf.argmax(next_q, axis=1, name='next_action_int')
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                v_next_target, adv_next_target = self.dueling_target_net(s_, visual_s_)
-                average_a_target_next = tf.reduce_mean(adv_next_target, axis=1, keepdims=True)
-                q_eval = tf.reduce_sum(tf.multiply(v + adv - average_adv, a), axis=1, keepdims=True)
+                q_target = self.dueling_target_net(s_, visual_s_)
+
                 q_target_next_max = tf.reduce_sum(
-                    tf.multiply(v_next_target + adv_next_target - average_a_target_next, next_max_action_one_hot),
+                    tf.multiply(q_target, next_max_action_one_hot),
                     axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
@@ -124,8 +122,6 @@ class DDDQN(Off_Policy):
             self.global_step.assign_add(1)
             return td_error, dict([
                 ['LOSS/loss', q_loss],
-                ['Statistics/v_mean', tf.reduce_max(v)],
-                ['Statistics/advantage_mean', tf.reduce_max(adv)],
                 ['Statistics/q_max', tf.reduce_max(q_eval)],
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]

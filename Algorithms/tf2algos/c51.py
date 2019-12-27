@@ -10,7 +10,9 @@ from common.decorator import lazy_property
 class C51(Off_Policy):
     '''
     Category 51
+    No double, no dueling, no noisy net.
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -42,6 +44,7 @@ class C51(Off_Policy):
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
         self.z = tf.reshape(tf.constant([self.v_min + i * self.delta_z for i in range(self.atoms)], dtype=tf.float32), [-1, self.atoms])  # [1, N]
+        self.zb = tf.tile(self.z, tf.constant([self.a_counts, 1]))  # [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -78,7 +81,7 @@ class C51(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.get_q(s, visual_s) # [B, A]
+            q = self.get_q(s, visual_s)  # [B, A]
         return tf.argmax(q, axis=-1)  # [B, 1]
 
     def learn(self, **kwargs):
@@ -102,28 +105,28 @@ class C51(Off_Policy):
         s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1]) # [B, 1]
-                q_dist = self.q_dist_net(s, visual_s)    #[B, A, N]
-                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0]) # [B, N]
-                target_q = self.get_target_q(s_, visual_s_)    # [B, A]
-                a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1,1])       #[B, 1]
-                target_q_dist = self.q_target_dist_net(s_, visual_s_)   #[B, A, N]
-                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis = -1))   # [B, N]
+                indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1])  # [B, 1]
+                q_dist = self.q_dist_net(s, visual_s)  # [B, A, N]
+                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
+                target_q_dist = self.q_target_dist_net(s_, visual_s_)  # [B, A, N]
+                target_q = tf.reduce_sum(self.zb * target_q_dist, axis=-1)  # [B, A, N] => [B, A]
+                a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
+                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
                 target = tf.tile(r, tf.constant([1, self.atoms])) \
                     + self.gamma * tf.multiply(self.z,   # [1, N]
-                      (1.0 - tf.tile(done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
-                target = tf.clip_by_value(target, self.v_min, self.v_max) # [B, N]
+                                               (1.0 - tf.tile(done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
+                target = tf.clip_by_value(target, self.v_min, self.v_max)  # [B, N]
                 b = (target - self.v_min) / self.delta_z  # [B, N]
                 u, l = tf.math.ceil(b), tf.math.floor(b)  # [B, N]
-                u_id, l_id = tf.cast(u, tf.int32), tf.cast(l, tf.int32) # [B, N]
-                u_minus_b, b_minus_l = u - b, b - l # [B, N]
+                u_id, l_id = tf.cast(u, tf.int32), tf.cast(l, tf.int32)  # [B, N]
+                u_minus_b, b_minus_l = u - b, b - l  # [B, N]
                 index_help = tf.tile(indexs, tf.constant([1, self.atoms]))  # [B, N]
-                index_help = tf.expand_dims(index_help, -1) # [B, N, 1]
+                index_help = tf.expand_dims(index_help, -1)  # [B, N, 1]
                 u_id = tf.concat([index_help, tf.expand_dims(u_id, -1)], axis=-1)    # [B, N, 2]
                 l_id = tf.concat([index_help, tf.expand_dims(l_id, -1)], axis=-1)    # [B, N, 2]
                 _cross_entropy = tf.stop_gradient(target_q_dist * u_minus_b) * tf.math.log(tf.gather_nd(q_dist, l_id)) \
-                                + tf.stop_gradient(target_q_dist * b_minus_l) * tf.math.log(tf.gather_nd(q_dist, u_id))    #[B, N]
-                cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1) # [B,]
+                    + tf.stop_gradient(target_q_dist * b_minus_l) * tf.math.log(tf.gather_nd(q_dist, u_id))  # [B, N]
+                cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1)  # [B,]
                 loss = tf.reduce_mean(cross_entropy * self.IS_w)
                 td_error = cross_entropy
             grads = tape.gradient(loss, self.q_dist_net.trainable_variables)
@@ -141,11 +144,4 @@ class C51(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def get_q(self, s, visual_s):
         with tf.device(self.device):
-            zb = tf.tile(self.z, tf.constant([self.a_counts, 1])) # [A, N]
-            return tf.reduce_sum(zb * self.q_dist_net(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
-
-    @tf.function(experimental_relax_shapes=True)
-    def get_target_q(self, s, visual_s):
-        with tf.device(self.device):
-            zb = tf.tile(self.z, tf.constant([self.a_counts, 1])) # [A, N]
-            return tf.reduce_sum(zb * self.q_target_dist_net(s, visual_s), axis=-1) # [B, A, N] => [B, A]
+            return tf.reduce_sum(self.zb * self.q_dist_net(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
