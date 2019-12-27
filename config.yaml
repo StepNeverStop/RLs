@@ -51,8 +51,8 @@ buffer:
     Pandas: {}
     ER: {}
     PER:
-        alpha: 0.6
-        beta: 0.4
+        alpha: 0.6  # priority
+        beta: 0.4   # importance sampling ratio
         epsilon: 0.01
         global_v: False
     NSTEP-ER:

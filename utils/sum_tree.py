@@ -35,7 +35,7 @@ class Sum_Tree(object):
         self.data[self.now + 1] = data
         self._updatetree(tree_index, p)
         self.now += 1
-        if self.now > self.data[0]:
+        if self.now >= self.data[0]:
             self.now = 0
 
     def _updatetree(self, tree_index, p):

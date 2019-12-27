@@ -9,6 +9,11 @@ algos = {
         'policy': 'on-policy',
         'update': 'perEpisode'
     },
+    'trpo': {
+        'class': 'TRPO',
+        'policy': 'on-policy',
+        'update': 'perEpisode'
+    },
     'ppo': {
         'class': 'PPO',
         'policy': 'on-policy',

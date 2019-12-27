@@ -56,6 +56,7 @@ For now, these algorithms are available:
     - :bug:Policy Gradient, PG
     - :bug:Actor Critic, AC
     - Advantage Actor Critic, A2C
+    - [Trust Region Policy Optimization, TRPO](https://arxiv.org/abs/1502.05477)
     - :boom:[Proximal Policy Optimization, PPO](https://arxiv.org/abs/1707.06347)
     - [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
     - [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
@@ -79,6 +80,7 @@ For now, these algorithms are available:
 |         PG         |    √     |     √      |        pg         |
 |         AC         |    √     |     √      |        ac         |
 |        A2C         |    √     |     √      |        a2c        |
+|        TRPO        |    √     |     √      |       trpo        |
 |        PPO         |    √     |     √      |        ppo        |
 |        DQN         |    √     |            |        dqn        |
 |     Double DQN     |    √     |            |       ddqn        |
@@ -160,7 +162,6 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 - RNN
 - Better episode experience replay buffer
-- TRPO
 - IQN
 - DRQN
 - ACER
