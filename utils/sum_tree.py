@@ -61,6 +61,13 @@ class Sum_Tree(object):
         data_index = tree_index - self.parent_node_count
         return (tree_index, data_index, self.tree[tree_index], self.data[data_index])
 
+    def get_batch(self, ps):
+        assert isinstance(ps, (list, np.ndarray))
+        tidx, didx, p, d = zip(*[self.get(i) for i in ps])
+        tidx, didx, p, d = map(np.asarray, [tidx, didx, p, d])
+        d = [np.asarray(e) for e in zip(*d)]    # [[s, a], [s, a]] => [[s, s], [a, a]]
+        return (tidx, didx, p, d)
+
     def _retrieve(self, tree_index, seg_p_total):
         left = 2 * tree_index
         right = left + 1

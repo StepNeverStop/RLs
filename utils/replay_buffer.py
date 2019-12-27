@@ -38,10 +38,7 @@ class ExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            [self._store_op(data) for data in zip(*args)]
-        else:
-            self._store_op(args)
+        [self._store_op(data) for data in zip(*args)]
 
     def _store_op(self, data):
         self._buffer[self._data_pointer] = data
@@ -92,7 +89,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon, global_v):
         '''
         inputs:
-            max_episode: use for calculating the decay interval of beta 
+            max_episode: use for calculating the decay interval of beta
             alpha: control sampling rule, alpha -> 0 means uniform sampling, alpha -> 1 means complete td_error sampling
             beta: control importance sampling ratio, beta -> 0 means no IS, beta -> 1 means complete IS.
             epsilon: a small positive number that prevents td-error of 0 from never being replayed.
@@ -114,10 +111,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            [self._store_op(data) for data in zip(*args)]
-        else:
-            self._store_op(args)
+        [self._store_op(data) for data in zip(*args)]
 
     def _store_op(self, data):
         self.tree.add(self.max_p, data)
@@ -130,13 +124,12 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         interval = self.tree.total / n_sample
-        segment = [self.tree.total - i * interval for i in range(n_sample + 1)]
-        t = [self.tree.get(np.random.uniform(segment[i], segment[i + 1], 1)) for i in range(n_sample)]
-        t = [np.asarray(e) for e in zip(*t)]
-        d = [np.asarray(e) for e in zip(*t[-1])]
-        self.last_indexs = t[0]
-        self.IS_w = np.power(self.min_p / t[-2], self.beta) if self.global_v else np.power(t[-2].min() / t[-2], self.beta)
-        return d
+        all_intervals = np.arange(n_sample + 1) * interval
+        ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
+        self.last_indexs, data_indx, p, data = self.tree.get_batch(ps)
+        _min_p = self.min_p if self.global_v else p.min()
+        self.IS_w = np.power(_min_p / p, self.beta)
+        return data
 
     @property
     def is_lg_batch_size(self):
@@ -152,8 +145,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
         self.min_p = min(self.min_p, priority.min())
         self.max_p = max(self.max_p, priority.max())
-        for i in range(len(priority)):
-            self.tree._updatetree(self.last_indexs[i], priority[i])
+        [self.tree._updatetree(idx, p) for idx, p in zip(self.last_indexs, priority)]
 
     def get_IS_w(self):
         return self.IS_w
@@ -165,59 +157,44 @@ class NStepExperienceReplay(ExperienceReplay):
     '''
 
     def __init__(self, batch_size, capacity, gamma, n, agents_num):
+        '''
+        gamma: discount factor
+        n: n step
+        agents_num: batch experience
+        '''
         super().__init__(batch_size, capacity)
         self.n = n
         self.gamma = gamma
-        self.exps_pointer = np.zeros(agents_num, dtype=np.int32)
-        self.exps = [[()] * n for i in range(agents_num)]
+        self.agents_num = agents_num
+        self.queue = [[] for _ in range(agents_num)]
 
     def add(self, *args):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            [self._store_op(list(data), i) for i, data in enumerate(zip(*args))]
-        else:
-            self._store_op(args)
+        [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
-    def _store_op(self, data, i=0):
-        '''
-        这段代码真是烂透了啊啊啊啊！！！！
-        '''
-        # if self.exps_pointer[i] > 0 and self.exps[i][self.exps_pointer[i] - 1][3] != data[0]:
-        if self.exps_pointer[i] > 0 and ((data[0] != self.exps[i][self.exps_pointer[i] - 1][4]).any() or data[1] != self.exps[i][self.exps_pointer[i] - 1][5]):
-            # if self.exps_pointer[i] > 0 and all([(val == data[0][i]).all() for i, val in enumerate(self.exps[i][self.exps_pointer[i] - 1][3])]):  # 因为data[0]代表状态s，由列表[np.asarray, np.asarray]组成，所以比较这样一个列表十分麻烦
-            # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
-            # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
-            for k in range(self.exps_pointer[i]):
-                self.exps[i][k][-3:] = self.exps[i][self.exps_pointer[i] - 1][-3:]
-                self._buffer[self._data_pointer] = self.exps[i][k]
-                self.update_rb_after_add()
-            self.exps[i] = [()] * self.n
-            self.exps_pointer[i] = 0
-        self.exps[i][self.exps_pointer[i]] = data  # 存入临时经验池
-        for j in range(self.exps_pointer[i]):
-            # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
-            self.exps[i][j][3] += pow(self.gamma, self.exps_pointer[i] - j) * data[3]
-        if data[-1]:
-            # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
-            # 把临时经验池中所有的经验都存入
-            for k in range(self.exps_pointer[i] + 1):
-                self.exps[i][k][-3:] = data[-3:]
-                self._buffer[self._data_pointer] = self.exps[i][k]
-                self.update_rb_after_add()
-            self.exps[i] = [()] * self.n
-            self.exps_pointer[i] = 0
-        elif self.exps_pointer[i] == self.n - 1:
-            # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
-            self.exps[i][0][-3:] = data[-3:]
-            self._buffer[self._data_pointer] = self.exps[i][0]
-            self.update_rb_after_add()
-            del self.exps[i][0]
-            self.exps[i].append(())
-        else:
-            # 如果没done，临时经验池也没满，就把指针后移
-            self.exps_pointer[i] += 1
+    def _per_store(self, i, data):
+        q = self.queue[i]
+        if len(q) == 0:
+            q.append(data)
+            return
+        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done
+            while q:
+                self._store_op(q.pop())
+            q.append(data)
+            return
+        _len = len(q)
+        if _len == self.n:
+            self._store_op(q.pop(0))
+        _len = len(q)
+        for j in range(_len):
+            q[j][3] += data[3] * (self.gamma ** (_len - j))
+            q[j][4:] = data[4:]
+        q.append(data)
+        if data[-1]:  # done or not
+            while q:
+                self._store_op(q.pop())
 
 
 class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
@@ -229,57 +206,36 @@ class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
         super().__init__(batch_size, capacity, max_episode, alpha, beta, epsilon, global_v)
         self.n = n
         self.gamma = gamma
-        self.exps_pointer = np.zeros(agents_num, dtype=np.int32)
-        self.exps = [[()] * n for i in range(agents_num)]
+        self.agents_num = agents_num
+        self.queue = [[] for _ in range(agents_num)]
 
     def add(self, *args):
-        '''
+        ''' 
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        if hasattr(args[0], '__len__') or hasattr(args[1], '__len__'):
-            [self._store_op(list(data), i) for i, data in enumerate(zip(*args))]
-        else:
-            self._store_op(args)
+        [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
-    def _store_op(self, data, i=0):
-        '''
-        这段代码真是烂透了啊啊啊啊！！！！
-        '''
-        if self.exps_pointer[i] > 0 and ((data[0] != self.exps[i][self.exps_pointer[i] - 1][4]).any() or data[1] != self.exps[i][self.exps_pointer[i] - 1][5]):
-            # 判断是因为done结束的episode，还是因为超过了max_step。如果是达到了max_step就执行下边的程序
-            # 通过判断经验是不是第一个，而且判断上一条经验的下一个状态与该条经验的状态是否相同，如果不同，说明episode断了，就将临时经验池中的先存入
-            for k in range(self.exps_pointer[i]):
-                self.exps[i][k][-3:] = self.exps[i][self.exps_pointer[i] - 1][-3:]
-                self.tree.add(self.max_p, self.exps[i][k])
-                if self._size < self.capacity:
-                    self._size += 1
-            self.exps[i] = [()] * self.n
-            self.exps_pointer[i] = 0
-        self.exps[i][self.exps_pointer[i]] = data  # 存入临时经验池
-        for j in range(self.exps_pointer[i]):
-            # 根据n_step和折扣因子gamma给之前经验的奖励进行加和
-            self.exps[i][j][3] += pow(self.gamma, self.exps_pointer[i] - j) * data[3]
-        if data[-1]:
-            # 判断该经验的done_flag是True还是False，如果是True，就执行下边的程序
-            # 把临时经验池中所有的经验都存入
-            for k in range(self.exps_pointer[i] + 1):
-                self.exps[i][k][-3:] = data[-3:]
-                self.tree.add(self.max_p, self.exps[i][k])
-                if self._size < self.capacity:
-                    self._size += 1
-            self.exps[i] = [()] * self.n
-            self.exps_pointer[i] = 0
-        elif self.exps_pointer[i] == self.n - 1:
-            # 如果没done，但是达到了临时经验池的长度，即n，则把最前边的经验存入， 并把之后的经验向前移动一位
-            self.exps[i][0][-3:] = data[-3:]
-            self.tree.add(self.max_p, self.exps[i][0])
-            if self._size < self.capacity:
-                self._size += 1
-            del self.exps[i][0]
-            self.exps[i].append(())
-        else:
-            # 如果没done，临时经验池也没满，就把指针后移
-            self.exps_pointer[i] += 1
+    def _per_store(self, i, data):
+        q = self.queue[i]
+        if len(q) == 0:
+            q.append(data)
+            return
+        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done
+            while q:
+                self._store_op(q.pop())
+            q.append(data)
+            return
+        _len = len(q)
+        if _len == self.n:
+            self._store_op(q.pop(0))
+        _len = len(q)
+        for j in range(_len):
+            q[j][3] += data[3] * (self.gamma ** (_len - j))
+            q[j][4:] = data[4:]
+        q.append(data)
+        if data[-1]:  # done or not
+            while q:
+                self._store_op(q.pop())
 
 
 class EpisodeExperienceReplay(ReplayBuffer):
