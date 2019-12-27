@@ -151,18 +151,14 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         return self.IS_w
 
 
-class NStepExperienceReplay(ExperienceReplay):
-    '''
-    [s, visual_s, a, r, s_, visual_s_, done] must be this format.
-    '''
-
-    def __init__(self, batch_size, capacity, gamma, n, agents_num):
+class NStepWrapper:
+    def __init__(self, buffer, gamma, n, agents_num):
         '''
         gamma: discount factor
         n: n step
         agents_num: batch experience
         '''
-        super().__init__(batch_size, capacity)
+        self.buffer = buffer
         self.n = n
         self.gamma = gamma
         self.agents_num = agents_num
@@ -196,46 +192,34 @@ class NStepExperienceReplay(ExperienceReplay):
             while q:
                 self._store_op(q.pop())
 
+    def __getattr__(self, name):
+        return getattr(self.buffer, name)
 
-class NStepPrioritizedExperienceReplay(PrioritizedExperienceReplay):
+
+class NStepExperienceReplay(NStepWrapper):
     '''
+    Replay Buffer + NStep
     [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
-    def __init__(self, batch_size, capacity, max_episode, gamma, alpha, beta, epsilon, agents_num, n, global_v):
-        super().__init__(batch_size, capacity, max_episode, alpha, beta, epsilon, global_v)
-        self.n = n
-        self.gamma = gamma
-        self.agents_num = agents_num
-        self.queue = [[] for _ in range(agents_num)]
+    def __init__(self, batch_size, capacity, gamma, n, agents_num):
+        super().__init__(
+            buffer=ExperienceReplay(batch_size, capacity),
+            gamma=gamma, n=n, agents_num=agents_num
+        )
 
-    def add(self, *args):
-        ''' 
-        input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
-        '''
-        [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
-    def _per_store(self, i, data):
-        q = self.queue[i]
-        if len(q) == 0:
-            q.append(data)
-            return
-        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done
-            while q:
-                self._store_op(q.pop())
-            q.append(data)
-            return
-        _len = len(q)
-        if _len == self.n:
-            self._store_op(q.pop(0))
-        _len = len(q)
-        for j in range(_len):
-            q[j][3] += data[3] * (self.gamma ** (_len - j))
-            q[j][4:] = data[4:]
-        q.append(data)
-        if data[-1]:  # done or not
-            while q:
-                self._store_op(q.pop())
+class NStepPrioritizedExperienceReplay(NStepWrapper):
+    '''
+    PER + NStep
+    [s, visual_s, a, r, s_, visual_s_, done] must be this format.
+    '''
+
+    def __init__(self, batch_size, capacity, max_episode, alpha, beta, epsilon, global_v, gamma, n, agents_num):
+        super().__init__(
+            buffer=PrioritizedExperienceReplay(batch_size, capacity, max_episode, alpha, beta, epsilon, global_v),
+            gamma=gamma, n=n, agents_num=agents_num
+        )
 
 
 class EpisodeExperienceReplay(ReplayBuffer):
