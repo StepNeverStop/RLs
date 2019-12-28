@@ -10,19 +10,23 @@ from Algorithms.tf2algos.base.on_policy import On_Policy
 Stole this from OpenAI SpinningUp. https://github.com/openai/spinningup/blob/master/spinup/algos/trpo/trpo.py
 '''
 
+
 def flat_concat(xs):
-    return tf.concat([tf.reshape(x,(-1,)) for x in xs], axis=0)
+    return tf.concat([tf.reshape(x, (-1,)) for x in xs], axis=0)
+
 
 def assign_params_from_flat(x, params):
-    flat_size = lambda p : int(np.prod(p.shape.as_list())) # the 'int' is important for scalars
+    def flat_size(p): return int(np.prod(p.shape.as_list()))  # the 'int' is important for scalars
     splits = tf.split(x, [flat_size(p) for p in params])
     new_params = [tf.reshape(p_new, p.shape) for p, p_new in zip(params, splits)]
     return tf.group([p.assign(p_new) for p, p_new in zip(params, new_params)])
+
 
 class TRPO(On_Policy):
     '''
     Trust Region Policy Optimization
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -70,15 +74,17 @@ class TRPO(On_Policy):
             self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
             self.actor_params = self.actor_net.trainable_variables + [self.log_std]
-            self.Hx_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
+            self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
+                + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
             self.actor_params = self.actor_net.trainable_variables
-            self.Hx_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
+            self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
+                + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
         self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net', hidden_units['critic'])
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
-            
+
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
 　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　
@@ -206,8 +212,9 @@ class TRPO(On_Policy):
             actor_loss, entropy, gradients = self.train_actor.get_concrete_function(
                 *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
 
-            x = self.cg(self.Hx, gradients.numpy(), Hx_args)
-            alpha = np.sqrt(2*self.delta/(np.dot(x, self.Hx(x, *Hx_args))+1e-8))
+            x = self.cg(self.Hx.get_concrete_function(*self.Hx_TensorSpecs), gradients.numpy(), Hx_args)
+            x = tf.convert_to_tensor(x)
+            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx.get_concrete_function(*self.Hx_TensorSpecs)(x, *Hx_args)) + 1e-8))
             for i in range(self.backtrack_iters):
                 assign_params_from_flat(alpha * x * (self.backtrack_coeff ** i), self.actor_params)
 
@@ -222,10 +229,10 @@ class TRPO(On_Policy):
         ])
         summaries.update(dict([
             ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-            ]))
+        ]))
         self.write_training_summaries(self.episode, summaries)
         self.clear()
-        
+
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
         s, visual_s, a, old_log_prob, advantage = self.cast(s, visual_s, a, old_log_prob, advantage)
@@ -245,8 +252,8 @@ class TRPO(On_Policy):
             actor_grads = tape.gradient(actor_loss, self.actor_params)
             gradients = flat_concat(actor_grads)
             return actor_loss, entropy, gradients
-        
-    @tf.function(experimental_relax_shapes=True) 
+
+    @tf.function(experimental_relax_shapes=True)
     def Hx(self, x, *args):
         if self.is_continuous:
             s, visual_s, old_mu, old_log_std = self.cast(*args)
@@ -257,17 +264,17 @@ class TRPO(On_Policy):
                 if self.is_continuous:
                     mu = self.actor_net(s, visual_s)
                     var0, var1 = tf.exp(2 * self.log_std), tf.exp(2 * old_log_std)
-                    pre_sum = 0.5*(((old_mu - mu)**2 + var0)/(var1 + 1e-8) - 1) +  old_log_std - self.log_std
+                    pre_sum = 0.5 * (((old_mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + old_log_std - self.log_std
                     all_kls = tf.reduce_sum(pre_sum, axis=1)
-                    kl =  tf.reduce_mean(all_kls)
+                    kl = tf.reduce_mean(all_kls)
                 else:
                     logits = self.actor_net(s, visual_s)
                     logp_all = tf.nn.log_softmax(logits)
                     all_kls = tf.reduce_sum(tf.exp(old_logp_all) * (old_logp_all - logp_all), axis=1)
                     kl = tf.reduce_mean(all_kls)
-                
+
                 g = flat_concat(tape.gradient(kl, self.actor_params))
-                _g = tf.reduce_sum(g*x)
+                _g = tf.reduce_sum(g * x)
                 hvp = flat_concat(tape.gradient(_g, self.actor_params))
                 if self.damping_coeff > 0:
                     hvp += self.damping_coeff * x
@@ -286,22 +293,22 @@ class TRPO(On_Policy):
                 zip(critic_grads, self.critic_net.trainable_variables)
             )
             return value_loss
-    
+
     def cg(self, Ax, b, args):
         """
         Conjugate gradient algorithm
         (see https://en.wikipedia.org/wiki/Conjugate_gradient_method)
         """
         x = np.zeros_like(b)
-        r = b.copy() # Note: should be 'b - Ax(x)', but for x=0, Ax(x)=0. Change if doing warm start.
+        r = b.copy()  # Note: should be 'b - Ax(x)', but for x=0, Ax(x)=0. Change if doing warm start.
         p = r.copy()
-        r_dot_old = np.dot(r,r)
+        r_dot_old = np.dot(r, r)
         for _ in range(self.cg_iters):
-            z = Ax(p, *args)
+            z = Ax(tf.convert_to_tensor(p), *args)
             alpha = r_dot_old / (np.dot(p, z) + 1e-8)
             x += alpha * p
             r -= alpha * z
-            r_dot_new = np.dot(r,r)
+            r_dot_new = np.dot(r, r)
             p = r + (r_dot_new / r_dot_old) * p
             r_dot_old = r_dot_new
         return x

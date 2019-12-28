@@ -162,10 +162,12 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 - RNN
 - Better episode experience replay buffer
+- QR-DQN
 - IQN
 - DRQN
+- DARQN
 - ACER
-- ACKTR
+- ~~ACKTR~~
 
 ## Installation
 
