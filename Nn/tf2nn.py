@@ -423,3 +423,23 @@ class rainbow_dueling(ImageNet):
         q = tf.transpose(v + adv, [1, 0, 2])    # [B, A, N]
         q = tf.nn.softmax(q)    # [B, A, N]
         return q  # [B, A, N]
+
+
+class iqn_net(ImageNet):
+    def __init__(self, vector_dim, visual_dim, action_dim, quantiles_idx, name, hidden_units):
+        super().__init__(name=name, visual_dim=visual_dim)
+        self.action_dim = action_dim
+        self.q_net_head = mlp(hidden_units['q_net'], out_layer=False)   # [B, vector_dim]
+        self.quantile_net = mlp(hidden_units['quantile'], out_layer=False)  # [N*B, quantiles_idx]
+        self.q_net_tile = mlp(hidden_units['tile'], output_shape=action_dim, out_activation=None)   # [N*B, hidden_units['quantile'][-1]]
+        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=quantiles_idx))
+
+    def call(self, vector_input, visual_input, quantiles_tiled, *, quantiles_num=8):
+        q_h = self.q_net_head(super().call(vector_input, visual_input)) # [B, obs_dim] => [B, h]
+        q_h = tf.tile(q_h, [quantiles_num, 1])  # [B, h] => [N*B, h]
+        quantile_h = self.quantile_net(quantiles_tiled) # [N*B, quantiles_idx] => [N*B, h]
+        hh = q_h * quantile_h # [N*B, h]
+        quantiles_value = self.q_net_tile(hh) # [N*B, h] => [N*B, A]
+        quantiles_value = tf.reshape(quantiles_value, (quantiles_num, -1, self.action_dim))   # [N*B, A] => [N, B, A]
+        q = tf.reduce_mean(quantiles_value, axis=0) # [N, B, A] => [B, A]
+        return quantiles_value, q

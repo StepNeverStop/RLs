@@ -91,7 +91,6 @@ class DDQN(Off_Policy):
                     ['LEARNING_RATE/lr', self.lr(self.episode)]
                     ]))
                 self.write_training_summaries(self.global_step, summaries)
-                tf.summary.scalar('LEARNING_RATE/lr', self.lr(self.episode))
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

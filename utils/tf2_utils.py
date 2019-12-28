@@ -190,3 +190,6 @@ def cast2float64(*args):
     cast data to tf.float32
     '''
     return [tf.cast(i, tf.float64) for i in args]
+
+def huber_loss(td_error, delta=1.):
+    return tf.where(tf.abs(td_error) <= delta, 0.5 * tf.square(td_error), delta * (tf.abs(td_error) - 0.5 * delta))
