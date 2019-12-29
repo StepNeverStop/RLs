@@ -24,7 +24,7 @@ class BasicWrapper:
 
 class InfoWrapper(BasicWrapper):
     def __init__(self, env):
-        self.env = env
+        super().__init__(env)
         self.brains = self.env.brains
         self.brain_names = self.env.external_brain_names
         self.brain_num = len(self.brain_names)

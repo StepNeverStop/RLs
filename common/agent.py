@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from copy import deepcopy
+from common.config import Config
 from common.make_env import make_env
 from common.yaml_ops import save_config, load_config
 from Algorithms.register import get_model_info
@@ -27,7 +28,7 @@ def UpdateConfig(config, file_path, key_name='algo'):
     return config
 
 
-def get_buffer(buffer_args):
+def get_buffer(buffer_args: Config):
     if buffer_args['type'] == 'Pandas':
         return None
     elif buffer_args['type'] == 'ER':
@@ -36,19 +37,19 @@ def get_buffer(buffer_args):
     elif buffer_args['type'] == 'PER':
         print('PER')
         from utils.replay_buffer import PrioritizedExperienceReplay as Buffer
-    elif buffer_args['type'] == 'NSTEP-ER':
-        print('NSTEP-ER')
+    elif buffer_args['type'] == 'NstepER':
+        print('NstepER')
         from utils.replay_buffer import NStepExperienceReplay as Buffer
-    elif buffer_args['type'] == 'NSTEP-PER':
-        print('NSTEP-PER')
+    elif buffer_args['type'] == 'NstepPER':
+        print('NstepPER')
         from utils.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
     else:
         return None
-    return Buffer(batch_size=buffer_args['batch_size'], capacity=buffer_args['buffer_size'], **buffer_args[buffer_args['type']])
+    return Buffer(batch_size=buffer_args['batch_size'], capacity=buffer_args['buffer_size'], **buffer_args[buffer_args['type']].to_dict)
 
 
 class Agent:
-    def __init__(self, env_args, model_args, buffer_args, train_args):
+    def __init__(self, env_args: Config, model_args: Config, buffer_args: Config, train_args: Config):
         self.env_args = env_args
         self.model_args = model_args
         self.buffer_args = buffer_args
@@ -68,7 +69,7 @@ class Agent:
                 self.train_args['load_model_path'] = os.path.join(self.train_args['base_dir'], self.model_args['load'] + f'-{self.model_index}')
 
         # ENV
-        self.env = make_env(self.env_args)
+        self.env = make_env(self.env_args.to_dict)
 
         # ALGORITHM CONFIG
         Model, algorithm_config, _policy_mode = get_model_info(self.model_args['algo'])
@@ -84,17 +85,17 @@ class Agent:
             _use_priority = algorithm_config.get('use_priority', False)
             _n_step = algorithm_config.get('n_step', False)
             if _use_priority and _n_step:
-                self.buffer_args['type'] = 'NSTEP-PER'
-                self.buffer_args['NSTEP-PER']['max_episode'] = self.train_args['max_episode']
-                self.buffer_args['NSTEP-PER']['gamma'] = algorithm_config['gamma']
-                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NSTEP-PER']['n'])  # update gamma for n-step training.
+                self.buffer_args['type'] = 'NstepPER'
+                self.buffer_args['NstepPER']['max_episode'] = self.train_args['max_episode']
+                self.buffer_args['NstepPER']['gamma'] = algorithm_config['gamma']
+                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
             elif _use_priority:
                 self.buffer_args['type'] = 'PER'
                 self.buffer_args['PER']['max_episode'] = self.train_args['max_episode']
             elif _n_step:
-                self.buffer_args['type'] = 'NSTEP-ER'
-                self.buffer_args['NSTEP-ER']['gamma'] = algorithm_config['gamma']
-                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NSTEP-ER']['n'])
+                self.buffer_args['type'] = 'NstepER'
+                self.buffer_args['NstepER']['gamma'] = algorithm_config['gamma']
+                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepER']['n'])
             else:
                 self.buffer_args['type'] = 'ER'
         else:
@@ -104,12 +105,10 @@ class Agent:
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
         if 'batch_size' in algorithm_config.keys() and train_args['fill_in']:
             self.train_args['pre_fill_steps'] = algorithm_config['batch_size']
-        else:
-            self.train_args['pre_fill_steps'] = train_args['pre_fill_steps']
 
         if self.env_args['type'] == 'gym':
             # buffer ------------------------------
-            if 'NSTEP' in self.buffer_args['type']:
+            if 'Nstep' in self.buffer_args['type']:
                 self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
             self.buffer = get_buffer(self.buffer_args)
             # buffer ------------------------------
@@ -121,10 +120,10 @@ class Agent:
                 'visual_resolution': self.env.visual_resolution,
                 'a_dim_or_list': self.env.a_dim_or_list,
                 'is_continuous': self.env.is_continuous,
-                'max_episode': self.train_args['max_episode'],
+                'max_episode': self.train_args.max_episode,
                 'base_dir': base_dir,
-                'logger2file': self.model_args['logger2file'],
-                'seed': self.model_args['seed']
+                'logger2file': self.model_args.logger2file,
+                'seed': self.model_args.seed
             }
             self.model = Model(**model_params, **algorithm_config)
             self.model.set_buffer(self.buffer)
@@ -136,10 +135,10 @@ class Agent:
             self.train_args['begin_episode'] = self.model.get_init_episode()
             if not self.train_args['inference']:
                 records_dict = {
-                    'env': self.env_args,
-                    'model': self.model_args,
-                    'buffer': self.buffer_args,
-                    'train': self.train_args,
+                    'env': self.env_args.to_dict,
+                    'model': self.model_args.to_dict,
+                    'buffer': self.buffer_args.to_dict,
+                    'train': self.train_args.to_dict,
                     'algo': algorithm_config
                 }
                 save_config(os.path.join(base_dir, 'config'), records_dict)
@@ -148,7 +147,7 @@ class Agent:
             self.buffer_args_s = []
             for i in range(self.env.brain_num):
                 _bargs = deepcopy(self.buffer_args)
-                if 'NSTEP' in _bargs['type']:
+                if 'Nstep' in _bargs['type']:
                     _bargs[_bargs['type']]['agents_num'] = self.env.brain_agents[i]
                 self.buffer_args_s.append(_bargs)
             buffers = [get_buffer(self.buffer_args_s[i]) for i in range(self.env.brain_num)]
@@ -166,10 +165,10 @@ class Agent:
                 'visual_sources': self.env.visual_sources[i],
                 'visual_resolution': self.env.visual_resolutions[i],
                 'is_continuous': self.env.is_continuous[i],
-                'max_episode': self.train_args['max_episode'],
+                'max_episode': self.train_args.max_episode,
                 'base_dir': os.path.join(base_dir, b),
-                'logger2file': self.model_args_s[i]['logger2file'],
-                'seed': self.model_args_s[i]['seed'],    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                'logger2file': self.model_args_s[i].logger2file,
+                'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
             } for i, b in enumerate(self.env.brain_names)]
 
             # multi agent training------------------------------------
@@ -197,10 +196,10 @@ class Agent:
             if not self.train_args['inference']:
                 for i, b in enumerate(self.env.brain_names):
                     records_dict = {
-                        'env': self.env_args,
-                        'model': self.model_args_s[i],
-                        'buffer': self.buffer_args_s[i],
-                        'train': self.train_args,
+                        'env': self.env_args.to_dict,
+                        'model': self.model_args_s[i].to_dict,
+                        'buffer': self.buffer_args_s[i].to_dict,
+                        'train': self.train_args.to_dict,
                         'algo': algorithm_config
                     }
                     save_config(os.path.join(base_dir, b, 'config'), records_dict)
@@ -405,7 +404,7 @@ class Agent:
 
     def gym_no_op(self):
         steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['no_op_choose']
+        choose = self.train_args['prefill_choose']
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
         i, state, new_state = self.init_variables()
@@ -575,7 +574,7 @@ class Agent:
         Make sure steps is greater than n-step if using any n-step ReplayBuffer.
         '''
         steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['no_op_choose']
+        choose = self.train_args['prefill_choose']
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
         state, visual_state, action = zeros_initializer(self.env.brain_num, 3)
@@ -623,7 +622,7 @@ class Agent:
 
     def ma_unity_no_op(self):
         steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['no_op_choose']
+        choose = self.train_args['prefill_choose']
         assert isinstance(steps, int), 'multi-agent no_op.steps must have type of int'
 
         if steps < self.ma_data.batch_size:

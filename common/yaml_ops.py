@@ -1,5 +1,6 @@
 import os
 import yaml
+from typing import Dict
 
 def load_yaml(rel_filepath, msg=''):
     '''
@@ -15,7 +16,7 @@ def load_yaml(rel_filepath, msg=''):
         raise Exception('cannot find this config.')
 
 
-def save_config(dicpath, config):
+def save_config(dicpath, config: Dict):
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
     with open(os.path.join(dicpath, 'config.yaml'), 'w', encoding='utf-8') as fw:

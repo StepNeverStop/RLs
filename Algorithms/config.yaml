@@ -8,8 +8,8 @@ dqn:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units: [64, 64]
 
 ddqn:
@@ -22,8 +22,8 @@ ddqn:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units: [64, 64]
 
 dddqn:
@@ -36,8 +36,8 @@ dddqn:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         share: [64]
         v: [64]
@@ -56,8 +56,8 @@ c51:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units: [256, 256]
 
 rainbow:
@@ -73,8 +73,8 @@ rainbow:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: True
-    n_step: True
+    use_priority: true
+    n_step: true
     hidden_units:
         share: [128]
         v: [128, 128]
@@ -95,8 +95,8 @@ iqn:
     batch_size: 1024
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units: 
         q_net: [128, &iqn_hm 64]
         quantile: [128, *iqn_hm]
@@ -117,8 +117,8 @@ ac:
     gamma: 0.99
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -137,7 +137,7 @@ a2c:
         critic: [64, 64]
 
 ppo:
-    share_net: True
+    share_net: true
     epsilon: 0.2
     gamma: 0.99
     beta: 1.0e-3
@@ -187,8 +187,8 @@ dpg:
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -202,8 +202,8 @@ ddpg:
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -221,8 +221,8 @@ td3:
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -230,7 +230,7 @@ td3:
 
 sac_v:
     alpha: 0.2
-    auto_adaption: True
+    auto_adaption: true
     log_std_bound: [-20, 2]
     gamma: 0.99
     ployak: 0.995
@@ -240,8 +240,8 @@ sac_v:
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous:
             share: [64, 64]
@@ -253,7 +253,7 @@ sac_v:
 
 tac:
     alpha: 0.2
-    auto_adaption: True
+    auto_adaption: true
     log_std_bound: [-20, 2]
     # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than 
     # when 0 < q < 1 and q ≥ 2, in terms of stable convergence and final total average returns.
@@ -268,8 +268,8 @@ tac:
     discrete_tau: 1.0
     batch_size: 64
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous:
             share: [64, 64]
@@ -280,7 +280,7 @@ tac:
 
 sac:
     alpha: 0.2
-    auto_adaption: True
+    auto_adaption: true
     log_std_bound: [-20, 2]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
@@ -290,8 +290,8 @@ sac:
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units:
         actor_continuous:
             share: [64, 64]
@@ -303,20 +303,20 @@ sac:
 maxsqn:
     alpha: 0.2
     beta: 0.1 # 0 <= beta < 1 when beta approaches 1 the distribution of convergence points is closer to uniform distribution means more entropy. when beta approaches 0 the final policy is more deterministic.
-    use_epsilon: False
+    use_epsilon: false
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    auto_adaption: True
+    auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
     gamma: 0.999
     ployak: 0.995
     batch_size: 1024
     buffer_size: 100000
-    use_priority: False
-    n_step: True
+    use_priority: false
+    n_step: true
     hidden_units: [64, 64]
 
 ma_dpg:
