@@ -40,8 +40,9 @@ class DDQN(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.q_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units)
-        self.q_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q_target_net', hidden_units)
+        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        self.q_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_net', hidden_units, visual_net=self.visual_net)
+        self.q_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_target_net', hidden_units, visual_net=self.visual_net)
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
@@ -89,7 +90,7 @@ class DDQN(Off_Policy):
                     self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
                 summaries.update(dict([
                     ['LEARNING_RATE/lr', self.lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
@@ -108,9 +109,9 @@ class DDQN(Off_Policy):
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
                 q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
-            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
+            grads = tape.gradient(q_loss, self.q_net.tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.q_net.trainable_variables)
+                zip(grads, self.q_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

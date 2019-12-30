@@ -114,6 +114,7 @@ pg:
 ac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     gamma: 0.99
     batch_size: 1024
     buffer_size: 100000
@@ -127,6 +128,7 @@ ac:
 a2c:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     gamma: 0.99
     beta: 1.0e-3
     batch_size: 1024
@@ -175,6 +177,7 @@ trpo:
     train_v_iters: 10
     batch_size: 64
     critic_lr: 1.0e-3
+    share_visual_net: true
     hidden_units:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
@@ -184,6 +187,7 @@ dpg:
     gamma: 0.99
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
@@ -199,6 +203,7 @@ ddpg:
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
@@ -218,6 +223,7 @@ td3:
     gaussian_noise_bound: 0.2 # if using gaussian noise, specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
     batch_size: 1024
     buffer_size: 100000
@@ -237,6 +243,7 @@ sac_v:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
+    share_visual_net: true
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000
@@ -255,6 +262,7 @@ tac:
     alpha: 0.2
     auto_adaption: true
     log_std_bound: [-20, 2]
+    share_visual_net: true
     # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than 
     # when 0 < q < 1 and q ≥ 2, in terms of stable convergence and final total average returns.
     # q -> 0, more exploration, 2<= q -> +∞, more exploitation.
@@ -285,6 +293,7 @@ sac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
+    share_visual_net: true
     gamma: 0.99
     ployak: 0.995
     discrete_tau: 1.0
@@ -323,6 +332,7 @@ ma_dpg:
     gamma: 0.99
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     hidden_units:
         actor: [64, 64]
         q: [64, 64]
@@ -332,6 +342,7 @@ ma_ddpg:
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     hidden_units:
         actor: [64, 64]
         q: [64, 64]
@@ -341,6 +352,7 @@ ma_td3:
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    share_visual_net: true
     hidden_units:
         actor: [64, 64]
         q: [64, 64]

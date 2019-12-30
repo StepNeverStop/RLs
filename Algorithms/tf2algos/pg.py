@@ -31,11 +31,13 @@ class PG(On_Policy):
             **kwargs)
         self.epoch = epoch
         self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
+        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
         if self.is_continuous:
-            self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'])
+            self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.net.tv+=[self.log_std]
         else:
-            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'])
+            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.recorder.logger.info('''
@@ -115,14 +117,14 @@ class PG(On_Policy):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
             if self.is_continuous:
-                loss_grads = tape.gradient(loss, self.net.trainable_variables + [self.log_std])
+                loss_grads = tape.gradient(loss, self.net.tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.trainable_variables + [self.log_std])
+                    zip(loss_grads, self.net.tv)
                 )
             else:
-                loss_grads = tape.gradient(loss, self.net.trainable_variables)
+                loss_grads = tape.gradient(loss, self.net.tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.trainable_variables)
+                    zip(loss_grads, self.net.tv)
                 )
             self.global_step.assign_add(1)
             return loss, entropy

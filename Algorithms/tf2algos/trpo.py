@@ -43,6 +43,7 @@ class TRPO(On_Policy):
                  damping_coeff=0.1,
                  backtrack_iters=10,
                  backtrack_coeff=0.8,
+                 share_visual_net=True,
                  epsilon=0.2,
                  critic_lr=1e-3,
                  hidden_units={
@@ -70,18 +71,27 @@ class TRPO(On_Policy):
 
         self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
         self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
+
+        self.share_visual_net = share_visual_net
+        if self.share_visual_net:
+            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        else:
+            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
+            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+
         if self.is_continuous:
-            self.actor_net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_mu(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
-            self.actor_params = self.actor_net.trainable_variables + [self.log_std]
+            self.actor_net.tv += [self.log_std]
+            self.actor_params = self.actor_net.tv
             self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
                 + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
-            self.actor_params = self.actor_net.trainable_variables
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            self.actor_params = self.actor_net.tv
             self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
                 + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
-        self.critic_net = Nn.critic_v(self.s_dim, self.visual_dim, 'critic_net', hidden_units['critic'])
+        self.critic_net = Nn.critic_v(self.s_dim, 'critic_net', hidden_units['critic'], visual_net=self.critic_visual_net)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
 
@@ -288,9 +298,9 @@ class TRPO(On_Policy):
                 value = self.critic_net(s, visual_s)
                 td_error = dc_r - value
                 value_loss = tf.reduce_mean(tf.square(td_error))
-            critic_grads = tape.gradient(value_loss, self.critic_net.trainable_variables)
+            critic_grads = tape.gradient(value_loss, self.critic_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.critic_net.trainable_variables)
+                zip(critic_grads, self.critic_net.tv)
             )
             return value_loss
 

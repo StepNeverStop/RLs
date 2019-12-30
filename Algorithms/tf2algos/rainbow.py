@@ -59,8 +59,9 @@ class RAINBOW(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.rainbow_net = Nn.rainbow_dueling(self.s_dim, self.visual_dim, self.a_counts, self.atoms, 'rainbow_net', hidden_units)
-        self.rainbow_target_net = Nn.rainbow_dueling(self.s_dim, self.visual_dim, self.a_counts, self.atoms, 'rainbow_target_net', hidden_units)
+        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        self.rainbow_net = Nn.rainbow_dueling(self.s_dim, self.a_counts, self.atoms, 'rainbow_net', hidden_units, visual_net=self.visual_net)
+        self.rainbow_target_net = Nn.rainbow_dueling(self.s_dim, self.a_counts, self.atoms, 'rainbow_target_net', hidden_units,visual_net=self.visual_net)
         self.update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
@@ -139,9 +140,9 @@ class RAINBOW(Off_Policy):
                 cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1)  # [B,]
                 loss = tf.reduce_mean(cross_entropy * self.IS_w)
                 td_error = cross_entropy
-            grads = tape.gradient(loss, self.rainbow_net.trainable_variables)
+            grads = tape.gradient(loss, self.rainbow_net.tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.rainbow_net.trainable_variables)
+                zip(grads, self.rainbow_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

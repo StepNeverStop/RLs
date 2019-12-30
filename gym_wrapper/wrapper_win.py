@@ -2,6 +2,7 @@ import gym
 import threading
 import numpy as np
 from typing import Dict
+from common.config import Config
 from gym.spaces import Box, Discrete, Tuple
 from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, NoopResetEnv
 
@@ -25,30 +26,30 @@ class FakeMultiThread(threading.Thread):
 
 class gym_envs(object):
 
-    def __init__(self, kwargs: Dict):
+    def __init__(self, config: Config):
         '''
         Input:
             gym_env_name: gym training environment id, i.e. CartPole-v0
             n: environment number
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
-        self.n = kwargs['env_num']  # environments number
-        seed = kwargs['env_seed']
-        render_mode = kwargs.get('render_mode', 'first')
+        self.n = config['env_num']  # environments number
+        seed = config['env_seed']
+        render_mode = config.get('render_mode', 'first')
 
-        def get_env(kwargs):
-            gym_env_name = kwargs['env_name']
-            action_skip = bool(kwargs.get('action_skip', False))
-            skip = int(kwargs.get('skip', 4))
-            obs_stack = bool(kwargs.get('obs_stack', False))
-            stack = int(kwargs.get('stack', 4))
+        def get_env(config: Config):
+            gym_env_name = config['env_name']
+            action_skip = bool(config.get('action_skip', False))
+            skip = int(config.get('skip', 4))
+            obs_stack = bool(config.get('obs_stack', False))
+            stack = int(config.get('stack', 4))
 
-            noop = bool(kwargs.get('noop', False))
-            noop_max = int(kwargs.get('noop_max', 30))
-            obs_grayscale = bool(kwargs.get('obs_grayscale', False))
-            obs_resize = bool(kwargs.get('obs_resize', False))
-            resize = kwargs.get('resize', [84, 84])
-            obs_scale = bool(kwargs.get('obs_scale', False))
+            noop = bool(config.get('noop', False))
+            noop_max = int(config.get('noop_max', 30))
+            obs_grayscale = bool(config.get('obs_grayscale', False))
+            obs_resize = bool(config.get('obs_resize', False))
+            resize = config.get('resize', [84, 84])
+            obs_scale = bool(config.get('obs_scale', False))
 
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
@@ -72,10 +73,10 @@ class gym_envs(object):
             return env
 
         self._initialize(
-            env=get_env(kwargs)
+            env=get_env(config)
         )
         self.envs = [
-            get_env(kwargs)
+            get_env(config)
             for _ in range(self.n)]
         self.seeds = [seed + i for i in range(self.n)]  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
         [env.seed(s) for env, s in zip(self.envs, self.seeds)]

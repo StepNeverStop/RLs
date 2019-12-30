@@ -28,7 +28,7 @@ class MAXSQN(Off_Policy):
                  auto_adaption=True,
                  hidden_units=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'maxsqn only support continuous action space'
+        assert not is_continuous, 'maxsqn only support discrete action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -46,10 +46,11 @@ class MAXSQN(Off_Policy):
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         self.target_alpha = beta * np.log(self.a_counts)
-        self.q1_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units)
-        self.q1_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units)
-        self.q2_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units)
-        self.q2_target_net = Nn.critic_q_all(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units)
+        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        self.q1_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q1_net', hidden_units, visual_net=self.visual_net)
+        self.q1_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q1_target_net', hidden_units, visual_net=self.visual_net)
+        self.q2_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q2_net', hidden_units, visual_net=self.visual_net)
+        self.q2_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q2_target_net', hidden_units, visual_net=self.visual_net)
         self.update_target_net_weights(
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
@@ -105,7 +106,7 @@ class MAXSQN(Off_Policy):
                 summaries.update(dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
@@ -136,9 +137,9 @@ class MAXSQN(Off_Policy):
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                 loss = 0.5 * (q1_loss + q2_loss)
-            loss_grads = tape.gradient(loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+            loss_grads = tape.gradient(loss, self.q1_net.tv + self.q2_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(loss_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                zip(loss_grads, self.q1_net.tv + self.q2_net.tv)
             )
             if self.auto_adaption:
                 with tf.GradientTape() as tape:

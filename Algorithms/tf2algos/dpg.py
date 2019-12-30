@@ -17,6 +17,7 @@ class DPG(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
+                 share_visual_net=True,
                  discrete_tau=1.0,
                  hidden_units={
                      'actor_continuous': [32, 32],
@@ -32,14 +33,22 @@ class DPG(Off_Policy):
             is_continuous=is_continuous,
             **kwargs)
         self.discrete_tau = discrete_tau
+
+        self.share_visual_net = share_visual_net
+        if self.share_visual_net:
+            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        else:
+            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
+            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+
         if self.is_continuous:
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q_net', hidden_units['q'])
+        self.q_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q_net', hidden_units['q'], visual_net=self.critic_visual_net)
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
@@ -78,7 +87,6 @@ class DPG(Off_Policy):
             else:
                 return pi
 
-
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
@@ -93,7 +101,7 @@ class DPG(Off_Policy):
                 summaries.update(dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                    ]))
+                ]))
                 self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
@@ -114,9 +122,9 @@ class DPG(Off_Policy):
                 q = self.q_net(s, visual_s, a)
                 td_error = q - dc_r
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
-            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
+            q_grads = tape.gradient(q_loss, self.q_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(q_grads, self.q_net.trainable_variables)
+                zip(q_grads, self.q_net.tv)
             )
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -132,9 +140,9 @@ class DPG(Off_Policy):
                     pi = _pi_diff + _pi
                 q_actor = self.q_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(q_actor)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
@@ -174,13 +182,13 @@ class DPG(Off_Policy):
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
                 q_actor = self.q_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(q_actor)
-            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
+            q_grads = tape.gradient(q_loss, self.q_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(q_grads, self.q_net.trainable_variables)
+                zip(q_grads, self.q_net.tv)
             )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

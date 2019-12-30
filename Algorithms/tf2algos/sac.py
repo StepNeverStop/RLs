@@ -22,6 +22,7 @@ class SAC(Off_Policy):
                  ployak=0.995,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
+                 share_visual_net=True,
                  hidden_units={
                      'actor_continuous': {
                          'share': [128, 128],
@@ -48,15 +49,23 @@ class SAC(Off_Policy):
         self.log_std_min, self.log_std_max = log_std_bound[:]
         self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
-        if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
+
+        self.share_visual_net = share_visual_net
+        if self.share_visual_net:
+            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
+            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
+            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+
+        if self.is_continuous:
+            self.actor_net = Nn.actor_continuous(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+        else:
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units['q'])
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units['q'])
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units['q'])
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units['q'])
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
         self.update_target_net_weights(
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
@@ -150,9 +159,9 @@ class SAC(Off_Policy):
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+            critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
             )
 
             with tf.GradientTape() as tape:
@@ -174,9 +183,9 @@ class SAC(Off_Policy):
                 q1_s_pi = self.q1_net(s, visual_s, pi)
                 q2_s_pi = self.q2_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
 
             if self.auto_adaption:
@@ -259,13 +268,13 @@ class SAC(Off_Policy):
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
-            critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+            critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
             )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
             if self.auto_adaption:
                 alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])

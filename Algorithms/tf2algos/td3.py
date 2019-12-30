@@ -17,6 +17,7 @@ class TD3(Off_Policy):
                  ployak=0.995,
                  delay_num=2,
                  noise_type='gaussian',
+                 share_visual_net=True,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
@@ -40,21 +41,29 @@ class TD3(Off_Policy):
         self.discrete_tau = discrete_tau
         self.gaussian_noise_sigma = gaussian_noise_sigma
         self.gaussian_noise_bound = gaussian_noise_bound
+
+        self.share_visual_net = share_visual_net
+        if self.share_visual_net:
+            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        else:
+            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
+            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+
         if self.is_continuous:
-            self.actor_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'])
-            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_dpg(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.a_counts, 'actor_target_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
             if noise_type == 'gaussian':
                 self.action_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_counts), sigma=self.gaussian_noise_sigma * np.ones(self.a_counts), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
                 self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'])
-            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'actor_target_net', hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_target_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_net', hidden_units['q'])
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q1_target_net', hidden_units['q'])
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_net', hidden_units['q'])
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.visual_dim, self.a_counts, 'q2_target_net', hidden_units['q'])
+        self.q1_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
             self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
@@ -142,9 +151,9 @@ class TD3(Off_Policy):
                     q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                     q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                     critic_loss = 0.5 * (q1_loss + q2_loss)
-                critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
                 self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                    zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
                 )
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -160,9 +169,9 @@ class TD3(Off_Policy):
                     pi = _pi_diff + _pi
                 q1_actor = self.q1_net(s, visual_s, pi)
                 actor_loss = -tf.reduce_mean(q1_actor)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error1 + td_error2 / 2, dict([
@@ -209,13 +218,13 @@ class TD3(Off_Policy):
                     q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                     critic_loss = 0.5 * (q1_loss + q2_loss)
                     actor_loss = -tf.reduce_mean(q1_actor)
-                critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
                 self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                    zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
                 )
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
+                zip(actor_grads, self.actor_net.tv)
             )
             self.global_step.assign_add(1)
             return td_error1 + td_error2 / 2, dict([

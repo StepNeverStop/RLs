@@ -1,8 +1,7 @@
 import tensorflow as tf
 from .activations import swish, mish
-from tensorflow.keras import Sequential
-from tensorflow.python.framework import tensor_shape
-from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten, GaussianNoise
+from tensorflow.keras.layers import Dense
+from Nn.layers import Noisy, mlp
 
 activation_fn = 'tanh'
 
@@ -12,304 +11,202 @@ initKernelAndBias = {
 }
 
 
-class mlp(Sequential):
-    def __init__(self, hidden_units, *, layer=Dense, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
-        """
-        Args:
-            hidden_units: like [32, 32]
-            output_shape: units of last layer
-            out_activation: activation function of last layer
-            out_layer: whether need specifing last layer or not
-        """
-        super().__init__()
-        for u in hidden_units:
-            self.add(layer(u, act_fn))
-        if out_layer:
-            self.add(layer(output_shape, out_activation))
+class Model(tf.keras.Model):
+    def __init__(self, visual_net, *args, **kwargs):
+        super(Model, self).__init__(*args, **kwargs)
+        self.visual_net = visual_net
+        self.tv = []
+        self.tv += self.visual_net.trainable_variables
+
+    def call(self, vector_input, visual_input, *args, **kwargs):
+        '''
+        args: action, reward, done. etc ...
+        '''
+        features = self.visual_net(visual_input)
+        ret = self.init_or_run(
+            tf.concat((vector_input, features), axis=-1),
+            *args,
+            **kwargs)
+        return ret
+
+    def update_vars(self):
+        self.tv += self.trainable_variables
+
+    def init_or_run(self, x):
+        raise NotImplementedError
 
 
-class mlp_with_noisy(Sequential):
-    def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
-        """
-        Add a gaussian noise to to the result of Dense layer. The added gaussian noise is not related to the origin input.
-        Args:
-            hidden_units: like [32, 32]
-            output_shape: units of last layer
-            out_activation: activation function of last layer
-            out_layer: whether need specifing last layer or not
-        """
-        super().__init__()
-        for u in hidden_units:
-            self.add(GaussianNoise(0.4))  # Or use kwargs
-            self.add(Dense(u, act_fn))
-        if out_layer:
-            self.add(GaussianNoise(0.4))
-            self.add(Dense(output_shape, out_activation))
-
-
-class Noisy(Dense):
-    '''
-    Noisy Net: https://arxiv.org/abs/1706.10295
-    Add the result of another noisy net to the result of origin Dense layer.
-    '''
-
-    def __init__(self, units, activation=None, **kwargs):
-        super().__init__(units, activation=activation, **kwargs)
-        self.noise_sigma = float(kwargs.get('noise_sigma', .4))
-        self.mode = str(kwargs.get('noisy_distribution', 'independent'))  # independent or factorised
-
-    def build(self, input_shape):
-        super().build(input_shape)
-        self.build = False
-        self.last_dim = tensor_shape.dimension_value(input_shape[-1])
-        self.noisy_w = self.add_weight(
-            'noise_kernel',
-            shape=[self.last_dim, self.units],
-            initializer=tf.random_normal_initializer(0.0, .1),
-            regularizer=self.kernel_regularizer,
-            constraint=self.kernel_constraint,
-            dtype=self.dtype,
-            trainable=True)
-        if self.use_bias:
-            self.noisy_b = self.add_weight(
-                'noise_bias',
-                shape=[self.units, ],
-                initializer=tf.constant_initializer(self.noise_sigma / (self.units**0.5)),
-                regularizer=self.bias_regularizer,
-                constraint=self.bias_constraint,
-                dtype=self.dtype,
-                trainable=True)
-        else:
-            self.bias = None
-        self.build = True
-
-    def funcForFactor(self, x):
-        return tf.sign(x) * tf.pow(tf.abs(x), 0.5)
-
-    @property
-    def epsilon_w(self):
-        if self.mode == 'independent':
-            return tf.random.truncated_normal([self.last_dim, self.units], stddev=self.noise_sigma)
-        elif self.mode == 'factorised':
-            return self.funcForFactor(tf.random.truncated_normal([self.last_dim, 1], stddev=self.noise_sigma)) \
-                * self.funcForFactor(tf.random.truncated_normal([1, self.units], stddev=self.noise_sigma))
-
-    @property
-    def epsilon_b(self):
-        return tf.random.truncated_normal([self.units, ], stddev=self.noise_sigma)
-
-    def noisy_layer(self, inputs):
-        return tf.matmul(inputs, self.noisy_w * self.epsilon_w) + self.noisy_b * self.epsilon_b
-
-    def call(self, inputs, need_noise=True):
-        y = super().call(inputs)
-        if need_noise:
-            noise = self.noisy_layer(inputs)
-            return y + noise
-        else:
-            return y
-
-
-class ImageNet(tf.keras.Model):
-    '''
-    Processing image input observation information.
-    If there has multiple cameras, Conv3D will be used, otherwise Conv2D will be used. The feature obtained by forward propagation will be concatenate with the vector input.
-    If there is no visual image input, Conv layers won't be built and initialized.
-    '''
-
-    def __init__(self, name, visual_dim=[]):
-        super().__init__(name=name)
-        self.build_visual = False
-        if len(visual_dim) == 4:
-            self.conv1 = Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation='relu')
-            self.conv2 = Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation='relu')
-            self.conv3 = Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation='relu')
-            self.flatten = Flatten()
-            self.fc = Dense(128, activation_fn)
-            self.build_visual = True
-        elif len(visual_dim) == 3:
-            self.conv1 = Conv2D(filters=32, kernel_size=[8, 8], strides=[4, 4], padding='valid', activation='relu')
-            self.conv2 = Conv2D(filters=64, kernel_size=[4, 4], strides=[2, 2], padding='valid', activation='relu')
-            self.conv3 = Conv2D(filters=64, kernel_size=[3, 3], strides=[1, 1], padding='valid', activation='relu')
-            self.flatten = Flatten()
-            self.fc = Dense(128, activation_fn)
-            self.build_visual = True
-
-    def call(self, vector_input, visual_input):
-        if self.build_visual:
-            features = self.conv1(visual_input)
-            features = self.conv2(features)
-            features = self.conv3(features)
-            features = self.flatten(features)
-            features = self.fc(features)
-            vector_input = tf.concat((features, vector_input), axis=-1)
-        return vector_input
-
-
-class actor_dpg(ImageNet):
+class actor_dpg(Model):
     '''
     use for DDPG and/or TD3 algorithms' actor network.
     input: vector of state
     output: deterministic action(mu) and disturbed action(action) given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        mu = self.net(super().call(vector_input, visual_input))
+    def init_or_run(self, x):
+        mu = self.net(x)
         return mu
 
 
-class actor_mu(ImageNet):
+class actor_mu(Model):
     '''
     use for PPO/PG algorithms' actor network.
     input: vector of state
     output: stochastic action(mu), normally is the mean of a Normal distribution
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input)
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        mu = self.net(super().call(vector_input, visual_input))
+    def init_or_run(self, x):
+        mu = self.net(x)
         return mu
 
 
-class actor_continuous(ImageNet):
+class actor_continuous(Model):
     '''
     use for continuous action space.
     input: vector of state
     output: mean(mu) and log_variance(log_std) of Gaussian Distribution of actions given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
         self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        mu = self.mu(features)
-        log_std = self.log_std(features)
-        return mu, log_std
+    def init_or_run(self, x):
+        x = self.share(x)
+        mu = self.mu(x)
+        log_std = self.log_std(x)
+        return (mu, log_std)
 
 
-class actor_discrete(ImageNet):
+class actor_discrete(Model):
     '''
     use for discrete action space.
     input: vector of state
     output: probability distribution of actions given a state
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.logits = mlp(hidden_units, output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        logits = self.logits(super().call(vector_input, visual_input))
+    def init_or_run(self, x):
+        logits = self.logits(x)
         return logits
 
 
-class critic_q_one(ImageNet):
+class critic_q_one(Model):
     '''
     use for evaluate the value given a state-action pair.
     input: tf.concat((state, action),axis = 1)
     output: q(s,a)
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, action_dim, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input(shape=action_dim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input, action):
-        features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
-        q = self.net(features)
+    def init_or_run(self, x, a):
+        q = self.net(tf.concat((x, a), axis=-1))
         return q
 
 
-class critic_q_one2(ImageNet):
+class critic_q_one2(Model):
     '''
     Original architecture in DDPG paper.
-    s-> layer -> feature, them tf.concat(feature, a) -> layer -> output
+    s-> layer -> feature, then tf.concat(feature, a) -> layer -> output
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
+    def __init__(self, vector_dim, action_dim, name, hidden_units, *, visual_net):
         assert len(hidden_units) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
-        super().__init__(name=name, visual_dim=visual_dim)
+        super().__init__(visual_net, name=name)
         self.state_feature_net = mlp(hidden_units[0:1])
         self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input(shape=action_dim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input, action):
-        features = self.state_feature_net(super().call(vector_input, visual_input))
-        q = self.net(tf.concat((features, action), axis=-1))
+    def init_or_run(self, x, a):
+        features = self.state_feature_net(x)
+        q = self.net(tf.concat((x, action), axis=-1))
         return q
 
 
-class critic_q_one3(ImageNet):
+class critic_q_one3(Model):
     '''
     Original architecture in TD3 paper.
-    tf.concat(s,a) -> layer -> feature, them tf.concat(feature, a) -> layer -> output
+    tf.concat(s,a) -> layer -> feature, then tf.concat(feature, a) -> layer -> output
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, name, hidden_units):
+    def __init__(self, vector_dim, action_dim, name, hidden_units, *, visual_net):
         assert len(hidden_units) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
-        super().__init__(name=name, visual_dim=visual_dim)
+        super().__init__(visual_net, name=name)
         self.feature_net = mlp(hidden_units[0:1])
         self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=action_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input(shape=action_dim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input, action):
-        features = tf.concat((super().call(vector_input, visual_input), action), axis=-1)
-        features = self.feature_net(features)
-        q = self.net(tf.concat((features, action), axis=-1))
+    def init_or_run(self, x, a):
+        features = self.feature_net(tf.concat((x, a), axis=-1))
+        q = self.net(tf.concat((features, a), axis=-1))
         return q
 
 
-class critic_v(ImageNet):
+class critic_v(Model):
     '''
     use for evaluate the value given a state.
     input: vector of state
     output: v(s)
     '''
 
-    def __init__(self, vector_dim, visual_dim, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        v = self.net(super().call(vector_input, visual_input))
+    def init_or_run(self, x):
+        v = self.net(x)
         return v
 
 
-class critic_q_all(ImageNet):
+class critic_q_all(Model):
     '''
     use for evaluate all values of Q(S,A) given a state. must be discrete action space.
     input: vector of state
     output: q(s, *)
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        q = self.net(super().call(vector_input, visual_input))
-        return q
+    def init_or_run(self, x):
+        q = self.net(x)
+        return a
 
 
-class critic_dueling(ImageNet):
+class critic_dueling(Model):
     '''
     Neural network for dueling deep Q network.
     Input:
@@ -319,82 +216,86 @@ class critic_dueling(ImageNet):
         advantage: [batch_size, action_number]
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self.adv = mlp(hidden_units['adv'], output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        v = self.v(features)    # [B, 1]
-        adv = self.adv(features)    # [B, A]
+    def init_or_run(self, x):
+        x = self.share(x)
+        v = self.v(x)    # [B, 1]
+        adv = self.adv(x)  # [B, A]
         q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
         return q
 
 
-class a_c_v_continuous(ImageNet):
+class a_c_v_continuous(Model):
     '''
     combine actor network and critic network, share some nn layers. use for continuous action space.
     input: vector of state
     output: mean(mu) of Gaussian Distribution of actions given a state, v(s)
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation='tanh')
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        v = self.v(features)
-        mu = self.mu(features)
-        return mu, v
+    def init_or_run(self, x):
+        x = self.share(x)
+        mu = self.mu(x)
+        v = self.v(x)
+        return (mu, v)
 
 
-class a_c_v_discrete(ImageNet):
+class a_c_v_discrete(Model):
     '''
     combine actor network and critic network, share some nn layers. use for discrete action space.
     input: vector of state
     output: probability distribution of actions given a state, v(s)
     '''
 
-    def __init__(self, vector_dim, visual_dim, output_shape, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.logits = mlp(hidden_units['logits'], output_shape=output_shape, out_activation=None)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        logits = self.logits(features)
-        v = self.v(features)
-        return logits, v
+    def init_or_run(self, x):
+        x = self.share(x)
+        logits = self.logits(x)
+        v = self.v(x)
+        return (logits, v)
 
 
-class c51_distributional(ImageNet):
+class c51_distributional(Model):
     '''
     neural network for C51
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, atoms, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, action_dim, atoms, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.action_dim = action_dim
         self.atoms = atoms
         self.net = mlp(hidden_units, output_shape=atoms * action_dim, out_activation='softmax')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        q_dist = self.net(super().call(vector_input, visual_input))  # [B, A*N]
+    def init_or_run(self, x):
+        q_dist = self.net(x)    # [B, A*N]
         q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
 
 
-class rainbow_dueling(ImageNet):
+class rainbow_dueling(Model):
     '''
     Neural network for Rainbow.
     Input:
@@ -404,19 +305,20 @@ class rainbow_dueling(ImageNet):
         advantage: [batch_size, action_number * atoms]
     '''
 
-    def __init__(self, vector_dim, visual_dim, action_dim, atoms, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+    def __init__(self, vector_dim, action_dim, atoms, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.action_dim = action_dim
         self.atoms = atoms
         self.share = mlp(hidden_units['share'], layer=Noisy, out_layer=False)
         self.v = mlp(hidden_units['v'], layer=Noisy, output_shape=atoms, out_activation=None)
         self.adv = mlp(hidden_units['adv'], layer=Noisy, output_shape=action_dim * atoms, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input):
-        features = self.share(super().call(vector_input, visual_input))
-        v = self.v(features)    # [B, N]
-        adv = self.adv(features)  # [B, A*N]
+    def init_or_run(self, x):
+        x = self.share(x)
+        v = self.v(x)    # [B, N]
+        adv = self.adv(x)   # [B, A*N]
         adv = tf.reshape(adv, [-1, self.action_dim, self.atoms])   # [B, A, N]
         adv -= tf.reduce_mean(adv)  # [B, A, N]
         adv = tf.transpose(adv, [1, 0, 2])  # [A, B, N]
@@ -425,21 +327,22 @@ class rainbow_dueling(ImageNet):
         return q  # [B, A, N]
 
 
-class iqn_net(ImageNet):
-    def __init__(self, vector_dim, visual_dim, action_dim, quantiles_idx, name, hidden_units):
-        super().__init__(name=name, visual_dim=visual_dim)
+class iqn_net(Model):
+    def __init__(self, vector_dim, action_dim, quantiles_idx, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
         self.action_dim = action_dim
         self.q_net_head = mlp(hidden_units['q_net'], out_layer=False)   # [B, vector_dim]
         self.quantile_net = mlp(hidden_units['quantile'], out_layer=False)  # [N*B, quantiles_idx]
         self.q_net_tile = mlp(hidden_units['tile'], output_shape=action_dim, out_activation=None)   # [N*B, hidden_units['quantile'][-1]]
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=quantiles_idx))
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input(shape=quantiles_idx))
+        self.update_vars()
 
-    def call(self, vector_input, visual_input, quantiles_tiled, *, quantiles_num=8):
-        q_h = self.q_net_head(super().call(vector_input, visual_input)) # [B, obs_dim] => [B, h]
+    def init_or_run(self, x, quantiles_tiled, *, quantiles_num=8):
+        q_h = self.q_net_head(x)  # [B, obs_dim] => [B, h]
         q_h = tf.tile(q_h, [quantiles_num, 1])  # [B, h] => [N*B, h]
-        quantile_h = self.quantile_net(quantiles_tiled) # [N*B, quantiles_idx] => [N*B, h]
-        hh = q_h * quantile_h # [N*B, h]
-        quantiles_value = self.q_net_tile(hh) # [N*B, h] => [N*B, A]
+        quantile_h = self.quantile_net(quantiles_tiled)  # [N*B, quantiles_idx] => [N*B, h]
+        hh = q_h * quantile_h  # [N*B, h]
+        quantiles_value = self.q_net_tile(hh)  # [N*B, h] => [N*B, A]
         quantiles_value = tf.reshape(quantiles_value, (quantiles_num, -1, self.action_dim))   # [N*B, A] => [N, B, A]
-        q = tf.reduce_mean(quantiles_value, axis=0) # [N, B, A] => [B, A]
-        return quantiles_value, q
+        q = tf.reduce_mean(quantiles_value, axis=0)  # [N, B, A] => [B, A]
+        return (quantiles_value, q)
