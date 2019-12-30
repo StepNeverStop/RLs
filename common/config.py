@@ -1,10 +1,12 @@
 from copy import deepcopy
 
+
 class Config(object):
     '''
     store config parameters in this class
     self.k = v
     '''
+
     def __init__(self, **kwargs):
         self.add_dict(kwargs)
 
@@ -23,7 +25,7 @@ class Config(object):
                 setattr(self, k, Config(**v))
                 continue
             setattr(self, k, v)
-    
+
     def add(self, **kwargs):
         for k, v in kwargs.items():
             if isinstance(v, dict):
@@ -51,7 +53,7 @@ class Config(object):
         self.name
         '''
         raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {name}')
-    
+
     def __getitem__(self, x):
         '''
         dict[x]
@@ -67,6 +69,7 @@ class Config(object):
 
     def __repr__(self):
         return '{%s}' % ',\n '.join('%r: %r' % i for i in sorted(self.to_dict.items()))
+
 
 if __name__ == "__main__":
     c = Config(**dict([
