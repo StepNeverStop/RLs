@@ -203,7 +203,7 @@ class critic_q_all(Model):
 
     def init_or_run(self, x):
         q = self.net(x)
-        return a
+        return q
 
 
 class critic_dueling(Model):
