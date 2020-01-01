@@ -288,3 +288,17 @@ class EpisodeExperienceReplay(ReplayBuffer):
         print('Episode RB capacity: ', self.capacity)
         for i in self._buffer:
             i.show_rb
+
+
+if __name__ == "__main__":
+    from time import time
+    x = 0
+    t=1000
+    for i in range(t):
+        per = Sum_Tree(524288)
+        a = np.arange(50000)
+        b = np.zeros_like(a)
+        start = time()
+        per.add(b, a)
+        x+=time() - start
+    print(x/t)

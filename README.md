@@ -138,7 +138,7 @@ Example:
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
-    python run.py -u -a ddpg -n pre_fill--fill-in --prefill-choose
+    python run.py -u -a ddpg -n pre_fill --fill-in --prefill-choose
 """
 ```
 

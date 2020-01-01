@@ -51,6 +51,7 @@ class SAC_V(Off_Policy):
         self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
 
+        self.share_visual_net = share_visual_net
         if self.share_visual_net:
             self.actor_visual_net = self.q_visual_net = self.v_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
         else:
