@@ -111,12 +111,18 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
+        # self.add_batch(list(zip(*args)))
         [self._store_op(data) for data in zip(*args)]
 
     def _store_op(self, data):
         self.tree.add(self.max_p, data)
         if self._size < self.capacity:
             self._size += 1
+
+    def add_batch(self, data):
+        num = len(data)
+        self.tree.add_batch(np.full(num, self.max_p), data)
+        self._size = min(self._size + num, self.capacity)
 
     def sample(self):
         '''
@@ -172,23 +178,23 @@ class NStepWrapper:
 
     def _per_store(self, i, data):
         q = self.queue[i]
-        if len(q) == 0:
+        if len(q) == 0: # 如果Nstep临时经验池为空，就直接添加
             q.append(data)
             return
-        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done
+        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             while q:
                 self._store_op(q.pop())
             q.append(data)
             return
         _len = len(q)
-        if _len == self.n:
+        if _len == self.n:  # 如果Nstep临时经验池满了，就把最早的一条经验存到经验池
             self._store_op(q.pop(0))
         _len = len(q)
-        for j in range(_len):
+        for j in range(_len):   # 然后再存入一条最新的经验到Nstep临时经验池
             q[j][3] += data[3] * (self.gamma ** (_len - j))
             q[j][4:] = data[4:]
         q.append(data)
-        if data[-1]:  # done or not
+        if data[-1]:  # done or not # 如果新数据是done，就清空临时经验池
             while q:
                 self._store_op(q.pop())
 
@@ -289,16 +295,3 @@ class EpisodeExperienceReplay(ReplayBuffer):
         for i in self._buffer:
             i.show_rb
 
-
-if __name__ == "__main__":
-    from time import time
-    x = 0
-    t=1000
-    for i in range(t):
-        per = Sum_Tree(524288)
-        a = np.arange(50000)
-        b = np.zeros_like(a)
-        start = time()
-        per.add(b, a)
-        x+=time() - start
-    print(x/t)
