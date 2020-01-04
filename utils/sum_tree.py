@@ -50,15 +50,12 @@ class Sum_Tree(object):
         idx = (np.arange(num) + self.now) % self.capacity + 1
         self.data[idx] = data
         tree_index = idx + self.parent_node_count
-        sort_index = np.argsort(tree_index)
-        tree_index = np.sort(tree_index)
-        p = p[sort_index]
         self._updatetree_batch(tree_index, p)
         if idx[-1] >= self.capacity:
             self.now = 0
         else:
             self.now = idx[-1]
-    
+
     def _updatetree(self, tree_index, p):
         diff = p - self.tree[tree_index]
         self._propagate(tree_index, diff)
@@ -66,10 +63,12 @@ class Sum_Tree(object):
 
     def _updatetree_batch(self, tree_index, p):
         diff = p - self.tree[tree_index]
+        sort_index = np.argsort(tree_index)
+        tree_index = np.sort(tree_index)
+        diff = diff[sort_index]
         self._propagate_batch(tree_index, diff)
         self.tree[tree_index] = p
-    
-    
+
     def _propagate(self, tree_index, diff):
         parent = tree_index // 2
         self.tree[parent] += diff
@@ -79,8 +78,8 @@ class Sum_Tree(object):
     def _propagate_batch(self, tree_index, diff):
         parent = tree_index // 2
         _parent, idx1, count = np.unique(parent, return_index=True, return_counts=True)
-        _, idx2 = np.unique(parent, return_index=True)
-        diff = (diff[len(diff)-1-idx2]+diff[idx2])*count/2
+        _, idx2 = np.unique(parent[::-1], return_index=True)
+        diff = (diff[len(diff) - 1 - idx2] + diff[idx1]) * count / 2
         self.tree[_parent] += diff
         if (_parent != 1).all():
             self._propagate_batch(_parent, diff)
@@ -110,7 +109,7 @@ class Sum_Tree(object):
         tidx, didx, p, d = map(np.asarray, [tidx, didx, p, d])
         d = [np.asarray(e) for e in zip(*d)]    # [[s, a], [s, a]] => [[s, s], [a, a]]
         return (tidx, didx, p, d)
-    
+
     def _retrieve(self, tree_index, seg_p_total):
         left = 2 * tree_index
         right = left + 1
@@ -144,15 +143,16 @@ class Sum_Tree(object):
                 return pow(2, i + 1) - 1
             i += 1
 
+
 if __name__ == "__main__":
     from time import time
     x = 0
-    t=1000
+    t = 1000
     for i in range(t):
         tree = Sum_Tree(524288)
         a = np.arange(50000)
         b = np.zeros_like(a)
         start = time()
         tree.add_batch(b, a)
-        x+=time() - start
-    print(x/t)
+        x += time() - start
+    print(x / t)

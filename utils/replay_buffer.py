@@ -111,8 +111,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        # self.add_batch(list(zip(*args)))
-        [self._store_op(data) for data in zip(*args)]
+        self.add_batch(list(zip(*args)))
+        # [self._store_op(data) for data in zip(*args)]
 
     def _store_op(self, data):
         self.tree.add(self.max_p, data)
@@ -120,6 +120,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
             self._size += 1
 
     def add_batch(self, data):
+        data = list(data)
         num = len(data)
         self.tree.add_batch(np.full(num, self.max_p), data)
         self._size = min(self._size + num, self.capacity)
@@ -129,10 +130,9 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        interval = self.tree.total / n_sample
-        all_intervals = np.arange(n_sample + 1) * interval
+        all_intervals = np.linspace(0, self.tree.total, n_sample)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
-        self.last_indexs, data_indx, p, data = self.tree.get_batch(ps)
+        self.last_indexs, data_indx, p, data = self.tree.get_batch_parallel(ps)
         _min_p = self.min_p if self.global_v else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
         return data
@@ -177,17 +177,29 @@ class NStepWrapper:
         [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
     def _per_store(self, i, data):
+        '''
+        data:
+            0   s           -7
+            1   visual_s    -6
+            2   a           -5
+            3   r           -4
+            4   s_          -3
+            5   visual_s_   -2
+            6   done        -1
+        '''
         q = self.queue[i]
-        if len(q) == 0: # 如果Nstep临时经验池为空，就直接添加
+        if len(q) == 0:  # 如果Nstep临时经验池为空，就直接添加
             q.append(data)
             return
         if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
-            while q:
-                self._store_op(q.pop())
+            if len(q) == self.n:
+                self._store_op(q.pop(0))
+            else:
+                q.clear()
             q.append(data)
             return
-        _len = len(q)
-        if _len == self.n:  # 如果Nstep临时经验池满了，就把最早的一条经验存到经验池
+
+        if len(q) == self.n:  # 如果Nstep临时经验池满了，就把最早的一条经验存到经验池
             self._store_op(q.pop(0))
         _len = len(q)
         for j in range(_len):   # 然后再存入一条最新的经验到Nstep临时经验池
@@ -195,7 +207,7 @@ class NStepWrapper:
             q[j][4:] = data[4:]
         q.append(data)
         if data[-1]:  # done or not # 如果新数据是done，就清空临时经验池
-            while q:
+            while q:    # (1-done)会清零不正确的n-step
                 self._store_op(q.pop())
 
     def __getattr__(self, name):

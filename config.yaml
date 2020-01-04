@@ -51,7 +51,7 @@ gym:
         obs_resize: false
         resize: [84, 84]
         obs_scale: false
-        noop: true
+        noop: false
         noop_max: 30
 
 buffer:
