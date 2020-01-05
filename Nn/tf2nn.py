@@ -206,6 +206,32 @@ class critic_q_all(Model):
         return q
 
 
+class drqn_critic_q_all(Model):
+    '''
+    use for evaluate all values of Q(S,A) given a state. must be discrete action space.
+    input: vector of state
+    output: q(s, *)
+    '''
+
+    def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
+        self.masking = tf.keras.layers.Masking(mask_value=0.)
+        self.lstm_net = tf.keras.layers.LSTM(hidden_units['lstm'], activation='sigmoid', return_state=True, return_sequences=True)
+        self.net = mlp(hidden_units['dense'], output_shape=output_shape, out_activation=None)
+        self.init_or_run(tf.keras.Input(shape=(None, vector_dim + self.visual_net.hdim)))
+        self.update_vars()
+
+    def init_or_run(self, x, initial_state=None):
+        x = self.masking(x)
+        if initial_state is not None:
+            x, h, c = self.lstm_net(x, initial_state=initial_state)
+        else:
+            x, h, c = self.lstm_net(x)
+        q = self.net(x)
+        q = tf.reshape(q, (-1, q.shape[-1]))    # [B, T, 1] => [B*T, 1]
+        return (q, [h, c])
+
+
 class critic_dueling(Model):
     '''
     Neural network for dueling deep Q network.

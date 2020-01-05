@@ -70,3 +70,4 @@ buffer:
         epsilon: 0.01
         global_v: false
         n: 4
+    EpisodeER: {}

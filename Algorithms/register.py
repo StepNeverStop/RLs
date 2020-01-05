@@ -64,6 +64,11 @@ algos = {
         'policy': 'off-policy',
         'update': 'perStep'
     },
+    'drqn': {
+        'class': 'DRQN',
+        'policy': 'off-policy',
+        'update': 'perStep'
+    },
     'ddqn': {
         'class': 'DDQN',
         'policy': 'off-policy',

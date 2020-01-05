@@ -43,6 +43,9 @@ def get_buffer(buffer_args: Config):
     elif buffer_args['type'] == 'NstepPER':
         print('NstepPER')
         from utils.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
+    elif buffer_args['type'] == 'EpisodeER':
+        print('EpisodeER')
+        from utils.replay_buffer import EpisodeExperienceReplay as Buffer
     else:
         return None
     return Buffer(batch_size=buffer_args['batch_size'], capacity=buffer_args['buffer_size'], **buffer_args[buffer_args['type']].to_dict)
@@ -82,22 +85,25 @@ class Agent:
         if _policy_mode == 'off-policy':
             self.buffer_args['batch_size'] = algorithm_config['batch_size']
             self.buffer_args['buffer_size'] = algorithm_config['buffer_size']
-            _use_priority = algorithm_config.get('use_priority', False)
-            _n_step = algorithm_config.get('n_step', False)
-            if _use_priority and _n_step:
-                self.buffer_args['type'] = 'NstepPER'
-                self.buffer_args['NstepPER']['max_episode'] = self.train_args['max_episode']
-                self.buffer_args['NstepPER']['gamma'] = algorithm_config['gamma']
-                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
-            elif _use_priority:
-                self.buffer_args['type'] = 'PER'
-                self.buffer_args['PER']['max_episode'] = self.train_args['max_episode']
-            elif _n_step:
-                self.buffer_args['type'] = 'NstepER'
-                self.buffer_args['NstepER']['gamma'] = algorithm_config['gamma']
-                algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepER']['n'])
+            if 'drqn' in self.model_args['algo']:
+                self.buffer_args['type'] = 'EpisodeER'
             else:
-                self.buffer_args['type'] = 'ER'
+                _use_priority = algorithm_config.get('use_priority', False)
+                _n_step = algorithm_config.get('n_step', False)
+                if _use_priority and _n_step:
+                    self.buffer_args['type'] = 'NstepPER'
+                    self.buffer_args['NstepPER']['max_episode'] = self.train_args['max_episode']
+                    self.buffer_args['NstepPER']['gamma'] = algorithm_config['gamma']
+                    algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
+                elif _use_priority:
+                    self.buffer_args['type'] = 'PER'
+                    self.buffer_args['PER']['max_episode'] = self.train_args['max_episode']
+                elif _n_step:
+                    self.buffer_args['type'] = 'NstepER'
+                    self.buffer_args['NstepER']['gamma'] = algorithm_config['gamma']
+                    algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepER']['n'])
+                else:
+                    self.buffer_args['type'] = 'ER'
         else:
             self.buffer_args['type'] = 'Pandas'
 
@@ -108,7 +114,7 @@ class Agent:
 
         if self.env_args['type'] == 'gym':
             # buffer ------------------------------
-            if 'Nstep' in self.buffer_args['type']:
+            if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
                 self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
             self.buffer = get_buffer(self.buffer_args)
             # buffer ------------------------------
@@ -147,7 +153,7 @@ class Agent:
             self.buffer_args_s = []
             for i in range(self.env.brain_num):
                 _bargs = deepcopy(self.buffer_args)
-                if 'Nstep' in _bargs['type']:
+                if 'Nstep' in _bargs['type']or 'Episode' in _bargs['type']:
                     _bargs[_bargs['type']]['agents_num'] = self.env.brain_agents[i]
                 self.buffer_args_s.append(_bargs)
             buffers = [get_buffer(self.buffer_args_s[i]) for i in range(self.env.brain_num)]

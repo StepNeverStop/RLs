@@ -66,6 +66,7 @@ For now, these algorithms are available:
     - Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
     - [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
     - [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
+    - [Deep Recurrent Q-learning Network, DRQN](https://arxiv.org/abs/1507.06527)
     - [Category 51, C51](https://arxiv.org/abs/1707.06887)
     - [Implicit Quantile Networks, IQN](https://arxiv.org/abs/1806.06923)
     - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
@@ -86,6 +87,7 @@ For now, these algorithms are available:
 |        DQN         |    √     |            |        dqn        |
 |     Double DQN     |    √     |            |       ddqn        |
 | Dueling Double DQN |    √     |            |       dddqn       |
+|                    |    √     |            |        rqn        |
 |        C51         |    √     |            |        c51        |
 |        IQN         |    √     |            |        iqn        |
 |      Rainbow       |    √     |            |      Rainbow      |
@@ -163,9 +165,7 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ## Ongoing things
 
 - RNN
-- Better episode experience replay buffer
 - QR-DQN
-- DRQN
 - DARQN
 - ACER
 - ~~ACKTR~~
