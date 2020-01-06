@@ -61,12 +61,13 @@ For now, these algorithms are available:
     - [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
     - [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
     - :fire:[Soft Actor Critic, SAC](https://arxiv.org/abs/1812.05905)
-    - [Tsallis Actor Critic, TAC](https://arxiv.org/abs/1902.00137 )
+    - [Tsallis Actor Critic, TAC](https://arxiv.org/abs/1902.00137)
     - :fire:[Twin Delayed Deep Deterministic Policy Gradient, TD3](https://arxiv.org/abs/1802.09477)
     - Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
     - [Double Deep Q-learning Network, DDQN](https://arxiv.org/abs/1509.06461)
     - [Dueling Double Deep Q-learning Network, DDDQN](https://arxiv.org/abs/1511.06581)
     - [Deep Recurrent Q-learning Network, DRQN](https://arxiv.org/abs/1507.06527)
+    - [Deep Recurrent Double Q-learning, DRDQN](https://arxiv.org/abs/1908.06040)
     - [Category 51, C51](https://arxiv.org/abs/1707.06887)
     - [Implicit Quantile Networks, IQN](https://arxiv.org/abs/1806.06923)
     - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
@@ -88,6 +89,7 @@ For now, these algorithms are available:
 |     Double DQN     |    √     |            |       ddqn        |
 | Dueling Double DQN |    √     |            |       dddqn       |
 |        DRQN        |    √     |            |       drqn        |
+|       DRDQN        |    √     |            |       drdqn       |
 |        C51         |    √     |            |        c51        |
 |        IQN         |    √     |            |        iqn        |
 |      Rainbow       |    √     |            |      Rainbow      |

@@ -7,6 +7,9 @@ from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
 class TD3(Off_Policy):
+    '''
+    Twin Delayed Deep Deterministic Policy Gradient, https://arxiv.org/abs/1802.09477
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,

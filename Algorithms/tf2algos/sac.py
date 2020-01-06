@@ -8,7 +8,7 @@ from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
 class SAC(Off_Policy):
-    """Soft Actor Critic without Value neural network.
+    """Soft Actor Critic without Value neural network. https://arxiv.org/abs/1812.05905
     """
 
     def __init__(self,

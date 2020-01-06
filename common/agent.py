@@ -85,7 +85,7 @@ class Agent:
         if _policy_mode == 'off-policy':
             self.buffer_args['batch_size'] = algorithm_config['batch_size']
             self.buffer_args['buffer_size'] = algorithm_config['buffer_size']
-            if 'drqn' in self.model_args['algo']:
+            if self.model_args['algo'] in ['drqn', 'drdqn']:
                 self.buffer_args['type'] = 'EpisodeER'
             else:
                 _use_priority = algorithm_config.get('use_priority', False)

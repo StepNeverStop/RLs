@@ -7,6 +7,9 @@ from utils.expl_expt import ExplorationExploitationClass
 
 
 class DQN(Off_Policy):
+    '''
+    Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,

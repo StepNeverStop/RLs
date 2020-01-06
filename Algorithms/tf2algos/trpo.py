@@ -24,7 +24,7 @@ def assign_params_from_flat(x, params):
 
 class TRPO(On_Policy):
     '''
-    Trust Region Policy Optimization
+    Trust Region Policy Optimization, https://arxiv.org/abs/1502.05477
     '''
 
     def __init__(self,

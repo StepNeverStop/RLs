@@ -12,7 +12,7 @@ dqn:
     n_step: true
     hidden_units: [64, 64]
 
-drqn:
+drqn:   &drqn
     lr: 5.0e-4
     gamma: 0.99
     eps_init: 1
@@ -25,6 +25,8 @@ drqn:
     hidden_units: 
         lstm: 8
         dense: [8]
+    
+drdqn: *drqn
 
 ddqn:
     lr: 5.0e-4

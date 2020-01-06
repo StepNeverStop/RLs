@@ -7,6 +7,9 @@ from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
 class DDPG(Off_Policy):
+    '''
+    Deep Deterministic Policy Gradient, https://arxiv.org/abs/1509.02971
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,

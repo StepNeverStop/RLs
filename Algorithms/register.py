@@ -4,116 +4,29 @@ from common.yaml_ops import load_yaml
 assert tf.__version__[0] == '2'
 # algorithms based on TF 2.0
 algos = {
-    'pg': {
-        'class': 'PG',
-        'policy': 'on-policy',
-        'update': 'perEpisode'
-    },
-    'trpo': {
-        'class': 'TRPO',
-        'policy': 'on-policy',
-        'update': 'perEpisode'
-    },
-    'ppo': {
-        'class': 'PPO',
-        'policy': 'on-policy',
-        'update': 'perEpisode'
-    },
-    'ac': {
-        'class': 'AC',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },  # could be on-policy, but also doesn't work well.
-    'a2c': {
-        'class': 'A2C',
-        'policy': 'on-policy',
-        'update': 'perEpisode'
-    },
-    'dpg': {
-        'class': 'DPG',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'ddpg': {
-        'class': 'DDPG',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'td3': {
-        'class': 'TD3',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'sac_v': {
-        'class': 'SAC_V',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'sac': {
-        'class': 'SAC',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'tac': {
-        'class': 'TAC',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'dqn': {
-        'class': 'DQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'drqn': {
-        'class': 'DRQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'ddqn': {
-        'class': 'DDQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'dddqn': {
-        'class': 'DDDQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'c51': {
-        'class': 'C51',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'rainbow': {
-        'class': 'RAINBOW',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'iqn': {
-        'class': 'IQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'maxsqn': {
-        'class': 'MAXSQN',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'ma_dpg': {
-        'class': 'MADPG',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'ma_ddpg': {
-        'class': 'MADDPG',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    },
-    'ma_td3': {
-        'class': 'MATD3',
-        'policy': 'off-policy',
-        'update': 'perStep'
-    }
+    'pg':       {'class': 'PG',     'policy': 'on-policy',  'update': 'perEpisode'},
+    'trpo':     {'class': 'TRPO',   'policy': 'on-policy',  'update': 'perEpisode'},
+    'ppo':      {'class': 'PPO',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'ac':       {'class': 'AC',     'policy': 'off-policy', 'update': 'perStep'},  # could be on-policy, but also doesn't work well.
+    'a2c':      {'class': 'A2C',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'dpg':      {'class': 'DPG',    'policy': 'off-policy', 'update': 'perStep'},
+    'ddpg':     {'class': 'DDPG',   'policy': 'off-policy', 'update': 'perStep'},
+    'td3':      {'class': 'TD3',    'policy': 'off-policy', 'update': 'perStep'},
+    'sac_v':    {'class': 'SAC_V',  'policy': 'off-policy', 'update': 'perStep'},
+    'sac':      {'class': 'SAC',    'policy': 'off-policy', 'update': 'perStep'},
+    'tac':      {'class': 'TAC',    'policy': 'off-policy', 'update': 'perStep'},
+    'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'},
+    'drqn':     {'class': 'DRQN',   'policy': 'off-policy', 'update': 'perStep'},
+    'drdqn':    {'class': 'DRDQN',  'policy': 'off-policy', 'update': 'perStep'},
+    'ddqn':     {'class': 'DDQN',   'policy': 'off-policy', 'update': 'perStep'},
+    'dddqn':    {'class': 'DDDQN',  'policy': 'off-policy', 'update': 'perStep'},
+    'c51':      {'class': 'C51',    'policy': 'off-policy', 'update': 'perStep'},
+    'rainbow':  {'class': 'RAINBOW','policy': 'off-policy', 'update': 'perStep'},
+    'iqn':      {'class': 'IQN',    'policy': 'off-policy', 'update': 'perStep'},
+    'maxsqn':   {'class': 'MAXSQN', 'policy': 'off-policy', 'update': 'perStep'},
+    'ma_dpg':   {'class': 'MADPG',  'policy': 'off-policy', 'update': 'perStep'},
+    'ma_ddpg':  {'class': 'MADDPG', 'policy': 'off-policy', 'update': 'perStep'},
+    'ma_td3':   {'class': 'MATD3',  'policy': 'off-policy', 'update': 'perStep'}
 }
 
 

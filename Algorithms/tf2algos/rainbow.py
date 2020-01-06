@@ -8,7 +8,7 @@ from utils.expl_expt import ExplorationExploitationClass
 
 class RAINBOW(Off_Policy):
     '''
-    Rainbow DQN:
+    Rainbow DQN:    https://arxiv.org/abs/1710.02298
         1. Double
         2. Dueling
         3. PrioritizedExperienceReplay

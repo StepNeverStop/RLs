@@ -9,7 +9,7 @@ from common.decorator import lazy_property
 
 class C51(Off_Policy):
     '''
-    Category 51
+    Category 51, https://arxiv.org/abs/1707.06887
     No double, no dueling, no noisy net.
     '''
 

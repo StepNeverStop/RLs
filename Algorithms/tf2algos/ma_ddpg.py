@@ -5,6 +5,9 @@ from Algorithms.tf2algos.base.policy import Policy
 
 
 class MADDPG(Policy):
+    '''
+    Multi-Agent Deep Deterministic Policy Gradient, https://arxiv.org/abs/1706.02275
+    '''
     def __init__(self,
                  s_dim,
                  a_dim_or_list,

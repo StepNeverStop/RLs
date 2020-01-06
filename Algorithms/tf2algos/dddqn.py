@@ -8,7 +8,7 @@ from utils.expl_expt import ExplorationExploitationClass
 
 class DDDQN(Off_Policy):
     '''
-    Dueling Double DQN
+    Dueling Double DQN, https://arxiv.org/abs/1511.06581
     '''
 
     def __init__(self,

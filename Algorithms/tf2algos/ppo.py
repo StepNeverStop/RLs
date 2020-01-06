@@ -9,6 +9,9 @@ from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
 class PPO(On_Policy):
+    '''
+    Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,

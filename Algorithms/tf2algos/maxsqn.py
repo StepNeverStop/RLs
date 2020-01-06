@@ -8,6 +8,9 @@ from utils.expl_expt import ExplorationExploitationClass
 
 
 class MAXSQN(Off_Policy):
+    '''
+    https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py
+    '''
     def __init__(self,
                  s_dim,
                  visual_sources,

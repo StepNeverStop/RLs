@@ -9,7 +9,7 @@ from utils.tf2_utils import huber_loss
 
 class IQN(Off_Policy):
     '''
-    Implicit Quantile Networks
+    Implicit Quantile Networks, https://arxiv.org/abs/1806.06923
     Double DQN
     '''
 
