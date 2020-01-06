@@ -45,7 +45,7 @@ class DRQN(Off_Policy):
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
-        self.cell_state= None
+        self.cell_state = None
         self.buffer_type = 'EpisodeER'
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
@@ -84,11 +84,11 @@ class DRQN(Off_Policy):
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-                pad = lambda x: tf.keras.preprocessing.sequence.pad_sequences(x,
-                                                              padding='post',dtype='float32', value=0.)
+                def pad(x): return tf.keras.preprocessing.sequence.pad_sequences(x,
+                                                                                 padding='post', dtype='float32', value=0.)
                 s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
                 done = tf.keras.preprocessing.sequence.pad_sequences(done,
-                                                              padding='post',dtype='float32', value=1.)
+                                                                     padding='post', dtype='float32', value=1.)
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
@@ -106,8 +106,8 @@ class DRQN(Off_Policy):
         a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q,_ = self.q_net(s, visual_s)
-                q_next,_ = self.q_target_net(s_, visual_s_)
+                q, _ = self.q_net(s, visual_s)
+                q_next, _ = self.q_target_net(s_, visual_s_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=-1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
                 td_error = q_eval - q_target

@@ -87,7 +87,7 @@ For now, these algorithms are available:
 |        DQN         |    √     |            |        dqn        |
 |     Double DQN     |    √     |            |       ddqn        |
 | Dueling Double DQN |    √     |            |       dddqn       |
-|                    |    √     |            |        rqn        |
+|        DRQN        |    √     |            |       drqn        |
 |        C51         |    √     |            |        c51        |
 |        IQN         |    √     |            |        iqn        |
 |      Rainbow       |    √     |            |      Rainbow      |
@@ -128,7 +128,7 @@ Options:
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
     --fill-in                   指定是否预填充经验池至batch_size [default: False]
-    --prefill-choose               指定no_op操作时随机选择动作，或者置0 [default: False]
+    --prefill-choose            指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
