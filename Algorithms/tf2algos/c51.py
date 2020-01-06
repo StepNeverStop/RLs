@@ -57,18 +57,19 @@ class C51(Off_Policy):
         self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+    
+    def show_logo(self):
         self.recorder.logger.info('''
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　
-　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　
-　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　
-　　　　ｘｘｘｘｘ　ｘｘ　　　　　　　　ｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　
-　　　　ｘｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　ｘｘｘ　　　　　　
-　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
-　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
-　　　ｘｘｘｘ　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘｘｘ　　ｘｘ　　　　　　　ｘ　　　ｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　
-　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ
+　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
+　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘ　　　　　　
+　　　ｘｘｘｘ　　　　ｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　
+　　　ｘｘｘ　　　　　ｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
+　　　ｘｘｘ　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
+　　　ｘｘｘ　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　
+　　　ｘｘｘ　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　
+　　　　ｘｘｘ　　　　ｘ　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
+　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　
+　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘ　　　　　　　　　　　　　　ｘｘｘｘ　　　　
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):

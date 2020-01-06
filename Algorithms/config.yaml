@@ -1,4 +1,4 @@
-dqn:
+dqn:    &dqn
     lr: 5.0e-4
     gamma: 0.99
     eps_init: 1
@@ -11,6 +11,8 @@ dqn:
     use_priority: false
     n_step: true
     hidden_units: [64, 64]
+
+ddqn: *dqn
 
 drqn:   &drqn
     lr: 5.0e-4
@@ -27,20 +29,6 @@ drqn:   &drqn
         dense: [8]
     
 drdqn: *drqn
-
-ddqn:
-    lr: 5.0e-4
-    gamma: 0.99
-    eps_init: 1
-    eps_mid: 0.2
-    eps_final: 0.01
-    init2mid_annealing_episode: 10
-    batch_size: 1024
-    buffer_size: 100000
-    assign_interval: 1000
-    use_priority: false
-    n_step: true
-    hidden_units: [64, 64]
 
 dddqn:
     lr: 5.0e-4

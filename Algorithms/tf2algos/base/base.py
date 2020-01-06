@@ -34,6 +34,7 @@ class Base(tf.keras.Model):
             logger2file=logger2file,
             model=self
         )
+        self.show_logo()
 
     def _cast(self, dtype='float32'):
         if dtype == 'float32':
@@ -157,3 +158,6 @@ class Base(tf.keras.Model):
         set the start training step.
         """
         self.global_step.assign(num)
+
+    def show_logo(self):
+        raise NotImplementedError

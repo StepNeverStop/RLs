@@ -78,6 +78,8 @@ class TAC(Off_Policy):
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
+
+    def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
 　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　

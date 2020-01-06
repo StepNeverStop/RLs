@@ -40,6 +40,8 @@ class PG(On_Policy):
             self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+    
+    def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　

@@ -1,12 +1,8 @@
-import numpy as np
 import tensorflow as tf
-import Nn
-from utils.sth import sth
-from Algorithms.tf2algos.base.off_policy import Off_Policy
-from utils.expl_expt import ExplorationExploitationClass
+from Algorithms.tf2algos.dqn import DQN
 
 
-class DDQN(Off_Policy):
+class DDQN(DQN):
     '''
     Double DQN, https://arxiv.org/abs/1509.06461
     '''
@@ -33,19 +29,16 @@ class DDQN(Off_Policy):
             visual_resolution=visual_resolution,
             a_dim_or_list=a_dim_or_list,
             is_continuous=is_continuous,
+            lr=lr,
+            eps_init=eps_init,
+            eps_mid=eps_mid,
+            eps_final=eps_final,
+            init2mid_annealing_episode=init2mid_annealing_episode,
+            assign_interval=assign_interval,
+            hidden_units=hidden_units,
             **kwargs)
-        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
-                                                          eps_mid=eps_mid,
-                                                          eps_final=eps_final,
-                                                          init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=self.max_episode)
-        self.assign_interval = assign_interval
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
-        self.q_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_net', hidden_units, visual_net=self.visual_net)
-        self.q_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_target_net', hidden_units, visual_net=self.visual_net)
-        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+
+    def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
@@ -58,40 +51,8 @@ class DDQN(Off_Policy):
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　　　ｘｘ　　　
 　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　
         ''')
-
-    def choose_action(self, s, visual_s, evaluation=False):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, len(s))
-        else:
-            a = self._get_action(s, visual_s).numpy()
-        return sth.int2action_index(a, self.a_dim_or_list)
-
-    @tf.function
-    def _get_action(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
-        with tf.device(self.device):
-            q_values = self.q_net(s, visual_s)
-        return tf.argmax(q_values, axis=1)
-
-    def learn(self, **kwargs):
-        self.episode = kwargs['episode']
-        for i in range(kwargs['step']):
-            if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
-                if self.use_priority:
-                    self.IS_w = self.data.get_IS_w()
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
-                if self.use_priority:
-                    td_error = np.squeeze(td_error.numpy())
-                    self.data.update(td_error, self.episode)
-                if self.global_step % self.assign_interval == 0:
-                    self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-                summaries.update(dict([
-                    ['LEARNING_RATE/lr', self.lr(self.episode)]
-                ]))
-                self.write_training_summaries(self.global_step, summaries)
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

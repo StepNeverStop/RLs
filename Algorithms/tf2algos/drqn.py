@@ -50,6 +50,8 @@ class DRQN(Off_Policy):
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.cell_state = None
         self.buffer_type = 'EpisodeER'
+    
+    def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
