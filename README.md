@@ -69,6 +69,7 @@ For now, these algorithms are available:
     - [Deep Recurrent Q-learning Network, DRQN](https://arxiv.org/abs/1507.06527)
     - [Deep Recurrent Double Q-learning, DRDQN](https://arxiv.org/abs/1908.06040)
     - [Category 51, C51](https://arxiv.org/abs/1707.06887)
+    - [Quantile Regression DQN, QR-DQN](https://arxiv.org/abs/1710.10044)
     - [Implicit Quantile Networks, IQN](https://arxiv.org/abs/1806.06923)
     - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
@@ -77,6 +78,8 @@ For now, these algorithms are available:
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
     - Multi-Agent Deterministic Policy Gradient, MADPG
     - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
+
+
 
 |     Algorithms     | Discrete | Continuous | Command parameter |
 | :----------------: | :------: | :--------: | :---------------: |
@@ -91,6 +94,7 @@ For now, these algorithms are available:
 |        DRQN        |    √     |            |       drqn        |
 |       DRDQN        |    √     |            |       drdqn       |
 |        C51         |    √     |            |        c51        |
+|       QR-DQN       |    √     |            |       qrdqn       |
 |        IQN         |    √     |            |        iqn        |
 |      Rainbow       |    √     |            |      Rainbow      |
 |        DPG         |    √     |     √      |        dpg        |
@@ -167,7 +171,6 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ## Ongoing things
 
 - RNN
-- QR-DQN
 - DARQN
 - ACER
 - ~~ACKTR~~
@@ -213,3 +216,6 @@ If using this repository for your research, please cite:
 ## Issues
 
 Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
+
+
+

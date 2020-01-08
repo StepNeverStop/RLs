@@ -121,6 +121,7 @@ class RAINBOW(Off_Policy):
                 indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1])  # [B, 1]
                 q_dist = self.rainbow_net(s, visual_s)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
+                q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)
                 target_q = self.get_q(s_, visual_s_)    # [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = self.rainbow_target_net(s_, visual_s_)  # [B, A, N]
@@ -149,9 +150,9 @@ class RAINBOW(Off_Policy):
             self.global_step.assign_add(1)
             return td_error, dict([
                 ['LOSS/loss', loss],
-                ['Statistics/q_max', tf.reduce_max(target_q)],
-                ['Statistics/q_min', tf.reduce_min(target_q)],
-                ['Statistics/q_mean', tf.reduce_mean(target_q)]
+                ['Statistics/q_max', tf.reduce_max(q_eval)],
+                ['Statistics/q_min', tf.reduce_min(q_eval)],
+                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
     @tf.function(experimental_relax_shapes=True)

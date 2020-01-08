@@ -320,6 +320,24 @@ class c51_distributional(Model):
         q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
 
+class qrdqn_distributional(Model):
+    '''
+    neural network for QRDQN
+    '''
+
+    def __init__(self, vector_dim, action_dim, nums, name, hidden_units, *, visual_net):
+        super().__init__(visual_net, name=name)
+        self.action_dim = action_dim
+        self.nums = nums
+        self.net = mlp(hidden_units, output_shape=nums * action_dim, out_activation=None)
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
+        self.update_vars()
+
+    def init_or_run(self, x):
+        q_dist = self.net(x)    # [B, A*N]
+        q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.nums])   # [B, A, N]
+        return q_dist
+
 
 class rainbow_dueling(Model):
     '''

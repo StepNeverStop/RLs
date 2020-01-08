@@ -21,6 +21,7 @@ algos = {
     'ddqn':     {'class': 'DDQN',   'policy': 'off-policy', 'update': 'perStep'},
     'dddqn':    {'class': 'DDDQN',  'policy': 'off-policy', 'update': 'perStep'},
     'c51':      {'class': 'C51',    'policy': 'off-policy', 'update': 'perStep'},
+    'qrdqn':    {'class': 'QRDQN',  'policy': 'off-policy', 'update': 'perStep'},
     'rainbow':  {'class': 'RAINBOW','policy': 'off-policy', 'update': 'perStep'},
     'iqn':      {'class': 'IQN',    'policy': 'off-policy', 'update': 'perStep'},
     'maxsqn':   {'class': 'MAXSQN', 'policy': 'off-policy', 'update': 'perStep'},
