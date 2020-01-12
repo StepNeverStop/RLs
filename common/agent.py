@@ -60,7 +60,8 @@ class Agent:
 
         self.model_index = str(self.train_args.get('index'))
         self.all_learner_print = bool(self.train_args.get('all_learner_print', False))
-        self.train_args['name'] += f'-{self.model_index}'
+        if '-' not in self.train_args['name']:
+            self.train_args['name'] += f'-{self.model_index}'
         if self.model_args['load'] is None:
             self.train_args['load_model_path'] = os.path.join(self.train_args['base_dir'], self.train_args['name'])
         else:

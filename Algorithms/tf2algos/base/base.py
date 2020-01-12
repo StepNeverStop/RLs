@@ -81,13 +81,15 @@ class Base(tf.keras.Model):
         cp_dir = os.path.join(base_dir, 'model')
         if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
             try:
-                self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)
+                self.recorder.checkpoint.restore(tf.train.latest_checkpoint(cp_dir))
             except:
-                self.recorder.logger.error(f'restore model from {self.recorder.saver.latest_checkpoint} FAILED.')
-                raise Exception(f'restore model from {self.recorder.saver.latest_checkpoint} FAILED.')
+                self.recorder.logger.error(f'restore model from {cp_dir} FAILED.')
+                raise Exception(f'restore model from {cp_dir} FAILED.')
             else:
-                self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
+                self.recorder.logger.info(f'restore model from {cp_dir} SUCCUESS.')
         else:
+            self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)
+            self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
             self.recorder.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, global_step):
