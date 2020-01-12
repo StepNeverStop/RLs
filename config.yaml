@@ -18,6 +18,8 @@ train:
     max_step: 2000
     max_episode: 5000
     moving_average_episode: 100
+    total_step_control: true
+    max_total_step: 1000000
     all_learner_print: true
     add_noise2buffer: false                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
     add_noise2buffer_episode_interval: 10    # episode interval when adding noise into replay buffer while training
@@ -37,6 +39,8 @@ unity:
 gym:
     train:
         pre_fill_steps: 10000
+        off_policy_step_eval: true
+        off_policy_step_eval_num: 1
         render: false
         render_episode: 50000
         eval_while_train: false

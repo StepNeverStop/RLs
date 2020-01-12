@@ -114,6 +114,9 @@ class Agent:
             self.train_args['pre_fill_steps'] = algorithm_config['batch_size']
 
         if self.env_args['type'] == 'gym':
+            self.eval_env_args = deepcopy(self.env_args)
+            self.eval_env_args.env_num = 1
+            self.eval_env = make_env(self.eval_env_args.to_dict)
             # buffer ------------------------------
             if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
                 self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
@@ -247,7 +250,7 @@ class Agent:
             else:
                 self.unity_inference()
 
-    def init_variables(self):
+    def init_variables(self, evaluate=False):
         """
         inputs:
             env: Environment
@@ -256,8 +259,12 @@ class Agent:
             state: [vector_obs, visual_obs]
             newstate: [vector_obs, visual_obs]
         """
-        i = 1 if self.env.obs_type == 'visual' else 0
-        return i, [np.array([[]] * self.env.n), np.array([[]] * self.env.n)], [np.array([[]] * self.env.n), np.array([[]] * self.env.n)]
+        if evaluate:
+            env = self.eval_env
+        else:
+            env = self.env
+        i = 1 if env.obs_type == 'visual' else 0
+        return i, [np.array([[]] * env.n), np.array([[]] * env.n)], [np.array([[]] * env.n), np.array([[]] * env.n)]
 
     def gym_train(self):
         """
@@ -278,16 +285,25 @@ class Agent:
         save_frequency = int(self.train_args['save_frequency'])
         max_step = int(self.train_args['max_step'])
         max_episode = int(self.train_args['max_episode'])
-        eval_while_train = int(self.train_args['eval_while_train'])
+        eval_while_train = bool(self.train_args['eval_while_train'])
         max_eval_episode = int(self.train_args.get('max_eval_episode'))
+        off_policy_step_eval = bool(self.train_args['off_policy_step_eval'])
+        off_policy_step_eval_num = int(self.train_args.get('off_policy_step_eval_num'))
         policy_mode = str(self.model_args['policy_mode'])
         moving_average_episode = int(self.train_args['moving_average_episode'])
         add_noise2buffer = bool(self.train_args['add_noise2buffer'])
         add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
         add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
 
+
+        total_step_control = bool(self.train_args['total_step_control'])
+        max_total_step = int(self.train_args['max_total_step'])
+        if total_step_control:
+            max_episode = max_total_step
+
         i, state, new_state = self.init_variables()
         sma = SMA(moving_average_episode)
+        total_step = 0
         for episode in range(begin_episode, max_episode):
             state[i] = self.env.reset()
             dones_flag = np.full(self.env.n, False)
@@ -317,6 +333,12 @@ class Agent:
 
                 if policy_mode == 'off-policy':
                     self.model.learn(episode=episode, step=1)
+                    if off_policy_step_eval:
+                        self.gym_step_eval(total_step, self.model, off_policy_step_eval_num, max_step)
+                total_step += 1
+                if total_step_control and total_step > max_total_step:
+                    return
+
                 if all(dones_flag):
                     if last_done_step == -1:
                         last_done_step = step
@@ -353,6 +375,31 @@ class Agent:
                 if r.max() >= self.env.reward_threshold:
                     self.pwi(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                     self.gym_evaluate()
+
+    def gym_step_eval(self, idx, model, episodes_num, max_step):
+        i, state, _ = self.init_variables(evaluate=True)
+        ret = 0.
+        ave_steps = 0.
+        for _ in range(episodes_num):
+            state[i] = self.eval_env.reset()
+            r = 0.
+            step = 0
+            while True:
+                action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
+                state[i], reward, done, info = self.eval_env.step(action)
+                reward = reward[0]
+                done = done[0]
+                r += reward
+                step += 1
+                if done or step > max_step:
+                    ret += r
+                    ave_steps += step
+                    break
+        model.writer_summary(
+            idx,
+            eval_return=ret/episodes_num,
+            eval_ave_step=ave_steps//episodes_num,
+        )
 
     def gym_random_sample(self, steps):
         i, state, new_state = self.init_variables()
