@@ -1,86 +1,67 @@
 |Blackjack-v0                                      Tuple(Discrete(32), Discrete(11), Discrete(2))                                                                                                       Discrete(2)|
 |KellyCoinflip-v0                                  Tuple(Box(1,), Discrete(301))                                                                                                                    Discrete(25000)|
-|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(286), Discrete(286), Discrete(286), Box(1,))                                                                             Discrete(28100)|
-Reacher-v2
-Pusher-v2
-Thrower-v2
-Striker-v2
-InvertedPendulum-v2
-InvertedDoublePendulum-v2
-HalfCheetah-v2
-HalfCheetah-v3
-Hopper-v2
-Hopper-v3
-Swimmer-v2
-Swimmer-v3
-Walker2d-v2
-Walker2d-v3
-Ant-v2
-Ant-v3
-Humanoid-v2
-Humanoid-v3
-HumanoidStandup-v2
-FetchSlide-v1
-FetchPickAndPlace-v1
-FetchReach-v1
-FetchPush-v1
-HandReach-v0
-HandManipulateBlockRotateZ-v0
-HandManipulateBlockRotateZTouchSensors-v0
-HandManipulateBlockRotateZTouchSensors-v1
-HandManipulateBlockRotateParallel-v0
-HandManipulateBlockRotateParallelTouchSensors-v0
-HandManipulateBlockRotateParallelTouchSensors-v1
-HandManipulateBlockRotateXYZ-v0
-HandManipulateBlockRotateXYZTouchSensors-v0
-HandManipulateBlockRotateXYZTouchSensors-v1
-HandManipulateBlockFull-v0
-HandManipulateBlock-v0
-HandManipulateBlockTouchSensors-v0
-HandManipulateBlockTouchSensors-v1
-HandManipulateEggRotate-v0
-HandManipulateEggRotateTouchSensors-v0
-HandManipulateEggRotateTouchSensors-v1
-HandManipulateEggFull-v0
-HandManipulateEgg-v0
-HandManipulateEggTouchSensors-v0
-HandManipulateEggTouchSensors-v1
-HandManipulatePenRotate-v0
-HandManipulatePenRotateTouchSensors-v0
-HandManipulatePenRotateTouchSensors-v1
-HandManipulatePenFull-v0
-HandManipulatePen-v0
-HandManipulatePenTouchSensors-v0
-HandManipulatePenTouchSensors-v1
-FetchSlideDense-v1
-FetchPickAndPlaceDense-v1
-FetchReachDense-v1
-FetchPushDense-v1
-HandReachDense-v0
-HandManipulateBlockRotateZDense-v0
-HandManipulateBlockRotateZTouchSensorsDense-v0
-HandManipulateBlockRotateZTouchSensorsDense-v1
-HandManipulateBlockRotateParallelDense-v0
-HandManipulateBlockRotateParallelTouchSensorsDense-v0
-HandManipulateBlockRotateParallelTouchSensorsDense-v1
-HandManipulateBlockRotateXYZDense-v0
-HandManipulateBlockRotateXYZTouchSensorsDense-v0
-HandManipulateBlockRotateXYZTouchSensorsDense-v1
-HandManipulateBlockFullDense-v0
-HandManipulateBlockDense-v0
-HandManipulateBlockTouchSensorsDense-v0
-HandManipulateBlockTouchSensorsDense-v1
-HandManipulateEggRotateDense-v0
-HandManipulateEggRotateTouchSensorsDense-v0
-HandManipulateEggRotateTouchSensorsDense-v1
-HandManipulateEggFullDense-v0
-HandManipulateEggDense-v0
-HandManipulateEggTouchSensorsDense-v0
-HandManipulateEggTouchSensorsDense-v1
-HandManipulatePenRotateDense-v0
-HandManipulatePenRotateTouchSensorsDense-v0
-HandManipulatePenRotateTouchSensorsDense-v1
-HandManipulatePenFullDense-v0
-HandManipulatePenDense-v0
-HandManipulatePenTouchSensorsDense-v0
-HandManipulatePenTouchSensorsDense-v1
+|KellyCoinflipGeneralized-v0                       Tuple(Box(1,), Discrete(287), Discrete(287), Discrete(287), Box(1,))                                                                             Discrete(21100)|
+|FetchSlide-v1                                     Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|FetchPickAndPlace-v1                              Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|FetchReach-v1                                     Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(10,))                                                                                  Box(4,)|
+|FetchPush-v1                                      Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|HandReach-v0                                      Dict(achieved_goal:Box(15,), desired_goal:Box(15,), observation:Box(63,))                                                                               Box(20,)|
+|HandManipulateBlockRotateZ-v0                     Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateZTouchSensors-v0         Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateZTouchSensors-v1         Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateParallel-v0              Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateParallelTouchSensors-v0  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateParallelTouchSensors-v1  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateXYZ-v0                   Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateXYZTouchSensors-v0       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateXYZTouchSensors-v1       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockFull-v0                        Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlock-v0                            Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockTouchSensors-v0                Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockTouchSensors-v1                Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggRotate-v0                        Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEggRotateTouchSensors-v0            Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggRotateTouchSensors-v1            Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggFull-v0                          Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEgg-v0                              Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEggTouchSensors-v0                  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggTouchSensors-v1                  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenRotate-v0                        Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePenRotateTouchSensors-v0            Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenRotateTouchSensors-v1            Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenFull-v0                          Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePen-v0                              Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePenTouchSensors-v0                  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenTouchSensors-v1                  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|FetchSlideDense-v1                                Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|FetchPickAndPlaceDense-v1                         Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|FetchReachDense-v1                                Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(10,))                                                                                  Box(4,)|
+|FetchPushDense-v1                                 Dict(achieved_goal:Box(3,), desired_goal:Box(3,), observation:Box(25,))                                                                                  Box(4,)|
+|HandReachDense-v0                                 Dict(achieved_goal:Box(15,), desired_goal:Box(15,), observation:Box(63,))                                                                               Box(20,)|
+|HandManipulateBlockRotateZDense-v0                Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateZTouchSensorsDense-v0    Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateZTouchSensorsDense-v1    Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateParallelDense-v0         Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateParallelTouchSensorsDense-v0Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateParallelTouchSensorsDense-v1Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateXYZDense-v0              Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockRotateXYZTouchSensorsDense-v0  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockRotateXYZTouchSensorsDense-v1  Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockFullDense-v0                   Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockDense-v0                       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateBlockTouchSensorsDense-v0           Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateBlockTouchSensorsDense-v1           Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggRotateDense-v0                   Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEggRotateTouchSensorsDense-v0       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggRotateTouchSensorsDense-v1       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggFullDense-v0                     Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEggDense-v0                         Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulateEggTouchSensorsDense-v0             Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulateEggTouchSensorsDense-v1             Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenRotateDense-v0                   Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePenRotateTouchSensorsDense-v0       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenRotateTouchSensorsDense-v1       Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenFullDense-v0                     Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePenDense-v0                         Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(61,))                                                                                 Box(20,)|
+|HandManipulatePenTouchSensorsDense-v0             Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|
+|HandManipulatePenTouchSensorsDense-v1             Dict(achieved_goal:Box(7,), desired_goal:Box(7,), observation:Box(153,))                                                                                Box(20,)|

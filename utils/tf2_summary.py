@@ -1,4 +1,3 @@
-
 import os
 import time
 import json
@@ -6,6 +5,8 @@ import tensorflow as tf
 from tensorflow.core.util import event_pb2
 
 DIR = r''   # where to save .json file.
+BASE_DIR = r''
+BASE_TAG = [] # ['MAIN/reward_max', 'MAIN/reward_mean', 'MAIN/reward_min', 'MAIN/sma_max', 'MAIN/sma_mean', 'MAIN/sma_min', 'MAIN/step']
 file_paths = [
     {
       'path': r'*.v2',  # tf2 summary file path.
@@ -48,7 +49,25 @@ def json_load(path):
         return (value, step)
     return None
 
+def search_file(path, text):
+    try:
+        files = os.listdir(path)
+        file_path_list = []
+        for f in files:
+            f1 = os.path.join(path, f)
+            if os.path.isdir(f1):
+                file_path_list.extend(search_file(f1, text))
+            elif os.path.isfile(f1) and os.path.splitext(f1)[1] == text:
+                file_path_list.append(f1)
+        return file_path_list
+    except Exception as e:
+        print(e)
+
 if __name__ == "__main__":
+    if BASE_DIR != '':
+        file_paths = search_file(BASE_DIR, '.v2')
+        file_paths = [{'path': path, 'tags':BASE_TAG} for path in file_paths]
+
     for index, d in enumerate(file_paths):
         path = d.get('path')
         if os.path.exists(path):
