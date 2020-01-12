@@ -134,9 +134,7 @@ class Agent:
             }
             self.model = Model(**model_params, **algorithm_config)
             self.model.set_buffer(self.buffer)
-            self.model.init_or_restore(
-                os.path.join(self.train_args['load_model_path'])
-            )
+            self.model.init_or_restore(self.train_args['load_model_path'])
             # model -------------------------------
 
             self.train_args['begin_episode'] = self.model.get_init_episode()
