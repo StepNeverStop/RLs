@@ -13,6 +13,7 @@ class VisualNet(tf.keras.Model):
 
     def __init__(self, name, visual_dim=[]):
         super().__init__(name=name)
+        self.vd = len(visual_dim) + 1
         if len(visual_dim) == 4:
             self.net = Sequential([
                 Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation='relu'),
@@ -38,4 +39,12 @@ class VisualNet(tf.keras.Model):
             self.hdim = 0
 
     def call(self, visual_input):
-        return self.net(visual_input)
+        if len(visual_input.shape) == 5 and self.vd == 4:
+            # LSTM
+            b = visual_input.shape[0]
+            visual_input = tf.reshape(visual_input, [-1]+list(visual_input.shape)[-3:])
+            f = self.net(visual_input)
+            f = tf.reshape(f, [b, -1, self.hdim])
+        else:
+            f = self.net(visual_input)
+        return f
