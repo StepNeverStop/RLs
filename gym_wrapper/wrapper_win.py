@@ -83,7 +83,8 @@ class gym_envs(object):
         self._get_render_index(render_mode)
 
     def _initialize(self, env):
-        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        assert isinstance(env.observation_space, (Box, Discrete)) \
+               and isinstance(env.action_space, (Box, Discrete, Tuple)), 'action_space and observation_space must be one of available_type'
         # process observation
         ObsSpace = env.observation_space
         if isinstance(ObsSpace, Box):

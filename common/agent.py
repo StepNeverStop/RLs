@@ -1,4 +1,4 @@
-import os
+import os, sys
 import numpy as np
 from copy import deepcopy
 from common.config import Config
@@ -19,9 +19,10 @@ def ShowConfig(config):
 
 def UpdateConfig(config, file_path, key_name='algo'):
     _config = load_config(file_path)
+    values = _config[key_name]
     try:
-        for key in _config[key_name]:
-            config[key] = _config[key]
+        for key in values:
+            config[key] = values[key]
     except Exception as e:
         print(e)
         sys.exit()
@@ -325,7 +326,7 @@ class Agent:
                     s=state[0],
                     visual_s=state[1],
                     a=action,
-                    r=reward,
+                    r=reward.astype('float32'),
                     s_=new_state[0],
                     visual_s_=new_state[1],
                     done=done
@@ -412,7 +413,7 @@ class Agent:
                 s=state[0],
                 visual_s=state[1],
                 a=action,
-                r=reward,
+                r=reward.astype('float32'),
                 s_=new_state[0],
                 visual_s_=new_state[1],
                 done=done
@@ -424,7 +425,7 @@ class Agent:
 
     def gym_evaluate(self):
         max_step = int(self.train_args['max_step'])
-        max_eval_episode = int(self.train_args['max_eval_eposide'])
+        max_eval_episode = int(self.train_args['max_eval_episode'])
         i, state, _ = self.init_variables()
         total_r = np.zeros(self.env.n)
         total_steps = np.zeros(self.env.n)
@@ -475,7 +476,7 @@ class Agent:
                 s=state[0],
                 visual_s=state[1],
                 a=action,
-                r=reward,
+                r=reward.astype('float32'),
                 s_=new_state[0],
                 visual_s_=new_state[1],
                 done=done

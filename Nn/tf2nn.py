@@ -64,7 +64,7 @@ class actor_mu(Model):
     def __init__(self, vector_dim, output_shape, name, hidden_units, *, visual_net):
         super().__init__(visual_net, name=name)
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
-        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim), tf.keras.Input)
+        self.init_or_run(tf.keras.Input(shape=vector_dim + self.visual_net.hdim))
         self.update_vars()
 
     def init_or_run(self, x):
