@@ -8,7 +8,9 @@ from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
 class SAC(Off_Policy):
-    """Soft Actor Critic without Value neural network. https://arxiv.org/abs/1812.05905
+    """
+        Soft Actor Critic without Value neural network. https://arxiv.org/abs/1812.05905
+        Soft Actor-Critic for Discrete Action Settings. https://arxiv.org/abs/1910.07207
     """
 
     def __init__(self,
@@ -20,6 +22,7 @@ class SAC(Off_Policy):
 
                  alpha=0.2,
                  ployak=0.995,
+                 use_gumbel=True,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
                  share_visual_net=True,
@@ -45,6 +48,7 @@ class SAC(Off_Policy):
             is_continuous=is_continuous,
             **kwargs)
         self.ployak = ployak
+        self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
         self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -61,11 +65,17 @@ class SAC(Off_Policy):
             self.actor_net = Nn.actor_continuous(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
         else:
             self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+            if self.use_gumbel:
+                self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
+        
+        if self.is_continuous or self.use_gumbel:
+            critic_net = Nn.critic_q_one
+        else:
+            critic_net = Nn.critic_q_all
+        self.q1_net = critic_net(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q1_target_net = critic_net(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_net = critic_net(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
+        self.q2_target_net = critic_net(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
         self.update_target_net_weights(
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
@@ -120,7 +130,10 @@ class SAC(Off_Policy):
                 s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                if self.is_continuous or self.use_gumbel:
+                    td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                else:
+                    td_error, summaries = self.train_discrete(s, visual_s, a, r, s_, visual_s_, done)
                 if self.use_priority:
                     td_error = np.squeeze(td_error.numpy())
                     self.data.update(td_error, self.episode)
@@ -295,6 +308,76 @@ class SAC(Off_Policy):
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
                 ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
+            ])
+            if self.auto_adaption:
+                summaries.update({
+                    'LOSS/alpha_loss': alpha_loss
+                })
+            return td_error1 + td_error2 / 2, summaries
+
+    @tf.function(experimental_relax_shapes=True)
+    def train_discrete(self, s, visual_s, a, r, s_, visual_s_, done):
+        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
+        with tf.device(self.device):
+            with tf.GradientTape() as tape:
+                q1_all = self.q1_net(s, visual_s)   # [B, A]
+                q2_all = self.q2_net(s, visual_s)   # [B, A]
+                q_function = lambda x: tf.reduce_sum(x*a, axis=-1, keepdims=True)   #[B, 1]
+                q1 = q_function(q1_all)
+                q2 = q_function(q2_all)
+                target_logits = self.actor_net(s_, visual_s_)   #[B, A]
+                target_log_probs = tf.nn.log_softmax(target_logits)     #[B, A]
+                q1_target = self.q1_target_net(s_, visual_s_)   # [B, A]
+                q2_target = self.q2_target_net(s_, visual_s_)   # [B, A]
+                v_target_function = lambda x: tf.reduce_sum(tf.exp(target_log_probs)*(x-tf.exp(self.log_alpha)*target_log_probs), axis=-1, keepdims=True)   #[B, 1]
+                v1_target = v_target_function(q1_target)
+                v2_target = v_target_function(q2_target)
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * v1_target)
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * v2_target)
+                td_error1 = q1 - dc_r_q1
+                td_error2 = q2 - dc_r_q2
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+            critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
+            self.optimizer_critic.apply_gradients(
+                zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
+            )
+
+            with tf.GradientTape() as tape:
+                logits = self.actor_net(s, visual_s)
+                logp_all = tf.nn.log_softmax(logits)
+                entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                q1_all = self.q1_net(s, visual_s)   # [B, A]
+                q2_all = self.q2_net(s, visual_s)   # [B, A]
+                q_all = tf.minimum(q1_all, q2_all)  # [B, A]
+                actor_loss = -tf.reduce_mean(
+                    tf.reduce_sum((q_all - tf.exp(self.log_alpha) * logp_all) * tf.exp(logp_all)) # [B, A] => [B,]
+                )
+            actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net.tv)
+            )
+
+            if self.auto_adaption:
+                with tf.GradientTape() as tape:
+                    logits = self.actor_net(s, visual_s)
+                    logp_all = tf.nn.log_softmax(logits)
+                    corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
+                    alpha_loss = -tf.reduce_mean(self.log_alpha * corr)
+                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                self.optimizer_alpha.apply_gradients(
+                    zip(alpha_grads, [self.log_alpha])
+                )
+            self.global_step.assign_add(1)
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/q1_loss', q1_loss],
+                ['LOSS/q2_loss', q2_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/log_alpha', self.log_alpha],
+                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/entropy', entropy]
             ])
             if self.auto_adaption:
                 summaries.update({

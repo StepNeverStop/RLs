@@ -260,6 +260,7 @@ sac_v:
     log_std_bound: [-20, 2]
     gamma: 0.99
     ployak: 0.995
+    use_gumbel: true
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
@@ -316,6 +317,7 @@ sac:
     share_visual_net: true
     gamma: 0.99
     ployak: 0.995
+    use_gumbel: true
     discrete_tau: 1.0
     batch_size: 1024
     buffer_size: 100000

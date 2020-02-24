@@ -297,6 +297,7 @@ class Agent:
 
 
         total_step_control = bool(self.train_args['total_step_control'])
+        eval_interval = int(self.train_args['eval_interval'])
         max_total_step = int(self.train_args['max_total_step'])
         if total_step_control:
             max_episode = max_total_step
@@ -333,7 +334,7 @@ class Agent:
 
                 if policy_mode == 'off-policy':
                     self.model.learn(episode=episode, step=1)
-                    if off_policy_step_eval:
+                    if off_policy_step_eval and total_step % eval_interval == 0:
                         self.gym_step_eval(total_step, self.model, off_policy_step_eval_num, max_step)
                 total_step += 1
                 if total_step_control and total_step > max_total_step:
