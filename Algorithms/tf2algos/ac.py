@@ -115,21 +115,18 @@ class AC(Off_Policy):
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
-            s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.get_trainsitions()
-            if self.use_priority:
-                self.IS_w = self.data.get_IS_w()
-            td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
-            if self.use_priority:
-                td_error = np.squeeze(td_error.numpy())
-                self.data.update(td_error, self.episode)
-            summaries.update(dict([
-                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-            ]))
-            self.write_training_summaries(self.global_step, summaries)
+            self._learn(function_dict={
+                'train_function': self.train,
+                'update_function': lambda : None,
+                'summary_dict': dict([
+                                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                            ]),
+                'data_list': ['s', 'visual_s', 'a', 'old_log_prob', 'r', 's_', 'visual_s_', 'done']
+            })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
+    def train(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -183,7 +180,7 @@ class AC(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
+    def train_persistent(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:

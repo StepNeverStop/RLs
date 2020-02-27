@@ -58,6 +58,9 @@ class DRDQN(DRQN):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        pad = lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='post', dtype='float32', value=0.)
+        s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
+        done = tf.keras.preprocessing.sequence.pad_sequences(done, padding='post', dtype='float32', value=1.)
         a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
         with tf.device(self.device):
             with tf.GradientTape() as tape:

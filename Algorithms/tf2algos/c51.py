@@ -88,19 +88,15 @@ class C51(Off_Policy):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+        def _update():
+            if self.global_step % self.assign_interval == 0:
+                self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         for i in range(kwargs['step']):
-            if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
-                if self.use_priority:
-                    self.IS_w = self.data.get_IS_w()
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
-                if self.use_priority:
-                    td_error = np.squeeze(td_error.numpy())
-                    self.data.update(td_error, self.episode)
-                if self.global_step % self.assign_interval == 0:
-                    self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
-                summaries.update(dict([['LEARNING_RATE/lr', self.lr(self.episode)]]))
-                self.write_training_summaries(self.global_step, summaries)
+            self._learn(function_dict={
+                'train_function': self.train,
+                'update_function': _update,
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+            })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

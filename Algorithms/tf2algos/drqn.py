@@ -85,27 +85,21 @@ class DRQN(Off_Policy):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+        def _update():
+            if self.global_step % self.assign_interval == 0:
+                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(kwargs['step']):
-            if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
-                def pad(x): return tf.keras.preprocessing.sequence.pad_sequences(x,
-                                                                                 padding='post', dtype='float32', value=0.)
-                s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
-                done = tf.keras.preprocessing.sequence.pad_sequences(done,
-                                                                     padding='post', dtype='float32', value=1.)
-                if self.use_priority:
-                    self.IS_w = self.data.get_IS_w()
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
-                if self.use_priority:
-                    td_error = np.squeeze(td_error.numpy())
-                    self.data.update(td_error, self.episode)
-                if self.global_step % self.assign_interval == 0:
-                    self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-                summaries.update(dict([['LEARNING_RATE/lr', self.lr(self.episode)]]))
-                self.write_training_summaries(self.global_step, summaries)
+            self._learn(function_dict={
+                'train_function': self.train,
+                'update_function': _update,
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+            })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        pad = lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='post', dtype='float32', value=0.)
+        s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
+        done = tf.keras.preprocessing.sequence.pad_sequences(done, padding='post', dtype='float32', value=1.)
         a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
         with tf.device(self.device):
             with tf.GradientTape() as tape:

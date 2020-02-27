@@ -95,19 +95,14 @@ class DPG(Off_Policy):
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
-            if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
-                if self.use_priority:
-                    self.IS_w = self.data.get_IS_w()
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
-                if self.use_priority:
-                    td_error = np.squeeze(td_error.numpy())
-                    self.data.update(td_error, self.episode)
-                summaries.update(dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                ]))
-                self.write_training_summaries(self.global_step, summaries)
+            self._learn(function_dict={
+                'train_function': self.train,
+                'update_function': lambda : None,
+                'summary_dict': dict([
+                                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                                ])
+            })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):

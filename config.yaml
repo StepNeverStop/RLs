@@ -39,7 +39,7 @@ unity:
 gym:
     train:
         pre_fill_steps: 10000
-        off_policy_step_eval: true
+        off_policy_step_eval: false
         eval_interval: 1000
         off_policy_step_eval_num: 100
         render: false
