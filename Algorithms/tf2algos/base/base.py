@@ -2,6 +2,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from utils.tf2_utils import cast2float32, cast2float64
+from utils.tf2_utils import get_device
 from utils.recorder import Recorder
 
 
@@ -19,13 +20,8 @@ class Base(tf.keras.Model):
         logger2file = kwargs.get('logger2file', False)
         tf_dtype = kwargs.get('tf_dtype', 'float32')
         tf.random.set_seed(int(kwargs.get('seed', 0)))
+        self.device = get_device()
 
-        physical_devices = tf.config.experimental.list_physical_devices('GPU')
-        if len(physical_devices) > 0:
-            self.device = "/gpu:0"
-            tf.config.experimental.set_memory_growth(physical_devices[0], True)
-        else:
-            self.device = "/cpu:0"
         tf.keras.backend.set_floatx(tf_dtype)
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
@@ -81,14 +77,14 @@ class Base(tf.keras.Model):
         cp_dir = os.path.join(base_dir, 'model')
         if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
             try:
-                self.recorder.checkpoint.restore(tf.train.latest_checkpoint(cp_dir))
+                self.recorder.checkpoint.restore(tf.train.latest_checkpoint(cp_dir))    # 从指定路径导入模型
             except:
                 self.recorder.logger.error(f'restore model from {cp_dir} FAILED.')
                 raise Exception(f'restore model from {cp_dir} FAILED.')
             else:
                 self.recorder.logger.info(f'restore model from {cp_dir} SUCCUESS.')
         else:
-            self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)
+            self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)  # 从本模型目录载入模型，断点续训
             self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
             self.recorder.logger.info('initialize model SUCCUESS.')
 

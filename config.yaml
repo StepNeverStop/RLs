@@ -18,7 +18,6 @@ train:
     max_step: 2000      # max_step per episode
     max_episode: 5000   # if not specify max_total_step, max_episode will control when training end.
     max_total_step: 1000000
-    eval_interval: 1000
     total_step_control: true
     moving_average_episode: 100
     all_learner_print: true
@@ -41,7 +40,8 @@ gym:
     train:
         pre_fill_steps: 10000
         off_policy_step_eval: true
-        off_policy_step_eval_num: 1
+        eval_interval: 1000
+        off_policy_step_eval_num: 100
         render: false
         render_episode: 50000
         eval_while_train: false

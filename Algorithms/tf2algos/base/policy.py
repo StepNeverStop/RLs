@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from .base import Base
 from abc import abstractmethod
+from Nn.networks import CuriosityModel
 
 
 class Policy(Base):
@@ -28,6 +29,15 @@ class Policy(Base):
         self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
         self.IS_w = 1       # the weights of NN variables by using Importance sampling.
+
+        self.use_curiosity = bool(kwargs.get('use_curiosity', False))
+        if self.use_curiosity:
+            self.curiosity_eta = float(kwargs.get('curiosity_reward_eta'))
+            self.curiosity_lr = float(kwargs.get('curiosity_lr'))
+            self.curiosity_beta = float(kwargs.get('curiosity_beta'))
+            self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
+            self.curiosity_model = CuriosityModel('curiosity_model', self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
+                                                  eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
     def get_max_episode(self):
         """

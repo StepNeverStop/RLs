@@ -1,6 +1,14 @@
 import numpy as np
 import tensorflow as tf
 
+def get_device():
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    if len(physical_devices) > 0:
+        device = "/gpu:0"
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    else:
+        device = "/cpu:0"
+    return device
 
 def show_graph(name='my_func_trace'):
     '''

@@ -1,3 +1,10 @@
+general:
+    use_curiosity: true
+    curiosity_lr: 1.0e-3
+    curiosity_reward_eta: 0.5
+    curiosity_beta: 0.2
+    curiosity_loss_weight: 5
+
 dqn:    &dqn
     lr: 5.0e-4
     gamma: 0.99
