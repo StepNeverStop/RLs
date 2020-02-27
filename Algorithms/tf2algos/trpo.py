@@ -215,10 +215,10 @@ class TRPO(On_Policy):
         self.calculate_statistics()
         for index in range(0, self.data.shape[0], self.batch_size):
             if self.is_continuous:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = map(tf.convert_to_tensor, self.get_sample_data(index))
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = map(self.data_convert, self.get_sample_data(index))
                 Hx_args = (s, visual_s, old_mu, old_log_std)
             else:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = map(tf.convert_to_tensor, self.get_sample_data(index))
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = map(self.data_convert, self.get_sample_data(index))
                 Hx_args = (s, visual_s, old_logp_all)
             actor_loss, entropy, gradients = self.train_actor.get_concrete_function(
                 *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
@@ -246,7 +246,6 @@ class TRPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
-        s, visual_s, a, old_log_prob, advantage = self.cast(s, visual_s, a, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -267,9 +266,9 @@ class TRPO(On_Policy):
     @tf.function(experimental_relax_shapes=True)
     def Hx(self, x, *args):
         if self.is_continuous:
-            s, visual_s, old_mu, old_log_std = self.cast(*args)
+            s, visual_s, old_mu, old_log_std = args
         else:
-            s, visual_s, old_logp_all = self.cast(*args)
+            s, visual_s, old_logp_all = args
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:
@@ -293,7 +292,6 @@ class TRPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_critic(self, s, visual_s, dc_r):
-        s, visual_s, dc_r = self.cast(s, visual_s, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 value = self.critic_net(s, visual_s)

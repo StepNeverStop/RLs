@@ -104,7 +104,7 @@ class DDPG(Off_Policy):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
@@ -123,7 +123,6 @@ class DDPG(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -172,7 +171,6 @@ class DDPG(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:

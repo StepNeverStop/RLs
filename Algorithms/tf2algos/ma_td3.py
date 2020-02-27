@@ -96,6 +96,7 @@ class MATD3(Policy):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
+        ap, al, ss, ss_, aa, aa_, s, r = map(self.data_convert, (ap, al, ss, ss_, aa, aa_, s, r))
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
             self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
@@ -115,7 +116,6 @@ class MATD3(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
-        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape() as tape:
@@ -153,7 +153,6 @@ class MATD3(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
-        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:

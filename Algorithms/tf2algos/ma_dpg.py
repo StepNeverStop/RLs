@@ -82,6 +82,7 @@ class MADPG(Policy):
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
         self.episode = episode
+        ap, al, ss, ss_, aa, aa_, s, r = map(self.data_convert, (ap, al, ss, ss_, aa, aa_, s, r))
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         summaries.update(dict([
             ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
@@ -97,7 +98,6 @@ class MADPG(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
-        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q = self.q_net(ss, None, aa)
@@ -126,7 +126,6 @@ class MADPG(Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):
-        q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r = self.cast(q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 q = self.q_net(ss, None, aa)

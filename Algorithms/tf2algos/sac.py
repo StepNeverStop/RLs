@@ -127,7 +127,15 @@ class SAC(Off_Policy):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                self.intermediate_variable_reset()
+                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
+
+                if self.use_curiosity:
+                    ir, iloss, isummaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
+                    r += ir
+                    self.curiosity_loss_constant += iloss
+                    self.summaries.update(isummaries)
+
                 if self.use_priority:
                     self.IS_w = self.data.get_IS_w()
                 if self.is_continuous or self.use_gumbel:
@@ -141,21 +149,16 @@ class SAC(Off_Policy):
                     self.q1_target_net.weights + self.q2_target_net.weights,
                     self.q1_net.weights + self.q2_net.weights,
                     self.ployak)
-                summaries.update(dict([
+                self.summaries.update(summaries)
+                self.summaries.update(dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
                 ]))
-                self.write_training_summaries(self.global_step, summaries)
+                self.write_training_summaries(self.global_step, self.summaries)
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
-        summaries = {}
-        if self.use_curiosity:
-            ir, iloss, isummaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
-            r += ir
-            summaries.update(isummaries)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -178,7 +181,7 @@ class SAC(Off_Policy):
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + self.curiosity_loss_constant
             critic_grads = tape.gradient(critic_loss, self.q1_net.tv + self.q2_net.tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.q1_net.tv + self.q2_net.tv)
@@ -225,7 +228,7 @@ class SAC(Off_Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            summaries.update(dict([
+            summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
@@ -236,7 +239,7 @@ class SAC(Off_Policy):
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
                 ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
-            ]))
+            ])
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
@@ -245,8 +248,6 @@ class SAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
-        summaries = {}
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:
@@ -303,7 +304,7 @@ class SAC(Off_Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            summaries.update(dict([
+            summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
@@ -314,7 +315,7 @@ class SAC(Off_Policy):
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
                 ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
-            ]))
+            ])
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
@@ -323,8 +324,6 @@ class SAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_discrete(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
-        summaries = {}
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q1_all = self.q1_net(s, visual_s)   # [B, A]
@@ -377,7 +376,7 @@ class SAC(Off_Policy):
                     zip(alpha_grads, [self.log_alpha])
                 )
             self.global_step.assign_add(1)
-            summaries.update(dict([
+            summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/q1_loss', q1_loss],
                 ['LOSS/q2_loss', q2_loss],
@@ -385,7 +384,7 @@ class SAC(Off_Policy):
                 ['Statistics/log_alpha', self.log_alpha],
                 ['Statistics/alpha', tf.exp(self.log_alpha)],
                 ['Statistics/entropy', entropy]
-            ]))
+            ])
             if self.auto_adaption:
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss

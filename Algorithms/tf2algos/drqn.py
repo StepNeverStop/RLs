@@ -87,7 +87,7 @@ class DRQN(Off_Policy):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
             if self.data.is_lg_batch_size:
-                s, visual_s, a, r, s_, visual_s_, done = self.data.sample()
+                s, visual_s, a, r, s_, visual_s_, done = self.get_trainsitions()
                 def pad(x): return tf.keras.preprocessing.sequence.pad_sequences(x,
                                                                                  padding='post', dtype='float32', value=0.)
                 s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
@@ -106,7 +106,6 @@ class DRQN(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
-        s, visual_s, a, r, s_, visual_s_, done = self.cast(s, visual_s, a, r, s_, visual_s_, done)
         a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
         with tf.device(self.device):
             with tf.GradientTape() as tape:

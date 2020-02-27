@@ -208,7 +208,7 @@ class PPO(On_Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r, old_log_prob, advantage = map(tf.convert_to_tensor, self.get_sample_data(index))
+                s, visual_s, a, dc_r, old_log_prob, advantage = map(self.data_convert, self.get_sample_data(index))
                 if self.share_net:
                     actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)
@@ -237,7 +237,6 @@ class PPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
-        s, visual_s, a, dc_r, old_log_prob, advantage = self.cast(s, visual_s, a, dc_r, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -274,7 +273,6 @@ class PPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
-        s, visual_s, a, old_log_prob, advantage = self.cast(s, visual_s, a, old_log_prob, advantage)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -305,7 +303,6 @@ class PPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_critic(self, s, visual_s, dc_r):
-        s, visual_s, dc_r = self.cast(s, visual_s, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 value = self.critic_net(s, visual_s)

@@ -104,7 +104,7 @@ class A2C(On_Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r = map(tf.convert_to_tensor, self.get_sample_data(index))
+                s, visual_s, a, dc_r = map(self.data_convert, self.get_sample_data(index))
                 actor_loss, critic_loss, entropy = self.train.get_concrete_function(
                     *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.global_step.assign_add(1)
@@ -119,7 +119,6 @@ class A2C(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, dc_r):
-        s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 v = self.critic_net(s, visual_s)
@@ -156,7 +155,6 @@ class A2C(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, dc_r):
-        s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:

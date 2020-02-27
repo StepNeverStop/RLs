@@ -115,7 +115,7 @@ class AC(Off_Policy):
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         for i in range(kwargs['step']):
-            s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.data.sample()
+            s, visual_s, a, old_log_prob, r, s_, visual_s_, done = self.get_trainsitions()
             if self.use_priority:
                 self.IS_w = self.data.get_IS_w()
             td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
@@ -130,7 +130,6 @@ class AC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
-        s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -185,7 +184,6 @@ class AC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done, old_log_prob):
-        s, visual_s, a, r, s_, visual_s_, done, old_log_prob = self.cast(s, visual_s, a, r, s_, visual_s_, done, old_log_prob)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 if self.is_continuous:

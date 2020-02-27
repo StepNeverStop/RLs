@@ -93,7 +93,7 @@ class PG(On_Policy):
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r = map(tf.convert_to_tensor, self.get_sample_data(index))
+                s, visual_s, a, dc_r = map(self.data_convert, self.get_sample_data(index))
                 loss, entropy = self.train.get_concrete_function(
                     *self.TensorSpecs)(s, visual_s, a, dc_r)
         self.write_training_summaries(self.episode, dict([
@@ -105,7 +105,6 @@ class PG(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, dc_r):
-        s, visual_s, a, dc_r = self.cast(s, visual_s, a, dc_r)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 if self.is_continuous:

@@ -2,6 +2,9 @@ import numpy as np
 import tensorflow as tf
 
 def get_device():
+    '''
+    TODO: Annotation
+    '''
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     if len(physical_devices) > 0:
         device = "/gpu:0"
@@ -165,6 +168,9 @@ def squash_rsample(mu, log_std):
 
 
 def tsallis_squash_rsample(mu, log_std, q):
+    '''
+    TODO: Annotation
+    '''
     pi, log_pi = squash_action(*gaussian_rsample(mu, log_std), need_sum=False)
     log_q_pi = tsallis_entropy_log_q(log_pi, q)
     return pi, log_q_pi
@@ -200,4 +206,7 @@ def cast2float64(*args):
     return [tf.cast(i, tf.float64) for i in args]
 
 def huber_loss(td_error, delta=1.):
+    '''
+    TODO: Annotation
+    '''
     return tf.where(tf.abs(td_error) <= delta, 0.5 * tf.square(td_error), delta * (tf.abs(td_error) - 0.5 * delta))

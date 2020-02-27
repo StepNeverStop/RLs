@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 from Algorithms.tf2algos.base.policy import Policy
 from utils.sth import sth
 
@@ -24,6 +25,9 @@ class Off_Policy(Policy):
         self.n_step = kwargs.get('n_step', False)
 
     def set_buffer(self, buffer):
+        '''
+        TODO: Annotation
+        '''
         self.data = buffer
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -60,3 +64,9 @@ class Off_Policy(Policy):
             visual_s_,
             done[:, np.newaxis]
         )
+
+    def get_trainsitions(self):
+        '''
+        TODO: Annotation
+        '''
+        return list(map(self.data_convert, self.data.sample()))

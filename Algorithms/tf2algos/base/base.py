@@ -17,8 +17,8 @@ class Base(tf.keras.Model):
         '''
         super().__init__()
         base_dir = kwargs.get('base_dir')
-        logger2file = kwargs.get('logger2file', False)
-        tf_dtype = kwargs.get('tf_dtype', 'float32')
+        logger2file = bool(kwargs.get('logger2file', False))
+        tf_dtype = str(kwargs.get('tf_dtype'), 'float32')
         tf.random.set_seed(int(kwargs.get('seed', 0)))
         self.device = get_device()
 
@@ -33,9 +33,14 @@ class Base(tf.keras.Model):
         self.show_logo()
 
     def _cast(self, dtype='float32'):
+        '''
+        TODO: Annotation
+        '''
         if dtype == 'float32':
             func = cast2float32
+            self._data_type = tf.float32
         elif dtype == 'float64':
+            self._data_type = tf.float64
             func = cast2float64
         else:
             raise Exception('Cast to this type has not been implemented.')
@@ -44,6 +49,12 @@ class Base(tf.keras.Model):
             with tf.device(self.device):
                 return func(*args, **kwargs)
         return inner
+    
+    def data_convert(self, data):
+        '''
+        TODO: Annotation
+        '''
+        return tf.convert_to_tensor(data, dtype=self._data_type)
 
     def get_init_episode(self):
         """
