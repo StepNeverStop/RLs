@@ -128,7 +128,7 @@ class CuriosityModel(tf.keras.Model):
             self.inverse_dynamic_net(tf.concat((s, s), -1))
         self.forward_net(tf.concat((s, action), -1))
 
-    # @tf.function(experimental_relax_shapes=True)
+    @tf.function(experimental_relax_shapes=True)
     def call(self, s, visual_s, a, s_, visual_s_):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

@@ -2,7 +2,7 @@ general:
     tf_dtype: float32   # float32 or float64
     use_curiosity: true
     curiosity_lr: 1.0e-3
-    curiosity_reward_eta: 0.5
+    curiosity_reward_eta: 1000
     curiosity_beta: 0.2
     curiosity_loss_weight: 5
 

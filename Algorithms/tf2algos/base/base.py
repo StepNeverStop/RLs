@@ -18,7 +18,7 @@ class Base(tf.keras.Model):
         super().__init__()
         base_dir = kwargs.get('base_dir')
         logger2file = bool(kwargs.get('logger2file', False))
-        tf_dtype = str(kwargs.get('tf_dtype'), 'float32')
+        tf_dtype = str(kwargs.get('tf_dtype'))
         tf.random.set_seed(int(kwargs.get('seed', 0)))
         self.device = get_device()
 
