@@ -192,7 +192,7 @@ class gym_envs(object):
         obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
         self.dones_index = np.where(done)[0]
         return (np.asarray(obs),
-                np.asarray(reward),
+                np.asarray(reward).astype(np.float32),
                 np.asarray(done),
                 info)
 

@@ -5,6 +5,7 @@ import Nn
 from utils.sth import sth
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
+from utils.sundry_utils import LinearAnnealing
 
 
 class SAC_V(Off_Policy):
@@ -21,6 +22,8 @@ class SAC_V(Off_Policy):
                  is_continuous,
 
                  alpha=0.2,
+                 annealing=True,
+                 last_alpha=0.01,
                  ployak=0.995,
                  use_gumbel=True,
                  discrete_tau=1.0,
@@ -52,8 +55,15 @@ class SAC_V(Off_Policy):
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
-        self.log_alpha = tf.math.log(alpha) if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
+        self.annealing = annealing
+
+        if self.auto_adaption:
+            self.log_alpha = tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
+        else:
+            self.log_alpha = tf.Variable(initial_value=tf.math.log(alpha), name='log_alpha', dtype=tf.float32, trainable=False)
+            if self.annealing:
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self.share_visual_net = share_visual_net
         if self.share_visual_net:
@@ -130,6 +140,8 @@ class SAC_V(Off_Policy):
                 td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
             else:
                 td_error, summaries = self.train_discrete(s, visual_s, a, r, s_, visual_s_, done)
+            if self.annealing and not self.auto_adaption:
+                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
             return td_error, summaries
 
         for i in range(kwargs['step']):

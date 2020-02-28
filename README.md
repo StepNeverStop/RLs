@@ -39,6 +39,7 @@ This project supports:
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
     - n-step Prioritized ER
 - [Noisy Net](https://arxiv.org/abs/1706.10295) for better exploration.
+- [Intrinsic Curiosity Module](https://arxiv.org/abs/1705.05363) for almost all off-policy algorithms implemented.
 
 ### Advantages
 

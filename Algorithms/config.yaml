@@ -1,10 +1,10 @@
 general:
-    tf_dtype: float32   # float32 or float64
-    use_curiosity: true
-    curiosity_lr: 1.0e-3
-    curiosity_reward_eta: 1000
-    curiosity_beta: 0.2
-    curiosity_loss_weight: 5
+    tf_dtype: float32       # float32 or float64
+    use_curiosity: false     # whether to use ICM or not
+    curiosity_lr: 1.0e-3    # the learning rate for ICM
+    curiosity_reward_eta: 1000  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
+    curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
+    curiosity_loss_weight: 5    # weight that scale the gradient loass and ICM loss
 
 dqn:    &dqn
     lr: 5.0e-4
@@ -262,9 +262,37 @@ td3:
         actor_discrete: [64, 64]
         q: [64, 64]
 
+sac:
+    alpha: 0.2
+    auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
+    log_std_bound: [-20, 2]
+    actor_lr: 5.0e-4
+    critic_lr: 1.0e-3
+    alpha_lr: 5.0e-4
+    share_visual_net: true
+    gamma: 0.99
+    ployak: 0.995
+    use_gumbel: true
+    discrete_tau: 1.0
+    batch_size: 1024
+    buffer_size: 100000
+    use_priority: false
+    n_step: true
+    hidden_units:
+        actor_continuous:
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
+
 sac_v:
     alpha: 0.2
     auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
     log_std_bound: [-20, 2]
     gamma: 0.99
     ployak: 0.995
@@ -290,6 +318,8 @@ sac_v:
 tac:
     alpha: 0.2
     auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
     log_std_bound: [-20, 2]
     share_visual_net: true
     # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than 
@@ -304,30 +334,6 @@ tac:
     ployak: 0.995
     discrete_tau: 1.0
     batch_size: 64
-    buffer_size: 100000
-    use_priority: false
-    n_step: true
-    hidden_units:
-        actor_continuous:
-            share: [64, 64]
-            mu: [64]
-            log_std: [64]
-        actor_discrete: [64, 64]
-        q: [64, 64]
-
-sac:
-    alpha: 0.2
-    auto_adaption: true
-    log_std_bound: [-20, 2]
-    actor_lr: 5.0e-4
-    critic_lr: 1.0e-3
-    alpha_lr: 5.0e-4
-    share_visual_net: true
-    gamma: 0.99
-    ployak: 0.995
-    use_gumbel: true
-    discrete_tau: 1.0
-    batch_size: 1024
     buffer_size: 100000
     use_priority: false
     n_step: true

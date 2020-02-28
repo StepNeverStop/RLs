@@ -198,7 +198,7 @@ class gym_envs(object):
 
         obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
         self.dones_index = np.where(done)[0]
-        return obs, reward, done, info
+        return obs, reward.astype('float32'), done, info
 
     def partial_reset(self):
         threadpool = []

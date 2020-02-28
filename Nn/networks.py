@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Conv2D, Conv3D, Dense, Flatten
 from utils.tf2_utils import get_device
+from Nn.layers import ConvLayer
 
 activation_fn = 'tanh'
 
@@ -12,57 +13,36 @@ class VisualNet(tf.keras.Model):
     If there is no visual image input, Conv layers won't be built and initialized.
     '''
 
-    def __init__(self, name, visual_dim=[]):
+    def __init__(self, name, visual_dim=[], visual_feature=128):
         super().__init__(name=name)
-        self.vd = len(visual_dim) + 1
-        if len(visual_dim) == 4:
-            self.net = Sequential([
-                Conv3D(filters=32, kernel_size=[1, 8, 8], strides=[1, 4, 4], padding='valid', activation='relu'),
-                Conv3D(filters=64, kernel_size=[1, 4, 4], strides=[1, 2, 2], padding='valid', activation='relu'),
-                Conv3D(filters=64, kernel_size=[1, 3, 3], strides=[1, 1, 1], padding='valid', activation='relu'),
-                Flatten(),
-                Dense(128, activation_fn)
-            ])
-            self.hdim = 128
-            self(tf.keras.Input(shape=visual_dim))
-        elif len(visual_dim) == 3:
-            self.net = Sequential([
-                Conv2D(filters=32, kernel_size=[8, 8], strides=[4, 4], padding='valid', activation='relu'),
-                Conv2D(filters=64, kernel_size=[4, 4], strides=[2, 2], padding='valid', activation='relu'),
-                Conv2D(filters=64, kernel_size=[3, 3], strides=[1, 1], padding='valid', activation='relu'),
-                Flatten(),
-                Dense(128, activation_fn)
-            ])
-            self.hdim = 128
+        self.vdl = len(visual_dim)
+        if 2 < self.vdl < 5:
+            if self.vdl == 4:
+                self.net = ConvLayer(Conv3D, [32,64,64], [[1,8,8],[1,4,4],[1,3,3]], [[1,4,4],[1,2,2],[1,1,1]], padding='valid', activation='relu')
+            elif self.vdl == 3:
+                self.net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
+            self.net.add(Dense(visual_feature, activation_fn))
+            self.hdim = visual_feature
             self(tf.keras.Input(shape=visual_dim))
         else:
             self.net = lambda vs: vs
             self.hdim = 0
 
     def call(self, visual_input):
-        if len(visual_input.shape) == 5 and self.vd == 4:
-            # TODO: 想不起来这边到底是做了什么处理。。。。
-            # LSTM
+        if len(visual_input.shape) == 5 and self.vdl == 3:   # [B, T, H, W, C]
+            # LSTM, Conv2D后接LSTM时候的处理
             b = visual_input.shape[0]   # Batchsize
-            visual_input = tf.reshape(visual_input, [-1]+list(visual_input.shape)[-3:]) # [B*N, H, W, C]
-            f = self.net(visual_input)
-            f = tf.reshape(f, [b, -1, self.hdim])   # [B, -1, Hidden]
+            visual_input = tf.reshape(visual_input, [-1]+list(visual_input.shape)[-3:]) # [B*T, H, W, C]
+            f = self.net(visual_input)  # [B*T, Hidden]
+            f = tf.reshape(f, [b, -1, self.hdim])   # [B, T, Hidden]
         else:
             f = self.net(visual_input)
         return f
 
-def ConvLayer(conv_function=Conv2D, 
-              flitters=[32, 64, 64], 
-              kernels=[[8,8], [4,4], [3,3]], 
-              strides=[[4,4], [2,2], [1,1]], 
-              padding='valid', 
-              activation='relu'):
-    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation) for f, k, s in zip(flitters, kernels, strides)])
-    layers.add(Flatten())
-    return layers
-
 class CuriosityModel(tf.keras.Model):
-    '''Model of ICM
+    '''
+    Model of Intrinsic Curiosity Module (ICM).
+    Curiosity-driven Exploration by Self-supervised Prediction, https://arxiv.org/abs/1705.05363
     '''
 
     def __init__(self, name, is_continuous, vector_dim, action_dim, visual_dim=[], visual_feature=128,
