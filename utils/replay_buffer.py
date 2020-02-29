@@ -195,7 +195,7 @@ class NStepWrapper:
             if len(q) == self.n:
                 self._store_op(q.pop(0))
             else:
-                q.clear()
+                q.clear()   # 保证经验池中不存在不足N长度的序列，有done的除外，因为（1-done）为0，导致gamma的次方计算不准确也没有关系。
             q.append(data)
             return
 

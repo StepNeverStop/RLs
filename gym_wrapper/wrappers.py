@@ -69,35 +69,6 @@ class SkipEnv(gym.Wrapper):
         return obs, reward, done, info
 
 
-class StackEnv(gym.Wrapper):
-    '''
-    上层，因为这样不必在得到状态后还需要对其进行处理
-    '''
-
-    def __init__(self, env, stack=4):
-        super().__init__(env)
-        self._stack = stack
-        self.obss = deque([], maxlen=self._stack)
-        assert isinstance(env.observation_space, Box)
-        if len(env.observation_space.shape) == 1 or len(env.observation_space.shape) == 3:
-            low = np.tile(env.observation_space.low, stack)
-            high = np.tile(env.observation_space.high, stack)
-        self.observation_space = Box(low=low,
-                                     high=high,
-                                     dtype=env.observation_space.dtype)
-
-    def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        for _ in range(self._stack):
-            self.obss.append(obs)
-        return LazyFrames(list(self.obss))
-
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        self.obss.append(obs)
-        return LazyFrames(list(self.obss)), reward, done, info
-
-
 class GrayResizeEnv(gym.ObservationWrapper):
     def __init__(self, env, resize=True, grayscale=True, *, width=84, height=84):
         super().__init__(env)
@@ -141,6 +112,35 @@ class ScaleEnv(gym.ObservationWrapper):
 
     def observation(self, obs):
         return np.array(obs).astype(np.float32) / 255.0
+
+
+class StackEnv(gym.Wrapper):
+    '''
+    上层，因为这样不必在得到状态后还需要对其进行处理
+    '''
+
+    def __init__(self, env, stack=4):
+        super().__init__(env)
+        self._stack = stack
+        self.obss = deque([], maxlen=self._stack)
+        assert isinstance(env.observation_space, Box)
+        if len(env.observation_space.shape) == 1 or len(env.observation_space.shape) == 3:
+            low = np.tile(env.observation_space.low, stack)
+            high = np.tile(env.observation_space.high, stack)
+        self.observation_space = Box(low=low,
+                                     high=high,
+                                     dtype=env.observation_space.dtype)
+
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        for _ in range(self._stack):
+            self.obss.append(obs)
+        return LazyFrames(list(self.obss))
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        self.obss.append(obs)
+        return LazyFrames(list(self.obss)), reward, done, info
 
 
 class OneHotObsEnv(gym.ObservationWrapper):
@@ -191,6 +191,30 @@ class BoxActEnv(gym.ActionWrapper):
 
     def action(self, action):
         return self._sigma * action + self._mu
+
+
+class TimeLimit(gym.Wrapper):
+    def __init__(self, env, max_episode_steps=None):
+        super().__init__(env)
+        if max_episode_steps is None and self.env.spec is not None:
+            max_episode_steps = env.spec.max_episode_steps
+        if self.env.spec is not None:
+            self.env.spec.max_episode_steps = max_episode_steps
+        self._max_episode_steps = max_episode_steps
+        self._elapsed_steps = None
+
+    def step(self, action):
+        assert self._elapsed_steps is not None, "Cannot call env.step() before calling reset()"
+        observation, reward, done, info = self.env.step(action)
+        self._elapsed_steps += 1
+        if self._elapsed_steps >= self._max_episode_steps:
+            info['TimeLimit.truncated'] = not done
+            done = True
+        return observation, reward, done, info
+
+    def reset(self, **kwargs):
+        self._elapsed_steps = 0
+        return self.env.reset(**kwargs)
 
 
 class LazyFrames(object):

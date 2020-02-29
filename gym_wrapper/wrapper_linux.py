@@ -3,7 +3,7 @@ import ray
 import numpy as np
 from typing import Dict
 from gym.spaces import Box, Discrete, Tuple
-from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv
+from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, TimeLimit
 
 
 @ray.remote
@@ -58,6 +58,7 @@ class gym_envs(object):
             obs_resize = bool(kwargs.get('obs_resize', False))
             resize = kwargs.get('resize', [84, 84])
             obs_scale = bool(kwargs.get('obs_scale', False))
+            max_episode_steps = kwargs.get('max_episode_steps', None)
 
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
@@ -78,6 +79,8 @@ class gym_envs(object):
 
             if isinstance(env.action_space, Box) and len(env.action_space.shape) == 1:
                 env = BoxActEnv(env)
+
+            env = TimeLimit(env, max_episode_steps)
             return env
 
         self._initialize(

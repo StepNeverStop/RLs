@@ -15,7 +15,7 @@ UnityEnvFile:
 
 train:
     save_frequency: 20
-    max_step: 2000      # max_step per episode
+    max_step: 2000      # max_step per episode, if gym->env->max_episode_steps > max_step, them PEB(Partial Episode Bootstraping), else TimeLimit.
     max_episode: 5000   # if not specify max_total_step, max_episode will control when training end.
     max_total_step: 1000000
     total_step_control: true
@@ -58,6 +58,7 @@ gym:
         obs_scale: false
         noop: false
         noop_max: 30
+        max_episode_steps: null         # min(trian->max_step(Not Done), max_episode_steps(Done)) control the max length of episodes.
 
 buffer:
     Pandas: {}
