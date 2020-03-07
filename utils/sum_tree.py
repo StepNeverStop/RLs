@@ -79,7 +79,7 @@ class Sum_Tree(object):
         parent = tree_index // 2
         _parent, idx1, count = np.unique(parent, return_index=True, return_counts=True)
         _, idx2 = np.unique(parent[::-1], return_index=True)
-        diff = (diff[len(diff) - 1 - idx2] + diff[idx1]) * count / 2
+        diff = (diff[- 1 - idx2] + diff[idx1]) * count / 2
         self.tree[_parent] += diff
         if (_parent != 1).all():
             self._propagate_batch(_parent, diff)
@@ -125,8 +125,10 @@ class Sum_Tree(object):
         right = left + 1
         if (left >= self.tree[0]).all():
             return tree_index
-        index = np.where(self.tree[left] >= seg_p_total, left, 0) + np.where(self.tree[left] < seg_p_total, right, 0)
-        seg_p_total = np.where(self.tree[left] >= seg_p_total, seg_p_total, 0) + np.where(self.tree[left] < seg_p_total, seg_p_total - self.tree[left], 0)
+        # index = np.where(self.tree[left] >= seg_p_total, left, 0) + np.where(self.tree[left] < seg_p_total, right, 0)
+        # seg_p_total = np.where(self.tree[left] >= seg_p_total, seg_p_total, 0) + np.where(self.tree[left] < seg_p_total, seg_p_total - self.tree[left], 0)
+        index = np.where(seg_p_total <= self.tree[left] , left, right)
+        seg_p_total = np.where(seg_p_total <= self.tree[left], seg_p_total, seg_p_total - self.tree[left])
         return self._retrieve_batch(index, seg_p_total)
 
     def pp(self):

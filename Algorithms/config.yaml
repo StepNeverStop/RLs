@@ -6,6 +6,13 @@ general:
     curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
     curiosity_loss_weight: 5    # weight that scale the gradient loass and ICM loss
 
+cem:
+    frac: 0.2
+    init_var: 1
+    extra_std: 1
+    envs_per_popu: 5
+    hidden_units: [32, 32]
+
 dqn:    &dqn
     lr: 5.0e-4
     gamma: 0.99

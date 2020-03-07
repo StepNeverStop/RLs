@@ -151,7 +151,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
         self.min_p = min(self.min_p, priority.min())
         self.max_p = max(self.max_p, priority.max())
-        [self.tree._updatetree(idx, p) for idx, p in zip(self.last_indexs, priority)]
+        self.tree._updatetree_batch(self.last_indexs, priority)
+        # [self.tree._updatetree(idx, p) for idx, p in zip(self.last_indexs, priority)]
 
     def get_IS_w(self):
         return self.IS_w

@@ -465,7 +465,7 @@ class Agent:
 
         state[i] = self.env.reset()
 
-        steps = steps // self.env.n + 1
+        steps = steps // self.env.n
 
         for step in range(steps):
             self.pwi(f'no op step {step}')
