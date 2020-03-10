@@ -11,6 +11,7 @@ cem:
     init_var: 1
     extra_std: 1
     envs_per_popu: 5
+    extra_var_last_multiplier: 0.2
     hidden_units: [32, 32]
 
 dqn:    &dqn

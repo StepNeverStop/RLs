@@ -198,6 +198,11 @@ def run():
 
 if __name__ == "__main__":
     try:
+        import colored_traceback
+        colored_traceback.add_hook()
+    except ImportError:
+        pass
+    try:
         run()
     except Exception as e:
         print(e)

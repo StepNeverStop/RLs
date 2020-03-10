@@ -19,9 +19,9 @@ class Model(tf.keras.Model):
     @tf.function
     def call(self, s):
         if self.is_continuous:
-            return self.net(s)  # 降维
+            return self.net(s)
         else:
-            return tf.argmax(self.net(s), axis=-1)   # 降维
+            return tf.argmax(self.net(s), axis=-1)
 
     def set_wb(self, weights):
         start = 0
@@ -51,6 +51,7 @@ class CEM(On_Policy):
                  init_var=1,
                  extra_std=1,
                  extra_decay_eps=200,
+                 extra_var_last_multiplier=0.2,
                  envs_per_popu=5,   # 环境数/模型数 余数为0 
                  **kwargs):
         super().__init__(
@@ -66,6 +67,7 @@ class CEM(On_Policy):
         self.extra_std = extra_std
         self.extra_decay_eps = extra_decay_eps
         self.envs_per_popu = envs_per_popu
+        self.extra_var_last_multiplier = extra_var_last_multiplier
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -107,10 +109,15 @@ class CEM(On_Policy):
         rets = self.returns.reshape(-1, self.envs_per_popu).mean(axis=-1)
         elites_idxs = rets.argsort()[-self.n_elite:]
         elites_weights = np.array(self.models_weights)[elites_idxs, :]
-        self.mean = np.mean(elites_weights, axis=0)
+        self.mu = np.mean(elites_weights, axis=0)
         self.sigma = np.var(elites_weights, axis=0)
         self._update_models_weights()
         self._reset_variables()
+        self.write_training_summaries(self.episode, dict([
+            ['Statistics/mu', self.mu.mean()],
+            ['Statistics/sigma', self.sigma.mean()],
+            ['Statistics/sample_std', self.sample_std.mean()]
+        ]))
 
     def _check_agents(self, s):
         '''
@@ -128,10 +135,11 @@ class CEM(On_Policy):
         '''
         self.n_elite = max(int(np.round(self.populations*self.frac)),1)
         self.cem_models = [Model(self.s_dim, self.a_counts, 'cem'+str(i), self.hidden_units, self.is_continuous) for i in range(self.populations)]
-        self.mean = np.random.randn(self.cem_models[0].weights_total_nums)
+        self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums)*self.init_var
         self._update_models_weights()
         self._reset_variables()
+        
 
     def _reset_variables(self):
         '''
@@ -144,7 +152,7 @@ class CEM(On_Policy):
         '''
         重新给模型赋参数
         '''
-        extra_var_multiplier = max((1.0-self.episode/self.extra_decay_eps),0)
+        extra_var_multiplier = max((1.0-self.episode/self.extra_decay_eps), self.extra_var_last_multiplier)
         self.sample_std = np.sqrt(self.sigma + np.square(self.extra_std) * extra_var_multiplier)
-        self.models_weights = [self.mean + self.sample_std * np.random.randn(self.mean.shape[0]) for i in range(self.populations)]
+        self.models_weights = [self.mu + self.sample_std * np.random.randn(self.mu.shape[0]) for i in range(self.populations)]
         [m.set_wb(wb) for m, wb in zip(self.cem_models, self.models_weights)]

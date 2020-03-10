@@ -217,7 +217,7 @@ class SAC_V(Off_Policy):
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         # pi, log_pi = squash_rsample(mu, log_std)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
-                        log_pi = norm_dist.log_prob(norm_dist.sample())
+                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()),axis=-1)
                     else:
                         logits = self.actor_net(s, visual_s)
                         cate_dist = tfp.distributions.Categorical(logits)
