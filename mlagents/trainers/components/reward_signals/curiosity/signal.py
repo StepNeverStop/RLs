@@ -1,7 +1,6 @@
 from typing import Any, Dict, List
 import numpy as np
-import tensorflow as tf
-from mlagents.envs.brain import BrainInfo
+from mlagents.tf_utils import tf
 
 from mlagents.trainers.components.reward_signals import RewardSignal, RewardSignalResult
 from mlagents.trainers.components.reward_signals.curiosity.model import CuriosityModel
@@ -43,31 +42,6 @@ class CuriosityRewardSignal(RewardSignal):
             "Losses/Curiosity Inverse Loss": "curiosity_inverse_loss",
         }
         self.has_updated = False
-
-    def evaluate(
-        self, current_info: BrainInfo, next_info: BrainInfo
-    ) -> RewardSignalResult:
-        """
-        Evaluates the reward for the agents present in current_info given the next_info
-        :param current_info: The current BrainInfo.
-        :param next_info: The BrainInfo from the next timestep.
-        :return: a RewardSignalResult of (scaled intrinsic reward, unscaled intrinsic reward) provided by the generator
-        """
-        if len(current_info.agents) == 0:
-            return RewardSignalResult([], [])
-        mini_batch: Dict[str, np.array] = {}
-        # Construct the batch and use evaluate_batch
-        mini_batch["actions"] = next_info.previous_vector_actions
-        mini_batch["done"] = np.reshape(next_info.local_done, [-1, 1])
-        for i in range(len(current_info.visual_observations)):
-            mini_batch["visual_obs%d" % i] = current_info.visual_observations[i]
-            mini_batch["next_visual_obs%d" % i] = next_info.visual_observations[i]
-        if self.policy.use_vec_obs:
-            mini_batch["vector_obs"] = current_info.vector_observations
-            mini_batch["next_vector_in"] = next_info.vector_observations
-
-        result = self.evaluate_batch(mini_batch)
-        return result
 
     def evaluate_batch(self, mini_batch: Dict[str, np.array]) -> RewardSignalResult:
         feed_dict: Dict[tf.Tensor, Any] = {
@@ -125,7 +99,7 @@ class CuriosityRewardSignal(RewardSignal):
             policy_model.mask_input: mini_batch["masks"],
         }
         if self.policy.use_continuous_act:
-            feed_dict[policy_model.output_pre] = mini_batch["actions_pre"]
+            feed_dict[policy_model.selected_actions] = mini_batch["actions"]
         else:
             feed_dict[policy_model.action_holder] = mini_batch["actions"]
         if self.policy.use_vec_obs:

@@ -1,16 +1,20 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-import tensorflow as tf
+from mlagents.tf_utils import tf
+from mlagents import tf_utils
 
-from mlagents.envs.exception import UnityException
-from mlagents.envs.policy import Policy
-from mlagents.envs.action_info import ActionInfo
+from mlagents_envs.exception import UnityException
+from mlagents.trainers.policy import Policy
+from mlagents.trainers.action_info import ActionInfo
 from tensorflow.python.platform import gfile
 from tensorflow.python.framework import graph_util
 from mlagents.trainers import tensorflow_to_barracuda as tf2bc
-from mlagents.envs.brain import BrainInfo
+from mlagents.trainers.trajectory import SplitObservations
+from mlagents.trainers.buffer import AgentBuffer
+from mlagents.trainers.brain_conversion_utils import get_global_agent_id
+from mlagents_envs.base_env import BatchedStepResult
 
 
 logger = logging.getLogger("mlagents.trainers")
@@ -48,6 +52,11 @@ class TFPolicy(Policy):
         :param brain: The corresponding Brain for this policy.
         :param trainer_parameters: The trainer parameters.
         """
+
+        # for ghost trainer save/load snapshots
+        self.assign_phs = []
+        self.assign_ops = []
+
         self.m_size = None
         self.model = None
         self.inference_dict = {}
@@ -56,19 +65,20 @@ class TFPolicy(Policy):
         self.seed = seed
         self.brain = brain
         self.use_recurrent = trainer_parameters["use_recurrent"]
+        self.memory_dict: Dict[str, np.ndarray] = {}
+        self.reward_signals: Dict[str, "RewardSignal"] = {}
+        self.num_branches = len(self.brain.vector_action_space_size)
+        self.previous_action_dict: Dict[str, np.array] = {}
         self.normalize = trainer_parameters.get("normalize", False)
         self.use_continuous_act = brain.vector_action_space_type == "continuous"
+        if self.use_continuous_act:
+            self.num_branches = self.brain.vector_action_space_size[0]
         self.model_path = trainer_parameters["model_path"]
         self.keep_checkpoints = trainer_parameters.get("keep_checkpoints", 5)
         self.graph = tf.Graph()
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        # For multi-GPU training, set allow_soft_placement to True to allow
-        # placing the operation into an alternative device automatically
-        # to prevent from exceptions if the device doesn't suppport the operation
-        # or the device does not exist
-        config.allow_soft_placement = True
-        self.sess = tf.Session(config=config, graph=self.graph)
+        self.sess = tf.Session(
+            config=tf_utils.generate_session_config(), graph=self.graph
+        )
         self.saver = None
         if self.use_recurrent:
             self.m_size = trainer_parameters["memory_size"]
@@ -105,31 +115,78 @@ class TFPolicy(Policy):
                 )
             self.saver.restore(self.sess, ckpt.model_checkpoint_path)
 
-    def evaluate(self, brain_info: BrainInfo) -> Dict[str, Any]:
+    def get_weights(self):
+        with self.graph.as_default():
+            _vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            values = [v.eval(session=self.sess) for v in _vars]
+            return values
+
+    def init_load_weights(self):
+        with self.graph.as_default():
+            _vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            values = [v.eval(session=self.sess) for v in _vars]
+            for var, value in zip(_vars, values):
+                assign_ph = tf.placeholder(var.dtype, shape=value.shape)
+                self.assign_phs.append(assign_ph)
+                self.assign_ops.append(tf.assign(var, assign_ph))
+
+    def load_weights(self, values):
+        with self.graph.as_default():
+            feed_dict = {}
+            for assign_ph, value in zip(self.assign_phs, values):
+                feed_dict[assign_ph] = value
+            self.sess.run(self.assign_ops, feed_dict=feed_dict)
+
+    def evaluate(
+        self, batched_step_result: BatchedStepResult, global_agent_ids: List[str]
+    ) -> Dict[str, Any]:
         """
         Evaluates policy for the agent experiences provided.
-        :param brain_info: BrainInfo input to network.
+        :param batched_step_result: BatchedStepResult input to network.
         :return: Output from policy based on self.inference_dict.
         """
         raise UnityPolicyException("The evaluate function was not implemented.")
 
-    def get_action(self, brain_info: BrainInfo) -> ActionInfo:
+    def get_action(
+        self, batched_step_result: BatchedStepResult, worker_id: int = 0
+    ) -> ActionInfo:
         """
         Decides actions given observations information, and takes them in environment.
-        :param brain_info: A dictionary of brain names and BrainInfo from environment.
+        :param batched_step_result: A dictionary of brain names and BatchedStepResult from environment.
+        :param worker_id: In parallel environment training, the unique id of the environment worker that
+            the BatchedStepResult came from. Used to construct a globally unique id for each agent.
         :return: an ActionInfo containing action, memories, values and an object
         to be passed to add experiences
         """
-        if len(brain_info.agents) == 0:
-            return ActionInfo([], [], [], None, None)
+        if batched_step_result.n_agents() == 0:
+            return ActionInfo.empty()
 
-        run_out = self.evaluate(brain_info)
+        agents_done = [
+            agent
+            for agent, done in zip(
+                batched_step_result.agent_id, batched_step_result.done
+            )
+            if done
+        ]
+
+        self.remove_memories(agents_done)
+        self.remove_previous_action(agents_done)
+
+        global_agent_ids = [
+            get_global_agent_id(worker_id, int(agent_id))
+            for agent_id in batched_step_result.agent_id
+        ]  # For 1-D array, the iterator order is correct.
+
+        run_out = self.evaluate(  # pylint: disable=assignment-from-no-return
+            batched_step_result, global_agent_ids
+        )
+
+        self.save_memories(global_agent_ids, run_out.get("memory_out"))
         return ActionInfo(
             action=run_out.get("action"),
-            memory=run_out.get("memory_out"),
-            text=None,
             value=run_out.get("value"),
             outputs=run_out,
+            agent_ids=batched_step_result.agent_id,
         )
 
     def update(self, mini_batch, num_sequences):
@@ -152,13 +209,23 @@ class TFPolicy(Policy):
         run_out = dict(zip(list(out_dict.keys()), network_out))
         return run_out
 
-    def fill_eval_dict(self, feed_dict, brain_info):
-        for i, _ in enumerate(brain_info.visual_observations):
-            feed_dict[self.model.visual_in[i]] = brain_info.visual_observations[i]
+    def fill_eval_dict(self, feed_dict, batched_step_result):
+        vec_vis_obs = SplitObservations.from_observations(batched_step_result.obs)
+        for i, _ in enumerate(vec_vis_obs.visual_observations):
+            feed_dict[self.model.visual_in[i]] = vec_vis_obs.visual_observations[i]
         if self.use_vec_obs:
-            feed_dict[self.model.vector_in] = brain_info.vector_observations
+            feed_dict[self.model.vector_in] = vec_vis_obs.vector_observations
         if not self.use_continuous_act:
-            feed_dict[self.model.action_masks] = brain_info.action_masks
+            mask = np.ones(
+                (
+                    batched_step_result.n_agents(),
+                    np.sum(self.brain.vector_action_space_size),
+                ),
+                dtype=np.float32,
+            )
+            if batched_step_result.action_mask is not None:
+                mask = 1 - np.concatenate(batched_step_result.action_mask, axis=1)
+            feed_dict[self.model.action_masks] = mask
         return feed_dict
 
     def make_empty_memory(self, num_agents):
@@ -167,7 +234,55 @@ class TFPolicy(Policy):
         :param num_agents: Number of agents.
         :return: Numpy array of zeros.
         """
-        return np.zeros((num_agents, self.m_size))
+        return np.zeros((num_agents, self.m_size), dtype=np.float32)
+
+    def save_memories(
+        self, agent_ids: List[str], memory_matrix: Optional[np.ndarray]
+    ) -> None:
+        if memory_matrix is None:
+            return
+        for index, agent_id in enumerate(agent_ids):
+            self.memory_dict[agent_id] = memory_matrix[index, :]
+
+    def retrieve_memories(self, agent_ids: List[str]) -> np.ndarray:
+        memory_matrix = np.zeros((len(agent_ids), self.m_size), dtype=np.float32)
+        for index, agent_id in enumerate(agent_ids):
+            if agent_id in self.memory_dict:
+                memory_matrix[index, :] = self.memory_dict[agent_id]
+        return memory_matrix
+
+    def remove_memories(self, agent_ids):
+        for agent_id in agent_ids:
+            if agent_id in self.memory_dict:
+                self.memory_dict.pop(agent_id)
+
+    def make_empty_previous_action(self, num_agents):
+        """
+        Creates empty previous action for use with RNNs and discrete control
+        :param num_agents: Number of agents.
+        :return: Numpy array of zeros.
+        """
+        return np.zeros((num_agents, self.num_branches), dtype=np.int)
+
+    def save_previous_action(
+        self, agent_ids: List[str], action_matrix: Optional[np.ndarray]
+    ) -> None:
+        if action_matrix is None:
+            return
+        for index, agent_id in enumerate(agent_ids):
+            self.previous_action_dict[agent_id] = action_matrix[index, :]
+
+    def retrieve_previous_action(self, agent_ids: List[str]) -> np.ndarray:
+        action_matrix = np.zeros((len(agent_ids), self.num_branches), dtype=np.int)
+        for index, agent_id in enumerate(agent_ids):
+            if agent_id in self.previous_action_dict:
+                action_matrix[index, :] = self.previous_action_dict[agent_id]
+        return action_matrix
+
+    def remove_previous_action(self, agent_ids):
+        for agent_id in agent_ids:
+            if agent_id in self.previous_action_dict:
+                self.previous_action_dict.pop(agent_id)
 
     def get_current_step(self):
         """
@@ -252,6 +367,66 @@ class TFPolicy(Policy):
                 self.model.update_normalization,
                 feed_dict={self.model.vector_in: vector_obs},
             )
+
+    def get_batched_value_estimates(self, batch: AgentBuffer) -> Dict[str, np.ndarray]:
+        feed_dict: Dict[tf.Tensor, Any] = {
+            self.model.batch_size: batch.num_experiences,
+            self.model.sequence_length: 1,  # We want to feed data in batch-wise, not time-wise.
+        }
+
+        if self.use_vec_obs:
+            feed_dict[self.model.vector_in] = batch["vector_obs"]
+        if self.model.vis_obs_size > 0:
+            for i in range(len(self.model.visual_in)):
+                _obs = batch["visual_obs%d" % i]
+                feed_dict[self.model.visual_in[i]] = _obs
+        if self.use_recurrent:
+            feed_dict[self.model.memory_in] = batch["memory"]
+        if not self.use_continuous_act and self.use_recurrent:
+            feed_dict[self.model.prev_action] = batch["prev_action"]
+        value_estimates = self.sess.run(self.model.value_heads, feed_dict)
+        value_estimates = {k: np.squeeze(v, axis=1) for k, v in value_estimates.items()}
+
+        return value_estimates
+
+    def get_value_estimates(
+        self, next_obs: List[np.ndarray], agent_id: str, done: bool
+    ) -> Dict[str, float]:
+        """
+        Generates value estimates for bootstrapping.
+        :param experience: AgentExperience to be used for bootstrapping.
+        :param done: Whether or not this is the last element of the episode, in which case the value estimate will be 0.
+        :return: The value estimate dictionary with key being the name of the reward signal and the value the
+        corresponding value estimate.
+        """
+
+        feed_dict: Dict[tf.Tensor, Any] = {
+            self.model.batch_size: 1,
+            self.model.sequence_length: 1,
+        }
+        vec_vis_obs = SplitObservations.from_observations(next_obs)
+        for i in range(len(vec_vis_obs.visual_observations)):
+            feed_dict[self.model.visual_in[i]] = [vec_vis_obs.visual_observations[i]]
+
+        if self.use_vec_obs:
+            feed_dict[self.model.vector_in] = [vec_vis_obs.vector_observations]
+        if self.use_recurrent:
+            feed_dict[self.model.memory_in] = self.retrieve_memories([agent_id])
+        if not self.use_continuous_act and self.use_recurrent:
+            feed_dict[self.model.prev_action] = self.retrieve_previous_action(
+                [agent_id]
+            )
+        value_estimates = self.sess.run(self.model.value_heads, feed_dict)
+
+        value_estimates = {k: float(v) for k, v in value_estimates.items()}
+
+        # If we're done, reassign all of the value estimates that need terminal states.
+        if done:
+            for k in value_estimates:
+                if self.reward_signals[k].use_terminal_states:
+                    value_estimates[k] = 0.0
+
+        return value_estimates
 
     @property
     def vis_obs_size(self):

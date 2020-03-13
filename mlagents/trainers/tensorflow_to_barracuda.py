@@ -1,7 +1,9 @@
+# pylint: skip-file
+# flake8: noqa
 from __future__ import print_function
 import numpy as np
 import struct  # convert from Python values and C structs
-import tensorflow as tf
+from mlagents.tf_utils import tf
 import re
 
 # import barracuda
@@ -178,6 +180,7 @@ known_classes = {
     "OneHot": Struct(id=67, rank=lambda inputs: inputs[0] + 1),
     # Broadcast ops
     "Add": Struct(id=100, rank=lambda inputs: np.max(inputs)),
+    "AddV2": Struct(id=100, rank=lambda inputs: np.max(inputs)),
     "Sub": Struct(id=101, rank=lambda inputs: np.max(inputs)),
     "Mul": Struct(id=102, rank=lambda inputs: np.max(inputs)),
     "RealDiv": Struct(id=103, rank=lambda inputs: np.max(inputs)),
@@ -589,9 +592,12 @@ def get_attr(node, attr_name, default=None):
     val = node.attr[attr_name]
 
     if val.HasField("list"):
-        return val.list.i
         # NOTE: can't find way to identify type of list BUT it is almost always list(int)
         # except list(float) in FractionalAvg/MaxPool
+        if len(val.list.shape) > 0:
+            return val.list.shape
+        else:
+            return val.list.i
     if val.HasField("b"):
         return val.b
     if val.HasField("i"):
@@ -615,6 +621,10 @@ def get_epsilon(layer):
 
 def get_layer_rank(layer):
     shape = get_attr(layer, "shape")
+    if not shape:
+        outputShapes = get_attr(layer, "_output_shapes")
+        if outputShapes:
+            shape = outputShapes[0]
     if not shape:
         return None
     if isinstance(shape, list):
@@ -750,7 +760,7 @@ def axis_to_barracuda(axis, input_rank):
     W = 2
     C = 3
     if axis < 0:
-        axis = input_rank - axis
+        axis = input_rank + axis
     assert axis >= 0
     assert axis < input_rank
     if input_rank == 4:

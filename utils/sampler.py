@@ -1,6 +1,7 @@
 import yaml
-from mlagents.envs.sampler_class import SamplerManager
-from mlagents.envs.exception import UnityEnvironmentException, SamplerException
+from mlagents.trainers.sampler_class import SamplerManager
+from mlagents.trainers.exception import SamplerException
+from mlagents.mlagents_envs.exception import UnityEnvironmentException
 from typing import Any, Callable, Dict, Optional
 
 

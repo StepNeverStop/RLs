@@ -1,10 +1,12 @@
 import logging
 import numpy as np
-from typing import Any, Dict
-import tensorflow as tf
+from typing import Any, Dict, Optional, List
 
-from mlagents.envs.timers import timed
-from mlagents.envs.brain import BrainInfo
+from mlagents.tf_utils import tf
+
+from mlagents_envs.timers import timed
+from mlagents_envs.base_env import BatchedStepResult
+from mlagents.trainers.brain import BrainParameters
 from mlagents.trainers.models import EncoderType, LearningRateSchedule
 from mlagents.trainers.ppo.models import PPOModel
 from mlagents.trainers.tf_policy import TFPolicy
@@ -17,7 +19,14 @@ logger = logging.getLogger("mlagents.trainers")
 
 
 class PPOPolicy(TFPolicy):
-    def __init__(self, seed, brain, trainer_params, is_training, load):
+    def __init__(
+        self,
+        seed: int,
+        brain: BrainParameters,
+        trainer_params: Dict[str, Any],
+        is_training: bool,
+        load: bool,
+    ):
         """
         Policy for Proximal Policy Optimization Networks.
         :param seed: Random seed.
@@ -29,8 +38,8 @@ class PPOPolicy(TFPolicy):
         super().__init__(seed, brain, trainer_params)
 
         reward_signal_configs = trainer_params["reward_signals"]
-        self.inference_dict = {}
-        self.update_dict = {}
+        self.inference_dict: Dict[str, tf.Tensor] = {}
+        self.update_dict: Dict[str, tf.Tensor] = {}
         self.stats_name_to_update_name = {
             "Losses/Value Loss": "value_loss",
             "Losses/Policy Loss": "policy_loss",
@@ -42,18 +51,17 @@ class PPOPolicy(TFPolicy):
         self.create_reward_signals(reward_signal_configs)
 
         with self.graph.as_default():
+            self.bc_module: Optional[BCModule] = None
             # Create pretrainer if needed
-            if "pretraining" in trainer_params:
-                BCModule.check_config(trainer_params["pretraining"])
+            if "behavioral_cloning" in trainer_params:
+                BCModule.check_config(trainer_params["behavioral_cloning"])
                 self.bc_module = BCModule(
                     self,
                     policy_learning_rate=trainer_params["learning_rate"],
                     default_batch_size=trainer_params["batch_size"],
-                    default_num_epoch=trainer_params["num_epoch"],
-                    **trainer_params["pretraining"],
+                    default_num_epoch=3,
+                    **trainer_params["behavioral_cloning"],
                 )
-            else:
-                self.bc_module = None
 
         if load:
             self._load_graph()
@@ -97,8 +105,6 @@ class PPOPolicy(TFPolicy):
             {
                 "action": self.model.output,
                 "log_probs": self.model.all_log_probs,
-                "value_heads": self.model.value_heads,
-                "value": self.model.value,
                 "entropy": self.model.entropy,
                 "learning_rate": self.model.learning_rate,
             }
@@ -132,36 +138,33 @@ class PPOPolicy(TFPolicy):
                 self.update_dict.update(self.reward_signals[reward_signal].update_dict)
 
     @timed
-    def evaluate(self, brain_info):
+    def evaluate(
+        self, batched_step_result: BatchedStepResult, global_agent_ids: List[str]
+    ) -> Dict[str, Any]:
         """
         Evaluates policy for the agent experiences provided.
-        :param brain_info: BrainInfo object containing inputs.
+        :param batched_step_result: BatchedStepResult object containing inputs.
+        :param global_agent_ids: The global (with worker ID) agent ids of the data in the batched_step_result.
         :return: Outputs from network as defined by self.inference_dict.
         """
         feed_dict = {
-            self.model.batch_size: len(brain_info.vector_observations),
+            self.model.batch_size: batched_step_result.n_agents(),
             self.model.sequence_length: 1,
         }
         epsilon = None
         if self.use_recurrent:
             if not self.use_continuous_act:
-                feed_dict[
-                    self.model.prev_action
-                ] = brain_info.previous_vector_actions.reshape(
-                    [-1, len(self.model.act_size)]
+                feed_dict[self.model.prev_action] = self.retrieve_previous_action(
+                    global_agent_ids
                 )
-            if brain_info.memories.shape[1] == 0:
-                brain_info.memories = self.make_empty_memory(len(brain_info.agents))
-            feed_dict[self.model.memory_in] = brain_info.memories
+            feed_dict[self.model.memory_in] = self.retrieve_memories(global_agent_ids)
         if self.use_continuous_act:
             epsilon = np.random.normal(
-                size=(len(brain_info.vector_observations), self.model.act_size[0])
+                size=(batched_step_result.n_agents(), self.model.act_size[0])
             )
             feed_dict[self.model.epsilon] = epsilon
-        feed_dict = self.fill_eval_dict(feed_dict, brain_info)
+        feed_dict = self.fill_eval_dict(feed_dict, batched_step_result)
         run_out = self._execute_model(feed_dict, self.inference_dict)
-        if self.use_continuous_act:
-            run_out["random_normal_epsilon"] = epsilon
         return run_out
 
     @timed
@@ -205,7 +208,6 @@ class PPOPolicy(TFPolicy):
 
         if self.use_continuous_act:
             feed_dict[model.output_pre] = mini_batch["actions_pre"]
-            feed_dict[model.epsilon] = mini_batch["random_normal_epsilon"]
         else:
             feed_dict[model.action_holder] = mini_batch["actions"]
             if self.use_recurrent:
@@ -223,45 +225,3 @@ class PPOPolicy(TFPolicy):
             ]
             feed_dict[model.memory_in] = mem_in
         return feed_dict
-
-    def get_value_estimates(
-        self, brain_info: BrainInfo, idx: int, done: bool
-    ) -> Dict[str, float]:
-        """
-        Generates value estimates for bootstrapping.
-        :param brain_info: BrainInfo to be used for bootstrapping.
-        :param idx: Index in BrainInfo of agent.
-        :param done: Whether or not this is the last element of the episode, in which case the value estimate will be 0.
-        :return: The value estimate dictionary with key being the name of the reward signal and the value the
-        corresponding value estimate.
-        """
-
-        feed_dict: Dict[tf.Tensor, Any] = {
-            self.model.batch_size: 1,
-            self.model.sequence_length: 1,
-        }
-        for i in range(len(brain_info.visual_observations)):
-            feed_dict[self.model.visual_in[i]] = [
-                brain_info.visual_observations[i][idx]
-            ]
-        if self.use_vec_obs:
-            feed_dict[self.model.vector_in] = [brain_info.vector_observations[idx]]
-        if self.use_recurrent:
-            if brain_info.memories.shape[1] == 0:
-                brain_info.memories = self.make_empty_memory(len(brain_info.agents))
-            feed_dict[self.model.memory_in] = [brain_info.memories[idx]]
-        if not self.use_continuous_act and self.use_recurrent:
-            feed_dict[self.model.prev_action] = [
-                brain_info.previous_vector_actions[idx]
-            ]
-        value_estimates = self.sess.run(self.model.value_heads, feed_dict)
-
-        value_estimates = {k: float(v) for k, v in value_estimates.items()}
-
-        # If we're done, reassign all of the value estimates that need terminal states.
-        if done:
-            for k in value_estimates:
-                if self.reward_signals[k].use_terminal_states:
-                    value_estimates[k] = 0.0
-
-        return value_estimates

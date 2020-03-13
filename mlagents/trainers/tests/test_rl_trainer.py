@@ -1,16 +1,17 @@
-import unittest.mock as mock
-import pytest
 import yaml
+from unittest import mock
 import mlagents.trainers.tests.mock_brain as mb
-import numpy as np
 from mlagents.trainers.rl_trainer import RLTrainer
+from mlagents.trainers.tests.test_buffer import construct_fake_buffer
+from mlagents.trainers.agent_processor import AgentManagerQueue
 
 
-@pytest.fixture
 def dummy_config():
     return yaml.safe_load(
         """
         summary_path: "test/"
+        summary_freq: 1000
+        max_steps: 100
         reward_signals:
           extrinsic:
             strength: 1.0
@@ -29,66 +30,78 @@ def create_mock_brain():
     return mock_brain
 
 
+# Add concrete implementations of abstract methods
+class FakeTrainer(RLTrainer):
+    def get_policy(self, name_behavior_id):
+        return mock.Mock()
+
+    def _is_ready_update(self):
+        return True
+
+    def _update_policy(self):
+        pass
+
+    def add_policy(self):
+        pass
+
+    def create_policy(self):
+        return mock.Mock()
+
+    def _process_trajectory(self, trajectory):
+        super()._process_trajectory(trajectory)
+
+
 def create_rl_trainer():
     mock_brainparams = create_mock_brain()
-    trainer = RLTrainer(mock_brainparams, dummy_config(), True, 0)
+    trainer = FakeTrainer(mock_brainparams, dummy_config(), True, 0)
     return trainer
 
 
-def create_mock_all_brain_info(brain_info):
-    return {"MockBrain": brain_info}
-
-
-def create_mock_policy():
-    mock_policy = mock.Mock()
-    mock_policy.reward_signals = {}
-    return mock_policy
-
-
-@mock.patch("mlagents.trainers.rl_trainer.RLTrainer.add_policy_outputs")
-@mock.patch("mlagents.trainers.rl_trainer.RLTrainer.add_rewards_outputs")
-@pytest.mark.parametrize("num_vis_obs", [0, 1, 2], ids=["vec", "1 viz", "2 viz"])
-def test_rl_trainer(add_policy_outputs, add_rewards_outputs, num_vis_obs):
+def test_rl_trainer():
     trainer = create_rl_trainer()
-    trainer.policy = create_mock_policy()
-    fake_action_outputs = {
-        "action": [0.1, 0.1],
-        "value_heads": {},
-        "entropy": np.array([1.0]),
-        "learning_rate": 1.0,
-    }
-    mock_braininfo = mb.create_mock_braininfo(
-        num_agents=2,
-        num_vector_observations=8,
-        num_vector_acts=2,
-        num_vis_observations=num_vis_obs,
-    )
-    trainer.add_experiences(
-        create_mock_all_brain_info(mock_braininfo),
-        create_mock_all_brain_info(mock_braininfo),
-        fake_action_outputs,
-    )
-
-    # Remove one of the agents
-    next_mock_braininfo = mb.create_mock_braininfo(
-        num_agents=1,
-        num_vector_observations=8,
-        num_vector_acts=2,
-        num_vis_observations=num_vis_obs,
-    )
-    brain_info = trainer.construct_curr_info(next_mock_braininfo)
-
-    # assert construct_curr_info worked properly
-    assert len(brain_info.agents) == 1
-    assert len(brain_info.visual_observations) == num_vis_obs
-    assert len(brain_info.vector_observations) == 1
-    assert len(brain_info.previous_vector_actions) == 1
-
+    agent_id = "0"
+    trainer.episode_steps[agent_id] = 3
+    trainer.collected_rewards["extrinsic"] = {agent_id: 3}
     # Test end episode
     trainer.end_episode()
     for agent_id in trainer.episode_steps:
         assert trainer.episode_steps[agent_id] == 0
-        assert len(trainer.training_buffer[agent_id]["action"]) == 0
     for rewards in trainer.collected_rewards.values():
         for agent_id in rewards:
             assert rewards[agent_id] == 0
+
+
+def test_clear_update_buffer():
+    trainer = create_rl_trainer()
+    trainer.update_buffer = construct_fake_buffer(0)
+    trainer.clear_update_buffer()
+    for _, arr in trainer.update_buffer.items():
+        assert len(arr) == 0
+
+
+@mock.patch("mlagents.trainers.rl_trainer.RLTrainer.clear_update_buffer")
+def test_advance(mocked_clear_update_buffer):
+    trainer = create_rl_trainer()
+    trajectory_queue = AgentManagerQueue("testbrain")
+    trainer.subscribe_trajectory_queue(trajectory_queue)
+    time_horizon = 15
+    trajectory = mb.make_fake_trajectory(
+        length=time_horizon,
+        max_step_complete=True,
+        vec_obs_size=1,
+        num_vis_obs=0,
+        action_space=[2],
+    )
+    trajectory_queue.put(trajectory)
+
+    trainer.advance()
+    # Check that get_step is correct
+    assert trainer.get_step == time_horizon
+    # Check that we can turn off the trainer and that the buffer is cleared
+    for _ in range(0, 10):
+        trajectory_queue.put(trajectory)
+        trainer.advance()
+
+    # Check that the buffer has been cleared
+    assert not trainer.should_still_train
+    assert mocked_clear_update_buffer.call_count > 0

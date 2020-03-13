@@ -18,6 +18,7 @@ Options:
     -m,--models=<n>             同时训练多少个模型 [default: 1]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
+    --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
     --max-episode=<n>           总的训练回合数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
@@ -42,6 +43,7 @@ Example:
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
+sys.path.append('./mlagents')
 import time
 NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
 import platform
@@ -72,6 +74,7 @@ def get_options(options: Dict):
         ['models',          int(options['--models'])],
         ['store_dir',       f('--store-dir', str)],
         ['seed',            int(options['--seed'])],
+        ['unity_env_seed',  int(options['--unity-env-seed'])],
         ['max_step',        f('--max-step', int)],
         ['max_episode',     f('--max-episode', int)],
         ['sampler',         f('--sampler', str)],
@@ -136,6 +139,7 @@ def run():
         env_args.type = 'unity'
         env_args.port = options.port
         env_args.sampler_path = options.sampler
+        env_args.env_seed = options.unity_env_seed
         if options.unity:
             env_args.file_path = None
             env_args.env_name = 'unity'

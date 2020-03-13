@@ -3,17 +3,23 @@ import random
 import tempfile
 import pytest
 import yaml
-from typing import Any, Dict
+from typing import Dict
+import numpy as np
 
 
 from mlagents.trainers.trainer_controller import TrainerController
-from mlagents.trainers.trainer_util import initialize_trainers
-from mlagents.envs.base_unity_environment import BaseUnityEnvironment
-from mlagents.envs.brain import BrainInfo, AllBrainInfo, BrainParameters
-from mlagents.envs.communicator_objects.agent_info_proto_pb2 import AgentInfoProto
-from mlagents.envs.simple_env_manager import SimpleEnvManager
-from mlagents.envs.sampler_class import SamplerManager
-
+from mlagents.trainers.trainer_util import TrainerFactory
+from mlagents_envs.base_env import (
+    BaseEnv,
+    AgentGroupSpec,
+    BatchedStepResult,
+    ActionType,
+)
+from mlagents.trainers.brain import BrainParameters
+from mlagents.trainers.simple_env_manager import SimpleEnvManager
+from mlagents.trainers.sampler_class import SamplerManager
+from mlagents.trainers.stats import StatsReporter
+from mlagents_envs.side_channel.float_properties_channel import FloatPropertiesChannel
 
 BRAIN_NAME = __name__
 OBS_SIZE = 1
@@ -28,7 +34,7 @@ def clamp(x, min_val, max_val):
     return max(min_val, min(x, max_val))
 
 
-class Simple1DEnvironment(BaseUnityEnvironment):
+class Simple1DEnvironment(BaseEnv):
     """
     Very simple "game" - the agent has a position on [-1, 1], gets a reward of 1 if it reaches 1, and a reward of -1 if
     it reaches -1. The position is incremented by the action amount (clamped to [-step_size, step_size]).
@@ -37,38 +43,41 @@ class Simple1DEnvironment(BaseUnityEnvironment):
     def __init__(self, use_discrete):
         super().__init__()
         self.discrete = use_discrete
-        self._brains: Dict[str, BrainParameters] = {}
-        brain_params = BrainParameters(
-            brain_name=BRAIN_NAME,
-            vector_observation_space_size=OBS_SIZE,
-            num_stacked_vector_observations=1,
-            camera_resolutions=[],
-            vector_action_space_size=[2] if use_discrete else [1],
-            vector_action_descriptions=["moveDirection"],
-            vector_action_space_type=0 if use_discrete else 1,
+        action_type = ActionType.DISCRETE if use_discrete else ActionType.CONTINUOUS
+        self.group_spec = AgentGroupSpec(
+            [(OBS_SIZE,)], action_type, (2,) if use_discrete else 1
         )
-        self._brains[BRAIN_NAME] = brain_params
-
         # state
         self.position = 0.0
         self.step_count = 0
-        self.random = random.Random(str(brain_params))
+        self.random = random.Random(str(self.group_spec))
         self.goal = self.random.choice([-1, 1])
+        self.action = None
+        self.step_result = None
 
-    def step(
-        self,
-        vector_action: Dict[str, Any] = None,
-        memory: Dict[str, Any] = None,
-        text_action: Dict[str, Any] = None,
-        value: Dict[str, Any] = None,
-    ) -> AllBrainInfo:
-        assert vector_action is not None
+    def get_agent_groups(self):
+        return [BRAIN_NAME]
+
+    def get_agent_group_spec(self, name):
+        return self.group_spec
+
+    def set_action_for_agent(self, name, id, data):
+        pass
+
+    def set_actions(self, name, data):
+        self.action = data
+
+    def get_step_result(self, name):
+        return self.step_result
+
+    def step(self) -> None:
+        assert self.action is not None
 
         if self.discrete:
-            act = vector_action[BRAIN_NAME][0][0]
+            act = self.action[0][0]
             delta = 1 if act else -1
         else:
-            delta = vector_action[BRAIN_NAME][0][0]
+            delta = self.action[0][0]
         delta = clamp(delta, -STEP_SIZE, STEP_SIZE)
         self.position += delta
         self.position = clamp(self.position, -1, 1)
@@ -79,42 +88,46 @@ class Simple1DEnvironment(BaseUnityEnvironment):
         else:
             reward = -TIME_PENALTY
 
-        agent_info = AgentInfoProto(
-            stacked_vector_observation=[self.goal] * OBS_SIZE, reward=reward, done=done
-        )
+        m_vector_obs = [np.ones((1, OBS_SIZE), dtype=np.float32) * self.goal]
+        m_reward = np.array([reward], dtype=np.float32)
+        m_done = np.array([done], dtype=np.bool)
+        m_agent_id = np.array([0], dtype=np.int32)
+        action_mask = self._generate_mask()
 
         if done:
             self._reset_agent()
 
-        return {
-            BRAIN_NAME: BrainInfo.from_agent_proto(
-                0, [agent_info], self._brains[BRAIN_NAME]
-            )
-        }
+        self.step_result = BatchedStepResult(
+            m_vector_obs, m_reward, m_done, m_done, m_agent_id, action_mask
+        )
+
+    def _generate_mask(self):
+        if self.discrete:
+            # LL-Python API will return an empty dim if there is only 1 agent.
+            ndmask = np.array(2 * [False], dtype=np.bool)
+            ndmask = np.expand_dims(ndmask, axis=0)
+            action_mask = [ndmask]
+        else:
+            action_mask = None
+        return action_mask
 
     def _reset_agent(self):
         self.position = 0.0
         self.step_count = 0
         self.goal = self.random.choice([-1, 1])
 
-    def reset(
-        self,
-        config: Dict[str, float] = None,
-        train_mode: bool = True,
-        custom_reset_parameters: Any = None,
-    ) -> AllBrainInfo:  # type: ignore
+    def reset(self) -> None:  # type: ignore
         self._reset_agent()
 
-        agent_info = AgentInfoProto(
-            stacked_vector_observation=[self.goal] * OBS_SIZE,
-            done=False,
-            max_step_reached=False,
+        m_vector_obs = [np.ones((1, OBS_SIZE), dtype=np.float32) * self.goal]
+        m_reward = np.array([0], dtype=np.float32)
+        m_done = np.array([False], dtype=np.bool)
+        m_agent_id = np.array([0], dtype=np.int32)
+        action_mask = self._generate_mask()
+
+        self.step_result = BatchedStepResult(
+            m_vector_obs, m_reward, m_done, m_done, m_agent_id, action_mask
         )
-        return {
-            BRAIN_NAME: BrainInfo.from_agent_proto(
-                0, [agent_info], self._brains[BRAIN_NAME]
-            )
-        }
 
     @property
     def external_brains(self) -> Dict[str, BrainParameters]:
@@ -128,8 +141,8 @@ class Simple1DEnvironment(BaseUnityEnvironment):
         pass
 
 
-PPO_CONFIG = """
-    default:
+PPO_CONFIG = f"""
+    {BRAIN_NAME}:
         trainer: ppo
         batch_size: 16
         beta: 5.0e-3
@@ -153,16 +166,16 @@ PPO_CONFIG = """
                 gamma: 0.99
     """
 
-SAC_CONFIG = """
-    default:
+SAC_CONFIG = f"""
+    {BRAIN_NAME}:
         trainer: sac
-        batch_size: 32
-        buffer_size: 10240
-        buffer_init_steps: 1000
-        hidden_units: 64
+        batch_size: 8
+        buffer_size: 500
+        buffer_init_steps: 100
+        hidden_units: 16
         init_entcoef: 0.01
         learning_rate: 5.0e-3
-        max_steps: 2000
+        max_steps: 1000
         memory_size: 256
         normalize: false
         num_update: 1
@@ -182,19 +195,47 @@ SAC_CONFIG = """
                 gamma: 0.99
     """
 
+GHOST_CONFIG = f"""
+    {BRAIN_NAME}:
+        trainer: ppo
+        batch_size: 16
+        beta: 5.0e-3
+        buffer_size: 64
+        epsilon: 0.2
+        hidden_units: 128
+        lambd: 0.95
+        learning_rate: 5.0e-3
+        max_steps: 2500
+        memory_size: 256
+        normalize: false
+        num_epoch: 3
+        num_layers: 2
+        time_horizon: 64
+        sequence_length: 64
+        summary_freq: 500
+        use_recurrent: false
+        reward_signals:
+            extrinsic:
+                strength: 1.0
+                gamma: 0.99
+        self_play:
+            save_step: 1000
+    """
 
-def _check_environment_trains(env, config):
+
+def _check_environment_trains(
+    env, config, meta_curriculum=None, success_threshold=0.99
+):
     # Create controller and begin training.
     with tempfile.TemporaryDirectory() as dir:
         run_id = "id"
         save_freq = 99999
         seed = 1337
-
+        StatsReporter.writers.clear()  # Clear StatsReporters so we don't write to file
         trainer_config = yaml.safe_load(config)
-        env_manager = SimpleEnvManager(env)
-        trainers = initialize_trainers(
+        env_manager = SimpleEnvManager(env, FloatPropertiesChannel())
+        trainer_factory = TrainerFactory(
             trainer_config=trainer_config,
-            external_brains=env_manager.external_brains,
             summaries_dir=dir,
             run_id=run_id,
             model_path=dir,
@@ -202,19 +243,18 @@ def _check_environment_trains(env, config):
             train_model=True,
             load_model=False,
             seed=seed,
-            meta_curriculum=None,
+            meta_curriculum=meta_curriculum,
             multi_gpu=False,
         )
 
         tc = TrainerController(
-            trainers=trainers,
+            trainer_factory=trainer_factory,
             summaries_dir=dir,
             model_path=dir,
             run_id=run_id,
-            meta_curriculum=None,
+            meta_curriculum=meta_curriculum,
             train=True,
             training_seed=seed,
-            fast_simulation=True,
             sampler_manager=SamplerManager(None),
             resampling_interval=None,
             save_freq=save_freq,
@@ -223,9 +263,9 @@ def _check_environment_trains(env, config):
         # Begin training
         tc.start_learning(env_manager)
         print(tc._get_measure_vals())
-        for brain_name, mean_reward in tc._get_measure_vals().items():
+        for mean_reward in tc._get_measure_vals().values():
             assert not math.isnan(mean_reward)
-            assert mean_reward > 0.99
+            assert mean_reward > success_threshold
 
 
 @pytest.mark.parametrize("use_discrete", [True, False])
@@ -238,3 +278,9 @@ def test_simple_ppo(use_discrete):
 def test_simple_sac(use_discrete):
     env = Simple1DEnvironment(use_discrete=use_discrete)
     _check_environment_trains(env, SAC_CONFIG)
+
+
+@pytest.mark.parametrize("use_discrete", [True, False])
+def test_simple_ghost(use_discrete):
+    env = Simple1DEnvironment(use_discrete=use_discrete)
+    _check_environment_trains(env, GHOST_CONFIG)

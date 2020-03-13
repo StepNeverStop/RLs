@@ -2,16 +2,16 @@
 import numpy as np
 from utils.sampler import create_sampler_manager
 
-
 class BasicWrapper:
     def __init__(self, env):
         self.env = env
+        self.env.reset()
 
-    def step(self, **kwargs):
-        return self.env.step(**kwargs)
+    def step(self):
+        self.env.step()
 
     def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+        self.env.reset()
 
     def close(self):
         self.env.close()
@@ -25,29 +25,30 @@ class BasicWrapper:
 class InfoWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.brains = self.env.brains
-        self.brain_names = self.env.external_brain_names
+        self.brain_names = self.env.get_agent_groups()  #所有脑的名字列表
+        self.brain_specs = [self.env.get_agent_group_spec(b) for b in self.brain_names] # 所有脑的信息
+        self.vector_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
+        self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b)==1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度
+        self.visual_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==3] for spec in self.brain_specs]   # 得到所有脑 观测值为图像的下标
         self.brain_num = len(self.brain_names)
 
-        self.visual_sources = [self.brains[b].number_visual_observations for b in self.brain_names]
+        self.visual_sources = [len(v) for v in self.visual_idxs]
         self.visual_resolutions = []
-        for b in self.brain_names:
-            if self.brains[b].number_visual_observations:
-                self.visual_resolutions.append([
-                    self.brains[b].camera_resolutions[0]['height'],
-                    self.brains[b].camera_resolutions[0]['width'],
-                    1 if self.brains[b].camera_resolutions[0]['blackAndWhite'] else 3
-                ])
-            else:
-                self.visual_resolutions.append([])
+        for spec in self.brain_specs:
+            for b in spec.observation_shapes:
+                if len(b) == 3:
+                    self.visual_resolutions.append(list(b))
+                    break
+                else:
+                    self.visual_resolutions.append([])
+        
 
-        self.s_dim = [self.brains[b].vector_observation_space_size * self.brains[b].num_stacked_vector_observations
-                      for b in self.brain_names]
-        self.a_dim_or_list = [self.brains[b].vector_action_space_size for b in self.brain_names]
-        self.is_continuous = [True if self.brains[b].vector_action_space_type == 'continuous' else False
-                              for b in self.brain_names]
-        obs = self.env.reset()
-        self.brain_agents = [len(obs[brain_name].agents) for brain_name in self.brain_names]
+        self.s_dim = [sum(v) for v in self.vector_dims]
+        self.a_dim_or_list = [spec.action_shape for spec in self.brain_specs]
+        self.a_size = [spec.action_size for spec in self.brain_specs]
+        self.is_continuous = [spec.is_action_continuous() for spec in self.brain_specs]
+
+        self.brain_agents = [sr.n_agents() for sr in [self.env.get_step_result(bn) for bn in self.brain_names]]    # 得到每个环境控制几个智能体
 
     def random_action(self):
         '''
@@ -59,11 +60,11 @@ class InfoWrapper(BasicWrapper):
         for i in range(self.brain_num):
             if self.is_continuous[i]:
                 actions.append(
-                    np.random.random((self.brain_agents[i], self.a_dim_or_list[i][0])) * 2 - 1
+                    np.random.random((self.brain_agents[i], self.a_dim_or_list[i])) * 2 - 1 # [-1, 1]
                 )
             else:
                 actions.append(
-                    np.random.randint(self.a_dim_or_list[i], size=(self.brain_agents[i], len(self.a_dim_or_list[i])), dtype=np.int32)
+                    np.random.randint(self.a_dim_or_list[i], size=(self.brain_agents[i], self.a_size[i]), dtype=np.int32)
                 )
         return actions
 
@@ -71,37 +72,117 @@ class InfoWrapper(BasicWrapper):
 class UnityReturnWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
+        self._action_offset = None  # 用于记录”当前智能体信息多于初始环境智能体数量“时，需要额外拼接动作的智能体数量
+
+    def list2dict(self, l):
+        return dict([ll,idx] for idx, ll in zip(range(len(l)), l))  # agent_id : obs_idx
 
     def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        return self.splitByBrain(obs)
+        self.env.reset()
+        self._action_offset = {bn:0 for bn in self.brain_names}
+        self._agent_ids = [self.list2dict(sr.agent_id) for sr in [self.env.get_step_result(bn) for bn in self.brain_names]]
+        return self.get_obs()
 
-    def step(self, **kwargs):
-        obs = self.env.step(**kwargs)
-        return self.splitByBrain(obs)
+    def step(self, actions):
+        for k, v in actions.items():
+            v = np.row_stack([v[:self._action_offset[k]], v])
+            self._action_offset[k] = 0
+            self.env.set_actions(k, v)
+        self.env.step()
+        return self.get_obs()
 
-    def splitByBrain(self, obs):
-        vector = [obs[brain_name].vector_observations for brain_name in self.brain_names]
-        visual = [self._get_visual_input(n=n, cameras=cameras, brain_obs=obs[brain_name])
-                  for n, cameras, brain_name in zip(self.brain_agents, self.visual_sources, self.brain_names)]
-        reward = [np.asarray(obs[brain_name].rewards) for brain_name in self.brain_names]
-        done = [np.asarray(obs[brain_name].local_done) for brain_name in self.brain_names]
+    def get_obs(self):
+        '''
+        解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
+        '''
+        vector = []
+        visual = []
+        reward = []
+        done = []
+        for i,bn in enumerate(self.brain_names):
+            step_result = self.env.get_step_result(bn)
+            vec, vis, r, d = self.deal_fuck_agents(i, bn, step_result)
+            vector.append(vec)
+            visual.append(vis)
+            reward.append(r)
+            done.append(d)
         return zip(vector, visual, reward, done)
 
-    def _get_visual_input(self, n, cameras, brain_obs):
+    def _partial_reset_random_action(self, i, n):
         '''
-        inputs:
-            n: agents number
-            cameras: camera number
-            brain_obs: observations of specified brain, include visual and vector observation.
-        output:
-            [vector_information, [visual_info0, visual_info1, visual_info2, ...]]
+        这个函数用于给 “当前智能体信息少于初始环境智能体数量”时，传入随机动作，使部分在决策间隔内done掉的环境尽快恢复reset。
+        例如，环境本身12个智能体，当前传回来1个智能体信息，那么就给这1个智能体传入随机动作，以得到后续的12个智能体的全部信息
+        '''
+        if self.is_continuous[i]:
+            return np.random.random((n, self.a_dim_or_list[i])) * 2 - 1
+        else:
+            return np.random.randint(self.a_dim_or_list[i], size=(n, self.a_size[i]), dtype=np.int32)
+
+    def deal_fuck_agents(self, i, bn, sr):
+        '''
+        处理ML-Agents从0.14.0开始返回的信息维度不一致问题。在新版ML-agents当中，如果多个环境智能体在不同的间隔中done，那么只会返回done掉的环境的信息。
+        而且，如果在决策间隔的最后一时刻done，那么会返回多于原来环境数量的信息，其中既包括刚done掉的环境信息，也包括立即初始化后的信息。
+        这个函数仅处理一个brain的功能。
+        param: i, 指定brain的索引，也就是group的索引
+        param: bn, 指定brain的名字，也就是group的名字。在这个地方传入bn主要是用于给“少”传的情景发送随机动作，使智能体尽量传回来≥环境个数的信息
+        param: sr, 当前brain在当前时刻的所有信息
+        '''
+        _nas = sr.n_agents()    # 记录当前得到的信息中智能体的个数
+        _ias = self.brain_agents[i] # 取得训练环境本身存在的智能体数量
+        if _nas == _ias:    # 如果传回来的智能体数量与初始时相同，那么不用做处理，直接返回即可
+            return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]]),  
+                    self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]]),
+                    np.asarray(sr.reward),
+                    np.asarray(sr.done))
+        else:
+            if _nas < _ias: # 如果传回来的智能体数量小于初始时，那么就单独给done掉的环境发送动作，让其尽快reset，并且把刚done掉的奖励和done信号赋值给reset后的初始状态
+                _data = [(sr.agent_id, sr.reward, sr.done)]
+                while True:
+                    self.env.set_actions(bn, self._partial_reset_random_action(i, sr.n_agents()))
+                    self.env.step()
+                    sr = self.env.get_step_result(bn)
+                    if sr.n_agents() < _ias:
+                        _data.append((sr.agent_id, sr.reward, sr.done))
+                    else:   # 大与或者等于
+                        self._action_offset[bn] = sr.n_agents() - _ias
+                        _data.append((sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]))
+                        break
+                _ids, _reward, _done = map(lambda x:np.hstack(x), zip(*_data))
+            else:
+                self._action_offset[bn] = _nas - _ias
+                _ids, _reward, _done = sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]
+            
+            _r, _d = sr.reward[-_ias:], sr.done[-_ias:]
+            _change_idxs = [self._agent_ids[i].get(_id) for _id in _ids]
+            _r[_change_idxs], _d[_change_idxs] = _reward, _done
+            for _id in _ids:
+                _cid = self._agent_ids[i].get(_id)
+                self._agent_ids[i].update({sr.agent_id[-_ias:][_cid]:self._agent_ids[i].pop(_id)})
+
+            return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
+                    self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
+                    np.asarray(_r),
+                    np.asarray(_d))
+        
+
+    def deal_vector(self, vecs):
+        '''
+        把向量观测信息 按每个智能体 拼接起来
+        '''
+        if len(vecs):
+            return np.hstack(vecs)
+        else:
+            return np.array([])
+        
+    def deal_visual(self, n, viss):
+        '''
+        把图像观测信息 按每个智能体 组合起来
         '''
         ss = []
         for j in range(n):
             s = []
-            for k in range(cameras):
-                s.append(brain_obs.visual_observations[k][j])
+            for v in viss:
+                s.append(v[j])
             ss.append(np.array(s))
         return np.array(ss)
 

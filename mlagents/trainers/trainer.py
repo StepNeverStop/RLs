@@ -1,17 +1,23 @@
 # # Unity ML-Agents Toolkit
 import logging
 from typing import Dict, List, Deque, Any
-import os
-import tensorflow as tf
-import numpy as np
-from collections import deque, defaultdict
+import time
+import abc
 
-from mlagents.envs.action_info import ActionInfoOutputs
-from mlagents.envs.exception import UnityException
-from mlagents.envs.timers import set_gauge
-from mlagents.trainers.trainer_metrics import TrainerMetrics
+from mlagents.tf_utils import tf
+from mlagents import tf_utils
+
+from collections import deque
+
+from mlagents_envs.exception import UnityException
+from mlagents_envs.timers import set_gauge
 from mlagents.trainers.tf_policy import TFPolicy
-from mlagents.envs.brain import BrainParameters, AllBrainInfo
+from mlagents.trainers.stats import StatsReporter
+from mlagents.trainers.trajectory import Trajectory
+from mlagents.trainers.agent_processor import AgentManagerQueue
+from mlagents.trainers.brain import BrainParameters
+from mlagents.trainers.policy import Policy
+from mlagents_envs.timers import hierarchical_timer
 
 LOGGER = logging.getLogger("mlagents.trainers")
 
@@ -24,12 +30,12 @@ class UnityTrainerException(UnityException):
     pass
 
 
-class Trainer(object):
-    """This class is the base class for the mlagents.envs.trainers"""
+class Trainer(abc.ABC):
+    """This class is the base class for the mlagents_envs.trainers"""
 
     def __init__(
         self,
-        brain: BrainParameters,
+        brain_name: str,
         trainer_parameters: dict,
         training: bool,
         run_id: str,
@@ -44,24 +50,22 @@ class Trainer(object):
         :int reward_buff_cap:
         """
         self.param_keys: List[str] = []
-        self.brain_name = brain.brain_name
+        self.brain_name = brain_name
         self.run_id = run_id
         self.trainer_parameters = trainer_parameters
         self.summary_path = trainer_parameters["summary_path"]
-        if not os.path.exists(self.summary_path):
-            os.makedirs(self.summary_path)
+        self.stats_reporter = StatsReporter(self.summary_path)
         self.cumulative_returns_since_policy_update: List[float] = []
         self.is_training = training
-        self.stats: Dict[str, List] = defaultdict(list)
-        self.trainer_metrics = TrainerMetrics(
-            path=self.summary_path + ".csv", brain_name=self.brain_name
-        )
-        self.summary_writer = tf.summary.FileWriter(self.summary_path)
         self._reward_buffer: Deque[float] = deque(maxlen=reward_buff_cap)
-        self.policy: TFPolicy = None
+        self.policy_queues: List[AgentManagerQueue[Policy]] = []
+        self.trajectory_queues: List[AgentManagerQueue[Trajectory]] = []
         self.step: int = 0
+        self.training_start_time = time.time()
+        self.summary_freq = self.trainer_parameters["summary_freq"]
+        self.next_summary_step = self.summary_freq
 
-    def check_param_keys(self):
+    def _check_param_keys(self):
         for k in self.param_keys:
             if k not in self.trainer_parameters:
                 raise UnityTrainerException(
@@ -69,7 +73,28 @@ class Trainer(object):
                     "brain {2}.".format(k, self.__class__, self.brain_name)
                 )
 
-    def dict_to_str(self, param_dict: Dict[str, Any], num_tabs: int) -> str:
+    def write_tensorboard_text(self, key: str, input_dict: Dict[str, Any]) -> None:
+        """
+        Saves text to Tensorboard.
+        Note: Only works on tensorflow r1.2 or above.
+        :param key: The name of the text.
+        :param input_dict: A dictionary that will be displayed in a table on Tensorboard.
+        """
+        try:
+            with tf.Session(config=tf_utils.generate_session_config()) as sess:
+                s_op = tf.summary.text(
+                    key,
+                    tf.convert_to_tensor(
+                        ([[str(x), str(input_dict[x])] for x in input_dict])
+                    ),
+                )
+                s = sess.run(s_op)
+                self.stats_reporter.write_text(s, self.get_step)
+        except Exception:
+            LOGGER.info("Could not write text summary for Tensorboard.")
+            pass
+
+    def _dict_to_str(self, param_dict: Dict[str, Any], num_tabs: int) -> str:
         """
         Takes a parameter dictionary and converts it to a human-readable string.
         Recurses if there are multiple levels of dict. Used to print out hyperaparameters.
@@ -85,7 +110,7 @@ class Trainer(object):
                     "\t"
                     + "  " * num_tabs
                     + "{0}:\t{1}".format(
-                        x, self.dict_to_str(param_dict[x], num_tabs + 1)
+                        x, self._dict_to_str(param_dict[x], num_tabs + 1)
                     )
                     for x in param_dict
                 ]
@@ -95,7 +120,7 @@ class Trainer(object):
         return """Hyperparameters for the {0} of brain {1}: \n{2}""".format(
             self.__class__.__name__,
             self.brain_name,
-            self.dict_to_str(self.trainer_parameters, 0),
+            self._dict_to_str(self.trainer_parameters, 0),
         )
 
     @property
@@ -106,12 +131,12 @@ class Trainer(object):
         return self.trainer_parameters
 
     @property
-    def get_max_steps(self) -> float:
+    def get_max_steps(self) -> int:
         """
         Returns the maximum number of steps. Is used to know when the trainer should be stopped.
         :return: The maximum number of steps of the trainer
         """
-        return float(self.trainer_parameters["max_steps"])
+        return int(float(self.trainer_parameters["max_steps"]))
 
     @property
     def get_step(self) -> int:
@@ -120,6 +145,15 @@ class Trainer(object):
         :return: the step count of the trainer
         """
         return self.step
+
+    @property
+    def should_still_train(self) -> bool:
+        """
+        Returns whether or not the trainer should train. A Trainer could
+        stop training if it wasn't training to begin with, or if max_steps
+        is reached.
+        """
+        return self.is_training and self.get_step <= self.get_max_steps
 
     @property
     def reward_buffer(self) -> Deque[float]:
@@ -131,154 +165,166 @@ class Trainer(object):
         """
         return self._reward_buffer
 
-    def increment_step(self, n_steps: int) -> None:
+    def _increment_step(self, n_steps: int, name_behavior_id: str) -> None:
         """
         Increment the step count of the trainer
-
         :param n_steps: number of steps to increment the step count by
         """
-        self.step = self.policy.increment_step(n_steps)
+        self.step += n_steps
+        self.next_summary_step = self._get_next_summary_step()
+        p = self.get_policy(name_behavior_id)
+        if p:
+            p.increment_step(n_steps)
 
-    def save_model(self) -> None:
+    def _get_next_summary_step(self) -> int:
+        """
+        Get the next step count that should result in a summary write.
+        """
+        return self.step + (self.summary_freq - self.step % self.summary_freq)
+
+    def save_model(self, name_behavior_id: str) -> None:
         """
         Saves the model
         """
-        self.policy.save_model(self.get_step)
+        self.get_policy(name_behavior_id).save_model(self.get_step)
 
-    def export_model(self) -> None:
+    def export_model(self, name_behavior_id: str) -> None:
         """
         Exports the model
         """
-        self.policy.export_model()
+        self.get_policy(name_behavior_id).export_model()
 
-    def write_training_metrics(self) -> None:
-        """
-        Write training metrics to a CSV  file
-        :return:
-        """
-        self.trainer_metrics.write_training_metrics()
-
-    def write_summary(
-        self, global_step: int, delta_train_start: float, lesson_num: int = 0
-    ) -> None:
+    def _write_summary(self, step: int) -> None:
         """
         Saves training statistics to Tensorboard.
-        :param delta_train_start:  Time elapsed since training started.
-        :param lesson_num: Current lesson number in curriculum.
-        :param global_step: The number of steps the simulation has been going for
         """
-        if (
-            global_step % self.trainer_parameters["summary_freq"] == 0
-            and global_step != 0
-        ):
-            is_training = (
-                "Training."
-                if self.is_training and self.get_step <= self.get_max_steps
-                else "Not Training."
-            )
-            step = min(self.get_step, self.get_max_steps)
-            if len(self.stats["Environment/Cumulative Reward"]) > 0:
-                mean_reward = np.mean(self.stats["Environment/Cumulative Reward"])
-                LOGGER.info(
-                    " {}: {}: Step: {}. "
-                    "Time Elapsed: {:0.3f} s "
-                    "Mean "
-                    "Reward: {:0.3f}"
-                    ". Std of Reward: {:0.3f}. {}".format(
-                        self.run_id,
-                        self.brain_name,
-                        step,
-                        delta_train_start,
-                        mean_reward,
-                        np.std(self.stats["Environment/Cumulative Reward"]),
-                        is_training,
-                    )
-                )
-                set_gauge(f"{self.brain_name}.mean_reward", mean_reward)
-            else:
-                LOGGER.info(
-                    " {}: {}: Step: {}. No episode was completed since last summary. {}".format(
-                        self.run_id, self.brain_name, step, is_training
-                    )
-                )
-            summary = tf.Summary()
-            for key in self.stats:
-                if len(self.stats[key]) > 0:
-                    stat_mean = float(np.mean(self.stats[key]))
-                    summary.value.add(tag="{}".format(key), simple_value=stat_mean)
-                    self.stats[key] = []
-            summary.value.add(tag="Environment/Lesson", simple_value=lesson_num)
-            self.summary_writer.add_summary(summary, step)
-            self.summary_writer.flush()
-
-    def write_tensorboard_text(self, key: str, input_dict: Dict[str, Any]) -> None:
-        """
-        Saves text to Tensorboard.
-        Note: Only works on tensorflow r1.2 or above.
-        :param key: The name of the text.
-        :param input_dict: A dictionary that will be displayed in a table on Tensorboard.
-        """
-        try:
-            with tf.Session() as sess:
-                s_op = tf.summary.text(
-                    key,
-                    tf.convert_to_tensor(
-                        ([[str(x), str(input_dict[x])] for x in input_dict])
-                    ),
-                )
-                s = sess.run(s_op)
-                self.summary_writer.add_summary(s, self.get_step)
-        except Exception:
+        is_training = "Training." if self.should_still_train else "Not Training."
+        stats_summary = self.stats_reporter.get_stats_summaries(
+            "Environment/Cumulative Reward"
+        )
+        if stats_summary.num > 0:
             LOGGER.info(
-                "Cannot write text summary for Tensorboard. Tensorflow version must be r1.2 or above."
+                " {}: {}: Step: {}. "
+                "Time Elapsed: {:0.3f} s "
+                "Mean "
+                "Reward: {:0.3f}"
+                ". Std of Reward: {:0.3f}. {}".format(
+                    self.run_id,
+                    self.brain_name,
+                    step,
+                    time.time() - self.training_start_time,
+                    stats_summary.mean,
+                    stats_summary.std,
+                    is_training,
+                )
             )
-            pass
+            set_gauge(f"{self.brain_name}.mean_reward", stats_summary.mean)
+        else:
+            LOGGER.info(
+                " {}: {}: Step: {}. No episode was completed since last summary. {}".format(
+                    self.run_id, self.brain_name, step, is_training
+                )
+            )
+        self.stats_reporter.write_stats(int(step))
 
-    def add_experiences(
-        self,
-        curr_all_info: AllBrainInfo,
-        next_all_info: AllBrainInfo,
-        take_action_outputs: ActionInfoOutputs,
-    ) -> None:
+    @abc.abstractmethod
+    def _process_trajectory(self, trajectory: Trajectory) -> None:
         """
-        Adds experiences to each agent's experience history.
-        :param curr_all_info: Dictionary of all current brains and corresponding BrainInfo.
-        :param next_all_info: Dictionary of all current brains and corresponding BrainInfo.
-        :param take_action_outputs: The outputs of the Policy's get_action method.
+        Takes a trajectory and processes it, putting it into the update buffer.
+        :param trajectory: The Trajectory tuple containing the steps to be processed.
         """
-        raise UnityTrainerException(
-            "The process_experiences method was not implemented."
-        )
+        self._maybe_write_summary(self.get_step + len(trajectory.steps))
+        self._increment_step(len(trajectory.steps), trajectory.behavior_id)
 
-    def process_experiences(
-        self, current_info: AllBrainInfo, next_info: AllBrainInfo
-    ) -> None:
+    def _maybe_write_summary(self, step_after_process: int) -> None:
         """
-        Checks agent histories for processing condition, and processes them as necessary.
-        Processing involves calculating value and advantage targets for model updating step.
-        :param current_info: Dictionary of all current-step brains and corresponding BrainInfo.
-        :param next_info: Dictionary of all next-step brains and corresponding BrainInfo.
+        If processing the trajectory will make the step exceed the next summary write,
+        write the summary. This logic ensures summaries are written on the update step and not in between.
+        :param step_after_process: the step count after processing the next trajectory.
         """
-        raise UnityTrainerException(
-            "The process_experiences method was not implemented."
-        )
+        if step_after_process >= self.next_summary_step and self.get_step != 0:
+            self._write_summary(self.next_summary_step)
 
+    @abc.abstractmethod
     def end_episode(self):
         """
         A signal that the Episode has ended. The buffer must be reset.
         Get only called when the academy resets.
         """
-        raise UnityTrainerException("The end_episode method was not implemented.")
+        pass
 
-    def is_ready_update(self):
+    @abc.abstractmethod
+    def create_policy(self, brain_parameters: BrainParameters) -> TFPolicy:
+        """
+        Creates policy
+        """
+        pass
+
+    @abc.abstractmethod
+    def add_policy(self, name_behavior_id: str, policy: TFPolicy) -> None:
+        """
+        Adds policy to trainer
+        """
+        pass
+
+    @abc.abstractmethod
+    def get_policy(self, name_behavior_id: str) -> TFPolicy:
+        """
+        Gets policy from trainer
+        """
+        pass
+
+    @abc.abstractmethod
+    def _is_ready_update(self):
         """
         Returns whether or not the trainer has enough elements to run update model
         :return: A boolean corresponding to wether or not update_model() can be run
         """
-        raise UnityTrainerException("The is_ready_update method was not implemented.")
+        return False
 
-    def update_policy(self):
+    @abc.abstractmethod
+    def _update_policy(self):
         """
         Uses demonstration_buffer to update model.
         """
-        raise UnityTrainerException("The update_model method was not implemented.")
+        pass
+
+    def advance(self) -> None:
+        """
+        Steps the trainer, taking in trajectories and updates if ready.
+        """
+        with hierarchical_timer("process_trajectory"):
+            for traj_queue in self.trajectory_queues:
+                # We grab at most the maximum length of the queue.
+                # This ensures that even if the queue is being filled faster than it is
+                # being emptied, the trajectories in the queue are on-policy.
+                for _ in range(traj_queue.maxlen):
+                    try:
+                        t = traj_queue.get_nowait()
+                        self._process_trajectory(t)
+                    except AgentManagerQueue.Empty:
+                        break
+        if self.should_still_train:
+            if self._is_ready_update():
+                with hierarchical_timer("_update_policy"):
+                    self._update_policy()
+                    for q in self.policy_queues:
+                        # Get policies that correspond to the policy queue in question
+                        q.put(self.get_policy(q.behavior_id))
+
+    def publish_policy_queue(self, policy_queue: AgentManagerQueue[Policy]) -> None:
+        """
+        Adds a policy queue to the list of queues to publish to when this Trainer
+        makes a policy update
+        :param queue: Policy queue to publish to.
+        """
+        self.policy_queues.append(policy_queue)
+
+    def subscribe_trajectory_queue(
+        self, trajectory_queue: AgentManagerQueue[Trajectory]
+    ) -> None:
+        """
+        Adds a trajectory queue to the list of queues for the trainer to ingest Trajectories from.
+        :param queue: Trajectory queue to publish to.
+        """
+        self.trajectory_queues.append(trajectory_queue)

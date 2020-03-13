@@ -532,7 +532,7 @@ class Agent:
 
         for episode in range(begin_episode, max_episode):
             ObsRewDone = self.env.reset()
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
                 dones_flag[i] = np.zeros(self.env.brain_agents[i])
                 rewards[i] = np.zeros(self.env.brain_agents[i])
                 state[i] = _v
@@ -544,7 +544,7 @@ class Agent:
                 for i in range(self.env.brain_num):
                     action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(actions)
 
                 for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                     unfinished_index = np.where(dones_flag[i] == False)[0]
@@ -607,7 +607,7 @@ class Agent:
         for _ in range(steps):
             action = self.env.random_action()
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(vector_action=actions)
+            ObsRewDone = self.env.step(actions)
             for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                 self.models[i].store_data(
                     s=state[i],
@@ -647,7 +647,7 @@ class Agent:
             else:
                 action = self.env.random_action()
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(vector_action=actions)
+            ObsRewDone = self.env.step(actions)
             for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                 self.models[i].no_op_store(
                     s=state[i],
@@ -672,7 +672,7 @@ class Agent:
                 for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                     action[i] = self.models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(actions)
 
     def ma_unity_no_op(self):
         steps = self.train_args['pre_fill_steps']
@@ -700,7 +700,7 @@ class Agent:
                 if choose:
                     action[i] = self.models[i].choose_action(s=state[i])
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(vector_action=actions)
+            ObsRewDone = self.env.step(actions)
             for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                 reward[i] = _r[:, np.newaxis]
                 next_state[i] = _vs
@@ -736,7 +736,7 @@ class Agent:
                 for i in range(self.env.brain_num):
                     action[i] = self.models[i].choose_action(s=state[i])
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(actions)
 
                 for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                     reward[i] = _r[:, np.newaxis]
@@ -805,4 +805,4 @@ class Agent:
                 for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
                     action[i] = self.models[i].choose_action(s=_v, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(vector_action=actions)
+                ObsRewDone = self.env.step(actions)

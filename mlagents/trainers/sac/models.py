@@ -1,9 +1,10 @@
 import logging
 import numpy as np
+from typing import Dict, List, Optional
 
-import tensorflow as tf
+from mlagents.tf_utils import tf
+
 from mlagents.trainers.models import LearningModel, LearningRateSchedule, EncoderType
-import tensorflow.contrib.layers as c_layers
 
 LOG_STD_MAX = 2
 LOG_STD_MIN = -20
@@ -43,6 +44,39 @@ class SACNetwork(LearningModel):
         self.stream_names = stream_names
         self.h_size = h_size
         self.activ_fn = self.swish
+
+        self.policy_memory_in: Optional[tf.Tensor] = None
+        self.policy_memory_out: Optional[tf.Tensor] = None
+        self.value_memory_in: Optional[tf.Tensor] = None
+        self.value_memory_out: Optional[tf.Tensor] = None
+        self.q1: Optional[tf.Tensor] = None
+        self.q2: Optional[tf.Tensor] = None
+        self.q1_p: Optional[tf.Tensor] = None
+        self.q2_p: Optional[tf.Tensor] = None
+        self.q1_memory_in: Optional[tf.Tensor] = None
+        self.q2_memory_in: Optional[tf.Tensor] = None
+        self.q1_memory_out: Optional[tf.Tensor] = None
+        self.q2_memory_out: Optional[tf.Tensor] = None
+        self.prev_action: Optional[tf.Tensor] = None
+        self.action_masks: Optional[tf.Tensor] = None
+        self.external_action_in: Optional[tf.Tensor] = None
+        self.log_sigma_sq: Optional[tf.Tensor] = None
+        self.entropy: Optional[tf.Tensor] = None
+        self.deterministic_output: Optional[tf.Tensor] = None
+        self.normalized_logprobs: Optional[tf.Tensor] = None
+        self.action_probs: Optional[tf.Tensor] = None
+        self.output_oh: Optional[tf.Tensor] = None
+        self.output_pre: Optional[tf.Tensor] = None
+
+        self.value_vars = None
+        self.q_vars = None
+        self.critic_vars = None
+        self.policy_vars = None
+
+        self.q1_heads: Optional[Dict[str, tf.Tensor]] = None
+        self.q2_heads: Optional[Dict[str, tf.Tensor]] = None
+        self.q1_pheads: Optional[Dict[str, tf.Tensor]] = None
+        self.q2_pheads: Optional[Dict[str, tf.Tensor]] = None
 
     def get_vars(self, scope):
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=scope)
@@ -275,14 +309,11 @@ class SACNetwork(LearningModel):
                         size,
                         activation=None,
                         use_bias=False,
-                        kernel_initializer=c_layers.variance_scaling_initializer(
-                            factor=0.01
-                        ),
+                        kernel_initializer=tf.initializers.variance_scaling(0.01),
                     )
                 )
-            all_logits = tf.concat(
-                [branch for branch in policy_branches], axis=1, name="action_probs"
-            )
+            all_logits = tf.concat(policy_branches, axis=1, name="action_probs")
+
             output, normalized_probs, normalized_logprobs = self.create_discrete_action_masking_layer(
                 all_logits, self.action_masks, self.act_size
             )
@@ -344,7 +375,6 @@ class SACNetwork(LearningModel):
         :param h_size: size of hidden layers for value network
         :param scope: TF scope for value network.
         """
-        self.value_heads = {}
         with tf.variable_scope(scope):
             value_hidden = self.create_vector_observation_encoder(
                 hidden_input, h_size, self.activ_fn, num_layers, "encoder", False
@@ -556,10 +586,13 @@ class SACPolicyNetwork(SACNetwork):
         )
         # We assume m_size is divisible by 4
         # Create the non-Policy inputs
+        # Use a default placeholder here so nothing has to be provided during
+        # Barracuda inference. Note that the default value is just the tiled input
+        # for the policy, which is thrown away.
         three_fourths_m_size = m_size * 3 // 4
-        self.other_memory_in = tf.placeholder(
+        self.other_memory_in = tf.placeholder_with_default(
+            input=tf.tile(self.inference_memory_in, [1, 3]),
             shape=[None, three_fourths_m_size],
-            dtype=tf.float32,
             name="other_recurrent_in",
         )
 
@@ -636,7 +669,7 @@ class SACModel(LearningModel):
         """
         Takes a Unity environment and model-specific hyper-parameters and returns the
         appropriate PPO agent model for the environment.
-        :param brain: BrainInfo used to generate specific network graph.
+        :param brain: Brain parameters used to generate specific network graph.
         :param lr: Learning rate.
         :param lr_schedule: Learning rate decay schedule.
         :param h_size: Size of hidden layers
@@ -666,6 +699,12 @@ class SACModel(LearningModel):
         )
         if num_layers < 1:
             num_layers = 1
+
+        self.target_init_op: List[tf.Tensor] = []
+        self.target_update_op: List[tf.Tensor] = []
+        self.update_batch_policy: Optional[tf.Operation] = None
+        self.update_batch_value: Optional[tf.Operation] = None
+        self.update_batch_entropy: Optional[tf.Operation] = None
 
         self.policy_network = SACPolicyNetwork(
             brain=brain,
@@ -745,7 +784,7 @@ class SACModel(LearningModel):
         self.dones_holder = tf.placeholder(
             shape=[None], dtype=tf.float32, name="dones_holder"
         )
-        # This is just a dummy to get pretraining to work. PPO has this but SAC doesn't.
+        # This is just a dummy to get BC to work. PPO has this but SAC doesn't.
         # TODO: Proper input and output specs for models
         self.epsilon = tf.placeholder(
             shape=[None, self.act_size[0]], dtype=tf.float32, name="epsilon"
@@ -791,7 +830,7 @@ class SACModel(LearningModel):
         self.rewards_holders = {}
         self.min_policy_qs = {}
 
-        for i, name in enumerate(stream_names):
+        for name in stream_names:
             if discrete:
                 _branched_mpq1 = self.apply_as_branches(
                     self.policy_network.q1_pheads[name]
@@ -824,9 +863,6 @@ class SACModel(LearningModel):
                     self.policy_network.q2_pheads[name],
                 )
 
-            rewards_holder = tf.placeholder(
-                shape=[None], dtype=tf.float32, name="{}_rewards".format(name)
-            )
             rewards_holder = tf.placeholder(
                 shape=[None], dtype=tf.float32, name="{}_rewards".format(name)
             )

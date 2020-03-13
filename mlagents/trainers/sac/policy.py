@@ -1,10 +1,11 @@
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Mapping, List
 import numpy as np
-import tensorflow as tf
+from mlagents.tf_utils import tf
 
-from mlagents.envs.timers import timed
-from mlagents.envs.brain import BrainInfo, BrainParameters
+from mlagents_envs.timers import timed
+from mlagents_envs.base_env import BatchedStepResult
+from mlagents.trainers.brain import BrainParameters
 from mlagents.trainers.models import EncoderType, LearningRateSchedule
 from mlagents.trainers.sac.models import SACModel
 from mlagents.trainers.tf_policy import TFPolicy
@@ -58,24 +59,23 @@ class SACPolicy(TFPolicy):
 
         with self.graph.as_default():
             # Create pretrainer if needed
-            if "pretraining" in trainer_params:
-                BCModule.check_config(trainer_params["pretraining"])
+            self.bc_module: Optional[BCModule] = None
+            if "behavioral_cloning" in trainer_params:
+                BCModule.check_config(trainer_params["behavioral_cloning"])
                 self.bc_module = BCModule(
                     self,
                     policy_learning_rate=trainer_params["learning_rate"],
                     default_batch_size=trainer_params["batch_size"],
                     default_num_epoch=1,
                     samples_per_update=trainer_params["batch_size"],
-                    **trainer_params["pretraining"],
+                    **trainer_params["behavioral_cloning"],
                 )
                 # SAC-specific setting - we don't want to do a whole epoch each update!
-                if "samples_per_update" in trainer_params["pretraining"]:
+                if "samples_per_update" in trainer_params["behavioral_cloning"]:
                     logger.warning(
                         "Pretraining: Samples Per Update is not a valid setting for SAC."
                     )
                     self.bc_module.samples_per_update = 1
-            else:
-                self.bc_module = None
 
         if load:
             self._load_graph()
@@ -114,7 +114,7 @@ class SACPolicy(TFPolicy):
                 seed=seed,
                 stream_names=list(reward_signal_configs.keys()),
                 tau=float(trainer_params["tau"]),
-                gammas=list(_val["gamma"] for _val in reward_signal_configs.values()),
+                gammas=[_val["gamma"] for _val in reward_signal_configs.values()],
                 vis_encode_type=EncoderType(
                     trainer_params.get("vis_encode_type", "simple")
                 ),
@@ -125,8 +125,6 @@ class SACPolicy(TFPolicy):
             {
                 "action": self.model.output,
                 "log_probs": self.model.all_log_probs,
-                "value_heads": self.model.value_heads,
-                "value": self.model.value,
                 "entropy": self.model.entropy,
                 "learning_rate": self.model.learning_rate,
             }
@@ -164,34 +162,32 @@ class SACPolicy(TFPolicy):
                         self, self.model, reward_signal, config
                     )
 
-    def evaluate(self, brain_info: BrainInfo) -> Dict[str, np.ndarray]:
+    def evaluate(
+        self, batched_step_result: BatchedStepResult, global_agent_ids: List[str]
+    ) -> Dict[str, np.ndarray]:
         """
         Evaluates policy for the agent experiences provided.
-        :param brain_info: BrainInfo object containing inputs.
+        :param batched_step_result: BatchedStepResult object containing inputs.
         :return: Outputs from network as defined by self.inference_dict.
         """
         feed_dict = {
-            self.model.batch_size: len(brain_info.vector_observations),
+            self.model.batch_size: batched_step_result.n_agents(),
             self.model.sequence_length: 1,
         }
         if self.use_recurrent:
             if not self.use_continuous_act:
-                feed_dict[
-                    self.model.prev_action
-                ] = brain_info.previous_vector_actions.reshape(
-                    [-1, len(self.model.act_size)]
+                feed_dict[self.model.prev_action] = self.retrieve_previous_action(
+                    global_agent_ids
                 )
-            if brain_info.memories.shape[1] == 0:
-                brain_info.memories = self.make_empty_memory(len(brain_info.agents))
-            feed_dict[self.model.memory_in] = brain_info.memories
+            feed_dict[self.model.memory_in] = self.retrieve_memories(global_agent_ids)
 
-        feed_dict = self.fill_eval_dict(feed_dict, brain_info)
+        feed_dict = self.fill_eval_dict(feed_dict, batched_step_result)
         run_out = self._execute_model(feed_dict, self.inference_dict)
         return run_out
 
     @timed
     def update(
-        self, mini_batch: Dict[str, Any], num_sequences: int, update_target: bool = True
+        self, mini_batch: Dict[str, Any], num_sequences: int
     ) -> Dict[str, float]:
         """
         Updates model using buffer.
@@ -208,12 +204,12 @@ class SACPolicy(TFPolicy):
         update_vals = self._execute_model(feed_dict, self.update_dict)
         for stat_name, update_name in stats_needed.items():
             update_stats[stat_name] = update_vals[update_name]
-        if update_target:
-            self.sess.run(self.model.target_update_op)
+        # Update target network. By default, target update happens at every policy update.
+        self.sess.run(self.model.target_update_op)
         return update_stats
 
     def update_reward_signals(
-        self, reward_signal_minibatches: Dict[str, Dict], num_sequences: int
+        self, reward_signal_minibatches: Mapping[str, Dict], num_sequences: int
     ) -> Dict[str, float]:
         """
         Only update the reward signals.
@@ -243,7 +239,7 @@ class SACPolicy(TFPolicy):
         feed_dict: Dict[tf.Tensor, Any],
         update_dict: Dict[str, tf.Tensor],
         stats_needed: Dict[str, str],
-        reward_signal_minibatches: Dict[str, Dict],
+        reward_signal_minibatches: Mapping[str, Dict],
         num_sequences: int,
     ) -> None:
         """

@@ -1,127 +1,170 @@
-import pathlib
 import logging
 import os
 from typing import List, Tuple
-from mlagents.trainers.buffer import Buffer
-from mlagents.envs.brain import BrainParameters, BrainInfo
-from mlagents.envs.communicator_objects.agent_info_proto_pb2 import AgentInfoProto
-from mlagents.envs.communicator_objects.brain_parameters_proto_pb2 import (
-    BrainParametersProto,
+import numpy as np
+from mlagents.trainers.buffer import AgentBuffer
+from mlagents.trainers.brain import BrainParameters
+from mlagents.trainers.brain_conversion_utils import group_spec_to_brain_parameters
+from mlagents_envs.communicator_objects.agent_info_action_pair_pb2 import (
+    AgentInfoActionPairProto,
 )
-from mlagents.envs.communicator_objects.demonstration_meta_proto_pb2 import (
+from mlagents.trainers.trajectory import SplitObservations
+from mlagents_envs.rpc_utils import (
+    agent_group_spec_from_proto,
+    batched_step_result_from_proto,
+)
+from mlagents_envs.base_env import AgentGroupSpec
+from mlagents_envs.communicator_objects.brain_parameters_pb2 import BrainParametersProto
+from mlagents_envs.communicator_objects.demonstration_meta_pb2 import (
     DemonstrationMetaProto,
 )
+from mlagents_envs.timers import timed, hierarchical_timer
 from google.protobuf.internal.decoder import _DecodeVarint32  # type: ignore
 
 
 logger = logging.getLogger("mlagents.trainers")
 
 
+@timed
 def make_demo_buffer(
-    brain_infos: List[BrainInfo], brain_params: BrainParameters, sequence_length: int
-) -> Buffer:
+    pair_infos: List[AgentInfoActionPairProto],
+    group_spec: AgentGroupSpec,
+    sequence_length: int,
+) -> AgentBuffer:
     # Create and populate buffer using experiences
-    demo_buffer = Buffer()
-    for idx, experience in enumerate(brain_infos):
-        if idx > len(brain_infos) - 2:
+    demo_raw_buffer = AgentBuffer()
+    demo_processed_buffer = AgentBuffer()
+    for idx, current_pair_info in enumerate(pair_infos):
+        if idx > len(pair_infos) - 2:
             break
-        current_brain_info = brain_infos[idx]
-        next_brain_info = brain_infos[idx + 1]
-        demo_buffer[0].last_brain_info = current_brain_info
-        demo_buffer[0]["done"].append(next_brain_info.local_done[0])
-        demo_buffer[0]["rewards"].append(next_brain_info.rewards[0])
-        for i in range(brain_params.number_visual_observations):
-            demo_buffer[0]["visual_obs%d" % i].append(
-                current_brain_info.visual_observations[i][0]
-            )
-        if brain_params.vector_observation_space_size > 0:
-            demo_buffer[0]["vector_obs"].append(
-                current_brain_info.vector_observations[0]
-            )
-        demo_buffer[0]["actions"].append(next_brain_info.previous_vector_actions[0])
-        demo_buffer[0]["prev_action"].append(
-            current_brain_info.previous_vector_actions[0]
+        next_pair_info = pair_infos[idx + 1]
+        current_step_info = batched_step_result_from_proto(
+            [current_pair_info.agent_info], group_spec
         )
-        if next_brain_info.local_done[0]:
-            demo_buffer.append_update_buffer(
-                0, batch_size=None, training_length=sequence_length
+        next_step_info = batched_step_result_from_proto(
+            [next_pair_info.agent_info], group_spec
+        )
+        previous_action = (
+            np.array(pair_infos[idx].action_info.vector_actions, dtype=np.float32) * 0
+        )
+        if idx > 0:
+            previous_action = np.array(
+                pair_infos[idx - 1].action_info.vector_actions, dtype=np.float32
             )
-            demo_buffer.reset_local_buffers()
-    demo_buffer.append_update_buffer(
-        0, batch_size=None, training_length=sequence_length
+        curr_agent_id = current_step_info.agent_id[0]
+        current_agent_step_info = current_step_info.get_agent_step_result(curr_agent_id)
+        next_agent_id = next_step_info.agent_id[0]
+        next_agent_step_info = next_step_info.get_agent_step_result(next_agent_id)
+
+        demo_raw_buffer["done"].append(next_agent_step_info.done)
+        demo_raw_buffer["rewards"].append(next_agent_step_info.reward)
+        split_obs = SplitObservations.from_observations(current_agent_step_info.obs)
+        for i, obs in enumerate(split_obs.visual_observations):
+            demo_raw_buffer["visual_obs%d" % i].append(obs)
+        demo_raw_buffer["vector_obs"].append(split_obs.vector_observations)
+        demo_raw_buffer["actions"].append(current_pair_info.action_info.vector_actions)
+        demo_raw_buffer["prev_action"].append(previous_action)
+        if next_step_info.done:
+            demo_raw_buffer.resequence_and_append(
+                demo_processed_buffer, batch_size=None, training_length=sequence_length
+            )
+            demo_raw_buffer.reset_agent()
+    demo_raw_buffer.resequence_and_append(
+        demo_processed_buffer, batch_size=None, training_length=sequence_length
     )
-    return demo_buffer
+    return demo_processed_buffer
 
 
+@timed
 def demo_to_buffer(
     file_path: str, sequence_length: int
-) -> Tuple[BrainParameters, Buffer]:
+) -> Tuple[BrainParameters, AgentBuffer]:
     """
     Loads demonstration file and uses it to fill training buffer.
     :param file_path: Location of demonstration file (.demo).
     :param sequence_length: Length of trajectories to fill buffer.
     :return:
     """
-    brain_params, brain_infos, _ = load_demonstration(file_path)
-    demo_buffer = make_demo_buffer(brain_infos, brain_params, sequence_length)
+    group_spec, info_action_pair, _ = load_demonstration(file_path)
+    demo_buffer = make_demo_buffer(info_action_pair, group_spec, sequence_length)
+    brain_params = group_spec_to_brain_parameters("DemoBrain", group_spec)
     return brain_params, demo_buffer
 
 
-def load_demonstration(file_path: str) -> Tuple[BrainParameters, List[BrainInfo], int]:
+def get_demo_files(path: str) -> List[str]:
+    """
+    Retrieves the demonstration file(s) from a path.
+    :param path: Path of demonstration file or directory.
+    :return: List of demonstration files
+
+    Raises errors if |path| is invalid.
+    """
+    if os.path.isfile(path):
+        if not path.endswith(".demo"):
+            raise ValueError("The path provided is not a '.demo' file.")
+        return [path]
+    elif os.path.isdir(path):
+        paths = [
+            os.path.join(path, name)
+            for name in os.listdir(path)
+            if name.endswith(".demo")
+        ]
+        if not paths:
+            raise ValueError("There are no '.demo' files in the provided directory.")
+        return paths
+    else:
+        raise FileNotFoundError(
+            f"The demonstration file or directory {path} does not exist."
+        )
+
+
+@timed
+def load_demonstration(
+    file_path: str
+) -> Tuple[BrainParameters, List[AgentInfoActionPairProto], int]:
     """
     Loads and parses a demonstration file.
     :param file_path: Location of demonstration file (.demo).
-    :return: BrainParameter and list of BrainInfos containing demonstration data.
+    :return: BrainParameter and list of AgentInfoActionPairProto containing demonstration data.
     """
 
     # First 32 bytes of file dedicated to meta-data.
     INITIAL_POS = 33
-    file_paths = []
-    if os.path.isdir(file_path):
-        all_files = os.listdir(file_path)
-        for _file in all_files:
-            if _file.endswith(".demo"):
-                file_paths.append(os.path.join(file_path, _file))
-        if not all_files:
-            raise ValueError("There are no '.demo' files in the provided directory.")
-    elif os.path.isfile(file_path):
-        file_paths.append(file_path)
-        file_extension = pathlib.Path(file_path).suffix
-        if file_extension != ".demo":
-            raise ValueError(
-                "The file is not a '.demo' file. Please provide a file with the "
-                "correct extension."
-            )
-    else:
-        raise FileNotFoundError(
-            "The demonstration file or directory {} does not exist.".format(file_path)
-        )
-
-    brain_params = None
-    brain_infos = []
+    file_paths = get_demo_files(file_path)
+    group_spec = None
+    brain_param_proto = None
+    info_action_pairs = []
     total_expected = 0
     for _file_path in file_paths:
-        data = open(_file_path, "rb").read()
-        next_pos, pos, obs_decoded = 0, 0, 0
-        while pos < len(data):
-            next_pos, pos = _DecodeVarint32(data, pos)
-            if obs_decoded == 0:
-                meta_data_proto = DemonstrationMetaProto()
-                meta_data_proto.ParseFromString(data[pos : pos + next_pos])
-                total_expected += meta_data_proto.number_steps
-                pos = INITIAL_POS
-            if obs_decoded == 1:
-                brain_param_proto = BrainParametersProto()
-                brain_param_proto.ParseFromString(data[pos : pos + next_pos])
-                brain_params = BrainParameters.from_proto(brain_param_proto)
-                pos += next_pos
-            if obs_decoded > 1:
-                agent_info = AgentInfoProto()
-                agent_info.ParseFromString(data[pos : pos + next_pos])
-                brain_info = BrainInfo.from_agent_proto(0, [agent_info], brain_params)
-                brain_infos.append(brain_info)
-                if len(brain_infos) == total_expected:
-                    break
-                pos += next_pos
-            obs_decoded += 1
-    return brain_params, brain_infos, total_expected
+        with open(_file_path, "rb") as fp:
+            with hierarchical_timer("read_file"):
+                data = fp.read()
+            next_pos, pos, obs_decoded = 0, 0, 0
+            while pos < len(data):
+                next_pos, pos = _DecodeVarint32(data, pos)
+                if obs_decoded == 0:
+                    meta_data_proto = DemonstrationMetaProto()
+                    meta_data_proto.ParseFromString(data[pos : pos + next_pos])
+                    total_expected += meta_data_proto.number_steps
+                    pos = INITIAL_POS
+                if obs_decoded == 1:
+                    brain_param_proto = BrainParametersProto()
+                    brain_param_proto.ParseFromString(data[pos : pos + next_pos])
+                    pos += next_pos
+                if obs_decoded > 1:
+                    agent_info_action = AgentInfoActionPairProto()
+                    agent_info_action.ParseFromString(data[pos : pos + next_pos])
+                    if group_spec is None:
+                        group_spec = agent_group_spec_from_proto(
+                            brain_param_proto, agent_info_action.agent_info
+                        )
+                    info_action_pairs.append(agent_info_action)
+                    if len(info_action_pairs) == total_expected:
+                        break
+                    pos += next_pos
+                obs_decoded += 1
+    if not group_spec:
+        raise RuntimeError(
+            f"No BrainParameters found in demonstration file at {file_path}."
+        )
+    return group_spec, info_action_pairs, total_expected
