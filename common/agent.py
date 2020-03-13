@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import logging
 from copy import deepcopy
 from common.config import Config
 from common.make_env import make_env
@@ -10,12 +11,16 @@ from utils.np_utils import SMA, arrprint
 from utils.list_utils import zeros_initializer
 from utils.replay_buffer import ExperienceReplay
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("common.agent")
 
 def ShowConfig(config):
     for key in config:
-        print('-' * 60)
-        print('|', str(key).ljust(28), str(config[key]).rjust(28), '|')
-    print('-' * 60)
+        logger.info('-' * 60)
+        logger.info(
+            ''.join(['|', str(key).ljust(28), str(config[key]).rjust(28), '|'])
+            )
+    logger.info('-' * 60)
 
 
 def UpdateConfig(config, file_path, key_name='algo'):
@@ -25,7 +30,7 @@ def UpdateConfig(config, file_path, key_name='algo'):
         for key in key_values:
             config[key] = key_values[key]
     except Exception as e:
-        print(e)
+        logger.info(e)
         sys.exit()
     return config
 
@@ -34,19 +39,19 @@ def get_buffer(buffer_args: Config):
     if buffer_args['type'] == 'Pandas':
         return None
     elif buffer_args['type'] == 'ER':
-        print('ER')
+        logger.info('ER')
         from utils.replay_buffer import ExperienceReplay as Buffer
     elif buffer_args['type'] == 'PER':
-        print('PER')
+        logger.info('PER')
         from utils.replay_buffer import PrioritizedExperienceReplay as Buffer
     elif buffer_args['type'] == 'NstepER':
-        print('NstepER')
+        logger.info('NstepER')
         from utils.replay_buffer import NStepExperienceReplay as Buffer
     elif buffer_args['type'] == 'NstepPER':
-        print('NstepPER')
+        logger.info('NstepPER')
         from utils.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
     elif buffer_args['type'] == 'EpisodeER':
-        print('EpisodeER')
+        logger.info('EpisodeER')
         from utils.replay_buffer import EpisodeExperienceReplay as Buffer
     else:
         return None
@@ -216,9 +221,13 @@ class Agent:
 
     def pwi(self, *args):
         if self.all_learner_print:
-            print(f'| Model-{self.model_index} |', *args)
+            logger.info(
+                ''.join([f'| Model-{self.model_index} |', *args])
+                )
         elif int(self.model_index) == 0:
-            print(f'|#ONLY#Model-{self.model_index} |', *args)
+            logger.info(
+                ''.join([f'|#ONLY#Model-{self.model_index} |', *args])
+                )
 
     def __call__(self):
         self.train()
@@ -633,7 +642,7 @@ class Agent:
 
         state, visual_state, action = zeros_initializer(self.env.brain_num, 3)
         ObsRewDone = self.env.reset()
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
             state[i] = _v
             visual_state[i] = _vs
 
@@ -669,7 +678,7 @@ class Agent:
         while True:
             ObsRewDone = self.env.reset()
             while True:
-                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
                     action[i] = self.models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
                 ObsRewDone = self.env.step(actions)
@@ -682,8 +691,8 @@ class Agent:
         if steps < self.ma_data.batch_size:
             steps = self.ma_data.batch_size
         state, action, reward, next_state, dones = zeros_initializer(self.env.brain_num, 5)
-        ObsRewDone = self.env.reset(train_mode=False)
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+        ObsRewDone = self.env.reset()
+        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
             state[i] = _v
 
         for i in range(self.env.brain_num):
@@ -725,7 +734,7 @@ class Agent:
 
         for episode in range(begin_episode, max_episode):
             ObsRewDone = self.env.reset()
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
                 dones_flag[i] = np.zeros(self.env.brain_agents[i])
                 rewards[i] = np.zeros(self.env.brain_agents[i])
                 state[i] = _v
@@ -802,7 +811,7 @@ class Agent:
         while True:
             ObsRewDone = self.env.reset()
             while True:
-                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+                for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
                     action[i] = self.models[i].choose_action(s=_v, evaluation=True)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
                 ObsRewDone = self.env.step(actions)

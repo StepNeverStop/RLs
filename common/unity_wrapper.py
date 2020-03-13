@@ -1,32 +1,61 @@
 
 import numpy as np
 from utils.sampler import create_sampler_manager
+from mlagents.mlagents_envs.environment import UnityEnvironment
+from mlagents.mlagents_envs.side_channel.engine_configuration_channel import EngineConfig, EngineConfigurationChannel
+from mlagents.mlagents_envs.side_channel.float_properties_channel import FloatPropertiesChannel
 
-class BasicWrapper:
-    def __init__(self, env):
-        self.env = env
-        self.env.reset()
+class UnityWrapper(object):
 
-    def step(self):
-        self.env.step()
+    def __init__(self, env_args):
+        self.engine_configuration_channel = EngineConfigurationChannel()
+        if env_args['train_mode']:
+            self.engine_configuration_channel.set_configuration_parameters(time_scale=env_args['train_time_scale'])
+        else:
+            self.engine_configuration_channel.set_configuration_parameters(width=env_args['width'], 
+                                                                           height=env_args['height'], 
+                                                                           quality_level=env_args['quality_level'], 
+                                                                           time_scale=env_args['inference_time_scale'], 
+                                                                           target_frame_rate=env_args['target_frame_rate'])
+        self.float_properties_channel = FloatPropertiesChannel()
+        if env_args['file_path'] is None:
+            self._env = UnityEnvironment(base_port=5004, 
+                                         seed=env_args['env_seed'],
+                                         side_channels=[self.engine_configuration_channel, self.float_properties_channel])
+        else:
+            self._env = UnityEnvironment(file_name=env_args['file_path'],
+                                         base_port=env_args['port'],
+                                         no_graphics=not env_args['render'],
+                                         seed=env_args['env_seed'],
+                                         side_channels=[self.engine_configuration_channel, self.float_properties_channel])
 
     def reset(self, **kwargs):
-        self.env.reset()
-
-    def close(self):
-        self.env.close()
+        reset_config = kwargs.get('reset_config', {})
+        for k, v in reset_config.items():
+            self.float_properties_channel.set_property(k, v)
+        self._env.reset()
 
     def __getattr__(self, name):
         if name.startswith('_'):
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
-        return getattr(self.env, name)
+        return getattr(self._env, name)
+
+class BasicWrapper:
+    def __init__(self, env):
+        self._env = env
+        self._env.reset()
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
+        return getattr(self._env, name)
 
 
 class InfoWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.brain_names = self.env.get_agent_groups()  #所有脑的名字列表
-        self.brain_specs = [self.env.get_agent_group_spec(b) for b in self.brain_names] # 所有脑的信息
+        self.brain_names = self._env.get_agent_groups()  #所有脑的名字列表
+        self.brain_specs = [self._env.get_agent_group_spec(b) for b in self.brain_names] # 所有脑的信息
         self.vector_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
         self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b)==1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度
         self.visual_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==3] for spec in self.brain_specs]   # 得到所有脑 观测值为图像的下标
@@ -48,7 +77,7 @@ class InfoWrapper(BasicWrapper):
         self.a_size = [spec.action_size for spec in self.brain_specs]
         self.is_continuous = [spec.is_action_continuous() for spec in self.brain_specs]
 
-        self.brain_agents = [sr.n_agents() for sr in [self.env.get_step_result(bn) for bn in self.brain_names]]    # 得到每个环境控制几个智能体
+        self.brain_agents = [sr.n_agents() for sr in [self._env.get_step_result(bn) for bn in self.brain_names]]    # 得到每个环境控制几个智能体
 
     def random_action(self):
         '''
@@ -78,17 +107,17 @@ class UnityReturnWrapper(BasicWrapper):
         return dict([ll,idx] for idx, ll in zip(range(len(l)), l))  # agent_id : obs_idx
 
     def reset(self, **kwargs):
-        self.env.reset()
+        self._env.reset(**kwargs)
         self._action_offset = {bn:0 for bn in self.brain_names}
-        self._agent_ids = [self.list2dict(sr.agent_id) for sr in [self.env.get_step_result(bn) for bn in self.brain_names]]
+        self._agent_ids = [self.list2dict(sr.agent_id) for sr in [self._env.get_step_result(bn) for bn in self.brain_names]]
         return self.get_obs()
 
     def step(self, actions):
         for k, v in actions.items():
             v = np.row_stack([v[:self._action_offset[k]], v])
             self._action_offset[k] = 0
-            self.env.set_actions(k, v)
-        self.env.step()
+            self._env.set_actions(k, v)
+        self._env.step()
         return self.get_obs()
 
     def get_obs(self):
@@ -100,23 +129,13 @@ class UnityReturnWrapper(BasicWrapper):
         reward = []
         done = []
         for i,bn in enumerate(self.brain_names):
-            step_result = self.env.get_step_result(bn)
+            step_result = self._env.get_step_result(bn)
             vec, vis, r, d = self.deal_fuck_agents(i, bn, step_result)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
         return zip(vector, visual, reward, done)
-
-    def _partial_reset_random_action(self, i, n):
-        '''
-        这个函数用于给 “当前智能体信息少于初始环境智能体数量”时，传入随机动作，使部分在决策间隔内done掉的环境尽快恢复reset。
-        例如，环境本身12个智能体，当前传回来1个智能体信息，那么就给这1个智能体传入随机动作，以得到后续的12个智能体的全部信息
-        '''
-        if self.is_continuous[i]:
-            return np.random.random((n, self.a_dim_or_list[i])) * 2 - 1
-        else:
-            return np.random.randint(self.a_dim_or_list[i], size=(n, self.a_size[i]), dtype=np.int32)
 
     def deal_fuck_agents(self, i, bn, sr):
         '''
@@ -138,9 +157,8 @@ class UnityReturnWrapper(BasicWrapper):
             if _nas < _ias: # 如果传回来的智能体数量小于初始时，那么就单独给done掉的环境发送动作，让其尽快reset，并且把刚done掉的奖励和done信号赋值给reset后的初始状态
                 _data = [(sr.agent_id, sr.reward, sr.done)]
                 while True:
-                    self.env.set_actions(bn, self._partial_reset_random_action(i, sr.n_agents()))
-                    self.env.step()
-                    sr = self.env.get_step_result(bn)
+                    self._env.step()
+                    sr = self._env.get_step_result(bn)
                     if sr.n_agents() < _ias:
                         _data.append((sr.agent_id, sr.reward, sr.done))
                     else:   # 大与或者等于
@@ -188,16 +206,16 @@ class UnityReturnWrapper(BasicWrapper):
 
 
 class SamplerWrapper(BasicWrapper):
+    
     def __init__(self, env, env_args):
         super().__init__(env)
         self.reset_config = env_args['reset_config']
-        self.train_mode = env_args['train_mode']
-        self.sampler_manager, self.resample_interval = create_sampler_manager(env_args['sampler_path'], self.env.reset_parameters)
+        self.sampler_manager, self.resample_interval = create_sampler_manager(env_args['sampler_path'], 0)
         self.episode = 0
 
     def reset(self):
         self.episode += 1
         if self.episode % self.resample_interval == 0:
             self.reset_config.update(self.sampler_manager.sample_all())
-        obs = self.env.reset(config=self.reset_config, train_mode=self.train_mode)
+        obs = self._env.reset(config=self.reset_config)
         return obs

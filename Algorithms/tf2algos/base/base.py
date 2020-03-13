@@ -1,10 +1,13 @@
 import os
+import logging
 import numpy as np
 import tensorflow as tf
 from utils.tf2_utils import cast2float32, cast2float64
 from utils.tf2_utils import get_device
 from utils.recorder import Recorder
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("algorithms.base")
 
 class Base(tf.keras.Model):
 
@@ -132,7 +135,7 @@ class Base(tf.keras.Model):
         """
         if not os.path.exists(dicpath):
             os.makedirs(dicpath)
-            print(f'create {name} directionary :', dicpath)
+            logger.info(''.join([f'create {name} directionary :', dicpath]))
 
     def save_weights(self, path):
         """
