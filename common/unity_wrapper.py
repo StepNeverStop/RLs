@@ -55,6 +55,7 @@ class InfoWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
         self.brain_names = self._env.get_agent_groups()  #所有脑的名字列表
+        self.fixed_brain_names = list(map(lambda x: x.replace('?','_'), self.brain_names))
         self.brain_specs = [self._env.get_agent_group_spec(b) for b in self.brain_names] # 所有脑的信息
         self.vector_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
         self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b)==1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度

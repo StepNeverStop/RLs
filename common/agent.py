@@ -184,7 +184,7 @@ class Agent:
                 'base_dir': os.path.join(base_dir, b),
                 'logger2file': self.model_args_s[i].logger2file,
                 'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
-            } for i, b in enumerate(self.env.brain_names)]
+            } for i, b in enumerate(self.env.fixed_brain_names)]
 
             # multi agent training------------------------------------
             if self.model_args['algo'][:3] == 'ma_':
@@ -204,11 +204,11 @@ class Agent:
             [model.set_buffer(buffer) for model, buffer in zip(self.models, buffers)]
             [self.models[i].init_or_restore(
                 os.path.join(self.train_args['load_model_path'], b))
-             for i, b in enumerate(self.env.brain_names)]
+             for i, b in enumerate(self.env.fixed_brain_names)]
             # model ------------------------------------
             self.train_args['begin_episode'] = self.models[0].get_init_episode()
             if not self.train_args['inference']:
-                for i, b in enumerate(self.env.brain_names):
+                for i, b in enumerate(self.env.fixed_brain_names):
                     records_dict = {
                         'env': self.env_args.to_dict,
                         'model': self.model_args_s[i].to_dict,
@@ -763,7 +763,7 @@ class Agent:
                     state[i] = next_state[i]
 
                 s, a, r, s_, done = self.ma_data.sample()
-                for i, brain_name in enumerate(self.env.brain_names):
+                for i, _ in enumerate(self.env.brain_names):
                     next_action[i] = self.models[i].get_target_action(s=s_[:, i])
                     new_action[i] = self.models[i].choose_action(s=s[:, i], evaluation=True)
                 a_ = np.asarray([np.asarray(e) for e in zip(*next_action)])
