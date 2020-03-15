@@ -46,7 +46,7 @@ class sth(object):
             [2 1 1]]
         """
         y = []
-        x = np.squeeze(x)
+        x = np.squeeze(x).reshape(-1)
         for i in reversed(action_dim_list):
             y.insert(0, x % i)
             x //= i

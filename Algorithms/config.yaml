@@ -2,7 +2,7 @@ general:
     tf_dtype: float32       # float32 or float64
     use_curiosity: false     # whether to use ICM or not
     curiosity_lr: 1.0e-3    # the learning rate for ICM
-    curiosity_reward_eta: 1000  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
+    curiosity_reward_eta: 0.01  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
     curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
     curiosity_loss_weight: 5    # weight that scale the gradient loass and ICM loss
 
