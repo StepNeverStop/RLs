@@ -596,8 +596,8 @@ class Agent:
                 )
             self.pwi('-' * 40)
             self.pwi(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
-            for i in range(self.env.brain_num):
-                self.pwi(f'brain {i:2d} reward: {arrprint(rewards[i], 3)}')
+            for i, bn in enumerate(self.env.brain_names):
+                self.pwi(f'{bn} reward: {arrprint(rewards[i], 3)}')
             if episode % save_frequency == 0:
                 for i in range(self.env.brain_num):
                     self.models[i].save_checkpoint(episode)

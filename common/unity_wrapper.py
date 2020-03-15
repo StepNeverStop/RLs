@@ -131,14 +131,14 @@ class UnityReturnWrapper(BasicWrapper):
         done = []
         for i,bn in enumerate(self.brain_names):
             step_result = self._env.get_step_result(bn)
-            vec, vis, r, d = self.deal_fuck_agents(i, bn, step_result)
+            vec, vis, r, d = self.coordinate_information(i, bn, step_result)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
         return zip(vector, visual, reward, done)
 
-    def deal_fuck_agents(self, i, bn, sr):
+    def coordinate_information(self, i, bn, sr):
         '''
         处理ML-Agents从0.14.0开始返回的信息维度不一致问题。在新版ML-agents当中，如果多个环境智能体在不同的间隔中done，那么只会返回done掉的环境的信息。
         而且，如果在决策间隔的最后一时刻done，那么会返回多于原来环境数量的信息，其中既包括刚done掉的环境信息，也包括立即初始化后的信息。
@@ -149,39 +149,34 @@ class UnityReturnWrapper(BasicWrapper):
         '''
         _nas = sr.n_agents()    # 记录当前得到的信息中智能体的个数
         _ias = self.brain_agents[i] # 取得训练环境本身存在的智能体数量
-        if _nas == _ias:    # 如果传回来的智能体数量与初始时相同，那么不用做处理，直接返回即可
-            return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]]),  
-                    self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]]),
-                    np.asarray(sr.reward),
-                    np.asarray(sr.done))
+        if _nas < _ias or (_nas == _ias and not np.isin(False, sr.done)): # 如果传回来的智能体数量小于或等于初始时，那么就单独给done掉的环境发送动作，让其尽快reset，并且把刚done掉的奖励和done信号赋值给reset后的初始状态
+            _data = [(sr.agent_id, sr.reward, sr.done)]
+            while True:
+                self._env.step()
+                sr = self._env.get_step_result(bn)
+                if sr.n_agents() < _ias or (sr.n_agents() == _ias and not np.isin(False, sr.done)):
+                    _data.append((sr.agent_id, sr.reward, sr.done))
+                else:   # 大与或者等于
+                    self._action_offset[bn] = sr.n_agents() - _ias
+                    _data.append((sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]))
+                    break
+            _ids, _reward, _done = map(lambda x:np.hstack(x), zip(*_data))
         else:
-            if _nas < _ias: # 如果传回来的智能体数量小于初始时，那么就单独给done掉的环境发送动作，让其尽快reset，并且把刚done掉的奖励和done信号赋值给reset后的初始状态
-                _data = [(sr.agent_id, sr.reward, sr.done)]
-                while True:
-                    self._env.step()
-                    sr = self._env.get_step_result(bn)
-                    if sr.n_agents() < _ias:
-                        _data.append((sr.agent_id, sr.reward, sr.done))
-                    else:   # 大与或者等于
-                        self._action_offset[bn] = sr.n_agents() - _ias
-                        _data.append((sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]))
-                        break
-                _ids, _reward, _done = map(lambda x:np.hstack(x), zip(*_data))
-            else:
-                self._action_offset[bn] = _nas - _ias
-                _ids, _reward, _done = sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]
-            
-            _r, _d = sr.reward[-_ias:], sr.done[-_ias:]
-            _change_idxs = [self._agent_ids[i].get(_id) for _id in _ids]
-            _r[_change_idxs], _d[_change_idxs] = _reward, _done
-            for _id in _ids:
-                _cid = self._agent_ids[i].get(_id)
-                self._agent_ids[i].update({sr.agent_id[-_ias:][_cid]:self._agent_ids[i].pop(_id)})
+            self._action_offset[bn] = _nas - _ias
+            _ids, _reward, _done = sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]
+        
+        _r, _d = sr.reward[-_ias:], sr.done[-_ias:]
+        _change_idxs = [self._agent_ids[i].get(_id) for _id in _ids]
+        _r[_change_idxs], _d[_change_idxs] = _reward, _done
+        _ids = np.unique(_ids)  # 经过测试发现，存在当场景中只有一个智能体时，在决策间隔内同一个智能体发送两次done信号，观测相同但是reward不同，经过上述步骤处理，这里的_ids很可能出现如下形式:[12,12]，即相同的索引，为了防止下述步骤中字典的get方法出错，因此需要去除重复
+        for _id in _ids:
+            _cid = self._agent_ids[i].get(_id)
+            self._agent_ids[i].update({sr.agent_id[-_ias:][_cid]:self._agent_ids[i].pop(_id)})
 
-            return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
-                    self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
-                    np.asarray(_r),
-                    np.asarray(_d))
+        return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
+                self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
+                np.asarray(_r),
+                np.asarray(_d))
         
 
     def deal_vector(self, vecs):

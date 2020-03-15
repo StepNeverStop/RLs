@@ -21,7 +21,7 @@ dqn:    &dqn
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: false
@@ -53,7 +53,7 @@ dddqn:
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: false
@@ -73,7 +73,7 @@ c51:
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: false
@@ -90,7 +90,7 @@ rainbow:
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: true
@@ -109,7 +109,7 @@ qrdqn:
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: false
@@ -128,7 +128,7 @@ iqn:
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_episode: 10
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
     use_priority: false
@@ -141,7 +141,7 @@ iqn:
 pg:
     lr: 5.0e-4
     gamma: 0.99
-    batch_size: 1024
+    batch_size: 256
     epoch: 1 # very important
     hidden_units:
         actor_continuous: [64, 64]
@@ -152,7 +152,7 @@ ac:
     critic_lr: 1.0e-3
     share_visual_net: true
     gamma: 0.99
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -167,7 +167,7 @@ a2c:
     share_visual_net: true
     gamma: 0.99
     beta: 1.0e-3
-    batch_size: 1024
+    batch_size: 256
     epoch: 4 # very important
     hidden_units:
         actor_continuous: [64, 64]
@@ -225,7 +225,7 @@ dpg:
     critic_lr: 1.0e-3
     share_visual_net: true
     discrete_tau: 1.0
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -241,7 +241,7 @@ ddpg:
     critic_lr: 1.0e-3
     share_visual_net: true
     discrete_tau: 1.0
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -261,7 +261,7 @@ td3:
     critic_lr: 1.0e-3
     share_visual_net: true
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -284,7 +284,7 @@ sac:
     ployak: 0.995
     use_gumbel: true
     discrete_tau: 1.0
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -310,7 +310,7 @@ sac_v:
     alpha_lr: 5.0e-4
     share_visual_net: true
     discrete_tau: 1.0
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
@@ -366,7 +366,7 @@ maxsqn:
     alpha_lr: 5.0e-4
     gamma: 0.999
     ployak: 0.995
-    batch_size: 1024
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
