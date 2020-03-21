@@ -74,26 +74,48 @@ class TRPO(On_Policy):
 
         self.share_visual_net = share_visual_net
         if self.share_visual_net:
-            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+            self.actor_visual_net = self.critic_visual_net = self._visual_net()
         else:
-            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
-            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+            self.actor_visual_net = self._visual_net()
+            self.critic_visual_net = self._visual_net()
+
+        rnn_net = self._rnn_net(self.actor_visual_net.hdim)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_mu(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+            self.actor_net = Nn.VisualObsRNN(
+                net=Nn.actor_mu(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous']),
+                visual_net=self.actor_visual_net,
+                rnn_net=rnn_net,
+                rnn_net_grad=False
+            )
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
             self.actor_net.tv += [self.log_std]
             self.actor_params = self.actor_net.tv
             self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
                 + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            self.actor_net = Nn.VisualObsRNN(
+                net=Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete']),
+                visual_net=self.actor_visual_net,
+                rnn_net=rnn_net,
+                rnn_net_grad=False
+            )
             self.actor_params = self.actor_net.tv
             self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_params).shape, dtype=tf.float32)] \
                 + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
-        self.critic_net = Nn.critic_v(self.s_dim, 'critic_net', hidden_units['critic'], visual_net=self.critic_visual_net)
+        self.critic_net = Nn.VisualObsRNN(
+            net=Nn.critic_v(rnn_net.hdim, hidden_units['critic']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
+
+        self.model_recorder(dict(
+            actor=self.actor_net,
+            critic=self.critic_net,
+            optimizer_critic=self.optimizer_critic
+            ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -117,10 +139,10 @@ class TRPO(On_Policy):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.is_continuous:
-                mu = self.actor_net(s, visual_s)
+                mu = self.actor_net.choose(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
-                logits = self.actor_net(s, visual_s)
+                logits = self.actor_net.choose(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op

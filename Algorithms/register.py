@@ -16,8 +16,6 @@ algos = {
     'sac':      {'class': 'SAC',    'policy': 'off-policy', 'update': 'perStep'},
     'tac':      {'class': 'TAC',    'policy': 'off-policy', 'update': 'perStep'},
     'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'},
-    'drqn':     {'class': 'DRQN',   'policy': 'off-policy', 'update': 'perStep'},
-    'drdqn':    {'class': 'DRDQN',  'policy': 'off-policy', 'update': 'perStep'},
     'ddqn':     {'class': 'DDQN',   'policy': 'off-policy', 'update': 'perStep'},
     'dddqn':    {'class': 'DDDQN',  'policy': 'off-policy', 'update': 'perStep'},
     'c51':      {'class': 'C51',    'policy': 'off-policy', 'update': 'perStep'},

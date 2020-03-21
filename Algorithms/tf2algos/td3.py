@@ -47,34 +47,74 @@ class TD3(Off_Policy):
 
         self.share_visual_net = share_visual_net
         if self.share_visual_net:
-            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+            self.actor_visual_net = self.critic_visual_net = self._visual_net()
         else:
-            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
-            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+            self.actor_visual_net = self._visual_net()
+            self.critic_visual_net = self._visual_net()
+
+        rnn_net = self._rnn_net(self.actor_visual_net.hdim)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_dpg(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
-            self.actor_target_net = Nn.actor_dpg(self.s_dim, self.a_counts, 'actor_target_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+            actor_net = Nn.actor_dpg(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
+            actor_target_net = Nn.actor_dpg(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
             if noise_type == 'gaussian':
                 self.action_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_counts), sigma=self.gaussian_noise_sigma * np.ones(self.a_counts), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
                 self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
-            self.actor_target_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_target_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            actor_net = Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+            actor_target_net = Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.q1_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q1_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_target_net = Nn.critic_q_one(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+
+        self.actor_net = Nn.VisualObsRNN(
+            net=actor_net,
+            visual_net=self.actor_visual_net,
+            rnn_net=rnn_net,
+            rnn_net_grad=False
+        )
+        self.actor_target_net = Nn.VisualObsRNN(
+            net=actor_target_net,
+            visual_net=self.actor_visual_net,
+            rnn_net=rnn_net,
+            rnn_net_grad=False
+        )
+        self.q1_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q1_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
+            self.actor_target_net.uv + self.q1_target_net.uv + self.q2_target_net.uv,
+            self.actor_net.uv + self.q1_net.uv + self.q2_net.uv
         )
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
+
+        self.model_recorder(dict(
+            actor=self.actor_net,
+            q1_net=self.q1_net,
+            q2_net=self.q2_net,
+            optimizer_actor=self.optimizer_actor,
+            optimizer_critic=self.optimizer_critic
+            ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -98,10 +138,10 @@ class TD3(Off_Policy):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.is_continuous:
-                mu = self.actor_net(s, visual_s)
+                mu = self.actor_net.choose(s, visual_s)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
             else:
-                logits = self.actor_net(s, visual_s)
+                logits = self.actor_net.choose(s, visual_s)
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
@@ -116,8 +156,8 @@ class TD3(Off_Policy):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-                                            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
+                                            self.actor_target_net.uv + self.q1_target_net.uv + self.q2_target_net.uv,
+                                            self.actor_net.uv + self.q1_net.uv + self.q2_net.uv,
                                             self.ployak),
                 'summary_dict': dict([
                                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],

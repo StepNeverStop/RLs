@@ -1,7 +1,7 @@
+import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import Nn
 from utils.sth import sth
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
@@ -66,15 +66,17 @@ class SAC(Off_Policy):
 
         self.share_visual_net = share_visual_net
         if self.share_visual_net:
-            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+            self.actor_visual_net = self.critic_visual_net = self._visual_net()
         else:
-            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
-            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+            self.actor_visual_net = self._visual_net()
+            self.critic_visual_net = self._visual_net()
+
+        rnn_net = self._rnn_net(self.actor_visual_net.hdim)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+            actor_net = Nn.actor_continuous(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            actor_net = Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
             if self.use_gumbel:
                 self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         
@@ -82,13 +84,36 @@ class SAC(Off_Policy):
             critic_net = Nn.critic_q_one
         else:
             critic_net = Nn.critic_q_all
-        self.q1_net = critic_net(self.s_dim, self.a_counts, 'q1_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q1_target_net = critic_net(self.s_dim, self.a_counts, 'q1_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_net = critic_net(self.s_dim, self.a_counts, 'q2_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q2_target_net = critic_net(self.s_dim, self.a_counts, 'q2_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+
+        self.actor_net = Nn.VisualObsRNN(
+            net=actor_net,
+            visual_net=self.actor_visual_net,
+            rnn_net=rnn_net,
+            rnn_net_grad=False
+        )
+        self.q1_net = Nn.VisualObsRNN(
+            net=critic_net(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_net = Nn.VisualObsRNN(
+            net=critic_net(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q1_target_net = Nn.VisualObsRNN(
+            net=critic_net(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_target_net = Nn.VisualObsRNN(
+            net=critic_net(rnn_net.hdim, self.a_counts, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
         self.update_target_net_weights(
-            self.q1_target_net.weights + self.q2_target_net.weights,
-            self.q1_net.weights + self.q2_net.weights
+            self.q1_target_net.uv + self.q2_target_net.uv,
+            self.q1_net.uv + self.q2_net.uv
         )
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
@@ -96,6 +121,15 @@ class SAC(Off_Policy):
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
+        
+        self.model_recorder(dict(
+            actor=self.actor_net,
+            q1_net=self.q1_net,
+            q2_net=self.q2_net,
+            optimizer_actor=self.optimizer_actor,
+            optimizer_critic=self.optimizer_critic,
+            optimizer_alpha=self.optimizer_alpha,
+            ))
     
     def show_logo(self):
         self.recorder.logger.info('''
@@ -119,12 +153,12 @@ class SAC(Off_Policy):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.is_continuous:
-                mu, log_std = self.actor_net(s, visual_s)
+                mu, log_std = self.actor_net.choose(s, visual_s)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
                 mu = tf.tanh(mu)  # squash mu
             else:
-                logits = self.actor_net(s, visual_s)
+                logits = self.actor_net.choose(s, visual_s)
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
@@ -148,8 +182,8 @@ class SAC(Off_Policy):
             self._learn(function_dict={
                 'train_function': _train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.q1_target_net.weights + self.q2_target_net.weights,
-                                            self.q1_net.weights + self.q2_net.weights,
+                                            self.q1_target_net.uv + self.q2_target_net.uv,
+                                            self.q1_net.uv + self.q2_net.uv,
                                             self.ployak),
                 'summary_dict': dict([
                                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],

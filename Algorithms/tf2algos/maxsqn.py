@@ -49,19 +49,44 @@ class MAXSQN(Off_Policy):
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         self.target_alpha = beta * np.log(self.a_counts)
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
-        self.q1_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q1_net', hidden_units, visual_net=self.visual_net)
-        self.q1_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q1_target_net', hidden_units, visual_net=self.visual_net)
-        self.q2_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q2_net', hidden_units, visual_net=self.visual_net)
-        self.q2_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q2_target_net', hidden_units, visual_net=self.visual_net)
+        self.visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.visual_net.hdim)
+
+        self.q1_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.q1_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.q2_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
         self.update_target_net_weights(
-            self.q1_target_net.weights + self.q2_target_net.weights,
-            self.q1_net.weights + self.q2_net.weights
+            self.q1_target_net.uv + self.q2_target_net.uv,
+            self.q1_net.uv + self.q2_net.uv
         )
         self.q_lr = tf.keras.optimizers.schedules.PolynomialDecay(q_lr, self.max_episode, 1e-10, power=1.0)
         self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.q_lr(self.episode))
         self.optimizer_alpha = tf.keras.optimizers.Adam(learning_rate=self.alpha_lr(self.episode))
+
+        self.model_recorder(dict(
+            q1_net=self.q1_net,
+            q2_net=self.q2_net,
+            optimizer_critic=self.optimizer_critic,
+            optimizer_alpha=self.optimizer_alpha
+            ))
     
     def show_logo(self):
         self.recorder.logger.info('''
@@ -88,7 +113,7 @@ class MAXSQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.q1_net(s, visual_s)
+            q = self.q1_net.choose(s, visual_s)
             cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi
@@ -99,8 +124,8 @@ class MAXSQN(Off_Policy):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.q1_target_net.weights + self.q2_target_net.weights,
-                                            self.q1_net.weights + self.q2_net.weights,
+                                            self.q1_target_net.uv + self.q2_target_net.uv,
+                                            self.q1_net.uv + self.q2_net.uv,
                                             self.ployak),
                 'summary_dict': dict([
                                     ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],

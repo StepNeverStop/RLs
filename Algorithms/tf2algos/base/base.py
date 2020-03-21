@@ -9,7 +9,7 @@ from utils.recorder import Recorder
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("algorithms.base")
 
-class Base(tf.keras.Model):
+class Base:
 
     def __init__(self, *args, **kwargs):
         '''
@@ -20,19 +20,21 @@ class Base(tf.keras.Model):
         '''
         super().__init__()
         base_dir = kwargs.get('base_dir')
-        logger2file = bool(kwargs.get('logger2file', False))
         tf_dtype = str(kwargs.get('tf_dtype'))
         tf.random.set_seed(int(kwargs.get('seed', 0)))
         self.device = get_device()
+        self.logger2file = bool(kwargs.get('logger2file', False))
 
         tf.keras.backend.set_floatx(tf_dtype)
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.cast = self._cast(dtype=tf_dtype)
-        self.generate_recorder(
-            logger2file=logger2file,
-            model=self
-        )
+
+    def model_recorder(self, kwargs):
+        kwargs.update(global_step=self.global_step)
+        if self.use_curiosity:
+            kwargs.update(curiosity_model=self.curiosity_model)
+        self.generate_recorder(kwargs)
         self.show_logo()
 
     def _cast(self, dtype='float32'):
@@ -68,7 +70,7 @@ class Base(tf.keras.Model):
         else:
             return 0
 
-    def generate_recorder(self, logger2file, model=None):
+    def generate_recorder(self, kwargs):
         """
         create model/log/data dictionary and define writer to record training data.
         """
@@ -77,11 +79,11 @@ class Base(tf.keras.Model):
         self.check_or_create(self.log_dir, 'logs(summaries)')
         self.check_or_create(self.excel_dir, 'excel')
         self.recorder = Recorder(
+            kwargs,
             cp_dir=self.cp_dir,
             log_dir=self.log_dir,
             excel_dir=self.excel_dir,
-            logger2file=logger2file,
-            model=model
+            logger2file=self.logger2file
         )
 
     def init_or_restore(self, base_dir):

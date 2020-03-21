@@ -25,6 +25,7 @@ class MADDPG(Policy):
                  },
                  **kwargs):
         assert is_continuous, 'maddpg only support continuous action space'
+        raise Exception('MA系列存在问题，还未修复')
         super().__init__(
             s_dim=s_dim,
             visual_sources=0,
@@ -38,25 +39,52 @@ class MADDPG(Policy):
 
         self.share_visual_net = share_visual_net
         if self.share_visual_net:
-            self.actor_visual_net = self.critic_visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+            self.actor_visual_net = self.critic_visual_net = self._visual_net()
         else:
-            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
-            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+            self.actor_visual_net = self._visual_net()
+            self.critic_visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.actor_visual_net.hdim)
 
         # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
-        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_net', hidden_units['actor'], visual_net=self.actor_visual_net)
-        self.actor_target_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, 'actor_target_net', hidden_units['actor'], visual_net=self.actor_visual_net)
-        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_net', hidden_units['q'], visual_net=self.critic_visual_net)
-        self.q_target_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, 'q_target_net', hidden_units['q'], visual_net=self.critic_visual_net)
+
+        self.actor_net = Nn.VisualObsRNN(
+            net=Nn.actor_dpg(rnn_net.hdim, 0, self.a_counts, hidden_units['actor']),
+            visual_net=self.actor_visual_net,
+            rnn_net=rnn_net,
+            rnn_net_grad=False
+        )
+        self.actor_target_net = Nn.VisualObsRNN(
+            net=Nn.actor_dpg(rnn_net.hdim, 0, self.a_counts, hidden_units['actor']),
+            visual_net=self.actor_visual_net,
+            rnn_net=rnn_net,
+            rnn_net_grad=False
+        )
+        self.q_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one((rnn_net.hdim) * self.n, 0, (self.a_counts) * self.n, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
+        self.q_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_one((rnn_net.hdim) * self.n, 0, (self.a_counts) * self.n, hidden_units['q']),
+            visual_net=self.critic_visual_net,
+            rnn_net=rnn_net
+        )
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q_target_net.weights,
-            self.actor_net.weights + self.q_net.weights
+            self.actor_target_net.uv + self.q_target_net.uv,
+            self.actor_net.uv + self.q_net.uv
         )
         self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
         self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
+
+        self.model_recorder(dict(
+            actor=self.actor_net,
+            q=self.q_net,
+            optimizer_critic=self.optimizer_critic,
+            optimizer_actor=self.optimizer_actor
+        ))
         self.recorder.logger.info(self.action_noise)
 
     def show_logo(self):
@@ -83,7 +111,7 @@ class MADDPG(Policy):
     def _get_action(self, vector_input, evaluation):
         vector_input = self.cast(vector_input)
         with tf.device(self.device):
-            mu = self.actor_net(vector_input, None)
+            mu = self.actor_net.choose(vector_input, None)
             if evaluation == True:
                 return mu
             else:
@@ -101,8 +129,8 @@ class MADDPG(Policy):
         ap, al, ss, ss_, aa, aa_, s, r = map(self.data_convert, (ap, al, ss, ss_, aa, aa_, s, r))
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q_target_net.weights,
-            self.actor_net.weights + self.q_net.weights,
+            self.actor_target_net.uv + self.q_target_net.uv,
+            self.actor_net.uv + self.q_net.uv,
             self.ployak)
         summaries.update(dict([
             ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],

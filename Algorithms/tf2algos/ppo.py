@@ -62,29 +62,65 @@ class PPO(On_Policy):
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         if self.share_net:
             self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
-            self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+            self.visual_net = self._visual_net()
+            rnn_net = self._rnn_net(self.visual_net.hdim)
             if self.is_continuous:
-                self.net = Nn.a_c_v_continuous(self.s_dim, self.a_counts, 'ppo_net', hidden_units['share']['continuous'], visual_net=self.visual_net)
-                self.net.tv += [self.log_std]
+                self.net = Nn.VisualObsRNN(
+                    net=Nn.a_c_v_continuous(rnn_net.hdim, self.a_counts, hidden_units['share']['continuous']),
+                    visual_net=self.visual_net,
+                    rnn_net=rnn_net
+                )
+                self.net_tv = self.net.tv + [self.log_std]
             else:
-                self.net = Nn.a_c_v_discrete(self.s_dim, self.a_counts, 'ppo_net', hidden_units['share']['discrete'], visual_net=self.visual_net)
+                self.net = Nn.VisualObsRNN(
+                    net=Nn.a_c_v_discrete(rnn_net.hdim, self.a_counts, hidden_units['share']['discrete']),
+                    visual_net=self.visual_net,
+                    rnn_net=rnn_net
+                )
+                self.net_tv = self.net.tv 
             self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+            self.model_recorder(dict(
+                model=self.net,
+                optimizer=self.optimizer
+                ))
         else:
             self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
             self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
-            self.actor_visual_net = Nn.VisualNet('actor_visual_net', self.visual_dim)
-            self.critic_visual_net = Nn.VisualNet('critic_visual_net', self.visual_dim)
+            self.actor_visual_net = self._visual_net()
+            self.critic_visual_net = self._visual_net()
+            rnn_net = self._rnn_net(self.actor_visual_net.hdim)
             if self.is_continuous:
-                self.actor_net = Nn.actor_mu(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
-                self.actor_net.tv += [self.log_std]
+                self.actor_net = Nn.VisualObsRNN(
+                    net=Nn.actor_mu(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous']),
+                    visual_net=self.actor_visual_net,
+                    rnn_net=rnn_net,
+                    rnn_net_grad=False
+                )
+                self.actor_net_tv = self.actor_net.tv + [self.log_std]
             else:
-                self.actor_net = Nn.actor_discrete(self.s_dim, self.a_counts, 'actor_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
-            self.critic_net = Nn.critic_v(self.s_dim, 'critic_net', hidden_units['critic'], visual_net=self.critic_visual_net)
+                self.actor_net = Nn.VisualObsRNN(
+                    net=Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete']),
+                    visual_net=self.actor_visual_net,
+                    rnn_net=rnn_net,
+                    rnn_net_grad=False
+                )
+                self.actor_net_tv = self.actor_net.tv
+            self.critic_net = Nn.VisualObsRNN(
+                    net=Nn.critic_v(rnn_net.hdim, hidden_units['critic']),
+                    visual_net=self.critic_visual_net,
+                    rnn_net=rnn_net
+                )
             self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
             self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
             self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
+            self.model_recorder(dict(
+                actor=self.actor_net,
+                critic=self.critic_net,
+                optimizer_actor=self.optimizer_actor,
+                optimizer_critic=self.optimizer_critic
+                ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -109,15 +145,15 @@ class PPO(On_Policy):
         with tf.device(self.device):
             if self.is_continuous:
                 if self.share_net:
-                    mu, _ = self.net(s, visual_s)
+                    mu, _ = self.net.choose(s, visual_s)
                 else:
-                    mu = self.actor_net(s, visual_s)
+                    mu = self.actor_net.choose(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
                 if self.share_net:
-                    logits, _ = self.net(s, visual_s)
+                    logits, _ = self.net.choose(s, visual_s)
                 else:
-                    logits = self.actor_net(s, visual_s)
+                    logits = self.actor_net.choose(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
@@ -260,14 +296,14 @@ class PPO(On_Policy):
                 value_loss = tf.reduce_mean(tf.square(td_error))
                 loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
             if self.is_continuous:
-                loss_grads = tape.gradient(loss, self.net.tv)
+                loss_grads = tape.gradient(loss, self.net_tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.tv)
+                    zip(loss_grads, self.net_tv)
                 )
             else:
-                loss_grads = tape.gradient(loss, self.net.tv)
+                loss_grads = tape.gradient(loss, self.net_tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.tv)
+                    zip(loss_grads, self.net_tv)
                 )
             return actor_loss, value_loss, entropy, kl
 
@@ -290,14 +326,14 @@ class PPO(On_Policy):
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
                 actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
             if self.is_continuous:
-                actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
+                actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
                 self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.actor_net.tv)
+                    zip(actor_grads, self.actor_net_tv)
                 )
             else:
-                actor_grads = tape.gradient(actor_loss, self.actor_net.tv)
+                actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
                 self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.actor_net.tv)
+                    zip(actor_grads, self.actor_net_tv)
                 )
             return actor_loss, entropy, kl
 

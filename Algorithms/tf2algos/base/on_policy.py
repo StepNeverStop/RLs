@@ -19,7 +19,6 @@ class On_Policy(Policy):
             a_dim_or_list=a_dim_or_list,
             is_continuous=is_continuous,
             **kwargs)
-        self.batch_size = int(kwargs.get('batch_size', 128))
         self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
 
     def set_buffer(self, buffer):

@@ -1,5 +1,8 @@
 general:
+    use_rnn: true
+    rnn_units: 8
     tf_dtype: float32       # float32 or float64
+    visual_feature: 128
     use_curiosity: false     # whether to use ICM or not
     curiosity_lr: 1.0e-3    # the learning rate for ICM
     curiosity_reward_eta: 0.01  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
@@ -29,22 +32,6 @@ dqn:    &dqn
     hidden_units: [64, 64]
 
 ddqn: *dqn
-
-drqn:   &drqn
-    lr: 5.0e-4
-    gamma: 0.99
-    eps_init: 1
-    eps_mid: 0.2
-    eps_final: 0.01
-    init2mid_annealing_episode: 10
-    batch_size: 100
-    buffer_size: 10000
-    assign_interval: 1000
-    hidden_units: 
-        lstm: 8
-        dense: [8]
-    
-drdqn: *drqn
 
 dddqn:
     lr: 5.0e-4

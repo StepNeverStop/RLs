@@ -59,12 +59,25 @@ class RAINBOW(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
-        self.rainbow_net = Nn.rainbow_dueling(self.s_dim, self.a_counts, self.atoms, 'rainbow_net', hidden_units, visual_net=self.visual_net)
-        self.rainbow_target_net = Nn.rainbow_dueling(self.s_dim, self.a_counts, self.atoms, 'rainbow_target_net', hidden_units,visual_net=self.visual_net)
-        self.update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
+        self.visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.visual_net.hdim)
+        self.rainbow_net = Nn.VisualObsRNN(
+            net=Nn.rainbow_dueling(rnn_net.hdim, self.a_counts, self.atoms, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.rainbow_target_net = Nn.VisualObsRNN(
+            net=Nn.rainbow_dueling(rnn_net.hdim, self.a_counts, self.atoms, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.update_target_net_weights(self.rainbow_target_net.uv, self.rainbow_net.uv)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+        self.model_recorder(dict(
+            model=self.rainbow_net,
+            optimizer=self.optimizer
+            ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -92,14 +105,14 @@ class RAINBOW(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.get_q(s, visual_s)  # [B, A]
+            q = self.get_q(s, visual_s, choose=True)  # [B, A]
         return tf.argmax(q, axis=-1)  # [B, 1]
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
+                self.update_target_net_weights(self.rainbow_target_net.uv, self.rainbow_net.uv)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -149,6 +162,10 @@ class RAINBOW(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def get_q(self, s, visual_s):
-        with tf.device(self.device):
-            return tf.reduce_sum(self.zb * self.rainbow_net(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
+    def get_q(self, s, visual_s, choose=False):
+        if choose:
+            with tf.device(self.device):
+                return tf.reduce_sum(self.zb * self.rainbow_net.choose(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
+        else:
+            with tf.device(self.device):
+                return tf.reduce_sum(self.zb * self.rainbow_net(s, visual_s), axis=-1)  # [B, A, N] => [B, A]

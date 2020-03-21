@@ -82,32 +82,30 @@ For now, these algorithms are available:
 
 
 
-|     Algorithms     | Discrete | Continuous | Command parameter |
-| :----------------: | :------: | :--------: | :---------------: |
-|         PG         |    √     |     √      |        pg         |
-|         AC         |    √     |     √      |        ac         |
-|        A2C         |    √     |     √      |        a2c        |
-|        TRPO        |    √     |     √      |       trpo        |
-|        PPO         |    √     |     √      |        ppo        |
-|        DQN         |    √     |            |        dqn        |
-|     Double DQN     |    √     |            |       ddqn        |
-| Dueling Double DQN |    √     |            |       dddqn       |
-|        DRQN        |    √     |            |       drqn        |
-|       DRDQN        |    √     |            |       drdqn       |
-|        C51         |    √     |            |        c51        |
-|       QR-DQN       |    √     |            |       qrdqn       |
-|        IQN         |    √     |            |        iqn        |
-|      Rainbow       |    √     |            |      Rainbow      |
-|        DPG         |    √     |     √      |        dpg        |
-|        DDPG        |    √     |     √      |       ddpg        |
-|        TD3         |    √     |     √      |        td3        |
-| SAC(has V network) |    √     |     √      |       sac_v       |
-|        SAC         |    √     |     √      |        sac        |
-|        TAC         |   sac    |     √      |        tac        |
-|       MaxSQN       |    √     |            |      maxsqn       |
-|       MADPG        |          |     √      |      ma_dpg       |
-|       MADDPG       |          |     √      |      ma_ddpg      |
-|       MATD3        |          |     √      |      ma_td3       |
+|     Algorithms     | Discrete | Continuous | Image | RNN  | Command parameter |
+| :----------------: | :------: | :--------: | :---: | :--: | :---------------: |
+|         PG         |    √     |     √      |   √   |      |        pg         |
+|         AC         |    √     |     √      |   √   |  √   |        ac         |
+|        A2C         |    √     |     √      |   √   |      |        a2c        |
+|        TRPO        |    √     |     √      |   √   |      |       trpo        |
+|        PPO         |    √     |     √      |   √   |      |        ppo        |
+|        DQN         |    √     |            |   √   |  √   |        dqn        |
+|     Double DQN     |    √     |            |   √   |  √   |       ddqn        |
+| Dueling Double DQN |    √     |            |   √   |  √   |       dddqn       |
+|        C51         |    √     |            |   √   |  √   |        c51        |
+|       QR-DQN       |    √     |            |   √   |  √   |       qrdqn       |
+|        IQN         |    √     |            |   √   |  √   |        iqn        |
+|      Rainbow       |    √     |            |   √   |  √   |      Rainbow      |
+|        DPG         |    √     |     √      |   √   |  √   |        dpg        |
+|        DDPG        |    √     |     √      |   √   |  √   |       ddpg        |
+|        TD3         |    √     |     √      |   √   |  √   |        td3        |
+| SAC(has V network) |    √     |     √      |   √   |  √   |       sac_v       |
+|        SAC         |    √     |     √      |   √   |  √   |        sac        |
+|        TAC         |   sac    |     √      |   √   |  √   |        tac        |
+|       MaxSQN       |    √     |            |   √   |  √   |      maxsqn       |
+|       MADPG        |          |     √      |       |  √   |      ma_dpg       |
+|       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
+|       MATD3        |          |     √      |       |  √   |      ma_td3       |
 
 ## Getting started
 
@@ -173,7 +171,9 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 ## Ongoing things
 
-- RNN
+- RNN for on-policy algorithms
+- Curiosity for on-policy algorithms
+- Fix multi-agent algorithms
 - DARQN
 - ACER
 - ~~ACKTR~~

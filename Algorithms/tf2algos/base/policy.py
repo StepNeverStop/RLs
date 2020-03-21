@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from .base import Base
 from abc import abstractmethod
-from Nn.networks import CuriosityModel
+from Nn.networks import CuriosityModel, VisualNet, ObsRNN
 
 
 class Policy(Base):
@@ -22,6 +22,15 @@ class Policy(Base):
             self.visual_dim = [visual_sources, *visual_resolution]
         else:
             self.visual_dim = [0]
+        self.visual_feature = int(kwargs.get('visual_feature', 128))
+        self._visual_net = lambda : VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
+
+        self.batch_size = int(kwargs.get('batch_size', 128))
+
+        self.use_rnn = bool(kwargs.get('use_rnn', False))
+        self.rnn_units = int(kwargs.get('rnn_units', 16))
+        self._rnn_net = lambda dim: ObsRNN(dim, self.rnn_units, self.batch_size, self.use_rnn)
+
         self.is_continuous = is_continuous
         self.a_dim_or_list = a_dim_or_list
         self.gamma = float(kwargs.get('gamma', 0.999))
@@ -37,7 +46,7 @@ class Policy(Base):
             self.curiosity_lr = float(kwargs.get('curiosity_lr'))
             self.curiosity_beta = float(kwargs.get('curiosity_beta'))
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
-            self.curiosity_model = CuriosityModel('curiosity_model', self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
+            self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
     def intermediate_variable_reset(self):

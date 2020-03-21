@@ -9,6 +9,7 @@ from utils.expl_expt import ExplorationExploitationClass
 class DQN(Off_Policy):
     '''
     Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
+    DQN + LSTM, https://arxiv.org/abs/1507.06527
     '''
     def __init__(self,
                  s_dim,
@@ -39,12 +40,27 @@ class DQN(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
-        self.q_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_net', hidden_units, visual_net=self.visual_net)
-        self.q_target_net = Nn.critic_q_all(self.s_dim, self.a_counts, 'q_target_net', hidden_units, visual_net=self.visual_net)
-        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+        self.visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.visual_net.hdim)
+
+        self.q_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.q_target_net = Nn.VisualObsRNN(
+            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+
+        self.model_recorder(dict(
+            model=self.q_net,
+            optimizer=self.optimizer
+        ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -73,14 +89,14 @@ class DQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q_values = self.q_net(s, visual_s)
+            q_values = self.q_net.choose(s, visual_s)
         return tf.argmax(q_values, axis=1)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+                self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,

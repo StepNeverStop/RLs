@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 from .sum_tree import Sum_Tree
 from abc import ABC, abstractmethod
 
@@ -310,7 +311,13 @@ class EpisodeExperienceReplay(ReplayBuffer):
             s_.append(data[4])
             visual_s_.append(data[5])
             done.append(data[6])
-        return map(np.asarray, [s, visual_s, a, r, s_, visual_s_, done])
+        # s, visual_s, a, r, s_, visual_s_, done = map(np.asarray, [s, visual_s, a, r, s_, visual_s_, done])
+        pad = lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='post', dtype='float32', value=0.)
+        s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
+        done = tf.keras.preprocessing.sequence.pad_sequences(done, padding='post', dtype='float32', value=1.)
+        # a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
+        s, visual_s, a, r, s_, visual_s_, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [s, visual_s, a, r, s_, visual_s_, done])  # [B, T, N] => [B*T, N]
+        return (s, visual_s, a, r, s_, visual_s_, done)
 
     @property
     def is_full(self):

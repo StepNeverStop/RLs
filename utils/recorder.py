@@ -9,10 +9,10 @@ class Recorder(object):
     TF 2.0 Recorder
     '''
 
-    def __init__(self, cp_dir, log_dir, excel_dir, logger2file, model=None):
+    def __init__(self, kwargs, *, cp_dir, log_dir, excel_dir, logger2file):
         self.writer = tf.summary.create_file_writer(log_dir)
         # self.writer.set_as_default()
-        self.checkpoint = tf.train.Checkpoint(policy=model)
+        self.checkpoint = tf.train.Checkpoint(**kwargs)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=cp_dir, max_to_keep=5, checkpoint_name='rb')
         self.excel_writer = pd.ExcelWriter(excel_dir + '/data.xlsx')
         self.logger = self.create_logger(

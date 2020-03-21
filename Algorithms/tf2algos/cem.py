@@ -6,8 +6,8 @@ from Nn.layers import mlp
 
 class Model(tf.keras.Model):
 
-    def __init__(self, vector_dim, output_shape, name, hidden_units, is_continuous):
-        super().__init__(name=name)
+    def __init__(self, vector_dim, output_shape, hidden_units, is_continuous):
+        super().__init__()
         self.is_continuous = is_continuous
         out_activation = 'tanh' if self.is_continuous else None
         self.net = mlp(hidden_units, act_fn='tanh', output_shape=output_shape, out_activation=out_activation, out_layer=True)
@@ -134,7 +134,7 @@ class CEM(On_Policy):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations*self.frac)),1)
-        self.cem_models = [Model(self.s_dim, self.a_counts, 'cem'+str(i), self.hidden_units, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.s_dim, self.a_counts, self.hidden_units, self.is_continuous) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums)*self.init_var
         self._update_models_weights()

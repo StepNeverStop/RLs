@@ -5,6 +5,7 @@ from Algorithms.tf2algos.dqn import DQN
 class DDQN(DQN):
     '''
     Double DQN, https://arxiv.org/abs/1509.06461
+    Double DQN + LSTM, https://arxiv.org/abs/1908.06040
     '''
 
     def __init__(self,

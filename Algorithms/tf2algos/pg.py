@@ -31,15 +31,30 @@ class PG(On_Policy):
             **kwargs)
         self.epoch = epoch
         self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
+        self.visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.visual_net.hdim)
         if self.is_continuous:
-            self.net = Nn.actor_mu(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_continuous'], visual_net=self.actor_visual_net)
+            self.net = Nn.VisualObsRNN(
+                net=Nn.actor_mu(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous']),
+                visual_net=self.visual_net,
+                rnn_net=rnn_net
+            )
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
-            self.net.tv+=[self.log_std]
+            self.net_tv = self.net.tv + [self.log_std]
         else:
-            self.net = Nn.actor_discrete(self.s_dim, self.visual_dim, self.a_counts, 'pg_net', hidden_units['actor_discrete'], visual_net=self.actor_visual_net)
+            self.net = Nn.VisualObsRNN(
+                net=Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete']),
+                visual_net=self.visual_net,
+                rnn_net=rnn_net
+            )
+            self.net_tv = self.net.tv 
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+
+        self.model_recorder(dict(
+            model=self.net,
+            optimizer=self.optimizer
+            ))
     
     def show_logo(self):
         self.recorder.logger.info('''
@@ -64,10 +79,10 @@ class PG(On_Policy):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             if self.is_continuous:
-                mu = self.net(s, visual_s)
+                mu = self.net.choose(s, visual_s)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
-                logits = self.net(s, visual_s)
+                logits = self.net.choose(s, visual_s)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op
@@ -118,14 +133,14 @@ class PG(On_Policy):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 loss = tf.reduce_mean(log_act_prob * dc_r)
             if self.is_continuous:
-                loss_grads = tape.gradient(loss, self.net.tv)
+                loss_grads = tape.gradient(loss, self.net_tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.tv)
+                    zip(loss_grads, self.net_tv)
                 )
             else:
-                loss_grads = tape.gradient(loss, self.net.tv)
+                loss_grads = tape.gradient(loss, self.net_tv)
                 self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net.tv)
+                    zip(loss_grads, self.net_tv)
                 )
             self.global_step.assign_add(1)
             return loss, entropy

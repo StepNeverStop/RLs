@@ -57,12 +57,27 @@ class IQN(Off_Policy):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        self.visual_net = Nn.VisualNet('visual_net', self.visual_dim)
-        self.q_net = Nn.iqn_net(self.s_dim, self.a_counts, self.quantiles_idx, 'q_net', hidden_units, visual_net=self.visual_net)
-        self.q_target_net = Nn.iqn_net(self.s_dim, self.a_counts, self.quantiles_idx, 'q_target_net', hidden_units, visual_net=self.visual_net)
-        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+        self.visual_net = self._visual_net()
+        rnn_net = self._rnn_net(self.visual_net.hdim)
+
+        self.q_net = Nn.VisualObsRNN(
+            net=Nn.iqn_net(rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.q_target_net = Nn.VisualObsRNN(
+            net=Nn.iqn_net(rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units),
+            visual_net=self.visual_net,
+            rnn_net=rnn_net
+        )
+        self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+
+        self.model_recorder(dict(
+            model=self.q_net,
+            optimizer=self.optimizer
+        ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -114,7 +129,7 @@ class IQN(Off_Policy):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+                self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,

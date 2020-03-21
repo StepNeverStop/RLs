@@ -6,6 +6,37 @@ from Nn.layers import ConvLayer
 
 activation_fn = 'tanh'
 
+class ObsRNN(tf.keras.Model):
+    '''输入状态的RNN
+    '''
+    def __init__(self, dim, hidden_units, batch_size, use_rnn):
+        super().__init__()
+        self.use_rnn = use_rnn
+        if use_rnn:
+            self.dim = dim
+            self.batch_size = batch_size
+            self.masking = tf.keras.layers.Masking(mask_value=0.)
+            self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
+            self(tf.keras.layers.Input(shape=(None,self.dim)))
+            self.hdim = hidden_units
+        else:
+            self.hdim = dim
+
+    def call(self, s, state=None, train=True):
+        if self.use_rnn:
+            if train:   # [B*T, ...] => [B, T, ...] 
+                s = tf.reshape(s, [self.batch_size, -1, s.shape[-1]])
+            else:
+                s = tf.reshape(s, [-1, 1, s.shape[-1]])
+            if state is None:
+                x, h, c = self.lstm_net(s)
+            else:
+                x, h, c = self.lstm_net(s, state)
+            x = tf.reshape(x, [-1, x.shape[-1]])    # [B, T, ...] => [B*T, ...]
+            return (x, (h, c))
+        else:
+            return (s, None)
+
 class VisualNet(tf.keras.Model):
     '''
     Processing image input observation information.
@@ -13,8 +44,8 @@ class VisualNet(tf.keras.Model):
     If there is no visual image input, Conv layers won't be built and initialized.
     '''
 
-    def __init__(self, name, visual_dim=[], visual_feature=128):
-        super().__init__(name=name)
+    def __init__(self, vector_dim, visual_dim=[], visual_feature=128):
+        super().__init__()
         self.vdl = len(visual_dim)
         if 2 < self.vdl < 5:
             if self.vdl == 4:
@@ -22,21 +53,22 @@ class VisualNet(tf.keras.Model):
             elif self.vdl == 3:
                 self.net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
             self.net.add(Dense(visual_feature, activation_fn))
-            self.hdim = visual_feature
+            self.hdim = vector_dim + visual_feature
             self(tf.keras.Input(shape=visual_dim))
         else:
             self.net = lambda vs: vs
-            self.hdim = 0
+            self.hdim = vector_dim
 
-    def call(self, visual_input):
-        if len(visual_input.shape) == 5 and self.vdl == 3:   # [B, T, H, W, C]
-            # LSTM, Conv2D后接LSTM时候的处理
-            b = visual_input.shape[0]   # Batchsize
-            visual_input = tf.reshape(visual_input, [-1]+list(visual_input.shape)[-3:]) # [B*T, H, W, C]
-            f = self.net(visual_input)  # [B*T, Hidden]
-            f = tf.reshape(f, [b, -1, self.hdim])   # [B, T, Hidden]
-        else:
-            f = self.net(visual_input)
+    def call(self, vector_input, visual_input):
+        # if len(visual_input.shape) == 5 and self.vdl == 3:   # [B, T, H, W, C]
+        #     # LSTM, Conv2D后接LSTM时候的处理
+        #     b = visual_input.shape[0]   # Batchsize
+        #     visual_input = tf.reshape(visual_input, [-1]+list(visual_input.shape)[-3:]) # [B*T, H, W, C]
+        #     f = self.net(visual_input)  # [B*T, Hidden]
+        #     f = tf.reshape(f, [b, -1, self.hdim])   # [B, T, Hidden]
+        # else:
+        f = self.net(visual_input)
+        f = tf.concat([vector_input, f], axis=-1)
         return f
 
 class CuriosityModel(tf.keras.Model):
@@ -45,11 +77,10 @@ class CuriosityModel(tf.keras.Model):
     Curiosity-driven Exploration by Self-supervised Prediction, https://arxiv.org/abs/1705.05363
     '''
 
-    def __init__(self, name, is_continuous, vector_dim, action_dim, visual_dim=[], visual_feature=128,
+    def __init__(self, is_continuous, vector_dim, action_dim, visual_dim=[], visual_feature=128,
                  *, eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10.):
         '''
         params:
-            name: name
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)
             vector_dim: dimension of vector state input
             action_dim: dimension of action
@@ -60,7 +91,7 @@ class CuriosityModel(tf.keras.Model):
             beta: weight factor of loss between inverse_dynamic_net and forward_net
             loss_weight: weight factor of loss between policy gradient and curiosity model
         '''
-        super().__init__(name=name)
+        super().__init__()
         self.device = get_device()
         self.eta = eta
         self.beta = beta
