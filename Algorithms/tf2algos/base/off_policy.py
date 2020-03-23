@@ -43,10 +43,10 @@ class Off_Policy(Policy):
             s,
             visual_s,
             a,
-            r[:, np.newaxis],
+            r[:, np.newaxis],   # 升维
             s_,
             visual_s_,
-            done[:, np.newaxis]
+            done[:, np.newaxis] # 升维
         )
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):

@@ -19,13 +19,7 @@ class On_Policy(Policy):
             a_dim_or_list=a_dim_or_list,
             is_continuous=is_continuous,
             **kwargs)
-        self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
-
-    def set_buffer(self, buffer):
-        if buffer is None:
-            self.data = pd.DataFrame(columns=['s', 'a', 'r', 'done'])
-        else:
-            self.data = buffer
+        self.data = pd.DataFrame(columns=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'])
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         """

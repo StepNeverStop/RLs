@@ -59,20 +59,22 @@ class DDQN(DQN):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.q_net(s, visual_s)
-                q_next = self.q_net(s_, visual_s_)
+                feat = self.get_feature(s, visual_s)
+                feat_ = self.get_feature(s_, visual_s_)
+                q = self.q_net(feat)
+                q_next = self.q_net(feat_)
                 next_max_action = tf.argmax(q_next, axis=1)
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                q_target_next = self.q_target_net(s_, visual_s_)
+                q_target_next = self.q_target_net(feat_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
                 q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
-            grads = tape.gradient(q_loss, self.q_net.tv)
+            grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.q_net.tv)
+                zip(grads, self.critic_tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

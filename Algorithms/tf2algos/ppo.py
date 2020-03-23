@@ -62,22 +62,12 @@ class PPO(On_Policy):
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         if self.share_net:
             self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
-            self.visual_net = self._visual_net()
-            rnn_net = self._rnn_net(self.visual_net.hdim)
             if self.is_continuous:
-                self.net = Nn.VisualObsRNN(
-                    net=Nn.a_c_v_continuous(rnn_net.hdim, self.a_counts, hidden_units['share']['continuous']),
-                    visual_net=self.visual_net,
-                    rnn_net=rnn_net
-                )
-                self.net_tv = self.net.tv + [self.log_std]
+                self.net = Nn.a_c_v_continuous(self.rnn_net.hdim, self.a_counts, hidden_units['share']['continuous'])
+                self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
             else:
-                self.net = Nn.VisualObsRNN(
-                    net=Nn.a_c_v_discrete(rnn_net.hdim, self.a_counts, hidden_units['share']['discrete']),
-                    visual_net=self.visual_net,
-                    rnn_net=rnn_net
-                )
-                self.net_tv = self.net.tv 
+                self.net = Nn.a_c_v_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['share']['discrete'])
+                self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
             self.model_recorder(dict(
@@ -87,30 +77,14 @@ class PPO(On_Policy):
         else:
             self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
             self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
-            self.actor_visual_net = self._visual_net()
-            self.critic_visual_net = self._visual_net()
-            rnn_net = self._rnn_net(self.actor_visual_net.hdim)
             if self.is_continuous:
-                self.actor_net = Nn.VisualObsRNN(
-                    net=Nn.actor_mu(rnn_net.hdim, self.a_counts, hidden_units['actor_continuous']),
-                    visual_net=self.actor_visual_net,
-                    rnn_net=rnn_net,
-                    rnn_net_grad=False
-                )
-                self.actor_net_tv = self.actor_net.tv + [self.log_std]
+                self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
+                self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
             else:
-                self.actor_net = Nn.VisualObsRNN(
-                    net=Nn.actor_discrete(rnn_net.hdim, self.a_counts, hidden_units['actor_discrete']),
-                    visual_net=self.actor_visual_net,
-                    rnn_net=rnn_net,
-                    rnn_net_grad=False
-                )
-                self.actor_net_tv = self.actor_net.tv
-            self.critic_net = Nn.VisualObsRNN(
-                    net=Nn.critic_v(rnn_net.hdim, hidden_units['critic']),
-                    visual_net=self.critic_visual_net,
-                    rnn_net=rnn_net
-                )
+                self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+                self.actor_net_tv = self.actor_net.trainable_variables
+            self.critic_net = Nn.critic_v(self.rnn_net.hdim, hidden_units['critic'])
+            self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
             self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
             self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
@@ -136,27 +110,35 @@ class PPO(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a = self._get_action(s, visual_s, evaluation).numpy()
+        a, value, log_prob = self._get_action(s, visual_s, evaluation)
+        a = a.numpy()
+        self._value = np.squeeze(value.numpy())
+        self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
     def _get_action(self, s, visual_s, evaluation):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.is_continuous:
                 if self.share_net:
-                    mu, _ = self.net.choose(s, visual_s)
+                    mu, value = self.net(feat)
                 else:
-                    mu = self.actor_net.choose(s, visual_s)
+                    mu = self.actor_net(feat)
+                    value = self.critic_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
+                log_prob = gaussian_likelihood_sum(mu, sample_op, self.log_std)
             else:
                 if self.share_net:
-                    logits, _ = self.net.choose(s, visual_s)
+                    logits, value = self.net(feat)
                 else:
-                    logits = self.actor_net.choose(s, visual_s)
+                    logits = self.actor_net(feat)
+                    value = self.critic_net(feat)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
-        return sample_op
+                log_prob = norm_dist.log_prob(sample_op)
+        return sample_op, value, log_prob
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
@@ -169,45 +151,27 @@ class PPO(On_Policy):
             'visual_s': visual_s,
             'a': a,
             'r': r,
+            's_': s_,
+            'visual_s_': visual_s_,
             'done': done,
-            'value': np.squeeze(self._get_value(s, visual_s).numpy()),
-            'log_prob': self._get_log_prob(s, visual_s, a).numpy() + 1e-10
+            'value': self._value,
+            'log_prob': self._log_prob
         }, ignore_index=True)
-        self.s_ = s_
-        self.visual_s_ = visual_s_
 
     @tf.function
     def _get_value(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.share_net:
-                _, value = self.net(s, visual_s)
+                _, value = self.net(feat)
             else:
-                value = self.critic_net(s, visual_s)
+                value = self.critic_net(feat)
             return value
 
-    @tf.function
-    def _get_log_prob(self, s, visual_s, a):
-        s, visual_s, a = self.cast(s, visual_s, a)
-        with tf.device(self.device):
-            if self.is_continuous:
-                if self.share_net:
-                    mu, _ = self.net(s, visual_s)
-                else:
-                    mu = self.actor_net(s, visual_s)
-                new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
-            else:
-                if self.share_net:
-                    logits, _ = self.net(s, visual_s)
-                else:
-                    logits = self.actor_net(s, visual_s)
-                logp_all = tf.nn.log_softmax(logits)
-                new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
-            return new_log_prob
-
     def calculate_statistics(self):
-        init_value = np.squeeze(self._get_value(self.s_, self.visual_s_).numpy())
-        self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
+        init_value = np.squeeze(self._get_value(self.data.s_.values[-1], self.data.visual_s_.values[-1]).numpy())
+        # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
             self.data.r.values,
@@ -233,7 +197,7 @@ class PPO(On_Policy):
         visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
         a = np.vstack(i_data.a.values).astype(np.float32)
         dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
-        old_log_prob = np.vstack(i_data.log_prob.values).astype(np.float32)
+        old_log_prob = np.vstack(i_data.log_prob.values).reshape(-1, 1).astype(np.float32)
         advantage = np.vstack(i_data.advantage.values).reshape(-1, 1).astype(np.float32)
         return s, visual_s, a, dc_r, old_log_prob, advantage
 
@@ -241,6 +205,21 @@ class PPO(On_Policy):
     def learn(self, **kwargs):
         assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
+
+        self.intermediate_variable_reset()
+        if self.use_curiosity:
+            ir, iloss, isummaries = self.curiosity_model(
+                np.vstack(self.data.s.values).astype(np.float32),
+                np.vstack(self.data.visual_s.values).astype(np.float32),
+                np.vstack(self.data.a.values).astype(np.float32),
+                np.vstack(self.data.s_.values).astype(np.float32),
+                np.vstack(self.data.visual_s_.values).astype(np.float32)
+                )
+            r = np.vstack(self.data.r.values).reshape(-1) + np.squeeze(ir.numpy())
+            self.data.r = list(r.reshape([self.data.shape[0], -1]))
+            self.curiosity_loss_constant += iloss
+            self.summaries.update(isummaries)
+
         self.calculate_statistics()
         for _ in range(self.epoch):
             for index in range(0, self.data.shape[0], self.batch_size):
@@ -268,19 +247,21 @@ class PPO(On_Policy):
                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
             ]))
-        self.write_training_summaries(self.episode, summaries)
+        self.summaries.update(summaries)
+        self.write_training_summaries(self.episode, self.summaries)
         self.clear()
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
+                feat = self.get_feature(s, visual_s)
                 if self.is_continuous:
-                    mu, value = self.net(s, visual_s)
+                    mu, value = self.net(feat)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
-                    logits, value = self.net(s, visual_s)
+                    logits, value = self.net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -294,29 +275,24 @@ class PPO(On_Policy):
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
-                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
-            if self.is_continuous:
-                loss_grads = tape.gradient(loss, self.net_tv)
-                self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net_tv)
-                )
-            else:
-                loss_grads = tape.gradient(loss, self.net_tv)
-                self.optimizer.apply_gradients(
-                    zip(loss_grads, self.net_tv)
-                )
+                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy) + self.curiosity_loss_constant
+            loss_grads = tape.gradient(loss, self.net_tv)
+            self.optimizer.apply_gradients(
+                zip(loss_grads, self.net_tv)
+            )
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
+                feat = self.get_feature(s, visual_s)
                 if self.is_continuous:
-                    mu = self.actor_net(s, visual_s)
+                    mu = self.actor_net(feat)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
-                    logits = self.actor_net(s, visual_s)
+                    logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -325,27 +301,22 @@ class PPO(On_Policy):
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
                 actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
-            if self.is_continuous:
-                actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.actor_net_tv)
-                )
-            else:
-                actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.actor_net_tv)
-                )
+            actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.actor_net_tv)
+            )
             return actor_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
     def train_critic(self, s, visual_s, dc_r):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                value = self.critic_net(s, visual_s)
+                feat = self.get_feature(s, visual_s)
+                value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error))
-            critic_grads = tape.gradient(value_loss, self.critic_net.tv)
+                value_loss = tf.reduce_mean(tf.square(td_error)) + self.curiosity_loss_constant
+            critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.critic_net.tv)
+                zip(critic_grads, self.critic_tv)
             )
             return value_loss

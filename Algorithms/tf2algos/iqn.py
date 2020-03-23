@@ -57,20 +57,12 @@ class IQN(Off_Policy):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        self.visual_net = self._visual_net()
-        rnn_net = self._rnn_net(self.visual_net.hdim)
+        _net = lambda: Nn.iqn_net(self.rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units)
 
-        self.q_net = Nn.VisualObsRNN(
-            net=Nn.iqn_net(rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q_target_net = Nn.VisualObsRNN(
-            net=Nn.iqn_net(rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
+        self.q_net = _net()
+        self.q_target_net = _net()
+        self.critic_tv = self.q_net.trainable_variables + self.other_tv
+        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
 
@@ -107,12 +99,13 @@ class IQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
                 batch_size=s.shape[0],
                 quantiles_num=self.select_quantiles,
                 quantiles_idx=self.quantiles_idx
             )
-            _, q_values = self.q_net(s, visual_s, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
+            _, q_values = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
         return tf.argmax(q_values, axis=-1)  # [B,]
 
     @tf.function
@@ -129,7 +122,7 @@ class IQN(Off_Policy):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
+                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -141,17 +134,25 @@ class IQN(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
+                feat = self.get_feature(s, visual_s)
+                feat_ = self.get_feature(s_, visual_s_)
                 quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
                     batch_size=s.shape[0],
                     quantiles_num=self.online_quantiles,
                     quantiles_idx=self.quantiles_idx
                 )
-                quantiles_value, q = self.q_net(s, visual_s, quantiles_tiled, quantiles_num=self.online_quantiles)    # [N, B, A], [B, A]
+                quantiles_value, q = self.q_net(feat, quantiles_tiled, quantiles_num=self.online_quantiles)    # [N, B, A], [B, A]
                 _a = tf.reshape(tf.tile(a, [self.online_quantiles, 1]), [self.online_quantiles, -1, self.a_counts])  # [B, A] => [N*B, A] => [N, B, A]
                 quantiles_value = tf.reduce_sum(quantiles_value * _a, axis=-1, keepdims=True)   # [N, B, A] => [N, B, 1]
                 q_eval = tf.reduce_sum(q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
 
-                next_max_action = self._get_action(s_, visual_s_)   # [B,]
+                _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
+                batch_size=s_.shape[0],
+                quantiles_num=self.select_quantiles,
+                quantiles_idx=self.quantiles_idx
+                )
+                _, q_values = self.q_net(feat_, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
+                next_max_action = tf.argmax(q_values, axis=-1)   # [B,]
                 next_max_action = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)  # [B, A]
                 _next_max_action = tf.reshape(tf.tile(next_max_action, [self.target_quantiles, 1]), [self.target_quantiles, -1, self.a_counts])  # [B, A] => [N'*B, A] => [N', B, A]
                 _, target_quantiles_tiled = self._generate_quantiles(   # [N'*B, 64]
@@ -160,7 +161,7 @@ class IQN(Off_Policy):
                     quantiles_idx=self.quantiles_idx
                 )
 
-                target_quantiles_value, target_q = self.q_target_net(s_, visual_s_, target_quantiles_tiled, quantiles_num=self.target_quantiles)  # [N', B, A], [B, A]
+                target_quantiles_value, target_q = self.q_target_net(feat_, target_quantiles_tiled, quantiles_num=self.target_quantiles)  # [N', B, A], [B, A]
                 target_quantiles_value = tf.reduce_sum(target_quantiles_value * _next_max_action, axis=-1, keepdims=True)   # [N', B, A] => [N', B, 1]
                 target_q = tf.reduce_sum(target_q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * target_q)   # [B, 1]
@@ -178,9 +179,9 @@ class IQN(Off_Policy):
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N'] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
                 loss = tf.reduce_mean(loss * self.IS_w)  # [B, ] => 1
-            grads = tape.gradient(loss, self.q_net.tv)
+            grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.q_net.tv)
+                zip(grads, self.critic_tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

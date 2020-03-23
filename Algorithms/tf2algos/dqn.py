@@ -40,20 +40,13 @@ class DQN(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.visual_net = self._visual_net()
-        rnn_net = self._rnn_net(self.visual_net.hdim)
 
-        self.q_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q_target_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
+        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_counts, hidden_units)
+
+        self.q_net = _q_net()
+        self.q_target_net = _q_net()
+        self.critic_tv = self.q_net.trainable_variables + self.other_tv
+        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
 
@@ -89,14 +82,15 @@ class DQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q_values = self.q_net.choose(s, visual_s)
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
+            q_values = self.q_net(feat)
         return tf.argmax(q_values, axis=1)
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.uv, self.q_net.uv)
+                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -108,15 +102,17 @@ class DQN(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.q_net(s, visual_s)
-                q_next = self.q_target_net(s_, visual_s_)
+                feat = self.get_feature(s, visual_s)
+                feat_ = self.get_feature(s_, visual_s_)
+                q = self.q_net(feat)
+                q_next = self.q_target_net(feat_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
                 td_error = q_eval - q_target
                 q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
-            grads = tape.gradient(q_loss, self.q_net.tv)
+            grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.q_net.tv)
+                zip(grads, self.critic_tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

@@ -23,13 +23,16 @@ class Policy(Base):
         else:
             self.visual_dim = [0]
         self.visual_feature = int(kwargs.get('visual_feature', 128))
-        self._visual_net = lambda : VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
+        self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
 
         self.batch_size = int(kwargs.get('batch_size', 128))
 
         self.use_rnn = bool(kwargs.get('use_rnn', False))
         self.rnn_units = int(kwargs.get('rnn_units', 16))
-        self._rnn_net = lambda dim: ObsRNN(dim, self.rnn_units, self.batch_size, self.use_rnn)
+        self.rnn_net = ObsRNN(self.visual_net.hdim, self.rnn_units, self.batch_size, self.use_rnn)
+        self.cell_state = None
+
+        self.other_tv = self.visual_net.trainable_variables + self.rnn_net.trainable_variables
 
         self.is_continuous = is_continuous
         self.a_dim_or_list = a_dim_or_list
@@ -48,6 +51,31 @@ class Policy(Base):
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
+
+    @tf.function
+    def get_feature(self, s, visual_s, use_cs=False, record_cs=False, train=True):
+        with tf.device(self.device):
+            feature = self.visual_net(s, visual_s)
+            if use_cs:
+                state, cell_state = self.rnn_net(feature, self.cell_state, train=train)
+            else:
+                state, cell_state = self.rnn_net(feature, train=train)
+            if record_cs:
+                self.cell_state = cell_state
+            return state
+
+    def set_buffer(self, buffer):
+        pass
+
+    def model_recorder(self, kwargs):
+        kwargs.update(dict(
+            global_step=self.global_step,
+            visual_net=self.visual_net,
+            rnn_net=self.rnn_net))
+        if self.use_curiosity:
+            kwargs.update(curiosity_model=self.curiosity_model)
+        self.generate_recorder(kwargs)
+        self.show_logo()
 
     def intermediate_variable_reset(self):
         '''

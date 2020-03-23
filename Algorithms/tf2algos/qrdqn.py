@@ -50,20 +50,12 @@ class QRDQN(Off_Policy):
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
-        self.visual_net = self._visual_net()        
-        rnn_net = self._rnn_net(self.visual_net.hdim)
 
-        self.q_dist_net = Nn.VisualObsRNN(
-            net=Nn.qrdqn_distributional(rnn_net.hdim, self.a_counts, self.nums, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q_target_dist_net = Nn.VisualObsRNN(
-            net=Nn.qrdqn_distributional(rnn_net.hdim, self.a_counts, self.nums, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.update_target_net_weights(self.q_target_dist_net.uv, self.q_dist_net.uv)
+        _net = lambda: Nn.qrdqn_distributional(self.rnn_net.hdim, self.a_counts, self.nums, hidden_units)
+        self.q_dist_net = _net()
+        self.q_target_dist_net = _net()
+        self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
+        self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
         self.model_recorder(dict(
@@ -98,14 +90,15 @@ class QRDQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.get_q(s, visual_s, choose=True)  # [B, A]
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
+            q = self.get_q(feat)  # [B, A]
         return tf.argmax(q, axis=-1)  # [B, 1]
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_dist_net.uv, self.q_dist_net.uv)
+                self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -117,10 +110,12 @@ class QRDQN(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
+                feat = self.get_feature(s, visual_s)
+                feat_ = self.get_feature(s_, visual_s_)
                 indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1])  # [B, 1]
-                q_dist = self.q_dist_net(s, visual_s)  # [B, A, N]
+                q_dist = self.q_dist_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
-                target_q_dist = self.q_target_dist_net(s_, visual_s_)  # [B, A, N]
+                target_q_dist = self.q_target_dist_net(feat_)  # [B, A, N]
                 target_q = tf.reduce_sum(self.batch_quantiles * target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
@@ -137,9 +132,9 @@ class QRDQN(Off_Policy):
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
                 loss = tf.reduce_mean(loss * self.IS_w)  # [B, ] => 1
-            grads = tape.gradient(loss, self.q_dist_net.tv)
+            grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
-                zip(grads, self.q_dist_net.tv)
+                zip(grads, self.critic_tv)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
@@ -150,10 +145,6 @@ class QRDQN(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def get_q(self, s, visual_s, choose=False):
-        if choose:
-            with tf.device(self.device):
-                return tf.reduce_sum(self.batch_quantiles * self.q_dist_net.choose(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
-        else:
-            with tf.device(self.device):
-                return tf.reduce_sum(self.batch_quantiles * self.q_dist_net(s, visual_s), axis=-1)  # [B, A, N] => [B, A]
+    def get_q(self, feat):
+        with tf.device(self.device):
+            return tf.reduce_sum(self.batch_quantiles * self.q_dist_net(feat), axis=-1)  # [B, A, N] => [B, A]

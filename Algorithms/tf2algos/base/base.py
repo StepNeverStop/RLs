@@ -30,13 +30,6 @@ class Base:
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.cast = self._cast(dtype=tf_dtype)
 
-    def model_recorder(self, kwargs):
-        kwargs.update(global_step=self.global_step)
-        if self.use_curiosity:
-            kwargs.update(curiosity_model=self.curiosity_model)
-        self.generate_recorder(kwargs)
-        self.show_logo()
-
     def _cast(self, dtype='float32'):
         '''
         TODO: Annotation

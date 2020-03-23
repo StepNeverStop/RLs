@@ -7,7 +7,7 @@ algos = {
     'pg':       {'class': 'PG',     'policy': 'on-policy',  'update': 'perEpisode'},
     'trpo':     {'class': 'TRPO',   'policy': 'on-policy',  'update': 'perEpisode'},
     'ppo':      {'class': 'PPO',    'policy': 'on-policy',  'update': 'perEpisode'},
-    'ac':       {'class': 'AC',     'policy': 'off-policy', 'update': 'perStep'},  # could be on-policy, but also doesn't work well.
+    'ac':       {'class': 'AC',     'policy': 'off-policy', 'update': 'perStep'},
     'a2c':      {'class': 'A2C',    'policy': 'on-policy',  'update': 'perEpisode'},
     'dpg':      {'class': 'DPG',    'policy': 'off-policy', 'update': 'perStep'},
     'ddpg':     {'class': 'DDPG',   'policy': 'off-policy', 'update': 'perStep'},

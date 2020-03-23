@@ -49,32 +49,17 @@ class MAXSQN(Off_Policy):
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
         self.target_alpha = beta * np.log(self.a_counts)
-        self.visual_net = self._visual_net()
-        rnn_net = self._rnn_net(self.visual_net.hdim)
 
-        self.q1_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q1_target_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q2_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
-        self.q2_target_net = Nn.VisualObsRNN(
-            net=Nn.critic_q_all(rnn_net.hdim, self.a_counts, hidden_units),
-            visual_net=self.visual_net,
-            rnn_net=rnn_net
-        )
+        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_counts, hidden_units)
+
+        self.q1_net = _q_net()
+        self.q1_target_net = _q_net()
+        self.q2_net = _q_net()
+        self.q2_target_net = _q_net()
+        self.critic_tv = self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.other_tv
         self.update_target_net_weights(
-            self.q1_target_net.uv + self.q2_target_net.uv,
-            self.q1_net.uv + self.q2_net.uv
+            self.q1_target_net.weights + self.q2_target_net.weights,
+            self.q1_net.weights + self.q2_net.weights
         )
         self.q_lr = tf.keras.optimizers.schedules.PolynomialDecay(q_lr, self.max_episode, 1e-10, power=1.0)
         self.alpha_lr = tf.keras.optimizers.schedules.PolynomialDecay(alpha_lr, self.max_episode, 1e-10, power=1.0)
@@ -113,7 +98,8 @@ class MAXSQN(Off_Policy):
     def _get_action(self, s, visual_s):
         s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
-            q = self.q1_net.choose(s, visual_s)
+            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
+            q = self.q1_net(feat)
             cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi
@@ -124,8 +110,8 @@ class MAXSQN(Off_Policy):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.q1_target_net.uv + self.q2_target_net.uv,
-                                            self.q1_net.uv + self.q2_net.uv,
+                                            self.q1_target_net.weights + self.q2_target_net.weights,
+                                            self.q1_net.weights + self.q2_net.weights,
                                             self.ployak),
                 'summary_dict': dict([
                                     ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
@@ -137,18 +123,20 @@ class MAXSQN(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q1 = self.q1_net(s, visual_s)
+                feat = self.get_feature(s, visual_s)
+                feat_ = self.get_feature(s_, visual_s_)
+                q1 = self.q1_net(feat)
                 q1_eval = tf.reduce_sum(tf.multiply(q1, a), axis=1, keepdims=True)
-                q2 = self.q2_net(s, visual_s)
+                q2 = self.q2_net(feat)
                 q2_eval = tf.reduce_sum(tf.multiply(q2, a), axis=1, keepdims=True)
 
-                q1_target = self.q1_target_net(s_, visual_s_)
+                q1_target = self.q1_target_net(feat_)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
                 q1_target_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1) + 1e-8
                 q1_target_log_max = tf.reduce_max(q1_target_log_probs, axis=1, keepdims=True)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))
 
-                q2_target = self.q2_target_net(s_, visual_s_)
+                q2_target = self.q2_target_net(feat_)
                 q2_target_max = tf.reduce_max(q2_target, axis=1, keepdims=True)
                 # q2_target_log_probs = tf.nn.log_softmax(q2_target, axis=1)
                 # q2_target_log_max = tf.reduce_max(q2_target_log_probs, axis=1, keepdims=True)
@@ -160,13 +148,13 @@ class MAXSQN(Off_Policy):
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
                 loss = 0.5 * (q1_loss + q2_loss)
-            loss_grads = tape.gradient(loss, self.q1_net.tv + self.q2_net.tv)
+            loss_grads = tape.gradient(loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
-                zip(loss_grads, self.q1_net.tv + self.q2_net.tv)
+                zip(loss_grads, self.critic_tv)
             )
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
-                    q1 = self.q1_net(s, visual_s)
+                    q1 = self.q1_net(feat)
                     q1_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1) + 1e-8
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
