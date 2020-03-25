@@ -122,9 +122,9 @@ class AC(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     next_mu = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
@@ -172,9 +172,9 @@ class AC(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     next_mu = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))

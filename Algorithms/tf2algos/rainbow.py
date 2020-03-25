@@ -117,9 +117,9 @@ class RAINBOW(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist = self.rainbow_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]

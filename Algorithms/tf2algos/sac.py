@@ -166,9 +166,9 @@ class SAC(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
                     target_log_std = clip_nn_log_std(target_log_std)
@@ -258,9 +258,9 @@ class SAC(Off_Policy):
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     mu, log_std = self.actor_net(feat)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -336,9 +336,9 @@ class SAC(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train_discrete(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 q1_all = self.q1_net(feat)   # [B, A]
                 q2_all = self.q2_net(feat)   # [B, A]
                 q_function = lambda x: tf.reduce_sum(x*a, axis=-1, keepdims=True)   #[B, 1]

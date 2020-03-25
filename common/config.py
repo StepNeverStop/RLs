@@ -50,7 +50,7 @@ class Config(object):
 
     def __getattr__(self, name):
         '''
-        self.name
+        self.name, 如果类中没有这个key，则报错
         '''
         raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {name}')
 

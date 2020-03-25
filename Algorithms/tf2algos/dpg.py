@@ -108,9 +108,9 @@ class DPG(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     target_mu = self.actor_net(feat_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -159,9 +159,9 @@ class DPG(Off_Policy):
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 if self.is_continuous:
                     target_mu = self.actor_net(feat_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)

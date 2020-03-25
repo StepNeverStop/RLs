@@ -121,9 +121,9 @@ class MAXSQN(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 q1 = self.q1_net(feat)
                 q1_eval = tf.reduce_sum(tf.multiply(q1, a), axis=1, keepdims=True)
                 q2 = self.q2_net(feat)

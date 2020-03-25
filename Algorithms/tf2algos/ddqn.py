@@ -58,9 +58,9 @@ class DDQN(DQN):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 q = self.q_net(feat)
                 q_next = self.q_net(feat_)
                 next_max_action = tf.argmax(q_next, axis=1)

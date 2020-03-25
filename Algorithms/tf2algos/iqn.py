@@ -134,9 +134,9 @@ class IQN(Off_Policy):
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
                     batch_size=batch_size,
                     quantiles_num=self.online_quantiles,

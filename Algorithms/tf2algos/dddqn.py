@@ -104,9 +104,9 @@ class DDDQN(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
         with tf.device(self.device):
+            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
-                feat_ = self.get_feature(s_, visual_s_)
                 q = self.dueling_net(feat)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 next_q = self.dueling_net(feat_)

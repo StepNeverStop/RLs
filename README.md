@@ -157,17 +157,16 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `$HOME/RLdata` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLdata/TF version/Environment/Algorithm/Brain name(for ml-agents)/Training name/config&excel&log&model`
+3. record directory format is `RLdata/TF version/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
-6. need 3 steps to implement a new algorithm
-    1. write `.py` in `Algorithms/tf2algos` directory and make the policy inherit from class `Base` or `Policy`, add `from .[name] import [name]` in `Algorithms/tf2algos/__init__.py`
+6. **need 3 steps to implement a new algorithm**
+    1. write `.py` in `Algorithms/tf2algos` directory and make the policy inherit from class `Base` or `Policy`
     2. write default configuration in `Algorithms/tf2algos/config.yaml`
-    3. register new algorithm in `algos` of `Algorithms/register.py`
+    3. register new algorithm at dictionary *algos* in `Algorithms/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the classname matches the name of the algorithm class
 7. set algorithms' hyper-parameters in [Algorithms/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
 9. change neural network structure in [Nn/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
-10. set replay buffer default parameters in [utils/replay_buffer.py](https://github.com/StepNeverStop/RLs/blob/master/utils/replay_buffer.py)
 
 ## Ongoing things
 
@@ -183,7 +182,7 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ### Dependencies
 
 - python>3.6, <3.7
-- tensorflow==2.0.0
+- tensorflow==2.1.0
 - pandas
 - numpy
 - pywin32==224

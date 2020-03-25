@@ -134,9 +134,9 @@ class TD3(Off_Policy):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(self.delay_num):
+                feat_ = self.get_feature(s_, visual_s_)
                 with tf.GradientTape() as tape:
                     feat = self.get_feature(s, visual_s)
-                    feat_ = self.get_feature(s_, visual_s_)
                     if self.is_continuous:
                         target_mu = self.actor_target_net(feat_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
