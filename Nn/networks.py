@@ -24,18 +24,28 @@ class ObsRNN(tf.keras.Model):
 
     def call(self, s, state=None, train=True):
         if self.use_rnn:
-            if train:   # [B*T, ...] => [B, T, ...] 
+            if train:   # [B*T, ...] => [B, T, ...]
                 s = tf.reshape(s, [self.batch_size, -1, s.shape[-1]])
             else:
                 s = tf.reshape(s, [-1, 1, s.shape[-1]])
+            s = self.masking(s)
             if state is None:
-                x, h, c = self.lstm_net(s)
+                x, h, c = self.lstm_net(s) # 如果没指定初始化隐状态，就用brun_in的， 或者 None
             else:
                 x, h, c = self.lstm_net(s, state)
             x = tf.reshape(x, [-1, x.shape[-1]])    # [B, T, ...] => [B*T, ...]
             return (x, (h, c))
         else:
             return (s, None)
+
+    def burn_in(self, s):
+        if self.use_rnn:
+            s = tf.reshape(s, [self.batch_size, -1, s.shape[-1]])
+            s = self.masking(s)
+            x, h, c = self.lstm_net(s)
+            return (h, c)
+        return None
+
 
 class VisualNet(tf.keras.Model):
     '''

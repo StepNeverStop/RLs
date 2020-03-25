@@ -61,14 +61,13 @@ class PG(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a = self._get_action(s, visual_s, evaluation).numpy()
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
+        a = self._get_action(feat).numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s, evaluation):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.is_continuous:
                 mu = self.net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)

@@ -89,19 +89,19 @@ class IQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(s, visual_s).numpy()
+            a = self._get_action(feat).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
+        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-                batch_size=s.shape[0],
+                batch_size=batch_size,
                 quantiles_num=self.select_quantiles,
                 quantiles_idx=self.quantiles_idx
             )
@@ -132,12 +132,13 @@ class IQN(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
                 feat_ = self.get_feature(s_, visual_s_)
                 quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
-                    batch_size=s.shape[0],
+                    batch_size=batch_size,
                     quantiles_num=self.online_quantiles,
                     quantiles_idx=self.quantiles_idx
                 )
@@ -147,7 +148,7 @@ class IQN(Off_Policy):
                 q_eval = tf.reduce_sum(q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
 
                 _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-                batch_size=s_.shape[0],
+                batch_size=batch_size,
                 quantiles_num=self.select_quantiles,
                 quantiles_idx=self.quantiles_idx
                 )
@@ -156,7 +157,7 @@ class IQN(Off_Policy):
                 next_max_action = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)  # [B, A]
                 _next_max_action = tf.reshape(tf.tile(next_max_action, [self.target_quantiles, 1]), [self.target_quantiles, -1, self.a_counts])  # [B, A] => [N'*B, A] => [N', B, A]
                 _, target_quantiles_tiled = self._generate_quantiles(   # [N'*B, 64]
-                    batch_size=s_.shape[0],
+                    batch_size=batch_size,
                     quantiles_num=self.target_quantiles,
                     quantiles_idx=self.quantiles_idx
                 )

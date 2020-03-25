@@ -76,17 +76,16 @@ class DDDQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(s, visual_s).numpy()
+            a = self._get_action(feat).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             q = self.dueling_net(feat)
         return tf.argmax(q, axis=-1)
 

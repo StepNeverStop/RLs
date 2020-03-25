@@ -316,6 +316,9 @@ class Agent:
         i, state, new_state = self.init_variables()
         sma = SMA(moving_average_episode)
         total_step = 0
+
+        self.model.reset()
+
         for episode in range(begin_episode, max_episode):
             state[i] = self.env.reset()
             dones_flag = np.full(self.env.n, False)
@@ -329,6 +332,7 @@ class Agent:
                     self.env.render()
                 action = self.model.choose_action(s=state[0], visual_s=state[1])
                 new_state[i], reward, done, info = self.env.step(action)
+                self.model.reset_partial_cell_state(done)
                 unfinished_index = np.where(dones_flag == False)[0]
                 dones_flag += done
                 r_tem[unfinished_index] = reward[unfinished_index]
@@ -364,6 +368,8 @@ class Agent:
                     new_state[i][self.env.dones_index] = self.env.partial_reset()
                 state[i] = new_state[i]
 
+            self.model.reset()
+
             sma.update(r)
             if policy_mode == 'on-policy':
                 self.model.learn(episode=episode, step=step)
@@ -389,6 +395,12 @@ class Agent:
                     self.gym_evaluate()
 
     def gym_step_eval(self, idx, model, episodes_num, max_step):
+        '''
+        1个环境的推断模式
+        '''
+        cs = model.get_cell_state() # 暂存训练时候的RNN隐状态
+        model.reset()
+
         i, state, _ = self.init_variables(evaluate=True)
         ret = 0.
         ave_steps = 0.
@@ -407,11 +419,14 @@ class Agent:
                     ret += r
                     ave_steps += step
                     break
+            model.reset()
+
         model.writer_summary(
             idx,
             eval_return=ret/episodes_num,
             eval_ave_step=ave_steps//episodes_num,
         )
+        model.set_cell_state(cs)
 
     def gym_random_sample(self, steps):
         i, state, new_state = self.init_variables()
@@ -437,10 +452,14 @@ class Agent:
     def gym_evaluate(self):
         max_step = int(self.train_args['max_step'])
         max_eval_episode = int(self.train_args['max_eval_episode'])
+
         i, state, _ = self.init_variables()
         total_r = np.zeros(self.env.n)
         total_steps = np.zeros(self.env.n)
         episodes = max_eval_episode // self.env.n
+
+        self.model.reset()
+
         for _ in range(episodes):
             state[i] = self.env.reset()
             dones_flag = np.full(self.env.n, False)
@@ -450,6 +469,7 @@ class Agent:
                 r_tem = np.zeros(self.env.n)
                 action = self.model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
                 state[i], reward, done, info = self.env.step(action)
+                self.model.reset_partial_cell_state(done)
                 unfinished_index = np.where(dones_flag == False)
                 dones_flag += done
                 r_tem[unfinished_index] = reward[unfinished_index]
@@ -459,6 +479,7 @@ class Agent:
                     break
             total_r += r
             total_steps += steps
+            self.model.reset()
         average_r = total_r.mean() / episodes
         average_step = int(total_steps.mean() / episodes)
         solved = True if average_r >= self.env.reward_threshold else False
@@ -472,6 +493,8 @@ class Agent:
 
         i, state, new_state = self.init_variables()
 
+        self.model.reset()
+
         state[i] = self.env.reset()
 
         steps = steps // self.env.n
@@ -483,6 +506,7 @@ class Agent:
             else:
                 action = self.env.sample_actions()
             new_state[i], reward, done, info = self.env.step(action)
+            self.model.reset_partial_cell_state(done)
             self.model.no_op_store(
                 s=state[0],
                 visual_s=state[1],
@@ -498,12 +522,16 @@ class Agent:
 
     def gym_inference(self):
         i, state, _ = self.init_variables()
+
+        self.model.reset()
+
         while True:
             state[i] = self.env.reset()
             while True:
                 self.env.render()
                 action = self.model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
                 state[i], reward, done, info = self.env.step(action)
+                self.model.reset_partial_cell_state(done)
                 if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
                     state[i][self.env.dones_index] = self.env.partial_reset()
 
@@ -539,6 +567,8 @@ class Agent:
         state, visual_state, action, dones_flag, rewards = zeros_initializer(self.env.brain_num, 5)
         sma = [SMA(moving_average_episode) for i in range(self.env.brain_num)]
 
+        [model.reset() for model in self.models]
+
         for episode in range(begin_episode, max_episode):
             ObsRewDone = self.env.reset()
             for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
@@ -567,6 +597,7 @@ class Agent:
                         visual_s_=_vs,
                         done=_d
                     )
+                    self.models[i].reset_partial_cell_state(_d)
                     rewards[i][unfinished_index] += _r[unfinished_index]
                     state[i] = _v
                     visual_state[i] = _vs
@@ -581,6 +612,8 @@ class Agent:
 
                 if step >= max_step:
                     break
+
+            [model.reset() for model in self.models]
 
             for i in range(self.env.brain_num):
                 sma[i].update(rewards[i])
@@ -641,6 +674,9 @@ class Agent:
         assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
         state, visual_state, action = zeros_initializer(self.env.brain_num, 3)
+
+        [model.reset() for model in self.models]
+
         ObsRewDone = self.env.reset()
         for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
             state[i] = _v
@@ -669,17 +705,22 @@ class Agent:
                 )
                 state[i] = _v
                 visual_state[i] = _vs
+                self.models[i].reset_partial_cell_state(_d)
 
     def unity_inference(self):
         """
         inference mode. algorithm model will not be train, only used to show agents' behavior
         """
         action = zeros_initializer(self.env.brain_num, 1)
+
+        [model.reset() for model in self.models]
+
         while True:
             ObsRewDone = self.env.reset()
             while True:
-                for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+                for i, (_v, _vs, _, _d) in enumerate(ObsRewDone):
                     action[i] = self.models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
+                    self.models[i].reset_partial_cell_state(_d)
                 actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
                 ObsRewDone = self.env.step(actions)
 

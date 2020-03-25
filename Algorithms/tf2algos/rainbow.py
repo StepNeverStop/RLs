@@ -88,17 +88,16 @@ class RAINBOW(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(s, visual_s).numpy()
+            a = self._get_action(feat).numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             q = self.get_q(feat)  # [B, A]
         return tf.argmax(q, axis=-1)  # [B, 1]
 
@@ -116,11 +115,12 @@ class RAINBOW(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
                 feat_ = self.get_feature(s_, visual_s_)
-                indexs = tf.reshape(tf.range(s.shape[0]), [-1, 1])  # [B, 1]
+                indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist = self.rainbow_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
                 q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)

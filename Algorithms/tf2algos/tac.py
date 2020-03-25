@@ -109,14 +109,14 @@ class TAC(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a = self._get_action(s, visual_s, evaluation).numpy()
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
+        mu, pi = self._get_action(feat)
+        a = mu.numpy() if evaluation else pi.numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s, evaluation):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.is_continuous:
                 mu, log_std = self.actor_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -127,10 +127,7 @@ class TAC(Off_Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-            if evaluation == True:
-                return mu
-            else:
-                return pi
+            return mu, pi
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -156,6 +153,7 @@ class TAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, r, s_, visual_s_, done):
+        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s)
@@ -195,7 +193,7 @@ class TAC(Off_Policy):
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
@@ -246,6 +244,7 @@ class TAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s)
@@ -261,7 +260,7 @@ class TAC(Off_Policy):
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([a.shape[0], self.a_counts]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)

@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from .sum_tree import Sum_Tree
+from utils.sum_tree import Sum_Tree
 from abc import ABC, abstractmethod
 
 # [s, visual_s, a, r, s_, visual_s_, done] must be this format.
@@ -244,9 +244,10 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
 
 class EpisodeExperienceReplay(ReplayBuffer):
     
-    def __init__(self, batch_size, capacity, agents_num):
+    def __init__(self, batch_size, capacity, agents_num, timesteps=None):
         super().__init__(batch_size, capacity)
         self.agents_num = agents_num
+        self.timesteps = timesteps
         self.queue = [[] for _ in range(agents_num)]
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
@@ -302,7 +303,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
         t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
         s, visual_s, a, r, s_, visual_s_, done = [[] for _ in range(7)]
-        for i in t:
+        for i in t: # i即为1条轨迹 [(s,a,r,s_,done),(s,a,r,s_,done),...]
             data = [d for d in zip(*i)]
             s.append(data[0])
             visual_s.append(data[1])
@@ -312,10 +313,12 @@ class EpisodeExperienceReplay(ReplayBuffer):
             visual_s_.append(data[5])
             done.append(data[6])
         # s, visual_s, a, r, s_, visual_s_, done = map(np.asarray, [s, visual_s, a, r, s_, visual_s_, done])
-        pad = lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='post', dtype='float32', value=0.)
-        s, visual_s, a, r, s_, visual_s_ = map(pad, [s, visual_s, a, r, s_, visual_s_])
-        done = tf.keras.preprocessing.sequence.pad_sequences(done, padding='post', dtype='float32', value=1.)
-        # a, r, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [a, r, done])  # [B, T, N] => [B*T, N]
+        def f(v, l):    # [B, T, N]
+            return lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='pre', dtype='float32', value=v, maxlen=l, truncating='pre')
+        s, visual_s, a, r, s_, visual_s_ = map(f(v=0., l=self.timesteps), [s, visual_s, a, r, s_, visual_s_])   # [B, T, N]
+        done = f(v=1., l=self.timesteps)(done)  # [B, T, N]
+        # self.burn_in_states = map(lambda x: x[:, :20], [s, visual_s])
+        # s, visual_s, a, r, s_, visual_s_, done = map(lambda x: x[:, 20:], [s, visual_s, a, r, s_, visual_s_, done])
         s, visual_s, a, r, s_, visual_s_, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [s, visual_s, a, r, s_, visual_s_, done])  # [B, T, N] => [B*T, N]
         return (s, visual_s, a, r, s_, visual_s_, done)
 
@@ -335,5 +338,31 @@ class EpisodeExperienceReplay(ReplayBuffer):
     def show_rb(self):
         print('RB size: ', self._size)
         print('RB capacity: ', self.capacity)
-        print(self._buffer[:, np.newaxis])
+        print(self._buffer)
+
+if __name__ == "__main__":
+    buff = EpisodeExperienceReplay(4, 10, 2)
+
+    s = [np.zeros(2), np.ones(2)]
+    visual_s = [np.zeros(2), np.ones(2)]
+    a = [np.zeros(2), np.ones(2)]
+    r = [np.array([1]), np.array([1])]
+    s_ = [np.zeros(2), np.ones(2)]
+    visual_s_ = [np.zeros(2), np.ones(2)]
+    done = [np.array([False]), np.array([False])]
+    done_ = [np.array([True]), np.array([True])]
+    done1 = [np.array([False]), np.array([True])]
+    done2 = [np.array([True]), np.array([False])]
+
+    buff.add(s, visual_s, a, r, s_, visual_s_, done)
+    buff.add(s, visual_s, a, r, s_, visual_s_, done)
+    buff.add(s, visual_s, a, r, s_, visual_s_, done)
+    buff.add(s, visual_s, a, r, s_, visual_s_, done1)   # done 1, 4
+    buff.add(s, visual_s, a, r, s_, visual_s_, done2)   # done 2, 5
+    buff.add(s, visual_s, a, r, s_, visual_s_, done)
+    buff.add(s, visual_s, a, r, s_, visual_s_, done)
+    buff.add(s, visual_s, a, r, s_, visual_s_, done_)   # done 3, 4     done 4, 3
+    # print(buff._buffer[1])
+    # buff.show_rb
+    # buff.sample()
 

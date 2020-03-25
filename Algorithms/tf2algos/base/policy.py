@@ -3,6 +3,7 @@ import tensorflow as tf
 from .base import Base
 from abc import abstractmethod
 from Nn.networks import CuriosityModel, VisualNet, ObsRNN
+from typing import List
 
 
 class Policy(Base):
@@ -53,19 +54,43 @@ class Policy(Base):
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
     @tf.function
-    def get_feature(self, s, visual_s, use_cs=False, record_cs=False, train=True):
+    def get_feature(self, s, visual_s, cell_state=None, record_cs=False, train=True):
+        s, visual_s = self.cast(s, visual_s)
         with tf.device(self.device):
             feature = self.visual_net(s, visual_s)
-            if use_cs:
-                state, cell_state = self.rnn_net(feature, self.cell_state, train=train)
-            else:
-                state, cell_state = self.rnn_net(feature, train=train)
+            state, cell_state = self.rnn_net(feature, cell_state, train=train)
             if record_cs:
-                self.cell_state = cell_state
+                return state, cell_state
             return state
 
-    def set_buffer(self, buffer):
-        pass
+    # def burn_in(self):
+    #     s, visual_s = self.data.get_burn_in_states()
+    #     with tf.device(self.device): 
+    #         feature = self.visual_net(s, visual_s)
+    #         self.rnn_net.burn_in(feature)
+
+    def reset(self):
+        self.cell_state = None
+
+    def get_cell_state(self):
+        return self.cell_state
+
+    def set_cell_state(self, cs):
+        self.cell_state = cs
+
+    def reset_partial_cell_state(self, done):
+        self._partial_reset_cell_state(index=np.where(done)[0])
+
+    def _partial_reset_cell_state(self, index: List):
+        '''
+        根据环境的done的index，局部初始化RNN的隐藏状态
+        '''
+        assert isinstance(index, (list, np.ndarray))
+        if self.cell_state is not None and len(index) > 0:
+            _arr = np.ones((self.cell_state[0].shape[0], 1), dtype=np.float32)
+            _arr[index] = 0.
+            self.cell_state = [c * _arr for c in self.cell_state]        # [A, B] * [A, 1] => [A, B] 将某行全部替换为0.
+
 
     def model_recorder(self, kwargs):
         kwargs.update(dict(

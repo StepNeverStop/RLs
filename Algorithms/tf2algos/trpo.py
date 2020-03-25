@@ -108,7 +108,8 @@ class TRPO(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a, _v, _lp, _morlpa = self._get_action(s, visual_s, evaluation)
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
+        a, _v, _lp, _morlpa = self._get_action(feat)
         a = a.numpy()
         self._value = np.squeeze(_v.numpy())
         self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
@@ -119,10 +120,8 @@ class TRPO(On_Policy):
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s, evaluation):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, s, visual_s):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             value = self.critic_net(feat)
             if self.is_continuous:
                 mu = self.actor_net(feat)
@@ -162,15 +161,14 @@ class TRPO(On_Policy):
         self.data = self.data.append(_data, ignore_index=True)
 
     @tf.function
-    def _get_value(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_value(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             value = self.critic_net(feat)
             return value
 
     def calculate_statistics(self):
-        init_value = np.squeeze(self._get_value(self.data.s_.values[-1], self.data.visual_s_.values[-1]).numpy())
+        feat, self.cell_state = self.get_feature(self.data.s_.values[-1], self.data.visual_s_.values[-1], self.cell_state, record_cs=True, train=False)
+        init_value = np.squeeze(self._get_value(feat).numpy())
         # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
@@ -247,7 +245,6 @@ class TRPO(On_Policy):
             for _ in range(self.train_v_iters):
                 critic_loss = self.train_critic.get_concrete_function(
                     *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        self.global_step.assign_add(1)
         summaries = dict([
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', critic_loss],
@@ -278,6 +275,7 @@ class TRPO(On_Policy):
                 actor_loss = -tf.reduce_mean(ratio * advantage)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             gradients = flat_concat(actor_grads)
+            self.global_step.assign_add(1)
             return actor_loss, entropy, gradients
 
     @tf.function(experimental_relax_shapes=True)

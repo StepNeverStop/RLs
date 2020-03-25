@@ -110,17 +110,16 @@ class PPO(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a, value, log_prob = self._get_action(s, visual_s, evaluation)
+        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
+        a, value, log_prob = self._get_action(feat)
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s, evaluation):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_action(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.is_continuous:
                 if self.share_net:
                     mu, value = self.net(feat)
@@ -159,10 +158,8 @@ class PPO(On_Policy):
         }, ignore_index=True)
 
     @tf.function
-    def _get_value(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+    def _get_value(self, feat):
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s, use_cs=True, record_cs=True, train=False)
             if self.share_net:
                 _, value = self.net(feat)
             else:
@@ -170,7 +167,8 @@ class PPO(On_Policy):
             return value
 
     def calculate_statistics(self):
-        init_value = np.squeeze(self._get_value(self.data.s_.values[-1], self.data.visual_s_.values[-1]).numpy())
+        feat, self.cell_state = self.get_feature(self.data.s_.values[-1], self.data.visual_s_.values[-1], self.cell_state, record_cs=True, train=False)
+        init_value = np.squeeze(self._get_value(feat).numpy())
         # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
         self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
         self.data['td_error'] = sth.discounted_sum_minus(
@@ -234,7 +232,6 @@ class PPO(On_Policy):
                     #     break
                     critic_loss = self.train_critic.get_concrete_function(
                         *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        self.global_step.assign_add(1)
         summaries = dict([
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', critic_loss],
@@ -280,6 +277,7 @@ class PPO(On_Policy):
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
             )
+            self.global_step.assign_add(1)
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
@@ -305,6 +303,7 @@ class PPO(On_Policy):
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net_tv)
             )
+            self.global_step.assign_add(1)
             return actor_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
