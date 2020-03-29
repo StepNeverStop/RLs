@@ -56,11 +56,11 @@ class DDQN(DQN):
         ''')
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q = self.q_net(feat)
                 q_next = self.q_net(feat_)
                 next_max_action = tf.argmax(q_next, axis=1)
@@ -71,7 +71,7 @@ class DDQN(DQN):
                 q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
             grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)

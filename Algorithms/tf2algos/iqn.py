@@ -89,24 +89,25 @@ class IQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(feat).numpy()
+            a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a = a.numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
-        batch_size = tf.shape(a)[0]
+    def _get_action(self, s, visual_s, cell_state):
+        batch_size = tf.shape(s)[0]
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
                 batch_size=batch_size,
                 quantiles_num=self.select_quantiles,
                 quantiles_idx=self.quantiles_idx
             )
             _, q_values = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
-        return tf.argmax(q_values, axis=-1)  # [B,]
+        return tf.argmax(q_values, axis=-1), cell_state  # [B,]
 
     @tf.function
     def _generate_quantiles(self, batch_size, quantiles_num, quantiles_idx):
@@ -131,12 +132,12 @@ class IQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
                     batch_size=batch_size,
                     quantiles_num=self.online_quantiles,
@@ -179,7 +180,7 @@ class IQN(Off_Policy):
                 huber_abs = tf.abs(quantiles - tf.where(quantile_error < 0, tf.ones_like(quantile_error), tf.zeros_like(quantile_error)))   # [B, N, 1] - [B, N, N'] => [B, N, N']
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N'] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
-                loss = tf.reduce_mean(loss * self.IS_w)  # [B, ] => 1
+                loss = tf.reduce_mean(loss * isw) + crsty_loss# [B, ] => 1
             grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)

@@ -1,7 +1,7 @@
+import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import Nn
 from utils.sth import sth
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
@@ -67,15 +67,15 @@ class AC(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        a, _lp = self._get_action(feat)
+        a, _lp, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
@@ -85,7 +85,7 @@ class AC(Off_Policy):
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-        return sample_op, log_prob
+        return sample_op, log_prob, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
@@ -94,8 +94,7 @@ class AC(Off_Policy):
         if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._log_prob
-        self.data.add(s, visual_s, a, old_log_prob,
-                      r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob)
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
@@ -104,7 +103,7 @@ class AC(Off_Policy):
         old_log_prob = np.ones_like(r)
         if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        self.data.add(s, visual_s, a, old_log_prob[:, np.newaxis], r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis])
+        self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob[:, np.newaxis])
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -116,15 +115,16 @@ class AC(Off_Policy):
                                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
                             ]),
-                'data_list': ['s', 'visual_s', 'a', 'old_log_prob', 'r', 's_', 'visual_s_', 'done']
+                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'old_log_prob'],
+                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'old_log_prob']
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     next_mu = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
@@ -135,7 +135,7 @@ class AC(Off_Policy):
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, max_a_one_hot))
                 q = self.critic_net(feat, a)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                critic_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -170,11 +170,11 @@ class AC(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, old_log_prob, r, s_, visual_s_, done):
+    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     next_mu = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
@@ -194,7 +194,7 @@ class AC(Off_Policy):
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                critic_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(

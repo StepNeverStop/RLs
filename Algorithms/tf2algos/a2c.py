@@ -70,13 +70,14 @@ class A2C(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        a = self._get_action(feat).numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)\
+        a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+        a = a.numpy()
+        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
@@ -84,7 +85,7 @@ class A2C(On_Policy):
                 logits = self.actor_net(feat)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
-        return sample_op
+        return sample_op, cell_state
     
     @tf.function
     def _get_value(self, feat):

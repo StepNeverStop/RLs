@@ -1,5 +1,7 @@
 general:
-    use_rnn: false
+    use_rnn: false  # always false, using -r to active RNN
+    burn_in_time_step: 10
+    train_time_step: 5
     rnn_units: 8
     tf_dtype: float32       # float32 or float64
     visual_feature: 128
@@ -8,6 +10,13 @@ general:
     curiosity_reward_eta: 0.01  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
     curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
     curiosity_loss_weight: 5    # weight that scale the gradient loass and ICM loss
+
+on_policy: {}
+
+off_policy:
+    use_isw: false
+    episode_batch_size: 256  # rnn
+    episode_buffer_size: 100000
 
 cem:
     frac: 0.2

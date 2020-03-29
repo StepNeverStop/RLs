@@ -108,8 +108,7 @@ class TRPO(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        a, _v, _lp, _morlpa = self._get_action(feat)
+        a, _v, _lp, _morlpa, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(_v.numpy())
         self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
@@ -120,21 +119,22 @@ class TRPO(On_Policy):
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, s, visual_s):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             value = self.critic_net(feat)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
                 log_prob = gaussian_likelihood_sum(mu, sample_op, self.log_std)
-                return sample_op, value, log_prob, mu
+                return sample_op, value, log_prob, mu, cell_state
             else:
                 logits = self.actor_net(feat)
                 logp_all = tf.nn.log_softmax(logits)
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-                return sample_op, value, log_prob, logp_all
+                return sample_op, value, log_prob, logp_all, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"

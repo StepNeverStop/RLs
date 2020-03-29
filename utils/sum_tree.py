@@ -23,7 +23,7 @@ class Sum_Tree(object):
         self.parent_node_count = self.get_parent_node_count(capacity)
         # print(self.parent_node_count)
         self.tree = np.zeros(self.parent_node_count + capacity + 1)
-        self.tree[0] = len(self.tree) - 1
+        self.tree[0] = len(self.tree) - 1   # 树的总节点数，也是最后一个节点的索引值
         self.data = np.zeros(capacity + 1, dtype=object)
         self.data[0] = capacity
 
@@ -47,7 +47,7 @@ class Sum_Tree(object):
         data : [s, a, r, s_, done]
         """
         num = len(data)
-        idx = (np.arange(num) + self.now) % self.capacity + 1
+        idx = (np.arange(num) + self.now) % self.capacity + 1   # [1, capacity]
         self.data[idx] = data
         tree_index = idx + self.parent_node_count
         self._updatetree_batch(tree_index, p)
@@ -62,6 +62,8 @@ class Sum_Tree(object):
         self.tree[tree_index] = p
 
     def _updatetree_batch(self, tree_index, p):
+        tree_index, idx = np.unique(tree_index, return_index=True)
+        p = p[idx]
         diff = p - self.tree[tree_index]
         sort_index = np.argsort(tree_index)
         tree_index = np.sort(tree_index)
@@ -127,8 +129,8 @@ class Sum_Tree(object):
             return tree_index
         # index = np.where(self.tree[left] >= seg_p_total, left, 0) + np.where(self.tree[left] < seg_p_total, right, 0)
         # seg_p_total = np.where(self.tree[left] >= seg_p_total, seg_p_total, 0) + np.where(self.tree[left] < seg_p_total, seg_p_total - self.tree[left], 0)
-        index = np.where(seg_p_total <= self.tree[left] , left, right)
-        seg_p_total = np.where(seg_p_total <= self.tree[left], seg_p_total, seg_p_total - self.tree[left])
+        index = np.where(seg_p_total < self.tree[left] , left, right)
+        seg_p_total = np.where(seg_p_total < self.tree[left], seg_p_total, seg_p_total - self.tree[left])
         return self._retrieve_batch(index, seg_p_total)
 
     def pp(self):
@@ -147,14 +149,26 @@ class Sum_Tree(object):
 
 
 if __name__ == "__main__":
-    from time import time
-    x = 0
-    t = 1000
-    for i in range(t):
-        tree = Sum_Tree(524288)
-        a = np.arange(50000)
-        b = np.zeros_like(a)
-        start = time()
-        tree.add_batch(b, a)
-        x += time() - start
-    print(x / t)
+    # from time import time
+    # x = 0
+    # t = 1000
+    # for i in range(t):
+    #     tree = Sum_Tree(524288)
+    #     a = np.arange(50000)
+    #     b = np.zeros_like(a)
+    #     start = time()
+    #     tree.add_batch(b, a)
+    #     x += time() - start
+    # print(x / t)
+
+    tree = Sum_Tree(20)
+    tree.add_batch(p=np.arange(10)+1, data=np.ones(10))
+    tree.pp()
+    tree._updatetree_batch(np.array([32, 32, 34]), np.array([10, 11, 12]))
+    # [tree._updatetree(i, p) for i, p  in zip(np.array([32, 32, 34]), np.array([10, 11, 12]))]
+    tree.pp()
+
+    # all_intervals = np.linspace(0, tree.total, 4+1)
+    # print(all_intervals)
+    # ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
+    # print(tree.get_batch_parallel(ps))

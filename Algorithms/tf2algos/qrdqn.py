@@ -80,18 +80,19 @@ class QRDQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(feat).numpy()
+            a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a = a.numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q = self.get_q(feat)  # [B, A]
-        return tf.argmax(q, axis=-1)  # [B, 1]
+        return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -106,12 +107,12 @@ class QRDQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist = self.q_dist_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
@@ -131,7 +132,7 @@ class QRDQN(Off_Policy):
                 huber_abs = tf.abs(self.quantiles - tf.where(quantile_error < 0, tf.ones_like(quantile_error), tf.zeros_like(quantile_error)))   # [1, N] - [B, N, N] => [B, N, N]
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
-                loss = tf.reduce_mean(loss * self.IS_w)  # [B, ] => 1
+                loss = tf.reduce_mean(loss * isw) + crsty_loss  # [B, ] => 1
             grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)
@@ -144,7 +145,6 @@ class QRDQN(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
-    @tf.function(experimental_relax_shapes=True)
     def get_q(self, feat):
         with tf.device(self.device):
             return tf.reduce_sum(self.batch_quantiles * self.q_dist_net(feat), axis=-1)  # [B, A, N] => [B, A]

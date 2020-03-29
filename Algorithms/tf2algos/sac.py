@@ -117,14 +117,14 @@ class SAC(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        mu, pi = self._get_action(feat)
+        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 mu, log_std = self.actor_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -135,15 +135,15 @@ class SAC(Off_Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-            return mu, pi
+            return mu, pi, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
-        def _train(s, visual_s, a, r, s_, visual_s_, done):
+        def _train(memories, isw, crsty_loss, cell_state):
             if self.is_continuous or self.use_gumbel:
-                td_error, summaries = self.train(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train_persistent(memories, isw, crsty_loss, cell_state)
             else:
-                td_error, summaries = self.train_discrete(s, visual_s, a, r, s_, visual_s_, done)
+                td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
             if self.annealing and not self.auto_adaption:
                 self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
             return td_error, summaries
@@ -163,12 +163,12 @@ class SAC(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
                     target_log_std = clip_nn_log_std(target_log_std)
@@ -187,9 +187,9 @@ class SAC(Off_Policy):
                 dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + self.curiosity_loss_constant
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -255,12 +255,12 @@ class SAC(Off_Policy):
             return td_error1 + td_error2 / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     mu, log_std = self.actor_net(feat)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -295,9 +295,9 @@ class SAC(Off_Policy):
                 dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
@@ -334,11 +334,11 @@ class SAC(Off_Policy):
             return td_error1 + td_error2 / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train_discrete(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train_discrete(self, memories, isw, crsty_loss):
+        ss, vvss, a, r, done = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q1_all = self.q1_net(feat)   # [B, A]
                 q2_all = self.q2_net(feat)   # [B, A]
                 q_function = lambda x: tf.reduce_sum(x*a, axis=-1, keepdims=True)   #[B, 1]
@@ -355,9 +355,9 @@ class SAC(Off_Policy):
                 dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * v2_target)
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

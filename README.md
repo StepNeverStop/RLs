@@ -126,6 +126,7 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
     -m,--models=<n>             同时训练多少个模型 [default: 1]
+    -r,--rnn                    是否使用RNN模型 [default: False]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
@@ -175,6 +176,8 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 - Fix multi-agent algorithms
 - DARQN
 - ACER
+- Ape-X
+- R2D2
 - ~~ACKTR~~
 
 ## Installation

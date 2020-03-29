@@ -96,14 +96,14 @@ class TD3(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        mu, pi = self._get_action(feat)
+        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
@@ -112,7 +112,7 @@ class TD3(Off_Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-            return mu, pi
+            return mu, pi, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -130,13 +130,13 @@ class TD3(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(self.delay_num):
-                feat_ = self.get_feature(s_, visual_s_)
                 with tf.GradientTape() as tape:
-                    feat = self.get_feature(s, visual_s)
+                    feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                     if self.is_continuous:
                         target_mu = self.actor_target_net(feat_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -153,9 +153,9 @@ class TD3(Off_Policy):
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
-                    q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                    q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                    critic_loss = 0.5 * (q1_loss + q2_loss)
+                    q1_loss = tf.reduce_mean(tf.square(td_error1))
+                    q2_loss = tf.reduce_mean(tf.square(td_error2))
+                    critic_loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
                 critic_grads = tape.gradient(critic_loss, self.critic_tv)
                 self.optimizer_critic.apply_gradients(
                     zip(critic_grads, self.critic_tv)
@@ -188,13 +188,13 @@ class TD3(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
-                    feat = self.get_feature(s, visual_s)
-                    feat_ = self.get_feature(s_, visual_s_)
+                    feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                     if self.is_continuous:
                         target_mu = self.actor_target_net(feat_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -221,9 +221,9 @@ class TD3(Off_Policy):
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
-                    q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                    q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                    critic_loss = 0.5 * (q1_loss + q2_loss)
+                    q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                    q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
+                    critic_loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
                     actor_loss = -tf.reduce_mean(q1_actor)
                 critic_grads = tape.gradient(critic_loss, self.critic_tv)
                 self.optimizer_critic.apply_gradients(

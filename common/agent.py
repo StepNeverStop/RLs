@@ -87,15 +87,22 @@ class Agent:
         self.model_args['policy_mode'] = _policy_mode
         if self.model_args['algo_config'] is not None:
             algorithm_config = UpdateConfig(algorithm_config, self.model_args['algo_config'], 'algo')
+        algorithm_config['use_rnn'] = self.model_args['use_rnn']
         ShowConfig(algorithm_config)
 
         # BUFFER
         if _policy_mode == 'off-policy':
-            self.buffer_args['batch_size'] = algorithm_config['batch_size']
-            self.buffer_args['buffer_size'] = algorithm_config['buffer_size']
             if algorithm_config['use_rnn'] == True:
                 self.buffer_args['type'] = 'EpisodeER'
+                self.buffer_args['batch_size'] = algorithm_config['episode_batch_size']
+                self.buffer_args['buffer_size'] = algorithm_config['episode_buffer_size']
+
+                self.buffer_args['EpisodeER']['burn_in_time_step'] = algorithm_config['burn_in_time_step']
+                self.buffer_args['EpisodeER']['train_time_step'] = algorithm_config['train_time_step']
             else:
+                self.buffer_args['batch_size'] = algorithm_config['batch_size']
+                self.buffer_args['buffer_size'] = algorithm_config['buffer_size']
+
                 _use_priority = algorithm_config.get('use_priority', False)
                 _n_step = algorithm_config.get('n_step', False)
                 if _use_priority and _n_step:

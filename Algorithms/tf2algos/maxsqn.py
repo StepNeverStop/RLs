@@ -88,20 +88,21 @@ class MAXSQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(feat)[-1].numpy()
+            mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a = pi.numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q = self.q1_net(feat)
             cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
             pi = cate_dist.sample()
-        return tf.argmax(q, axis=1), pi
+        return tf.argmax(q, axis=1), pi, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -119,11 +120,11 @@ class MAXSQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q1 = self.q1_net(feat)
                 q1_eval = tf.reduce_sum(tf.multiply(q1, a), axis=1, keepdims=True)
                 q2 = self.q2_net(feat)
@@ -144,9 +145,9 @@ class MAXSQN(Off_Policy):
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error1 = q1_eval - dc_r
                 td_error2 = q2_eval - dc_r
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * self.IS_w)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * self.IS_w)
-                loss = 0.5 * (q1_loss + q2_loss)
+                q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
+                loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
             loss_grads = tape.gradient(loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(loss_grads, self.critic_tv)

@@ -84,14 +84,14 @@ class DDPG(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        mu, pi = self._get_action(feat)
+        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
@@ -100,7 +100,7 @@ class DDPG(Off_Policy):
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits)
                 pi = cate_dist.sample()
-            return mu, pi
+            return mu, pi, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -118,12 +118,12 @@ class DDPG(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     target_mu = self.actor_target_net(feat_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -136,7 +136,7 @@ class DDPG(Off_Policy):
                 q_target = self.q_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
             q_grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.critic_tv)
@@ -169,12 +169,12 @@ class DDPG(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     target_mu = self.actor_target_net(feat_)
                     action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
@@ -196,7 +196,7 @@ class DDPG(Off_Policy):
                 q_target = self.q_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
 
                 q_actor = self.q_net(feat, pi)
                 actor_loss = -tf.reduce_mean(q_actor)

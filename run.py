@@ -16,6 +16,7 @@ Options:
     -n,--name=<name>            训练的名字 [default: None]
     -s,--save-frequency=<n>     保存频率 [default: None]
     -m,--models=<n>             同时训练多少个模型 [default: 1]
+    -r,--rnn                    是否使用RNN模型 [default: False]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
@@ -64,6 +65,7 @@ def get_options(options: Dict):
     op.add_dict(dict([
         ['inference',       bool(options['--inference'])],
         ['algo',            str(options['--algorithm'])],
+        ['use_rnn',         bool(options['--rnn'])],
         ['algo_config',     f('--config-file', str)],
         ['env',             f('--env', str)],
         ['port',            int(options['--port'])],
@@ -121,6 +123,7 @@ def run():
     buffer_args = Config(**default_config['buffer'])
     
     model_args.algo = options.algo
+    model_args.use_rnn = options.use_rnn
     model_args.algo_config = options.algo_config
     model_args.seed = options.seed
     model_args.load = options.load

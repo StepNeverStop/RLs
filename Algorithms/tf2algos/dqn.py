@@ -72,18 +72,19 @@ class DQN(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(feat).numpy()
+            a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a = a.numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q_values = self.q_net(feat)
-        return tf.argmax(q_values, axis=1)
+        return tf.argmax(q_values, axis=1), cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -98,17 +99,17 @@ class DQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q = self.q_net(feat)
                 q_next = self.q_target_net(feat_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
                 td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error) * self.IS_w)
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
             grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)

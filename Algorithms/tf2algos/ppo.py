@@ -110,16 +110,16 @@ class PPO(On_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
-        a, value, log_prob = self._get_action(feat)
+        a, value, log_prob, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
         return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             if self.is_continuous:
                 if self.share_net:
                     mu, value = self.net(feat)
@@ -137,7 +137,7 @@ class PPO(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-        return sample_op, value, log_prob
+        return sample_op, value, log_prob, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"

@@ -131,7 +131,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        all_intervals = np.linspace(0, self.tree.total, n_sample)
+        all_intervals = np.linspace(0, self.tree.total, n_sample+1)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         self.last_indexs, data_indx, p, data = self.tree.get_batch_parallel(ps)
         _min_p = self.min_p if self.global_v else p.min()
@@ -193,7 +193,7 @@ class NStepWrapper:
         if len(q) == 0:  # 如果Nstep临时经验池为空，就直接添加
             q.append(data)
             return
-        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
+        if (q[-1][4] != data[0]).any() or (q[-1][5] != data[1]).any():    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             if len(q) == self.n:
                 self._store_op(q.pop(0))
             else:
@@ -208,7 +208,7 @@ class NStepWrapper:
             q[j][3] += data[3] * (self.gamma ** (_len - j))
             q[j][4:] = data[4:]
         q.append(data)
-        if data[-1]:  # done or not # 如果新数据是done，就清空临时经验池
+        if data[6]:  # done or not # 如果新数据是done，就清空临时经验池
             while q:    # (1-done)会清零不正确的n-step
                 self._store_op(q.pop())
 
@@ -244,10 +244,11 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
 
 class EpisodeExperienceReplay(ReplayBuffer):
     
-    def __init__(self, batch_size, capacity, agents_num, timesteps=None):
+    def __init__(self, batch_size, capacity, agents_num, burn_in_time_step, train_time_step):
         super().__init__(batch_size, capacity)
         self.agents_num = agents_num
-        self.timesteps = timesteps
+        self.burn_in_time_step = burn_in_time_step
+        self.timestep = burn_in_time_step + train_time_step
         self.queue = [[] for _ in range(agents_num)]
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
@@ -268,17 +269,18 @@ class EpisodeExperienceReplay(ReplayBuffer):
             4   s_          -3
             5   visual_s_   -2
             6   done        -1
+            7   other       -
         '''
         q = self.queue[i]
         if len(q) == 0:
             q.append(data)
             return
-        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():
+        if (q[-1][4] != data[0]).any() or (q[-1][5] != data[1]).any():
             self._store_op(q.copy())
             q.clear()
             q.append(data)
             return
-        if data[-1]:
+        if data[6]:
             q.append(data)
             self._store_op(q.copy())
             q.clear()
@@ -298,29 +300,50 @@ class EpisodeExperienceReplay(ReplayBuffer):
 
     def sample(self):
         '''
-        [B, (s, a, r, s', d)] => [B, time_step, N]
+        data:
+            0   s           -7
+            1   visual_s    -6
+            2   a           -5
+            3   r           -4
+            4   s_          -3
+            5   visual_s_   -2
+            6   done        -1
+            7   other       -
+        [B, (s, a, r, s', d)] => [B*time_step, N]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        s, visual_s, a, r, s_, visual_s_, done = [[] for _ in range(7)]
-        for i in t: # i即为1条轨迹 [(s,a,r,s_,done),(s,a,r,s_,done),...]
-            data = [d for d in zip(*i)]
-            s.append(data[0])
-            visual_s.append(data[1])
-            a.append(data[2])
-            r.append(data[3])
-            s_.append(data[4])
-            visual_s_.append(data[5])
-            done.append(data[6])
-        # s, visual_s, a, r, s_, visual_s_, done = map(np.asarray, [s, visual_s, a, r, s_, visual_s_, done])
+        trajs = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)   # 选n_sample条轨迹
+        experience_type_num = len(trajs[0][0])  # 获取经验的类型种类 ， 如 <s, a, r> 即为3
+
+        def truncate(traj):
+            idx = np.random.randint(
+                max(1, len(traj)-self.timestep))
+            return traj[idx:idx+self.timestep]
+
+        truncated_trajs = list(map(truncate, trajs))
+
+        data_list = [[] for _ in range(experience_type_num)]    # [s, visual_s, a, r, s_, visual_s_, done, others...]
+        for traj in truncated_trajs:    # i即为1条轨迹 [(s,a,r,s_,done), (s,a,r,s_,done),...]
+            data = [exps for exps in zip(*traj)]
+            [dl.append(exps) for dl, exps in zip(data_list, data)]
+        
         def f(v, l):    # [B, T, N]
             return lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='pre', dtype='float32', value=v, maxlen=l, truncating='pre')
-        s, visual_s, a, r, s_, visual_s_ = map(f(v=0., l=self.timesteps), [s, visual_s, a, r, s_, visual_s_])   # [B, T, N]
-        done = f(v=1., l=self.timesteps)(done)  # [B, T, N]
-        # self.burn_in_states = map(lambda x: x[:, :20], [s, visual_s])
-        # s, visual_s, a, r, s_, visual_s_, done = map(lambda x: x[:, 20:], [s, visual_s, a, r, s_, visual_s_, done])
-        s, visual_s, a, r, s_, visual_s_, done = map(lambda x: tf.reshape(x, (-1, x.shape[-1])), [s, visual_s, a, r, s_, visual_s_, done])  # [B, T, N] => [B*T, N]
-        return (s, visual_s, a, r, s_, visual_s_, done)
+        data_list[:6] = map(f(v=0., l=self.timestep), data_list[:6])   # [B, T, N]
+        data_list[6] = f(v=1., l=self.timestep)(data_list[6])  # done [B, T, N]
+        if experience_type_num > 7:
+            data_list[7:] = map(f(v=0., l=self.timestep), data_list[7:])   # padding 后的 [B, T, N]
+
+        self.burn_in_states = list(map(lambda x: x[:, :self.burn_in_time_step], data_list[:2]))
+        data_list = list(map(lambda x: x[:, self.burn_in_time_step:], data_list))
+
+        data_list[2], data_list[3] = map(lambda x: x.reshape(-1, x.shape[-1]), [data_list[2], data_list[3]])  # s: [B, T, N], a: [B*T, N]
+        data_list[6:] = map(lambda x: x.reshape(-1, x.shape[-1]), data_list[6:])
+        return data_list
+
+    def get_burn_in_states(self):
+        s, visual_s = self.burn_in_states
+        return s, visual_s
 
     @property
     def is_full(self):

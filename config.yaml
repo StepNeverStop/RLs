@@ -64,7 +64,7 @@ gym:
         obs_scale: false
         noop: false
         noop_max: 30
-        max_episode_steps: null         # min(trian->max_step(Not Done), max_episode_steps(Done)) control the max length of episodes.
+        max_episode_steps: null         # min(train->max_step(Not Done), max_episode_steps(Done)) control the max length of episodes.
 
 buffer:
     Pandas: {}
@@ -83,4 +83,5 @@ buffer:
         global_v: false
         n: 4
     EpisodeER:
-        timesteps: 40   # null
+        burn_in_time_step: 20
+        train_time_step: 40   # null

@@ -88,18 +88,19 @@ class RAINBOW(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        feat, self.cell_state = self.get_feature(s, visual_s, self.cell_state, record_cs=True, train=False)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, len(s))
         else:
-            a = self._get_action(feat).numpy()
+            a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a = a.numpy()
         return sth.int2action_index(a, self.a_dim_or_list)
 
     @tf.function
-    def _get_action(self, feat):
+    def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q = self.get_q(feat)  # [B, A]
-        return tf.argmax(q, axis=-1)  # [B, 1]
+        return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -114,12 +115,12 @@ class RAINBOW(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, r, s_, visual_s_, done):
+    def train(self, memories, isw, crsty_loss, cell_state):
+        ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
-            feat_ = self.get_feature(s_, visual_s_)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist = self.rainbow_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
@@ -143,7 +144,7 @@ class RAINBOW(Off_Policy):
                 _cross_entropy = tf.stop_gradient(target_q_dist * u_minus_b) * tf.math.log(tf.gather_nd(q_dist, l_id)) \
                     + tf.stop_gradient(target_q_dist * b_minus_l) * tf.math.log(tf.gather_nd(q_dist, u_id))  # [B, N]
                 cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1)  # [B,]
-                loss = tf.reduce_mean(cross_entropy * self.IS_w)
+                loss = tf.reduce_mean(cross_entropy * isw) + crsty_loss
                 td_error = cross_entropy
             grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
@@ -157,7 +158,6 @@ class RAINBOW(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
-    @tf.function(experimental_relax_shapes=True)
     def get_q(self, feat):
         with tf.device(self.device):
             return tf.reduce_sum(self.zb * self.rainbow_net(feat), axis=-1)  # [B, A, N] => [B, A]

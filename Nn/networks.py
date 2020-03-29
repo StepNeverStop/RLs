@@ -9,42 +9,28 @@ activation_fn = 'tanh'
 class ObsRNN(tf.keras.Model):
     '''输入状态的RNN
     '''
-    def __init__(self, dim, hidden_units, batch_size, use_rnn):
+    def __init__(self, dim, hidden_units, use_rnn):
         super().__init__()
         self.use_rnn = use_rnn
         if use_rnn:
             self.dim = dim
-            self.batch_size = batch_size
-            self.masking = tf.keras.layers.Masking(mask_value=0.)
+            # self.masking = tf.keras.layers.Masking(mask_value=0.)
             self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
-            self(tf.keras.layers.Input(shape=(None,self.dim)))
+            self(tf.keras.layers.Input(shape=(None, self.dim)))
             self.hdim = hidden_units
         else:
             self.hdim = dim
 
-    def call(self, s, state=None, train=True):
+    def call(self, s, state=None):
         if self.use_rnn:
-            if train:   # [B*T, ...] => [B, T, ...]
-                s = tf.reshape(s, [self.batch_size, -1, s.shape[-1]])
-            else:
-                s = tf.reshape(s, [-1, 1, s.shape[-1]])
-            s = self.masking(s)
+            # s = self.masking(s)
             if state is None:
-                x, h, c = self.lstm_net(s) # 如果没指定初始化隐状态，就用brun_in的， 或者 None
+                x, h, c = self.lstm_net(s) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
             else:
                 x, h, c = self.lstm_net(s, state)
-            x = tf.reshape(x, [-1, x.shape[-1]])    # [B, T, ...] => [B*T, ...]
             return (x, (h, c))
         else:
             return (s, None)
-
-    def burn_in(self, s):
-        if self.use_rnn:
-            s = tf.reshape(s, [self.batch_size, -1, s.shape[-1]])
-            s = self.masking(s)
-            x, h, c = self.lstm_net(s)
-            return (h, c)
-        return None
 
 
 class VisualNet(tf.keras.Model):
