@@ -1,7 +1,7 @@
+import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import Nn
 from utils.sth import sth
 from utils.tf2_utils import clip_nn_log_std, tsallis_squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy

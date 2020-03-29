@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 from typing import Dict
 from utils.sth import sth
 from Algorithms.tf2algos.base.policy import Policy
@@ -74,5 +75,5 @@ class On_Policy(Policy):
         self.summaries.update(_summary)
 
         self.write_training_summaries(self.episode, self.summaries)
-        
+
         self.clear()

@@ -1,6 +1,6 @@
+import Nn
 import numpy as np
 import tensorflow as tf
-import Nn
 from utils.sth import sth
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
