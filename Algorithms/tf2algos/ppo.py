@@ -3,7 +3,6 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 import Nn
 from utils.sth import sth
-from utils.np_utils import normalization, standardization
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
@@ -95,6 +94,9 @@ class PPO(On_Policy):
                 optimizer_actor=self.optimizer_actor,
                 optimizer_critic=self.optimizer_critic
                 ))
+            
+        self.initialize_data_buffer(
+            data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob'])
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -145,17 +147,7 @@ class PPO(On_Policy):
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        self.data = self.data.append({
-            's': s,
-            'visual_s': visual_s,
-            'a': a,
-            'r': r,
-            's_': s_,
-            'visual_s_': visual_s_,
-            'done': done,
-            'value': self._value,
-            'log_prob': self._log_prob
-        }, ignore_index=True)
+        self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob)
 
     @tf.function
     def _get_value(self, feat):
@@ -167,86 +159,52 @@ class PPO(On_Policy):
             return value
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.s_.values[-1], self.data.visual_s_.values[-1], self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
         init_value = np.squeeze(self._get_value(feat).numpy())
-        # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
-        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
-        self.data['td_error'] = sth.discounted_sum_minus(
-            self.data.r.values,
-            self.gamma,
-            init_value,
-            self.data.done.values,
-            self.data.value.values
-        )
-        # GAE
-        adv = np.asarray(sth.discounted_sum(
-            self.data.td_error.values,
-            self.lambda_ * self.gamma,
-            0,
-            self.data.done.values
-        ))
-        self.data['advantage'] = list(standardization(adv))
-        # self.data.to_excel(self.recorder.excel_writer, sheet_name=f'test{self.episode}', index=True)
-        # self.recorder.excel_writer.save()
-
-    def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values).astype(np.float32)
-        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
-        a = np.vstack(i_data.a.values).astype(np.float32)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
-        old_log_prob = np.vstack(i_data.log_prob.values).reshape(-1, 1).astype(np.float32)
-        advantage = np.vstack(i_data.advantage.values).reshape(-1, 1).astype(np.float32)
-        return s, visual_s, a, dc_r, old_log_prob, advantage
+        self.data.cal_dc_r(self.gamma, init_value)
+        self.data.cal_td_error(self.gamma, init_value)
+        self.data.cal_gae_adv(self.lambda_, self.gamma)
 
     # @show_graph(name='ppo_net')
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
+        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        self.intermediate_variable_reset()
-        if self.use_curiosity:
-            ir, iloss, isummaries = self.curiosity_model(
-                np.vstack(self.data.s.values).astype(np.float32),
-                np.vstack(self.data.visual_s.values).astype(np.float32),
-                np.vstack(self.data.a.values).astype(np.float32),
-                np.vstack(self.data.s_.values).astype(np.float32),
-                np.vstack(self.data.visual_s_.values).astype(np.float32)
-                )
-            r = np.vstack(self.data.r.values).reshape(-1) + np.squeeze(ir.numpy())
-            self.data.r = list(r.reshape([self.data.shape[0], -1]))
-            self.curiosity_loss_constant += iloss
-            self.summaries.update(isummaries)
-
-        self.calculate_statistics()
-        for _ in range(self.epoch):
-            for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r, old_log_prob, advantage = map(self.data_convert, self.get_sample_data(index))
-                if self.share_net:
+        def _train(data):
+            s, visual_s, a, dc_r, old_log_prob, advantage = data
+            if self.share_net:
                     actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
                         *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)
-                else:
-                    actor_loss, entropy, kl = self.train_actor.get_concrete_function(
-                        *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
-                    # if kl > 1.5 * 0.01:
-                    #     break
-                    critic_loss = self.train_critic.get_concrete_function(
-                        *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        summaries = dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss],
-            ['Statistics/entropy', entropy]
-        ])
+            else:
+                actor_loss, entropy, kl = self.train_actor.get_concrete_function(
+                    *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
+                # if kl > 1.5 * 0.01:
+                #     break
+                critic_loss = self.train_critic.get_concrete_function(
+                    *self.critic_TensorSpecs)(s, visual_s, dc_r)
+
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/entropy', entropy]
+            ])
+            return summaries
+
         if self.share_net:
-            summaries.update(dict([['LEARNING_RATE/lr', self.lr(self.episode)]]))
+            summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
         else:
-            summaries.update(dict([
+            summary_dict =dict([
                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-            ]))
-        self.summaries.update(summaries)
-        self.write_training_summaries(self.episode, self.summaries)
-        self.clear()
+            ])
+
+        self._learn(epoch=self.epoch,
+                    function_dict={
+                        'calculate_statistics': self.calculate_statistics,
+                        'train_function': _train,
+                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv'],
+                        'summary_dict': summary_dict
+                    })
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
@@ -272,7 +230,7 @@ class PPO(On_Policy):
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
-                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy) + self.curiosity_loss_constant
+                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
@@ -313,7 +271,7 @@ class PPO(On_Policy):
                 feat = self.get_feature(s, visual_s)
                 value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error)) + self.curiosity_loss_constant
+                value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

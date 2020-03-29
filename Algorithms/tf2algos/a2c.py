@@ -1,7 +1,7 @@
+import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import Nn
 from utils.sth import sth
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
@@ -56,6 +56,8 @@ class A2C(On_Policy):
             optimizer_critic=self.optimizer_critic
         ))
 
+        self.initialize_data_buffer()
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
@@ -94,51 +96,36 @@ class A2C(On_Policy):
             return value
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.s_.values[-1], self.data.visual_s_.values[-1], self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
         init_value = np.squeeze(self._get_value(feat).numpy())
-        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
-
-    def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values).astype(np.float32)
-        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
-        a = np.vstack(i_data.a.values).astype(np.float32)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
-        return s, visual_s, a, dc_r
+        self.data.cal_dc_r(self.gamma, init_value)
 
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
+        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        self.intermediate_variable_reset()
-        if self.use_curiosity:
-            ir, iloss, isummaries = self.curiosity_model(
-                np.vstack(self.data.s.values).astype(np.float32),
-                np.vstack(self.data.visual_s.values).astype(np.float32),
-                np.vstack(self.data.a.values).astype(np.float32),
-                np.vstack(self.data.s_.values).astype(np.float32),
-                np.vstack(self.data.visual_s_.values).astype(np.float32)
-                )
-            r = np.vstack(self.data.r.values).reshape(-1) + np.squeeze(ir.numpy())
-            self.data.r = list(r.reshape([self.data.shape[0], -1]))
-            self.curiosity_loss_constant += iloss
-            self.summaries.update(isummaries)
+        def _train(data):
+            s, visual_s, a, dc_r = data
+            actor_loss, critic_loss, entropy = self.train.get_concrete_function(
+                *self.TensorSpecs)(s, visual_s, a, dc_r)
 
-        self.calculate_statistics()
-        for _ in range(self.epoch):
-            for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r = map(self.data_convert, self.get_sample_data(index))
-                actor_loss, critic_loss, entropy = self.train.get_concrete_function(
-                    *self.TensorSpecs)(s, visual_s, a, dc_r)
-        self.summaries.update(dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss],
-            ['Statistics/entropy', entropy],
-            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-        ]))
-        self.write_training_summaries(self.episode, self.summaries)
-        self.clear()
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/entropy', entropy],
+            ])
+            return summaries
+
+        self._learn(epoch=self.epoch,
+                    function_dict={
+                        'calculate_statistics': self.calculate_statistics,
+                        'train_function': _train,
+                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
+                        'summary_dict': dict([
+                            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                            ])
+                    })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, dc_r):
@@ -147,7 +134,7 @@ class A2C(On_Policy):
                 feat = self.get_feature(s, visual_s)
                 v = self.critic_net(feat)
                 td_error = dc_r - v
-                critic_loss = tf.reduce_mean(tf.square(td_error)) + self.curiosity_loss_constant
+                critic_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -196,7 +183,7 @@ class A2C(On_Policy):
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
                 critic_loss = tf.reduce_mean(tf.square(td_error))
-                actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy) + self.curiosity_loss_constant
+                actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

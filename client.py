@@ -109,7 +109,7 @@ def get_connect_option(conn):
 def get_train_option(conn):
     while True:
         print(conn.root.get_training_list())
-        item = input('plz select the task number that you want to trian: ')
+        item = input('plz select the task number that you want to train: ')
         if item == 'q':
             return 'back'
         elif int(item) >= 0:

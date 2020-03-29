@@ -1,7 +1,7 @@
+import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import Nn
 from utils.sth import sth
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
@@ -45,6 +45,8 @@ class PG(On_Policy):
             model=self.net,
             optimizer=self.optimizer
             ))
+            
+        self.initialize_data_buffer()
     
     def show_logo(self):
         self.recorder.logger.info('''
@@ -79,51 +81,29 @@ class PG(On_Policy):
         return sample_op, cell_state
 
     def calculate_statistics(self):
-        # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, 0, self.data.done.values)
-        a = np.asarray(sth.discounted_sum(self.data.r.values, self.gamma, 0, self.data.done.values))
-        a -= np.mean(a)
-        a /= np.std(a)
-        self.data['discounted_reward'] = list(a)
-
-    def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values).astype(np.float32)
-        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
-        a = np.vstack(i_data.a.values).astype(np.float32)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
-        return s, visual_s, a, dc_r
+        self.data.cal_dc_r(self.gamma, 0., normalize=True)
 
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
+        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        self.intermediate_variable_reset()
-        if self.use_curiosity:
-            ir, iloss, isummaries = self.curiosity_model(
-                np.vstack(self.data.s.values).astype(np.float32),
-                np.vstack(self.data.visual_s.values).astype(np.float32),
-                np.vstack(self.data.a.values).astype(np.float32),
-                np.vstack(self.data.s_.values).astype(np.float32),
-                np.vstack(self.data.visual_s_.values).astype(np.float32)
-                )
-            r = np.vstack(self.data.r.values).reshape(-1) + np.squeeze(ir.numpy())
-            self.data.r = list(r.reshape([self.data.shape[0], -1]))
-            self.curiosity_loss_constant += iloss
-            self.summaries.update(isummaries)
+        def _train(data):
+            s, visual_s, a, dc_r = data
+            loss, entropy = self.train.get_concrete_function(
+                *self.TensorSpecs)(s, visual_s, a, dc_r)
+            summaries = dict([
+                ['LOSS/loss', loss],
+                ['Statistics/entropy', entropy]
+            ])
+            return summaries
 
-        self.calculate_statistics()
-        for _ in range(self.epoch):
-            for index in range(0, self.data.shape[0], self.batch_size):
-                s, visual_s, a, dc_r = map(self.data_convert, self.get_sample_data(index))
-                loss, entropy = self.train.get_concrete_function(
-                    *self.TensorSpecs)(s, visual_s, a, dc_r)
-        self.summaries.update(dict([
-            ['LOSS/loss', loss],
-            ['Statistics/entropy', entropy],
-            ['LEARNING_RATE/lr', self.lr(self.episode)]
-        ]))
-        self.write_training_summaries(self.episode, self.summaries)
-        self.clear()
+        self._learn(epoch=self.epoch,
+                    function_dict={
+                        'calculate_statistics': self.calculate_statistics,
+                        'train_function': _train,
+                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
+                        'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+                    })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, s, visual_s, a, dc_r):
@@ -139,7 +119,7 @@ class PG(On_Policy):
                     logp_all = tf.nn.log_softmax(logits)
                     log_act_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                loss = -tf.reduce_mean(log_act_prob * dc_r) + self.curiosity_loss_constant
+                loss = -tf.reduce_mean(log_act_prob * dc_r)
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)

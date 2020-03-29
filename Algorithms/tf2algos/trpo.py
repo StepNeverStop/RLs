@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.sth import sth
-from utils.np_utils import normalization, standardization
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 '''
@@ -93,6 +92,13 @@ class TRPO(On_Policy):
             critic=self.critic_net,
             optimizer_critic=self.optimizer_critic
             ))
+            
+        if self.is_continuous:
+            data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
+        else:
+            data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_logp_all']
+        self.initialize_data_buffer(
+            data_name_list=data_name_list)
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -142,23 +148,10 @@ class TRPO(On_Policy):
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         if not self.is_continuous:
             a = sth.action_index2one_hot(a, self.a_dim_or_list)
-        _data = {
-            's': s,
-            'visual_s': visual_s,
-            'a': a,
-            'r': r,
-            's_': s_,
-            'visual_s_': visual_s_,
-            'done': done,
-            'value': self._value,
-            'log_prob': self._log_prob
-        }
         if self.is_continuous:
-            _data.update({'old_mu': self._mu})
-            _data.update({'old_log_std': self.log_std.numpy()})
+            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self.log_std.numpy())
         else:
-            _data.update({'old_logp_all': self._logp_all})
-        self.data = self.data.append(_data, ignore_index=True)
+            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._logp_all)
 
     @tf.function
     def _get_value(self, feat):
@@ -167,71 +160,22 @@ class TRPO(On_Policy):
             return value
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.s_.values[-1], self.data.visual_s_.values[-1], self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
         init_value = np.squeeze(self._get_value(feat).numpy())
-        # self.data['total_reward'] = sth.discounted_sum(self.data.r.values, 1, init_value, self.data.done.values)
-        self.data['discounted_reward'] = sth.discounted_sum(self.data.r.values, self.gamma, init_value, self.data.done.values)
-        self.data['td_error'] = sth.discounted_sum_minus(
-            self.data.r.values,
-            self.gamma,
-            init_value,
-            self.data.done.values,
-            self.data.value.values
-        )
-        # GAE
-        adv = np.asarray(sth.discounted_sum(
-            self.data.td_error.values,
-            self.lambda_ * self.gamma,
-            0,
-            self.data.done.values
-        ))
-        self.data['advantage'] = list(standardization(adv))
-
-    def get_sample_data(self, index):
-        i_data = self.data.iloc[index:index + self.batch_size]
-        s = np.vstack(i_data.s.values).astype(np.float32)
-        visual_s = np.vstack(i_data.visual_s.values).astype(np.float32)
-        a = np.vstack(i_data.a.values).astype(np.float32)
-        dc_r = np.vstack(i_data.discounted_reward.values).reshape(-1, 1).astype(np.float32)
-        old_log_prob = np.vstack(i_data.log_prob.values).reshape(-1, 1).astype(np.float32)
-        advantage = np.vstack(i_data.advantage.values).reshape(-1, 1).astype(np.float32)
-        if self.is_continuous:
-            return (
-                s, visual_s, a, dc_r, old_log_prob, advantage,
-                np.vstack(i_data.old_mu.values).astype(np.float32),
-                np.vstack(i_data.old_log_std.values).astype(np.float32)
-            )
-        else:
-            return (
-                s, visual_s, a, dc_r, old_log_prob, advantage,
-                np.vstack(i_data.old_logp_all.values).astype(np.float32)
-            )
+        self.data.cal_dc_r(self.gamma, init_value)
+        self.data.cal_td_error(self.gamma, init_value)
+        self.data.cal_gae_adv(self.lambda_, self.gamma)
 
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.shape[0], "batch_size must less than the length of an episode"
+        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        self.intermediate_variable_reset()
-        if self.use_curiosity:
-            ir, iloss, isummaries = self.curiosity_model(
-                np.vstack(self.data.s.values).astype(np.float32),
-                np.vstack(self.data.visual_s.values).astype(np.float32),
-                np.vstack(self.data.a.values).astype(np.float32),
-                np.vstack(self.data.s_.values).astype(np.float32),
-                np.vstack(self.data.visual_s_.values).astype(np.float32)
-                )
-            r = np.vstack(self.data.r.values).reshape(-1) + np.squeeze(ir.numpy())
-            self.data.r = list(r.reshape([self.data.shape[0], -1]))
-            self.curiosity_loss_constant += iloss
-            self.summaries.update(isummaries)
-
-        self.calculate_statistics()
-        for index in range(0, self.data.shape[0], self.batch_size):
+        def _train(data):
             if self.is_continuous:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = map(self.data_convert, self.get_sample_data(index))
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = data
                 Hx_args = (s, visual_s, old_mu, old_log_std)
             else:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = map(self.data_convert, self.get_sample_data(index))
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = data
                 Hx_args = (s, visual_s, old_logp_all)
             actor_loss, entropy, gradients = self.train_actor.get_concrete_function(
                 *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
@@ -245,17 +189,27 @@ class TRPO(On_Policy):
             for _ in range(self.train_v_iters):
                 critic_loss = self.train_critic.get_concrete_function(
                     *self.critic_TensorSpecs)(s, visual_s, dc_r)
-        summaries = dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss],
-            ['Statistics/entropy', entropy]
-        ])
-        summaries.update(dict([
-            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-        ]))
-        self.summaries.update(summaries)
-        self.write_training_summaries(self.episode, self.summaries)
-        self.clear()
+
+            summaries = dict([
+                ['LOSS/actor_loss', actor_loss],
+                ['LOSS/critic_loss', critic_loss],
+                ['Statistics/entropy', entropy]
+            ])
+            return summaries
+
+        if self.is_continuous:
+            train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_mu', 'old_log_std']
+        else:
+            train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_logp_all']
+        
+        self._learn(function_dict={
+                        'calculate_statistics': self.calculate_statistics,
+                        'train_function': _train,
+                        'train_data_list': train_data_list,
+                        'summary_dict': dict([
+                            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                            ])
+                    })
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, s, visual_s, a, old_log_prob, advantage):
@@ -313,7 +267,7 @@ class TRPO(On_Policy):
                 feat = self.get_feature(s, visual_s)
                 value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error)) + self.curiosity_loss_constant
+                value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

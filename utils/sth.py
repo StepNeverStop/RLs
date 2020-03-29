@@ -5,9 +5,6 @@ import numpy as np
 class sth(object):
     @staticmethod
     def discounted_sum(x, gamma, init_value, dones):
-        assert isinstance(x, np.ndarray), 'type of sth.discounted_sum.x must be np.ndarray'
-        assert isinstance(dones, np.ndarray), 'type of sth.discounted_sum.done must be np.ndarray'
-
         y = []
         for i in reversed(range(len(x))):
             init_value = gamma * (1 - dones[i]) * init_value + x[i]
@@ -16,10 +13,6 @@ class sth(object):
 
     @staticmethod
     def discounted_sum_minus(x, gamma, init_value, dones, z):
-        assert isinstance(x, np.ndarray), 'type of sth.discounted_sum_minus.x must be np.ndarray'
-        assert isinstance(dones, np.ndarray), 'type of sth.discounted_sum_minus.dones must be np.ndarray'
-        assert isinstance(z, np.ndarray), 'type of sth.discounted_sum_minus.z must be np.ndarray'
-
         y = []
         for i in reversed(range(len(x))):
             y.insert(0, gamma * (1 - dones[i]) * init_value + x[i] - z[i])

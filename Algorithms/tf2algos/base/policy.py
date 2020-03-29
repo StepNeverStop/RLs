@@ -46,7 +46,6 @@ class Policy(Base):
         self.max_episode = int(kwargs.get('max_episode', 1000))
         self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
-        self.curiosity_loss_constant = 0.
 
         self.use_curiosity = bool(kwargs.get('use_curiosity', False))
         if self.use_curiosity:
@@ -99,7 +98,6 @@ class Policy(Base):
         TODO: Annotation
         '''
         self.summaries = {}
-        self.curiosity_loss_constant = 0.
 
     def get_max_episode(self):
         """
