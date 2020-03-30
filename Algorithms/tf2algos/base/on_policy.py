@@ -62,7 +62,8 @@ class On_Policy(Policy):
             crsty_loss = tf.constant(value=0., dtype=self._data_type)
 
         _cal_stics()
-        self.data.convert_action2one_hot(self.a_counts)
+        if not self.is_continuous:
+            self.data.convert_action2one_hot(self.a_counts)
 
         for _ in range(epoch):
             all_data = self.data.sample_generater(self.batch_size, _train_data_list)

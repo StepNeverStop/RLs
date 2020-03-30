@@ -83,7 +83,6 @@ class PG(On_Policy):
         self.data.cal_dc_r(self.gamma, 0., normalize=True)
 
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
         def _train(data, crsty_loss, cell_state):

@@ -163,7 +163,6 @@ class TRPO(On_Policy):
         self.data.cal_gae_adv(self.lambda_, self.gamma)
 
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
         def _train(data, crsty_loss, cell_state):

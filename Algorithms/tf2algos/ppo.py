@@ -164,7 +164,6 @@ class PPO(On_Policy):
 
     # @show_graph(name='ppo_net')
     def learn(self, **kwargs):
-        assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
         def _train(data, crsty_loss, cell_state):
