@@ -69,7 +69,7 @@ class Off_Policy(Policy):
         data = self.data.sample()   # 经验池取数据
         if not self.is_continuous and 'a' in data_name_list:
             a_idx = data_name_list.index('a')
-            data[a_idx] = sth.action_index2one_hot(data[a_idx].astype(np.int32), self.a_dim_or_list) # 将离散动作的索引转换为one_hot
+            data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_counts)
         
         return dict([
             [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))

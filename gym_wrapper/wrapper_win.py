@@ -1,6 +1,7 @@
 import gym
 import threading
 import numpy as np
+from utils.sth import sth
 from typing import Dict
 from common.config import Config
 from gym.spaces import Box, Discrete, Tuple
@@ -185,10 +186,13 @@ class gym_envs(object):
         return obs
 
     def step(self, actions):
-        if self.action_type == 'discrete':
-            actions = actions.reshape(-1,)
-        elif self.action_type == 'Tuple(Discrete)':
-            actions = actions.reshape(self.n, -1).tolist()
+        actions = np.array(actions)
+        if not self.is_continuous:
+            actions = sth.int2action_index(actions, self.a_dim_or_list)
+            if self.action_type == 'discrete':
+                actions = actions.reshape(-1,)
+            elif self.action_type == 'Tuple(Discrete)':
+                actions = actions.reshape(self.n, -1).tolist()
         threadpool = []
         for i in range(self.n):
             th = FakeMultiThread(self.envs[i].step, args=(actions[i], ))

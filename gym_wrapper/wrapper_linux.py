@@ -188,10 +188,13 @@ class gym_envs(object):
         return np.asarray(ray.get([env.sample.remote() for env in self.envs]))
 
     def step(self, actions):
-        if self.action_type == 'discrete':
-            actions = actions.reshape(-1,)
-        elif self.action_type == 'Tuple(Discrete)':
-            actions = actions.reshape(self.n, -1).tolist()
+        actions = np.array(actions)
+        if not self.is_continuous:
+            actions = sth.int2action_index(actions, self.a_dim_or_list)
+            if self.action_type == 'discrete':
+                actions = actions.reshape(-1,)
+            elif self.action_type == 'Tuple(Discrete)':
+                actions = actions.reshape(self.n, -1).tolist()
         obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
         self.dones_index = np.where(done)[0]
         return (np.asarray(obs),

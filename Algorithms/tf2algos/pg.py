@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
@@ -30,7 +29,7 @@ class PG(On_Policy):
             is_continuous=is_continuous,
             **kwargs)
         self.epoch = epoch
-        self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
+        # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.is_continuous:
             self.net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
@@ -65,7 +64,7 @@ class PG(On_Policy):
     def choose_action(self, s, visual_s, evaluation=False):
         a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -87,10 +86,12 @@ class PG(On_Policy):
         assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        def _train(data):
-            s, visual_s, a, dc_r = data
-            loss, entropy = self.train.get_concrete_function(
-                *self.TensorSpecs)(s, visual_s, a, dc_r)
+        def _train(data, crsty_loss, cell_state):
+            loss, entropy = self.train(
+                data,
+                crsty_loss,
+                cell_state
+            )
             summaries = dict([
                 ['LOSS/loss', loss],
                 ['Statistics/entropy', entropy]
@@ -106,10 +107,11 @@ class PG(On_Policy):
                     })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, dc_r):
+    def train(self, memories, crsty_loss, cell_state):
+        s, visual_s, a, dc_r = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
                     mu = self.net(feat)
                     log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
@@ -119,7 +121,7 @@ class PG(On_Policy):
                     logp_all = tf.nn.log_softmax(logits)
                     log_act_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                loss = -tf.reduce_mean(log_act_prob * dc_r)
+                loss = -tf.reduce_mean(log_act_prob * dc_r) + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)

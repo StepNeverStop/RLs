@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
 
@@ -76,7 +75,7 @@ class DPG(Off_Policy):
     def choose_action(self, s, visual_s, evaluation=False):        
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):

@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 '''
@@ -67,21 +66,20 @@ class TRPO(On_Policy):
         self.backtrack_coeff = backtrack_coeff
         self.train_v_iters = train_v_iters
 
-        self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
-        self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
-
+        # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
+        # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
 
         if self.is_continuous:
             self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
             self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
-            self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
-                + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
+            # self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
+            #     + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [self.a_counts])
         else:
             self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
             self.actor_tv = self.actor_net.trainable_variables
-            self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
-                + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
+            # self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
+            #     + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts])
         self.critic_net = Nn.critic_v(self.rnn_net.hdim, hidden_units['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
@@ -122,7 +120,7 @@ class TRPO(On_Policy):
             self._mu = _morlpa.numpy()
         else:
             self._logp_all = _morlpa.numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -146,8 +144,6 @@ class TRPO(On_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if not self.is_continuous:
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         if self.is_continuous:
             self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self.log_std.numpy())
         else:
@@ -170,25 +166,30 @@ class TRPO(On_Policy):
         assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        def _train(data):
+        def _train(data, crsty_loss, cell_state):
             if self.is_continuous:
                 s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = data
                 Hx_args = (s, visual_s, old_mu, old_log_std)
             else:
                 s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = data
                 Hx_args = (s, visual_s, old_logp_all)
-            actor_loss, entropy, gradients = self.train_actor.get_concrete_function(
-                *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
+            actor_loss, entropy, gradients = self.train_actor(
+                (s, visual_s, a, old_log_prob, advantage),
+                cell_state
+            )
 
-            x = self.cg(self.Hx.get_concrete_function(*self.Hx_TensorSpecs), gradients.numpy(), Hx_args)
+            x = self.cg(self.Hx, gradients.numpy(), Hx_args)
             x = tf.convert_to_tensor(x)
-            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx.get_concrete_function(*self.Hx_TensorSpecs)(x, *Hx_args)) + 1e-8))
+            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, *Hx_args)) + 1e-8))
             for i in range(self.backtrack_iters):
                 assign_params_from_flat(alpha * x * (self.backtrack_coeff ** i), self.actor_tv)
 
             for _ in range(self.train_v_iters):
-                critic_loss = self.train_critic.get_concrete_function(
-                    *self.critic_TensorSpecs)(s, visual_s, dc_r)
+                critic_loss = self.train_critic(
+                    (s, visual_s, dc_r),
+                    crsty_loss,
+                    cell_state
+                )
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -212,10 +213,11 @@ class TRPO(On_Policy):
                     })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, s, visual_s, a, old_log_prob, advantage):
+    def train_actor(self, memories, cell_state):
+        s, visual_s, a, old_log_prob, advantage = memories
         with tf.device(self.device):
+            feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
                 if self.is_continuous:
                     mu = self.actor_net(feat)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
@@ -255,19 +257,20 @@ class TRPO(On_Policy):
 
                 g = flat_concat(tape.gradient(kl, self.actor_tv))
                 _g = tf.reduce_sum(g * x)
-                hvp = flat_concat(tape.gradient(_g, self.actor_tv))
-                if self.damping_coeff > 0:
-                    hvp += self.damping_coeff * x
+            hvp = flat_concat(tape.gradient(_g, self.actor_tv))
+            if self.damping_coeff > 0:
+                hvp += self.damping_coeff * x
             return hvp
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, s, visual_s, dc_r):
+    def train_critic(self, memories, crsty_loss, cell_state):
+        s, visual_s, dc_r = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error))
+                value_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

@@ -1,7 +1,6 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from utils.sth import sth
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
 
@@ -93,7 +92,7 @@ class RAINBOW(Off_Policy):
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = a.numpy()
-        return sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -158,6 +157,7 @@ class RAINBOW(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
+    @tf.function(experimental_relax_shapes=True)
     def get_q(self, feat):
         with tf.device(self.device):
             return tf.reduce_sum(self.zb * self.rainbow_net(feat), axis=-1)  # [B, A, N] => [B, A]

@@ -1,5 +1,6 @@
 
 import numpy as np
+from utils.sth import sth
 from utils.sampler import create_sampler_manager
 from mlagents.mlagents_envs.environment import UnityEnvironment
 from mlagents.mlagents_envs.side_channel.engine_configuration_channel import EngineConfig, EngineConfigurationChannel
@@ -215,3 +216,16 @@ class SamplerWrapper(BasicWrapper):
             self.reset_config.update(self.sampler_manager.sample_all())
         obs = self._env.reset(config=self.reset_config)
         return obs
+
+class ActionWrapper(BasicWrapper):
+    
+    def __init__(self, env):
+        super().__init__(env)
+
+    def step(self, actions):
+        for i, k in enumerate(actions.keys()):
+            if self.is_continuous[i]:
+                pass
+            else:
+                actions[k] = sth.int2action_index(actions[k], self.a_dim_or_list[i])
+        return self._env.step(actions)

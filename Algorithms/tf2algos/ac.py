@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 
@@ -70,7 +69,7 @@ class AC(Off_Policy):
         a, _lp, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -91,8 +90,6 @@ class AC(Off_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if not self.is_continuous:
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         old_log_prob = self._log_prob
         self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob)
 
@@ -101,8 +98,6 @@ class AC(Off_Policy):
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         old_log_prob = np.ones_like(r)
-        if not self.is_continuous:
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob[:, np.newaxis])
 
     def learn(self, **kwargs):

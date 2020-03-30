@@ -101,6 +101,13 @@ class DataBuffer(object):
         all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*agents_num, -1).astype(np.float32) for k in keys]
         return all_data
 
+    def convert_action2one_hot(self, a_counts):
+        '''
+        用于在训练前将buffer中的离散动作的索引转换为one_hot类型
+        '''
+        if 'a' in self.buffer.keys():
+            self.buffer['a'] = [sth.int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
+
         
     def clear(self):
         '''

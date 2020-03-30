@@ -31,8 +31,6 @@ class On_Policy(Policy):
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        if not self.is_continuous:
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
     def no_op_store(self, *args, **kwargs):
@@ -64,12 +62,21 @@ class On_Policy(Policy):
             crsty_loss = tf.constant(value=0., dtype=self._data_type)
 
         _cal_stics()
+        self.data.convert_action2one_hot(self.a_counts)
 
         for _ in range(epoch):
             all_data = self.data.sample_generater(self.batch_size, _train_data_list)
             for data in all_data:
+
+                if self.use_rnn and self.burn_in_time_step:
+                    raise NotImplementedError
+                    # _s, _visual_s = self.data.get_burn_in_states()
+                    # cell_state = self.get_burn_in_feature(_s, _visual_s)
+                else:
+                    cell_state = None
+
                 data = list(map(self.data_convert, data))
-                summaries = _train(data)
+                summaries = _train(data, crsty_loss, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)

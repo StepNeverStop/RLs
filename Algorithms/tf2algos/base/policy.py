@@ -56,9 +56,12 @@ class Policy(Base):
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
-        self.get_feature = self.generate_get_feature_function()
+        self.get_feature = tf.function(
+            func=self.generate_get_feature_function(),
+            experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(
-            func=self.generate_get_brun_in_feature_function())
+            func=self.generate_get_brun_in_feature_function(), 
+            experimental_relax_shapes=True)
 
     def reset(self):
         self.cell_state = None
@@ -78,9 +81,9 @@ class Policy(Base):
         '''
         assert isinstance(index, (list, np.ndarray))
         if self.cell_state is not None and len(index) > 0:
-            _arr = np.ones((self.cell_state[0].shape[0], 1), dtype=np.float32)
+            _arr = np.ones(shape=self.cell_state[0].shape, dtype=np.float32)    # h, c
             _arr[index] = 0.
-            self.cell_state = [c * _arr for c in self.cell_state]        # [A, B] * [A, 1] => [A, B] 将某行全部替换为0.
+            self.cell_state = [c * _arr for c in self.cell_state]        # [A, B] * [A, B] => [A, B] 将某行全部替换为0.
 
 
     def model_recorder(self, kwargs):

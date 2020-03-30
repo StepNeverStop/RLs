@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from utils.sth import sth
 from Algorithms.tf2algos.base.on_policy import On_Policy
 from Nn.layers import mlp
 
@@ -90,7 +89,6 @@ class CEM(On_Policy):
             a = np.vstack(a)
         else:
             a = np.hstack(a)
-            a = sth.int2action_index(a, self.a_dim_or_list)
         return a
 
     @tf.function

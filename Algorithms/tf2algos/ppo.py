@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
@@ -60,7 +59,7 @@ class PPO(On_Policy):
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
         if self.share_net:
-            self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
+            # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
             if self.is_continuous:
                 self.net = Nn.a_c_v_continuous(self.rnn_net.hdim, self.a_counts, hidden_units['share']['continuous'])
                 self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
@@ -74,8 +73,8 @@ class PPO(On_Policy):
                 optimizer=self.optimizer
                 ))
         else:
-            self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
-            self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
+            # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
+            # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
                 self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
                 self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
@@ -116,7 +115,7 @@ class PPO(On_Policy):
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -145,8 +144,6 @@ class PPO(On_Policy):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        if not self.is_continuous:
-            a = sth.action_index2one_hot(a, self.a_dim_or_list)
         self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob)
 
     @tf.function
@@ -170,18 +167,26 @@ class PPO(On_Policy):
         assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        def _train(data):
-            s, visual_s, a, dc_r, old_log_prob, advantage = data
+        def _train(data, crsty_loss, cell_state):
             if self.share_net:
-                    actor_loss, critic_loss, entropy, kl = self.train_share.get_concrete_function(
-                        *self.TensorSpecs)(s, visual_s, a, dc_r, old_log_prob, advantage)
+                    actor_loss, critic_loss, entropy, kl = self.train_share(
+                        data,
+                        crsty_loss,
+                        cell_state
+                        )
             else:
-                actor_loss, entropy, kl = self.train_actor.get_concrete_function(
-                    *self.actor_TensorSpecs)(s, visual_s, a, old_log_prob, advantage)
+                s, visual_s, a, dc_r, old_log_prob, advantage = data
+                actor_loss, entropy, kl = self.train_actor(
+                    (s, visual_s, a, old_log_prob, advantage),
+                    cell_state
+                )
                 # if kl > 1.5 * 0.01:
                 #     break
-                critic_loss = self.train_critic.get_concrete_function(
-                    *self.critic_TensorSpecs)(s, visual_s, dc_r)
+                critic_loss = self.train_critic(
+                    (s, visual_s, dc_r),
+                    crsty_loss,
+                    cell_state
+                )
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -207,10 +212,11 @@ class PPO(On_Policy):
                     })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_share(self, s, visual_s, a, dc_r, old_log_prob, advantage):
+    def train_share(self, memories, crsty_loss, cell_state):
+        s, visual_s, a, dc_r, old_log_prob, advantage = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
                     mu, value = self.net(feat)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
@@ -230,7 +236,7 @@ class PPO(On_Policy):
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
                 value_loss = tf.reduce_mean(tf.square(td_error))
-                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy)
+                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy) + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
@@ -239,10 +245,11 @@ class PPO(On_Policy):
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, s, visual_s, a, old_log_prob, advantage):
+    def train_actor(self, memories, cell_state):
+        s, visual_s, a, old_log_prob, advantage = memories
         with tf.device(self.device):
+            feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
                 if self.is_continuous:
                     mu = self.actor_net(feat)
                     new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
@@ -265,13 +272,14 @@ class PPO(On_Policy):
             return actor_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, s, visual_s, dc_r):
+    def train_critic(self, memories, crsty_loss, cell_state):
+        s, visual_s, dc_r = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error))
+                value_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

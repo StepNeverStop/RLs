@@ -2,7 +2,6 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from utils.sth import sth
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
@@ -35,7 +34,7 @@ class A2C(On_Policy):
         self.beta = beta
         self.epoch = epoch
 
-        self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
+        # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
         if self.is_continuous:
             self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
@@ -74,7 +73,7 @@ class A2C(On_Policy):
     def choose_action(self, s, visual_s, evaluation=False):
         a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
-        return a if self.is_continuous else sth.int2action_index(a, self.a_dim_or_list)
+        return a
 
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
@@ -104,10 +103,8 @@ class A2C(On_Policy):
         assert self.batch_size <= self.data.eps_len, "batch_size must less than the length of an episode"
         self.episode = kwargs['episode']
 
-        def _train(data):
-            s, visual_s, a, dc_r = data
-            actor_loss, critic_loss, entropy = self.train.get_concrete_function(
-                *self.TensorSpecs)(s, visual_s, a, dc_r)
+        def _train(data, crsty_loss, cell_state):
+            actor_loss, critic_loss, entropy = self.train(data, crsty_loss, cell_state)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -128,13 +125,14 @@ class A2C(On_Policy):
                     })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, s, visual_s, a, dc_r):
+    def train(self, memories, crsty_loss, cell_state):
+        s, visual_s, a, dc_r = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 v = self.critic_net(feat)
                 td_error = dc_r - v
-                critic_loss = tf.reduce_mean(tf.square(td_error))
+                critic_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -166,10 +164,11 @@ class A2C(On_Policy):
             return actor_loss, critic_loss, entropy
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, s, visual_s, a, dc_r):
+    def train_persistent(self, memories, crsty_loss, cell_state):
+        s, visual_s, a, dc_r = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.get_feature(s, visual_s)
+                feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
                     mu = self.actor_net(feat)
                     log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
@@ -182,7 +181,7 @@ class A2C(On_Policy):
                 v = self.critic_net(feat)
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
-                critic_loss = tf.reduce_mean(tf.square(td_error))
+                critic_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(

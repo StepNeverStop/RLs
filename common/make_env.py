@@ -1,7 +1,7 @@
 from copy import deepcopy
 from gym_wrapper import gym_envs
 from common.unity_wrapper import UnityWrapper
-from common.unity_wrapper import InfoWrapper, UnityReturnWrapper, SamplerWrapper
+from common.unity_wrapper import InfoWrapper, UnityReturnWrapper, SamplerWrapper, ActionWrapper
 
 
 def make_env(env_args):
@@ -26,4 +26,5 @@ def make_unity_env(env_args):
     env = InfoWrapper(env)
     env = UnityReturnWrapper(env)
     env = SamplerWrapper(env, env_args)
+    env = ActionWrapper(env)
     return env
