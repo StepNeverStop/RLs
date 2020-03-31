@@ -1,5 +1,4 @@
 # # Unity ML-Agents Toolkit
-import logging
 from typing import Dict, List, Deque, Any
 import time
 import abc
@@ -9,25 +8,20 @@ from mlagents import tf_utils
 
 from collections import deque
 
-from mlagents_envs.exception import UnityException
 from mlagents_envs.timers import set_gauge
-from mlagents.trainers.tf_policy import TFPolicy
+from mlagents_envs.logging_util import get_logger
+from mlagents.model_serialization import export_policy_model, SerializationSettings
+from mlagents.trainers.policy.tf_policy import TFPolicy
 from mlagents.trainers.stats import StatsReporter
 from mlagents.trainers.trajectory import Trajectory
 from mlagents.trainers.agent_processor import AgentManagerQueue
 from mlagents.trainers.brain import BrainParameters
 from mlagents.trainers.policy import Policy
+from mlagents.trainers.exception import UnityTrainerException
 from mlagents_envs.timers import hierarchical_timer
 
-LOGGER = logging.getLogger("mlagents.trainers")
 
-
-class UnityTrainerException(UnityException):
-    """
-    Related to errors with the Trainer.
-    """
-
-    pass
+logger = get_logger(__name__)
 
 
 class Trainer(abc.ABC):
@@ -91,7 +85,7 @@ class Trainer(abc.ABC):
                 s = sess.run(s_op)
                 self.stats_reporter.write_text(s, self.get_step)
         except Exception:
-            LOGGER.info("Could not write text summary for Tensorboard.")
+            logger.info("Could not write text summary for Tensorboard.")
             pass
 
     def _dict_to_str(self, param_dict: Dict[str, Any], num_tabs: int) -> str:
@@ -192,7 +186,9 @@ class Trainer(abc.ABC):
         """
         Exports the model
         """
-        self.get_policy(name_behavior_id).export_model()
+        policy = self.get_policy(name_behavior_id)
+        settings = SerializationSettings(policy.model_path, policy.brain.brain_name)
+        export_policy_model(settings, policy.graph, policy.sess)
 
     def _write_summary(self, step: int) -> None:
         """
@@ -203,8 +199,8 @@ class Trainer(abc.ABC):
             "Environment/Cumulative Reward"
         )
         if stats_summary.num > 0:
-            LOGGER.info(
-                " {}: {}: Step: {}. "
+            logger.info(
+                "{}: {}: Step: {}. "
                 "Time Elapsed: {:0.3f} s "
                 "Mean "
                 "Reward: {:0.3f}"
@@ -220,7 +216,7 @@ class Trainer(abc.ABC):
             )
             set_gauge(f"{self.brain_name}.mean_reward", stats_summary.mean)
         else:
-            LOGGER.info(
+            logger.info(
                 " {}: {}: Step: {}. No episode was completed since last summary. {}".format(
                     self.run_id, self.brain_name, step, is_training
                 )

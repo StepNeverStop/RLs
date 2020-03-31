@@ -1,16 +1,11 @@
 from abc import ABC, abstractmethod
-from enum import IntEnum
+from typing import List
+import uuid
 
+from mlagents_envs.side_channel import IncomingMessage, OutgoingMessage
+from mlagents_envs.logging_util import get_logger
 
-class SideChannelType(IntEnum):
-    FloatProperties = 1
-    EngineSettings = 2
-    # Raw bytes channels should start here to avoid conflicting with other
-    # Unity ones.
-    RawBytesChannelStart = 1000
-    # custom side channels should start here to avoid conflicting with Unity
-    # ones.
-    UserSideChannelStart = 2000
+logger = get_logger(__name__)
 
 
 class SideChannel(ABC):
@@ -22,18 +17,19 @@ class SideChannel(ABC):
     to the Env object at construction.
     """
 
-    def __init__(self):
-        self.message_queue = []
+    def __init__(self, channel_id: uuid.UUID):
+        self._channel_id: uuid.UUID = channel_id
+        self.message_queue: List[bytearray] = []
 
-    def queue_message_to_send(self, data: bytearray) -> None:
+    def queue_message_to_send(self, msg: OutgoingMessage) -> None:
         """
         Queues a message to be sent by the environment at the next call to
         step.
         """
-        self.message_queue.append(data)
+        self.message_queue.append(msg.buffer)
 
     @abstractmethod
-    def on_message_received(self, data: bytes) -> None:
+    def on_message_received(self, msg: IncomingMessage) -> None:
         """
         Is called by the environment to the side channel. Can be called
         multiple times per step if multiple messages are meant for that
@@ -42,10 +38,9 @@ class SideChannel(ABC):
         pass
 
     @property
-    @abstractmethod
-    def channel_type(self) -> int:
+    def channel_id(self) -> uuid.UUID:
         """
         :return:The type of side channel used. Will influence how the data is
         processed in the environment.
         """
-        pass
+        return self._channel_id

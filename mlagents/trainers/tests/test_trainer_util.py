@@ -6,7 +6,7 @@ from unittest.mock import patch
 from mlagents.trainers import trainer_util
 from mlagents.trainers.trainer_util import load_config, _load_config
 from mlagents.trainers.ppo.trainer import PPOTrainer
-from mlagents.trainers.exception import TrainerConfigError
+from mlagents.trainers.exception import TrainerConfigError, UnityTrainerException
 from mlagents.trainers.brain import BrainParameters
 
 
@@ -108,15 +108,7 @@ def test_initialize_trainer_parameters_override_defaults(
     external_brains = {"testbrain": brain_params_mock}
 
     def mock_constructor(
-        self,
-        brain,
-        reward_buff_cap,
-        trainer_parameters,
-        training,
-        load,
-        seed,
-        run_id,
-        multi_gpu,
+        self, brain, reward_buff_cap, trainer_parameters, training, load, seed, run_id
     ):
         assert brain == brain_params_mock.brain_name
         assert trainer_parameters == expected_config
@@ -125,7 +117,6 @@ def test_initialize_trainer_parameters_override_defaults(
         assert load == load_model
         assert seed == seed
         assert run_id == run_id
-        assert multi_gpu == multi_gpu
 
     with patch.object(PPOTrainer, "__init__", mock_constructor):
         trainer_factory = trainer_util.TrainerFactory(
@@ -168,15 +159,7 @@ def test_initialize_ppo_trainer(BrainParametersMock, dummy_config):
     expected_config["keep_checkpoints"] = keep_checkpoints
 
     def mock_constructor(
-        self,
-        brain,
-        reward_buff_cap,
-        trainer_parameters,
-        training,
-        load,
-        seed,
-        run_id,
-        multi_gpu,
+        self, brain, reward_buff_cap, trainer_parameters, training, load, seed, run_id
     ):
         assert brain == brain_params_mock.brain_name
         assert trainer_parameters == expected_config
@@ -185,7 +168,6 @@ def test_initialize_ppo_trainer(BrainParametersMock, dummy_config):
         assert load == load_model
         assert seed == seed
         assert run_id == run_id
-        assert multi_gpu == multi_gpu
 
     with patch.object(PPOTrainer, "__init__", mock_constructor):
         trainer_factory = trainer_util.TrainerFactory(
@@ -221,6 +203,40 @@ def test_initialize_invalid_trainer_raises_exception(
     external_brains = {"testbrain": BrainParametersMock()}
 
     with pytest.raises(TrainerConfigError):
+        trainer_factory = trainer_util.TrainerFactory(
+            trainer_config=bad_config,
+            summaries_dir=summaries_dir,
+            run_id=run_id,
+            model_path=model_path,
+            keep_checkpoints=keep_checkpoints,
+            train_model=train_model,
+            load_model=load_model,
+            seed=seed,
+        )
+        trainers = {}
+        for brain_name, brain_parameters in external_brains.items():
+            trainers[brain_name] = trainer_factory.generate(brain_parameters.brain_name)
+
+    # Test no trainer specified
+    del bad_config["default"]["trainer"]
+    with pytest.raises(TrainerConfigError):
+        trainer_factory = trainer_util.TrainerFactory(
+            trainer_config=bad_config,
+            summaries_dir=summaries_dir,
+            run_id=run_id,
+            model_path=model_path,
+            keep_checkpoints=keep_checkpoints,
+            train_model=train_model,
+            load_model=load_model,
+            seed=seed,
+        )
+        trainers = {}
+        for brain_name, brain_parameters in external_brains.items():
+            trainers[brain_name] = trainer_factory.generate(brain_parameters.brain_name)
+
+    # Test BC trainer specified
+    bad_config["default"]["trainer"] = "offline_bc"
+    with pytest.raises(UnityTrainerException):
         trainer_factory = trainer_util.TrainerFactory(
             trainer_config=bad_config,
             summaries_dir=summaries_dir,

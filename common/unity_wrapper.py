@@ -1,5 +1,6 @@
 
 import numpy as np
+from copy import deepcopy
 from utils.sth import sth
 from utils.sampler import create_sampler_manager
 from mlagents.mlagents_envs.environment import UnityEnvironment
@@ -223,6 +224,7 @@ class ActionWrapper(BasicWrapper):
         super().__init__(env)
 
     def step(self, actions):
+        actions = deepcopy(actions)
         for i, k in enumerate(actions.keys()):
             if self.is_continuous[i]:
                 pass

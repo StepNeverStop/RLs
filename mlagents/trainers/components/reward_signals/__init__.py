@@ -1,4 +1,3 @@
-import logging
 from typing import Any, Dict, List
 from collections import namedtuple
 import numpy as np
@@ -6,11 +5,13 @@ import abc
 
 from mlagents.tf_utils import tf
 
-from mlagents.trainers.trainer import UnityTrainerException
-from mlagents.trainers.tf_policy import TFPolicy
-from mlagents.trainers.models import LearningModel
+from mlagents_envs.logging_util import get_logger
+from mlagents.trainers.exception import UnityTrainerException
+from mlagents.trainers.policy.tf_policy import TFPolicy
+from mlagents.trainers.buffer import AgentBuffer
 
-logger = logging.getLogger("mlagents.trainers")
+
+logger = get_logger(__name__)
 
 RewardSignalResult = namedtuple(
     "RewardSignalResult", ["scaled_reward", "unscaled_reward"]
@@ -18,17 +19,11 @@ RewardSignalResult = namedtuple(
 
 
 class RewardSignal(abc.ABC):
-    def __init__(
-        self,
-        policy: TFPolicy,
-        policy_model: LearningModel,
-        strength: float,
-        gamma: float,
-    ):
+    def __init__(self, policy: TFPolicy, strength: float, gamma: float):
         """
         Initializes a reward signal. At minimum, you must pass in the policy it is being applied to,
         the reward strength, and the gamma (discount factor.)
-        :param policy: The Policy object (e.g. PPOPolicy) that this Reward Signal will apply to.
+        :param policy: The Policy object (e.g. NNPolicy) that this Reward Signal will apply to.
         :param strength: The strength of the reward. The reward's raw value will be multiplied by this value.
         :param gamma: The time discounting factor used for this reward.
         :return: A RewardSignal object.
@@ -43,11 +38,10 @@ class RewardSignal(abc.ABC):
         self.update_dict: Dict[str, tf.Tensor] = {}
         self.gamma = gamma
         self.policy = policy
-        self.policy_model = policy_model
         self.strength = strength
         self.stats_name_to_update_name: Dict[str, str] = {}
 
-    def evaluate_batch(self, mini_batch: Dict[str, np.array]) -> RewardSignalResult:
+    def evaluate_batch(self, mini_batch: AgentBuffer) -> RewardSignalResult:
         """
         Evaluates the reward for the data present in the Dict mini_batch. Use this when evaluating a reward
         function drawn straight from a Buffer.
@@ -62,10 +56,7 @@ class RewardSignal(abc.ABC):
         )
 
     def prepare_update(
-        self,
-        policy_model: LearningModel,
-        mini_batch: Dict[str, np.ndarray],
-        num_sequences: int,
+        self, policy: TFPolicy, mini_batch: AgentBuffer, num_sequences: int
     ) -> Dict[tf.Tensor, Any]:
         """
         If the reward signal has an internal model (e.g. GAIL or Curiosity), get the feed_dict

@@ -1,5 +1,5 @@
-import struct
-from mlagents_envs.side_channel.side_channel import SideChannel
+import uuid
+from mlagents_envs.side_channel import SideChannel, IncomingMessage, OutgoingMessage
 from mlagents_envs.side_channel.float_properties_channel import FloatPropertiesChannel
 from mlagents_envs.side_channel.raw_bytes_channel import RawBytesChannel
 from mlagents_envs.environment import UnityEnvironment
@@ -8,20 +8,16 @@ from mlagents_envs.environment import UnityEnvironment
 class IntChannel(SideChannel):
     def __init__(self):
         self.list_int = []
-        super().__init__()
+        super().__init__(uuid.UUID("a85ba5c0-4f87-11ea-a517-784f4387d1f7"))
 
-    @property
-    def channel_type(self):
-        return -1
-
-    def on_message_received(self, data):
-        val = struct.unpack_from("<i", data, 0)[0]
+    def on_message_received(self, msg: IncomingMessage) -> None:
+        val = msg.read_int32()
         self.list_int += [val]
 
     def send_int(self, value):
-        data = bytearray()
-        data += struct.pack("<i", value)
-        super().queue_message_to_send(data)
+        msg = OutgoingMessage()
+        msg.write_int32(value)
+        super().queue_message_to_send(msg)
 
 
 def test_int_channel():
@@ -29,10 +25,8 @@ def test_int_channel():
     receiver = IntChannel()
     sender.send_int(5)
     sender.send_int(6)
-    data = UnityEnvironment._generate_side_channel_data({sender.channel_type: sender})
-    UnityEnvironment._parse_side_channel_message(
-        {receiver.channel_type: receiver}, data
-    )
+    data = UnityEnvironment._generate_side_channel_data({sender.channel_id: sender})
+    UnityEnvironment._parse_side_channel_message({receiver.channel_id: receiver}, data)
     assert receiver.list_int[0] == 5
     assert receiver.list_int[1] == 6
 
@@ -43,10 +37,8 @@ def test_float_properties():
 
     sender.set_property("prop1", 1.0)
 
-    data = UnityEnvironment._generate_side_channel_data({sender.channel_type: sender})
-    UnityEnvironment._parse_side_channel_message(
-        {receiver.channel_type: receiver}, data
-    )
+    data = UnityEnvironment._generate_side_channel_data({sender.channel_id: sender})
+    UnityEnvironment._parse_side_channel_message({receiver.channel_id: receiver}, data)
 
     val = receiver.get_property("prop1")
     assert val == 1.0
@@ -54,10 +46,8 @@ def test_float_properties():
     assert val is None
     sender.set_property("prop2", 2.0)
 
-    data = UnityEnvironment._generate_side_channel_data({sender.channel_type: sender})
-    UnityEnvironment._parse_side_channel_message(
-        {receiver.channel_type: receiver}, data
-    )
+    data = UnityEnvironment._generate_side_channel_data({sender.channel_id: sender})
+    UnityEnvironment._parse_side_channel_message({receiver.channel_id: receiver}, data)
 
     val = receiver.get_property("prop1")
     assert val == 1.0
@@ -74,16 +64,15 @@ def test_float_properties():
 
 
 def test_raw_bytes():
-    sender = RawBytesChannel()
-    receiver = RawBytesChannel()
+    guid = uuid.uuid4()
+    sender = RawBytesChannel(guid)
+    receiver = RawBytesChannel(guid)
 
     sender.send_raw_data("foo".encode("ascii"))
     sender.send_raw_data("bar".encode("ascii"))
 
-    data = UnityEnvironment._generate_side_channel_data({sender.channel_type: sender})
-    UnityEnvironment._parse_side_channel_message(
-        {receiver.channel_type: receiver}, data
-    )
+    data = UnityEnvironment._generate_side_channel_data({sender.channel_id: sender})
+    UnityEnvironment._parse_side_channel_message({receiver.channel_id: receiver}, data)
 
     messages = receiver.get_and_clear_received_messages()
     assert len(messages) == 2
@@ -92,3 +81,58 @@ def test_raw_bytes():
 
     messages = receiver.get_and_clear_received_messages()
     assert len(messages) == 0
+
+
+def test_message_bool():
+    vals = [True, False]
+    msg_out = OutgoingMessage()
+    for v in vals:
+        msg_out.write_bool(v)
+
+    msg_in = IncomingMessage(msg_out.buffer)
+    read_vals = []
+    for _ in range(len(vals)):
+        read_vals.append(msg_in.read_bool())
+    assert vals == read_vals
+
+
+def test_message_int32():
+    val = 1337
+    msg_out = OutgoingMessage()
+    msg_out.write_int32(val)
+
+    msg_in = IncomingMessage(msg_out.buffer)
+    read_val = msg_in.read_int32()
+    assert val == read_val
+
+
+def test_message_float32():
+    val = 42.0
+    msg_out = OutgoingMessage()
+    msg_out.write_float32(val)
+
+    msg_in = IncomingMessage(msg_out.buffer)
+    read_val = msg_in.read_float32()
+    # These won't be exactly equal in general, since python floats are 64-bit.
+    assert val == read_val
+
+
+def test_message_string():
+    val = "mlagents!"
+    msg_out = OutgoingMessage()
+    msg_out.write_string(val)
+
+    msg_in = IncomingMessage(msg_out.buffer)
+    read_val = msg_in.read_string()
+    assert val == read_val
+
+
+def test_message_float_list():
+    val = [1.0, 3.0, 9.0]
+    msg_out = OutgoingMessage()
+    msg_out.write_float32_list(val)
+
+    msg_in = IncomingMessage(msg_out.buffer)
+    read_val = msg_in.read_float32_list()
+    # These won't be exactly equal in general, since python floats are 64-bit.
+    assert val == read_val
