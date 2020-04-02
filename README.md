@@ -4,7 +4,7 @@
 
 Reinforcement Learning Algorithm Based On TensorFlow2.0.
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.14.1) v0.14.1 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.14.1) v0.15.1 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ## About
 
@@ -74,6 +74,7 @@ For now, these algorithms are available:
     - [Implicit Quantile Networks, IQN](https://arxiv.org/abs/1806.06923)
     - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
+    - [Soft Q-Learning, SQL](https://arxiv.org/abs/1702.08165)
 
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
@@ -92,6 +93,7 @@ For now, these algorithms are available:
 |        DQN         |    √     |            |   √   |  √   |        dqn        |
 |     Double DQN     |    √     |            |   √   |  √   |       ddqn        |
 | Dueling Double DQN |    √     |            |   √   |  √   |       dddqn       |
+|  Soft Q-Learning   |    √     |            |   √   |  √   |        sql        |
 |        C51         |    √     |            |   √   |  √   |        c51        |
 |       QR-DQN       |    √     |            |   √   |  √   |       qrdqn       |
 |        IQN         |    √     |            |   √   |  √   |        iqn        |

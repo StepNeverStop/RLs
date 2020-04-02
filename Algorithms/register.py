@@ -27,6 +27,7 @@ algos = {
     'ma_ddpg':  {'class': 'MADDPG', 'policy': 'off-policy', 'update': 'perStep'},
     'ma_td3':   {'class': 'MATD3',  'policy': 'off-policy', 'update': 'perStep'},
     'cem':      {'class': 'CEM',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'sql':      {'class': 'SQL',    'policy': 'off-policy', 'update': 'perStep'},
 }
 
 

@@ -59,6 +59,18 @@ dddqn:
         v: [64]
         adv: [64]
 
+sql:
+    lr: 5.0e-4
+    alpha: 2
+    ployak: 0.995
+    gamma: 0.99
+    batch_size: 256
+    buffer_size: 100000
+    use_priority: false
+    n_step: true
+    hidden_units: [64, 64]
+
+
 c51:
     v_min: -100
     v_max: 100
