@@ -167,14 +167,19 @@ class UnityReturnWrapper(BasicWrapper):
             self._action_offset[bn] = _nas - _ias
             _ids, _reward, _done = sr.agent_id[:-_ias], sr.reward[:-_ias], sr.done[:-_ias]
         
+        __id = [local_index for local_index, _id in enumerate(_ids) if _id in self._agent_ids[i].keys()]  # 可能存在在回合一开始就立马done的情况，这样_change_idxs中会存在None，然后报错，因此，需要在这里将多余的done序号给过滤掉
+        _ids = _ids[__id]
+        _reward = _reward[__id]
+        _done = _done[__id]
+
         _r, _d = sr.reward[-_ias:], sr.done[-_ias:]
-        _change_idxs = [self._agent_ids[i].get(_id) for _id in _ids]
-        _r[_change_idxs], _d[_change_idxs] = _reward, _done
+        _change_idxs = [self._agent_ids[i].get(_id) for _id in _ids]    
+        if len(_change_idxs) > 0:
+            _r[_change_idxs], _d[_change_idxs] = _reward, _done # TODO: 这里会偶尔报错
         _ids = np.unique(_ids)  # 经过测试发现，存在当场景中只有一个智能体时，在决策间隔内同一个智能体发送两次done信号，观测相同但是reward不同，经过上述步骤处理，这里的_ids很可能出现如下形式:[12,12]，即相同的索引，为了防止下述步骤中字典的get方法出错，因此需要去除重复
         for _id in _ids:
             _cid = self._agent_ids[i].get(_id)
             self._agent_ids[i].update({sr.agent_id[-_ias:][_cid]:self._agent_ids[i].pop(_id)})
-
         return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
                 self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
                 np.asarray(_r),
