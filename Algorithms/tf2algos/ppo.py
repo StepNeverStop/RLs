@@ -22,6 +22,7 @@ class PPO(On_Policy):
                  lr=5.0e-4,
                  lambda_=0.95,
                  epsilon=0.2,
+                 value_epsilon=0.2,
                  share_net=True,
                  actor_lr=3e-4,
                  critic_lr=1e-3,
@@ -54,6 +55,7 @@ class PPO(On_Policy):
         self.epoch = epoch
         self.lambda_ = lambda_
         self.epsilon = epsilon
+        self.value_epsilon = value_epsilon
         self.share_net = share_net
 
         if self.is_continuous:
@@ -174,7 +176,7 @@ class PPO(On_Policy):
                         cell_state
                         )
             else:
-                s, visual_s, a, dc_r, old_log_prob, advantage = data
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_value = data
                 actor_loss, entropy, kl = self.train_actor(
                     (s, visual_s, a, old_log_prob, advantage),
                     cell_state
@@ -182,7 +184,7 @@ class PPO(On_Policy):
                 # if kl > 1.5 * 0.01:
                 #     break
                 critic_loss = self.train_critic(
-                    (s, visual_s, dc_r),
+                    (s, visual_s, dc_r, old_value),
                     crsty_loss,
                     cell_state
                 )
@@ -206,13 +208,13 @@ class PPO(On_Policy):
                     function_dict={
                         'calculate_statistics': self.calculate_statistics,
                         'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv'],
+                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value'],
                         'summary_dict': summary_dict
                     })
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, memories, crsty_loss, cell_state):
-        s, visual_s, a, dc_r, old_log_prob, advantage = memories
+        s, visual_s, a, dc_r, old_log_prob, advantage, old_value = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -228,13 +230,18 @@ class PPO(On_Policy):
                 ratio = tf.exp(new_log_prob - old_log_prob)
                 kl = tf.reduce_mean(old_log_prob - new_log_prob)
                 surrogate = ratio * advantage
+
+                value_clip = old_value + tf.clip_by_value(value-old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
+                td_error_clip = dc_r - value_clip
+                td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+
                 actor_loss = tf.reduce_mean(
                     tf.minimum(
                         surrogate,
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
-                value_loss = tf.reduce_mean(tf.square(td_error))
+                value_loss = 0.5 * tf.reduce_mean(td_square)
                 loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy) + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
@@ -272,13 +279,18 @@ class PPO(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_critic(self, memories, crsty_loss, cell_state):
-        s, visual_s, dc_r = memories
+        s, visual_s, dc_r, old_value = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
+
+                value_clip = old_value + tf.clip_by_value(value-old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
+                td_error_clip = dc_r - value_clip
+                td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+
+                value_loss = 0.5 * tf.reduce_mean(td_square) + crsty_loss
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

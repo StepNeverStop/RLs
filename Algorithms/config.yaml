@@ -183,6 +183,7 @@ a2c:
 ppo:
     share_net: true
     epsilon: 0.2
+    value_epsilon: 0.2
     gamma: 0.99
     beta: 1.0e-3
     lr: 5.0e-4
