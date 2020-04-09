@@ -86,19 +86,19 @@ class PG(On_Policy):
         self.episode = kwargs['episode']
 
         def _train(data, crsty_loss, cell_state):
-            loss, entropy = self.train(
-                data,
-                crsty_loss,
-                cell_state
-            )
+            for _ in range(self.epoch):
+                loss, entropy = self.train(
+                    data,
+                    crsty_loss,
+                    cell_state
+                )
             summaries = dict([
                 ['LOSS/loss', loss],
                 ['Statistics/entropy', entropy]
             ])
             return summaries
 
-        self._learn(epoch=self.epoch,
-                    function_dict={
+        self._learn(function_dict={
                         'calculate_statistics': self.calculate_statistics,
                         'train_function': _train,
                         'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],

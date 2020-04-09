@@ -9,6 +9,7 @@ from Algorithms.tf2algos.base.on_policy import On_Policy
 class PPO(On_Policy):
     '''
     Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
+    Emergence of Locomotion Behaviours in Rich Environments, http://arxiv.org/abs/1707.02286, DPPO
     '''
     def __init__(self,
                  s_dim,
@@ -17,7 +18,8 @@ class PPO(On_Policy):
                  a_dim_or_list,
                  is_continuous,
 
-                 epoch=5,
+                 policy_epoch=4,
+                 value_epoch=4,
                  beta=1.0e-3,
                  lr=5.0e-4,
                  lambda_=0.95,
@@ -26,6 +28,13 @@ class PPO(On_Policy):
                  share_net=True,
                  actor_lr=3e-4,
                  critic_lr=1e-3,
+                 kl_reverse=False,
+                 kl_target=0.02,
+                 kl_target_cutoff=2,
+                 kl_target_earlystop=4,
+                 kl_beta=[0.7, 1.3],
+                 kl_alpha=1.5,
+                 kl_coef=1.0,
                  hidden_units={
                      'share': {
                          'continuous': {
@@ -52,11 +61,21 @@ class PPO(On_Policy):
             is_continuous=is_continuous,
             **kwargs)
         self.beta = beta
-        self.epoch = epoch
+        self.policy_epoch = policy_epoch
+        self.value_epoch = value_epoch
         self.lambda_ = lambda_
         self.epsilon = epsilon
         self.value_epsilon = value_epsilon
         self.share_net = share_net
+        self.kl_reverse = kl_reverse
+        self.kl_target = kl_target
+        self.kl_alpha = kl_alpha
+        self.kl_coef = tf.constant(kl_coef, dtype=tf.float32)
+
+        self.kl_cutoff = kl_target * kl_target_cutoff
+        self.kl_stop = kl_target * kl_target_earlystop
+        self.kl_low = kl_target * kl_beta[0]
+        self.kl_high = kl_target * kl_beta[-1]
 
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
@@ -169,29 +188,49 @@ class PPO(On_Policy):
         self.episode = kwargs['episode']
 
         def _train(data, crsty_loss, cell_state):
+            early_step = 0
             if self.share_net:
+                for i in range(self.policy_epoch):
                     actor_loss, critic_loss, entropy, kl = self.train_share(
                         data,
+                        self.kl_coef,
                         crsty_loss,
                         cell_state
                         )
+                    if kl > self.kl_stop:
+                        early_step = i
+                        break
             else:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_value = data
-                actor_loss, entropy, kl = self.train_actor(
-                    (s, visual_s, a, old_log_prob, advantage),
-                    cell_state
-                )
-                # if kl > 1.5 * 0.01:
-                #     break
-                critic_loss = self.train_critic(
-                    (s, visual_s, dc_r, old_value),
-                    crsty_loss,
-                    cell_state
-                )
+                for i in range(self.policy_epoch):
+                    s, visual_s, a, dc_r, old_log_prob, advantage, old_value = data
+                    actor_loss, entropy, kl = self.train_actor(
+                        (s, visual_s, a, old_log_prob, advantage),
+                        self.kl_coef,
+                        cell_state
+                    )
+                    if kl > self.kl_stop:
+                        early_step = i
+                        break
+                    
+                for _ in range(self.value_epoch):  
+                    critic_loss = self.train_critic(
+                        (s, visual_s, dc_r, old_value),
+                        crsty_loss,
+                        cell_state
+                    )
+
+            # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
+            if kl > self.kl_high:
+                self.kl_coef *= self.kl_alpha
+            elif kl < self.kl_low:
+                self.kl_coef /= self.kl_alpha
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
+                ['Statistics/kl', kl],
+                ['Statistics/kl_coef', self.kl_coef],
+                ['Statistics/early_step', early_step],
                 ['Statistics/entropy', entropy]
             ])
             return summaries
@@ -204,8 +243,7 @@ class PPO(On_Policy):
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
             ])
 
-        self._learn(epoch=self.epoch,
-                    function_dict={
+        self._learn(function_dict={
                         'calculate_statistics': self.calculate_statistics,
                         'train_function': _train,
                         'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value'],
@@ -213,7 +251,7 @@ class PPO(On_Policy):
                     })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_share(self, memories, crsty_loss, cell_state):
+    def train_share(self, memories, kl_coef, crsty_loss, cell_state):
         s, visual_s, a, dc_r, old_log_prob, advantage, old_value = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -228,21 +266,30 @@ class PPO(On_Policy):
                     new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 ratio = tf.exp(new_log_prob - old_log_prob)
-                kl = tf.reduce_mean(old_log_prob - new_log_prob)
-                surrogate = ratio * advantage
 
-                value_clip = old_value + tf.clip_by_value(value-old_value, -self.value_epsilon, self.value_epsilon)
+                # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
+                if self.kl_reverse:
+                    kl = tf.reduce_mean(new_log_prob - old_log_prob)
+                else:
+                    kl = tf.reduce_mean(old_log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
+                surrogate = ratio * advantage
+                
+                # https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
+                value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
                 td_error_clip = dc_r - value_clip
                 td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
 
-                actor_loss = tf.reduce_mean(
+                pi_loss = -tf.reduce_mean(
                     tf.minimum(
                         surrogate,
                         tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
+                kl_loss = kl_coef * kl
+                extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
+                actor_loss = pi_loss + kl_loss + extra_loss
                 value_loss = 0.5 * tf.reduce_mean(td_square)
-                loss = -(actor_loss - 1.0 * value_loss + self.beta * entropy) + crsty_loss
+                loss = actor_loss + 1.0 * value_loss - self.beta * entropy + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
@@ -251,7 +298,7 @@ class PPO(On_Policy):
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, memories, cell_state):
+    def train_actor(self, memories, kl_coef, cell_state):
         s, visual_s, a, old_log_prob, advantage = memories
         with tf.device(self.device):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -269,7 +316,12 @@ class PPO(On_Policy):
                 kl = tf.reduce_mean(old_log_prob - new_log_prob)
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
-                actor_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
+                pi_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
+
+                kl_loss = kl_coef * kl
+                extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
+                actor_loss = pi_loss + kl_loss + extra_loss
+
             actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_net_tv)

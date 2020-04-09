@@ -42,7 +42,7 @@ class On_Policy(Policy):
         """
         self.data.clear()
 
-    def _learn(self, function_dict: Dict, epoch=1):
+    def _learn(self, function_dict: Dict):
         '''
         TODO: Annotation
         '''
@@ -65,19 +65,18 @@ class On_Policy(Policy):
         if not self.is_continuous:
             self.data.convert_action2one_hot(self.a_counts)
 
-        for _ in range(epoch):
-            all_data = self.data.sample_generater(self.batch_size, _train_data_list)
-            for data in all_data:
+        all_data = self.data.sample_generater(self.batch_size, _train_data_list)
+        for data in all_data:
 
-                if self.use_rnn and self.burn_in_time_step:
-                    raise NotImplementedError
-                    # _s, _visual_s = self.data.get_burn_in_states()
-                    # cell_state = self.get_burn_in_feature(_s, _visual_s)
-                else:
-                    cell_state = None
+            if self.use_rnn and self.burn_in_time_step:
+                raise NotImplementedError
+                # _s, _visual_s = self.data.get_burn_in_states()
+                # cell_state = self.get_burn_in_feature(_s, _visual_s)
+            else:
+                cell_state = None
 
-                data = list(map(self.data_convert, data))
-                summaries = _train(data, crsty_loss, cell_state)
+            data = list(map(self.data_convert, data))
+            summaries = _train(data, crsty_loss, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)
