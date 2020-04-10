@@ -172,6 +172,21 @@ class critic_q_all(tf.keras.Model):
         return q
 
 
+class critic_q_bootstrap(tf.keras.Model):
+    '''
+    use for bootstrapped dqn.
+    '''
+
+    def __init__(self, vector_dim, output_shape, head_num, hidden_units):
+        super().__init__()
+        self.nets = [mlp(hidden_units, output_shape=output_shape, out_activation=None) for _ in range(head_num)]
+        self(tf.keras.Input(shape=vector_dim))
+
+    def call(self, x):
+        q = tf.stack([net(x) for net in self.nets]) # [H, B, A]
+        return q
+
+
 class critic_dueling(tf.keras.Model):
     '''
     Neural network for dueling deep Q network.

@@ -75,6 +75,7 @@ For now, these algorithms are available:
     - [Rainbow DQN](https://arxiv.org/abs/1710.02298)
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
     - [Soft Q-Learning, SQL](https://arxiv.org/abs/1702.08165)
+    - [Bootstrapped DQN](http://arxiv.org/abs/1602.04621)
 
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
@@ -93,11 +94,12 @@ For now, these algorithms are available:
 |        DQN         |    √     |            |   √   |  √   |        dqn        |
 |     Double DQN     |    √     |            |   √   |  √   |       ddqn        |
 | Dueling Double DQN |    √     |            |   √   |  √   |       dddqn       |
+|  Bootstrapped DQN  |    √     |            |   √   |  √   |  bootstrappeddqn  |
 |  Soft Q-Learning   |    √     |            |   √   |  √   |        sql        |
 |        C51         |    √     |            |   √   |  √   |        c51        |
 |       QR-DQN       |    √     |            |   √   |  √   |       qrdqn       |
 |        IQN         |    √     |            |   √   |  √   |        iqn        |
-|      Rainbow       |    √     |            |   √   |  √   |      Rainbow      |
+|      Rainbow       |    √     |            |   √   |  √   |      rainbow      |
 |        DPG         |    √     |     √      |   √   |  √   |        dpg        |
 |        DDPG        |    √     |     √      |   √   |  √   |       ddpg        |
 |        TD3         |    √     |     √      |   √   |  √   |        td3        |
@@ -174,7 +176,6 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ## Ongoing things
 
 - RNN for on-policy algorithms
-- Curiosity for on-policy algorithms
 - Fix multi-agent algorithms
 - DARQN
 - ACER
@@ -188,7 +189,7 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 - python>3.6, <3.7
 - tensorflow==2.1.0
-- pandas
+- ~~pandas~~
 - numpy
 - pywin32==224
 - docopt
