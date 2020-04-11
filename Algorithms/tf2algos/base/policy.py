@@ -17,10 +17,7 @@ class Policy(Base):
         super().__init__(**kwargs)
         self.s_dim = s_dim
         self.visual_sources = visual_sources
-        if visual_sources == 1:
-            self.use_visual = True
-            self.visual_dim = visual_resolution
-        elif visual_sources > 1:
+        if visual_sources >= 1:
             self.use_visual = True
             self.visual_dim = [visual_sources, *visual_resolution]
         else:
@@ -56,9 +53,10 @@ class Policy(Base):
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
-        self.get_feature = tf.function(
-            func=self.generate_get_feature_function(),
-            experimental_relax_shapes=True)
+        self.get_feature = self.generate_get_feature_function()
+        # tf.function(
+        #     func=self.generate_get_feature_function(),
+        #     experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(
             func=self.generate_get_brun_in_feature_function(), 
             experimental_relax_shapes=True)
@@ -179,7 +177,7 @@ class Policy(Base):
         with tf.device(self.device):
             feature = self.visual_net(s, visual_s)
             if s_and_s_:
-                state_s, state_s_ = tf.split(state, num_or_size_splits=2, axis=0)
+                state_s, state_s_ = tf.split(feature, num_or_size_splits=2, axis=0)
                 if record_cs:
                     return state_s, state_s_, None
                 else:

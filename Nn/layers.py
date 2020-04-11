@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
 from tensorflow.keras.layers import Dense, GaussianNoise
-from tensorflow.keras.layers import Conv2D, Conv3D, Flatten
+from tensorflow.keras.layers import Conv2D, Flatten
 
 activation_fn = 'tanh'
 

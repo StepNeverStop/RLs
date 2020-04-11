@@ -80,7 +80,10 @@ class Agent:
                 self.train_args['load_model_path'] = os.path.join(self.train_args['base_dir'], self.model_args['load'] + f'-{self.model_index}')
 
         # ENV
+        logger.debug('Initialize environment begin...')
         self.env = make_env(self.env_args.to_dict)
+        logger.debug('Initialize environment successful.')
+
 
         # ALGORITHM CONFIG
         Model, algorithm_config, _policy_mode = get_model_info(self.model_args['algo'])

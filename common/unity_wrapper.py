@@ -131,7 +131,7 @@ class UnityReturnWrapper(BasicWrapper):
         visual = []
         reward = []
         done = []
-        for i,bn in enumerate(self.brain_names):
+        for i, bn in enumerate(self.brain_names):
             step_result = self._env.get_step_result(bn)
             vec, vis, r, d = self.coordinate_information(i, bn, step_result)
             vector.append(vec)
@@ -180,23 +180,24 @@ class UnityReturnWrapper(BasicWrapper):
         for _id in _ids:
             _cid = self._agent_ids[i].get(_id)
             self._agent_ids[i].update({sr.agent_id[-_ias:][_cid]:self._agent_ids[i].pop(_id)})
-        return (self.deal_vector([sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
-                self.deal_visual(_ias,[sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
+        return (self.deal_vector(_ias, [sr.obs[vi] for vi in self.vector_idxs[i]])[-_ias:],
+                self.deal_visual(_ias, [sr.obs[vi] for vi in self.visual_idxs[i]])[-_ias:],
                 np.asarray(_r),
                 np.asarray(_d))
         
 
-    def deal_vector(self, vecs):
+    def deal_vector(self, n, vecs):
         '''
         把向量观测信息 按每个智能体 拼接起来
         '''
         if len(vecs):
             return np.hstack(vecs)
         else:
-            return np.array([])
+            return np.array([]).reshape(n, -1)
         
     def deal_visual(self, n, viss):
         '''
+        viss : [camera1, camera2, camera3, ...]
         把图像观测信息 按每个智能体 组合起来
         '''
         ss = []
@@ -204,7 +205,7 @@ class UnityReturnWrapper(BasicWrapper):
             s = []
             for v in viss:
                 s.append(v[j])
-            ss.append(np.array(s))
+            ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
         return np.array(ss)
 
 

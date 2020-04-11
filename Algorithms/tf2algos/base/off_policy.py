@@ -113,7 +113,7 @@ class Off_Policy(Policy):
                                 ],axis=1)
             # --------------------------------------如果不使用RNN， 就将s和s‘状态进行堆叠处理
             else:
-                data['ss'] = tf.concat([data['s'], data['s_']], axis=0)
+                data['ss'] = tf.concat([data['s'], data['s_']], axis=0) # [B, N] => [2*B, N]
                 data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
             # --------------------------------------
 
