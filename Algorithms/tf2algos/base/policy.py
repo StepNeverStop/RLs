@@ -53,10 +53,9 @@ class Policy(Base):
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
-        self.get_feature = self.generate_get_feature_function()
-        # tf.function(
-        #     func=self.generate_get_feature_function(),
-        #     experimental_relax_shapes=True)
+        self.get_feature = tf.function(
+            func=self.generate_get_feature_function(),
+            experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(
             func=self.generate_get_brun_in_feature_function(), 
             experimental_relax_shapes=True)

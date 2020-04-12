@@ -1,5 +1,7 @@
 
 import numpy as np
+import cv2
+cv2.ocl.setUseOpenCL(False)
 from copy import deepcopy
 from utils.sth import sth
 from utils.sampler import create_sampler_manager
@@ -54,8 +56,10 @@ class BasicWrapper:
 
 
 class InfoWrapper(BasicWrapper):
-    def __init__(self, env):
+    def __init__(self, env, env_args):
         super().__init__(env)
+        self.resize = env_args['resize']
+
         self.brain_names = self._env.get_agent_groups()  #所有脑的名字列表
         self.fixed_brain_names = list(map(lambda x: x.replace('?','_'), self.brain_names))
         self.brain_specs = [self._env.get_agent_group_spec(b) for b in self.brain_names] # 所有脑的信息
@@ -69,11 +73,11 @@ class InfoWrapper(BasicWrapper):
         for spec in self.brain_specs:
             for b in spec.observation_shapes:
                 if len(b) == 3:
-                    self.visual_resolutions.append(list(b))
+                    self.visual_resolutions.append(
+                        list(self.resize)+[list(b)[-1]])
                     break
-                else:
-                    self.visual_resolutions.append([])
-        
+            else:
+                self.visual_resolutions.append([])
 
         self.s_dim = [sum(v) for v in self.vector_dims]
         self.a_dim_or_list = [spec.action_shape for spec in self.brain_specs]
@@ -204,9 +208,13 @@ class UnityReturnWrapper(BasicWrapper):
         for j in range(n):
             s = []
             for v in viss:
-                s.append(v[j])
+                s.append(self.resize_image(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
         return np.array(ss)
+
+    def resize_image(self, image):
+        image = image.astype(np.uint8)
+        return cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize)+[-1])
 
 
 class SamplerWrapper(BasicWrapper):

@@ -28,7 +28,7 @@ def make_unity_env(env_args):
     env = UnityWrapper(env_kargs)
     logger.debug('Unity UnityWrapper success.')
 
-    env = InfoWrapper(env)
+    env = InfoWrapper(env, env_args)
     logger.debug('Unity InfoWrapper success.')
 
     env = UnityReturnWrapper(env)

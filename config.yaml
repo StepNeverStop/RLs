@@ -37,6 +37,7 @@ unity:
         train_time_scale: 100
         width: 1028
         height: 720
+        resize: [84, 84]
         quality_level: 5
         inference_time_scale: 0
         target_frame_rate: 60
