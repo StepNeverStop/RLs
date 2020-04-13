@@ -81,6 +81,9 @@ oc:
     eps_mid: 0.2
     eps_final: 0.01
     ent_coff: 0.01
+    use_baseline: true
+    terminal_mask: true
+    double_q: false
     termination_regularizer: 0.01
     init2mid_annealing_episode: 10
     options_num: 4

@@ -24,6 +24,9 @@ class OC(Off_Policy):
                  init2mid_annealing_episode=100,
                  options_num=4,
                  ent_coff=0.01,
+                 double_q=False,
+                 use_baseline=True,
+                 terminal_mask=True,
                  termination_regularizer=0.01,
                  assign_interval=1000,
                  hidden_units=[32, 32],
@@ -45,6 +48,9 @@ class OC(Off_Policy):
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer
         self.ent_coff = ent_coff
+        self.use_baseline = use_baseline
+        self.terminal_mask = terminal_mask
+        self.double_q = double_q
 
         _q_net = lambda : Nn.oc(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units)
 
@@ -117,27 +123,39 @@ class OC(Off_Policy):
                 q_next, pi_next, beta_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
-                qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True) # [B, 1]
+                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True) # [B, 1]
                 beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True) # [B, 1]
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                u_target = (1 - beta_s_) * q_s_ + beta_s_ * tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
+                # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
+                if self.double_q:
+                    q_, pi_, beta_ = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
+                    max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
+                    q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
+                else:
+                    q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
+                u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
                 qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
                 td_error =  qu_target - qu_eval     # gradient : q
                 q_loss = tf.square(td_error)        # [B, 1]
 
-
+                # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
+                if self.use_baseline:
+                    adv = tf.stop_gradient(qu_target - qu_eval)
+                else:
+                    adv = tf.stop_gradient(qu_target)
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
                 pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
                 log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
                 entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
                 log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
-                pi_loss = -(log_p * tf.stop_gradient(td_error) + self.ent_coff * entropy)              # [B, 1] * [B, 1] => [B, 1]
-
+                pi_loss = -(log_p * adv + self.ent_coff * entropy)              # [B, 1] * [B, 1] => [B, 1]
 
                 beta_s = tf.reduce_sum(beta * options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                q_s = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 v_s = tf.reduce_max(q, axis=-1, keepdims=True)   # [B, 1]
-                beta_loss = beta_s * tf.stop_gradient(q_s - v_s + self.termination_regularizer)    # [B, 1]
+                beta_loss = beta_s * tf.stop_gradient(q_s - v_s + self.termination_regularizer)   # [B, 1]
+                # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
+                if self.terminal_mask:
+                    beta_loss *= (1 - done)
 
                 loss = tf.reduce_mean((q_loss + pi_loss + beta_loss) * isw) + crsty_loss
 
