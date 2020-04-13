@@ -1,6 +1,8 @@
 import tensorflow as tf
 from .activations import swish, mish
 from tensorflow.keras.layers import Dense
+from tensorflow.keras import Model as M
+from tensorflow.keras import Input as I
 from Nn.layers import Noisy, mlp
 
 activation_fn = 'tanh'
@@ -11,7 +13,7 @@ initKernelAndBias = {
 }
 
 
-class actor_dpg(tf.keras.Model):
+class actor_dpg(M):
     '''
     use for DDPG and/or TD3 algorithms' actor network.
     input: vector of state
@@ -21,14 +23,14 @@ class actor_dpg(tf.keras.Model):
     def __init__(self, vector_dim, output_shape, hidden_units):
         super().__init__()
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         mu = self.net(x)
         return mu
 
 
-class actor_mu(tf.keras.Model):
+class actor_mu(M):
     '''
     use for PPO/PG algorithms' actor network.
     input: vector of state
@@ -38,14 +40,14 @@ class actor_mu(tf.keras.Model):
     def __init__(self, vector_dim, output_shape, hidden_units):
         super().__init__()
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input)
+        self(I(shape=vector_dim))
 
     def call(self, x):
         mu = self.net(x)
         return mu
 
 
-class actor_continuous(tf.keras.Model):
+class actor_continuous(M):
     '''
     use for continuous action space.
     input: vector of state
@@ -57,7 +59,7 @@ class actor_continuous(tf.keras.Model):
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation=None)
         self.log_std = mlp(hidden_units['log_std'], output_shape=output_shape, out_activation='tanh')
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -66,7 +68,7 @@ class actor_continuous(tf.keras.Model):
         return (mu, log_std)
 
 
-class actor_discrete(tf.keras.Model):
+class actor_discrete(M):
     '''
     use for discrete action space.
     input: vector of state
@@ -76,14 +78,14 @@ class actor_discrete(tf.keras.Model):
     def __init__(self, vector_dim, output_shape, hidden_units):
         super().__init__()
         self.logits = mlp(hidden_units, output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         logits = self.logits(x)
         return logits
 
 
-class critic_q_one(tf.keras.Model):
+class critic_q_one(M):
     '''
     use for evaluate the value given a state-action pair.
     input: tf.concat((state, action),axis = 1)
@@ -93,14 +95,14 @@ class critic_q_one(tf.keras.Model):
     def __init__(self, vector_dim, action_dim, hidden_units):
         super().__init__()
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=action_dim))
+        self(I(shape=vector_dim), I(shape=action_dim))
 
     def call(self, x, a):
         q = self.net(tf.concat((x, a), axis=-1))
         return q
 
 
-class critic_q_one2(tf.keras.Model):
+class critic_q_one2(M):
     '''
     Original architecture in DDPG paper.
     s-> layer -> feature, then tf.concat(feature, a) -> layer -> output
@@ -111,7 +113,7 @@ class critic_q_one2(tf.keras.Model):
         super().__init__()
         self.state_feature_net = mlp(hidden_units[0:1])
         self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=action_dim))
+        self(I(shape=vector_dim), I(shape=action_dim))
 
     def call(self, x, a):
         features = self.state_feature_net(x)
@@ -119,7 +121,7 @@ class critic_q_one2(tf.keras.Model):
         return q
 
 
-class critic_q_one3(tf.keras.Model):
+class critic_q_one3(M):
     '''
     Original architecture in TD3 paper.
     tf.concat(s,a) -> layer -> feature, then tf.concat(feature, a) -> layer -> output
@@ -130,7 +132,7 @@ class critic_q_one3(tf.keras.Model):
         super().__init__()
         self.feature_net = mlp(hidden_units[0:1])
         self.net = mlp(hidden_units[1:], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=action_dim))
+        self(I(shape=vector_dim), I(shape=action_dim))
 
     def call(self, x, a):
         features = self.feature_net(tf.concat((x, a), axis=-1))
@@ -138,7 +140,7 @@ class critic_q_one3(tf.keras.Model):
         return q
 
 
-class critic_v(tf.keras.Model):
+class critic_v(M):
     '''
     use for evaluate the value given a state.
     input: vector of state
@@ -148,14 +150,14 @@ class critic_v(tf.keras.Model):
     def __init__(self, vector_dim, hidden_units):
         super().__init__()
         self.net = mlp(hidden_units, output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         v = self.net(x)
         return v
 
 
-class critic_q_all(tf.keras.Model):
+class critic_q_all(M):
     '''
     use for evaluate all values of Q(S,A) given a state. must be discrete action space.
     input: vector of state
@@ -165,14 +167,14 @@ class critic_q_all(tf.keras.Model):
     def __init__(self, vector_dim, output_shape, hidden_units):
         super().__init__()
         self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         q = self.net(x)
         return q
 
 
-class critic_q_bootstrap(tf.keras.Model):
+class critic_q_bootstrap(M):
     '''
     use for bootstrapped dqn.
     '''
@@ -180,14 +182,14 @@ class critic_q_bootstrap(tf.keras.Model):
     def __init__(self, vector_dim, output_shape, head_num, hidden_units):
         super().__init__()
         self.nets = [mlp(hidden_units, output_shape=output_shape, out_activation=None) for _ in range(head_num)]
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         q = tf.stack([net(x) for net in self.nets]) # [H, B, A]
         return q
 
 
-class critic_dueling(tf.keras.Model):
+class critic_dueling(M):
     '''
     Neural network for dueling deep Q network.
     Input:
@@ -202,7 +204,7 @@ class critic_dueling(tf.keras.Model):
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
         self.adv = mlp(hidden_units['adv'], output_shape=output_shape, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -211,7 +213,7 @@ class critic_dueling(tf.keras.Model):
         q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
         return q
 
-class oc(tf.keras.Model):
+class oc(M):
     '''
     Neural network for option-critic.
     '''
@@ -224,7 +226,7 @@ class oc(tf.keras.Model):
         self.q = mlp([], output_shape=options_num, out_activation=None)
         self.pi = mlp([], output_shape=options_num*output_shape, out_activation=None)
         self.beta = mlp([], output_shape=options_num, out_activation='sigmoid')
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -235,7 +237,7 @@ class oc(tf.keras.Model):
         return q, pi, beta
 
 
-class a_c_v_continuous(tf.keras.Model):
+class a_c_v_continuous(M):
     '''
     combine actor network and critic network, share some nn layers. use for continuous action space.
     input: vector of state
@@ -247,7 +249,7 @@ class a_c_v_continuous(tf.keras.Model):
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.mu = mlp(hidden_units['mu'], output_shape=output_shape, out_activation='tanh')
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -256,7 +258,7 @@ class a_c_v_continuous(tf.keras.Model):
         return (mu, v)
 
 
-class a_c_v_discrete(tf.keras.Model):
+class a_c_v_discrete(M):
     '''
     combine actor network and critic network, share some nn layers. use for discrete action space.
     input: vector of state
@@ -268,7 +270,7 @@ class a_c_v_discrete(tf.keras.Model):
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.logits = mlp(hidden_units['logits'], output_shape=output_shape, out_activation=None)
         self.v = mlp(hidden_units['v'], output_shape=1, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -277,7 +279,7 @@ class a_c_v_discrete(tf.keras.Model):
         return (logits, v)
 
 
-class c51_distributional(tf.keras.Model):
+class c51_distributional(M):
     '''
     neural network for C51
     '''
@@ -287,14 +289,14 @@ class c51_distributional(tf.keras.Model):
         self.action_dim = action_dim
         self.atoms = atoms
         self.net = mlp(hidden_units, output_shape=atoms * action_dim, out_activation='softmax')
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         q_dist = self.net(x)    # [B, A*N]
         q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
 
-class qrdqn_distributional(tf.keras.Model):
+class qrdqn_distributional(M):
     '''
     neural network for QRDQN
     '''
@@ -304,7 +306,7 @@ class qrdqn_distributional(tf.keras.Model):
         self.action_dim = action_dim
         self.nums = nums
         self.net = mlp(hidden_units, output_shape=nums * action_dim, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         q_dist = self.net(x)    # [B, A*N]
@@ -312,7 +314,7 @@ class qrdqn_distributional(tf.keras.Model):
         return q_dist
 
 
-class rainbow_dueling(tf.keras.Model):
+class rainbow_dueling(M):
     '''
     Neural network for Rainbow.
     Input:
@@ -329,7 +331,7 @@ class rainbow_dueling(tf.keras.Model):
         self.share = mlp(hidden_units['share'], layer=Noisy, out_layer=False)
         self.v = mlp(hidden_units['v'], layer=Noisy, output_shape=atoms, out_activation=None)
         self.adv = mlp(hidden_units['adv'], layer=Noisy, output_shape=action_dim * atoms, out_activation=None)
-        self(tf.keras.Input(shape=vector_dim))
+        self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
@@ -343,14 +345,14 @@ class rainbow_dueling(tf.keras.Model):
         return q  # [B, A, N]
 
 
-class iqn_net(tf.keras.Model):
+class iqn_net(M):
     def __init__(self, vector_dim, action_dim, quantiles_idx, hidden_units):
         super().__init__()
         self.action_dim = action_dim
         self.q_net_head = mlp(hidden_units['q_net'], out_layer=False)   # [B, vector_dim]
         self.quantile_net = mlp(hidden_units['quantile'], out_layer=False)  # [N*B, quantiles_idx]
         self.q_net_tile = mlp(hidden_units['tile'], output_shape=action_dim, out_activation=None)   # [N*B, hidden_units['quantile'][-1]]
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=quantiles_idx))
+        self(I(shape=vector_dim), I(shape=quantiles_idx))
 
     def call(self, x, quantiles_tiled, *, quantiles_num=8):
         q_h = self.q_net_head(x)  # [B, obs_dim] => [B, h]

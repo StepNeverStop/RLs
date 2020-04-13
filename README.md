@@ -111,7 +111,7 @@ For now, these algorithms are available:
 |       MADPG        |          |     √      |       |  √   |      ma_dpg       |
 |       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
 |       MATD3        |          |     √      |       |  √   |      ma_td3       |
-|                    |    √     |            |   √   |  √   |        oc         |
+|         OC         |    √     |            |   √   |  √   |        oc         |
 
 ## Getting started
 
@@ -178,6 +178,8 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ## Ongoing things
 
 - RNN for on-policy algorithms
+- A2OC
+- PPOC
 - Fix multi-agent algorithms
 - DARQN
 - ACER

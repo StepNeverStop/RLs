@@ -1,12 +1,14 @@
 import tensorflow as tf
 from tensorflow.keras import Sequential
+from tensorflow.keras import Model as M
+from tensorflow.keras import Input as I
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 from utils.tf2_utils import get_device
 from Nn.layers import ConvLayer
 
 activation_fn = 'tanh'
 
-class ObsRNN(tf.keras.Model):
+class ObsRNN(M):
     '''输入状态的RNN
     '''
     def __init__(self, dim, hidden_units, use_rnn):
@@ -33,7 +35,7 @@ class ObsRNN(tf.keras.Model):
             return (s, None)
 
 
-class VisualNet(tf.keras.Model):
+class VisualNet(M):
     '''
     Processing image input observation information.
     The feature obtained by forward propagation will be concatenate with the vector input.
@@ -54,14 +56,14 @@ class VisualNet(tf.keras.Model):
             self.nets.append(net)
 
         self.hdim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
-        self(tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=visual_dim))
+        self(I(shape=vector_dim), I(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
         f = [self.nets[i](visual_input[:, i]) for i in range(self.camera_num)]
         f = tf.concat([vector_input, *f], axis=-1)
         return f
 
-class CuriosityModel(tf.keras.Model):
+class CuriosityModel(M):
     '''
     Model of Intrinsic Curiosity Module (ICM).
     Curiosity-driven Exploration by Self-supervised Prediction, https://arxiv.org/abs/1705.05363
@@ -116,7 +118,7 @@ class CuriosityModel(tf.keras.Model):
             Dense(self.s_dim+action_dim, activation_fn),
             Dense(self.s_dim, None)
         ]) 
-        self.initial_weights(tf.keras.Input(shape=visual_dim), tf.keras.Input(shape=vector_dim), tf.keras.Input(shape=action_dim))
+        self.initial_weights(I(shape=visual_dim), I(shape=vector_dim), I(shape=action_dim))
 
         self.tv = []
         if self.use_visual:

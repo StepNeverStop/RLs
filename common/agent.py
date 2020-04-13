@@ -1,7 +1,9 @@
 import os
 import sys
-import numpy as np
+import time
 import logging
+import numpy as np
+
 from copy import deepcopy
 from common.config import Config
 from common.make_env import make_env
@@ -10,6 +12,7 @@ from Algorithms.register import get_model_info
 from utils.np_utils import SMA, arrprint
 from utils.list_utils import zeros_initializer
 from utils.replay_buffer import ExperienceReplay
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.agent")
@@ -36,26 +39,29 @@ def UpdateConfig(config, file_path, key_name='algo'):
 
 
 def get_buffer(buffer_args: Config):
-    if buffer_args['type'] == 'Pandas':
-        return None
-    elif buffer_args['type'] == 'ER':
+
+    _type = buffer_args.get('type', None)
+
+    if _type == 'ER':
         logger.info('ER')
         from utils.replay_buffer import ExperienceReplay as Buffer
-    elif buffer_args['type'] == 'PER':
+    elif _type == 'PER':
         logger.info('PER')
         from utils.replay_buffer import PrioritizedExperienceReplay as Buffer
-    elif buffer_args['type'] == 'NstepER':
+    elif _type == 'NstepER':
         logger.info('NstepER')
         from utils.replay_buffer import NStepExperienceReplay as Buffer
-    elif buffer_args['type'] == 'NstepPER':
+    elif _type == 'NstepPER':
         logger.info('NstepPER')
         from utils.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
-    elif buffer_args['type'] == 'EpisodeER':
+    elif _type == 'EpisodeER':
         logger.info('EpisodeER')
         from utils.replay_buffer import EpisodeExperienceReplay as Buffer
     else:
+        logger.info('On-Policy DataBuffer')
         return None
-    return Buffer(batch_size=buffer_args['batch_size'], capacity=buffer_args['buffer_size'], **buffer_args[buffer_args['type']].to_dict)
+
+    return Buffer(batch_size=buffer_args['batch_size'], capacity=buffer_args['buffer_size'], **buffer_args[_type].to_dict)
 
 
 class Agent:
@@ -66,6 +72,7 @@ class Agent:
         self.train_args = train_args
 
         self.model_index = str(self.train_args.get('index'))
+        self.start_time = time.time()
         self.all_learner_print = bool(self.train_args.get('all_learner_print', False))
         if '-' not in self.train_args['name']:
             self.train_args['name'] += f'-{self.model_index}'
@@ -229,15 +236,16 @@ class Agent:
                     save_config(os.path.join(base_dir, b, 'config'), records_dict)
         pass
 
-    def pwi(self, *args):
+    def pwi(self, *args, out_time=False):
         if self.all_learner_print:
-            logger.info(
-                ''.join([f'| Model-{self.model_index} |', *args])
-                )
+            model_info = f'| Model-{self.model_index} |'
         elif int(self.model_index) == 0:
-            logger.info(
-                ''.join([f'|#ONLY#Model-{self.model_index} |', *args])
-                )
+            model_info = f'|#ONLY#Model-{self.model_index} |'
+        if out_time:
+            model_info += f"hours={(time.time()-self.start_time) / 60 / 60:.3f} |"
+        logger.info(
+            ''.join([model_info, *args])
+            )
 
     def __call__(self):
         self.train()
@@ -391,7 +399,7 @@ class Agent:
                 step=last_done_step,
                 **sma.rs
             )
-            self.pwi('-' * 40)
+            self.pwi('-' * 40, out_time=True)
             self.pwi(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 3)}')
             if episode % save_frequency == 0:
                 self.model.save_checkpoint(episode)
@@ -637,7 +645,7 @@ class Agent:
                     step=last_done_step,
                     **sma[i].rs
                 )
-            self.pwi('-' * 40)
+            self.pwi('-' * 40, out_time=True)
             self.pwi(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
             for i, bn in enumerate(self.env.brain_names):
                 self.pwi(f'{bn} reward: {arrprint(rewards[i], 3)}')
@@ -848,7 +856,7 @@ class Agent:
                     total_reward=rewards[i].mean(),
                     step=last_done_step
                 )
-            self.pwi('-' * 40)
+            self.pwi('-' * 40, out_time=True)
             self.pwi(f'episode {episode:3d} | step {step:4d} last_done_step | {last_done_step:4d}')
             if episode % save_frequency == 0:
                 for i in range(self.env.brain_num):

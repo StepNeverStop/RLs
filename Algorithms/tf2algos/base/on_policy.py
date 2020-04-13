@@ -26,7 +26,7 @@ class On_Policy(Policy):
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         """
-        for on-policy training, use this function to store <s, a, r, s_, done> into DataFrame of Pandas.
+        for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
         """
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"

@@ -68,7 +68,6 @@ gym:
         max_episode_steps: null         # min(train->max_step(Not Done), max_episode_steps(Done)) control the max length of episodes.
 
 buffer:
-    Pandas: {}
     ER: {}
     PER:
         alpha: 0.6  # priority
