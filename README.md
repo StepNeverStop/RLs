@@ -76,7 +76,8 @@ For now, these algorithms are available:
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
     - [Soft Q-Learning, SQL](https://arxiv.org/abs/1702.08165)
     - [Bootstrapped DQN](http://arxiv.org/abs/1602.04621)
-
+- Hierachical training algorithms:
+    - [Option-Critic, OC](http://arxiv.org/abs/1609.05140)
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
     - Multi-Agent Deterministic Policy Gradient, MADPG
@@ -110,6 +111,7 @@ For now, these algorithms are available:
 |       MADPG        |          |     √      |       |  √   |      ma_dpg       |
 |       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
 |       MATD3        |          |     √      |       |  √   |      ma_td3       |
+|                    |    √     |            |   √   |  √   |        oc         |
 
 ## Getting started
 

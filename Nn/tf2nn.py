@@ -211,6 +211,29 @@ class critic_dueling(tf.keras.Model):
         q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
         return q
 
+class oc(tf.keras.Model):
+    '''
+    Neural network for option-critic.
+    '''
+
+    def __init__(self, vector_dim, output_shape, options_num, hidden_units):
+        super().__init__()
+        self.actions_num = output_shape
+        self.options_num = options_num
+        self.share = mlp(hidden_units, out_layer=False)
+        self.q = mlp([], output_shape=options_num, out_activation=None)
+        self.pi = mlp([], output_shape=options_num*output_shape, out_activation=None)
+        self.beta = mlp([], output_shape=options_num, out_activation='sigmoid')
+        self(tf.keras.Input(shape=vector_dim))
+
+    def call(self, x):
+        x = self.share(x)
+        q = self.q(x)   # [B, P]
+        pi = self.pi(x) # [B, P*A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # B, P*A] => [B, P, A]
+        beta = self.beta(x) # [B, P]
+        return q, pi, beta
+
 
 class a_c_v_continuous(tf.keras.Model):
     '''
