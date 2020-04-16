@@ -87,11 +87,9 @@ class OC(Off_Policy):
         if not hasattr(self, 'options'):
             self.options = generate_random_options()
 
-        a, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
+        a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
             self.options = generate_random_options()
-        else:
-            self.options = new_options
         a = a.numpy()
         return a
 
@@ -161,6 +159,7 @@ class OC(Off_Policy):
 
                 beta_s = tf.reduce_sum(beta * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 v_s = tf.reduce_max(q, axis=-1, keepdims=True)   # [B, 1]
+                # v_s = tf.reduce_mean(q, axis=-1, keepdims=True)   # [B, 1]
                 beta_loss = beta_s * tf.stop_gradient(q_s - v_s + self.termination_regularizer)   # [B, 1]
                 # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
                 if self.terminal_mask:

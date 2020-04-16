@@ -6,6 +6,8 @@ Reinforcement Learning Algorithm Based On TensorFlow2.0.
 
 This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/0.15.1) v0.15.1 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
+![](./pics/framework.jpg)
+
 ## About
 
 It aims to fill the need for a small, easily grokked codebase in which users can freely experiment with wild ideas (speculative research).
