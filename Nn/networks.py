@@ -44,10 +44,7 @@ class VisualNet(M):
 
     def __init__(self, vector_dim, visual_dim=[], visual_feature=128):
         super().__init__()
-        if len(visual_dim) == 0:
-            self.camera_num = 0
-        else:
-            self.camera_num = visual_dim[0]
+        self.camera_num = visual_dim[0]
         
         self.nets = []
         for _ in range(self.camera_num):
@@ -91,12 +88,11 @@ class CuriosityModel(M):
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
         self.is_continuous = is_continuous
 
-        if len(visual_dim) == 0:
+        self.camera_num = visual_dim[0]
+        if self.camera_num == 0:
             self.use_visual = False
-            self.camera_num = 0
         else:
             self.use_visual = True
-            self.camera_num = visual_dim[0]
         
         self.nets = []
         for _ in range(self.camera_num):

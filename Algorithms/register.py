@@ -43,7 +43,7 @@ def get_model_info(name: str):
         mode of policy, `on-policy` or `off-policy`
     '''
     if name not in algos.keys():
-        raise NotImplementedError
+        raise NotImplementedError('name')
     else:
         class_name = algos[name]['class']
         policy_mode = algos[name]['policy']

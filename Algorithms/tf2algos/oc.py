@@ -81,9 +81,17 @@ class OC(Off_Policy):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
+        def generate_random_options():
+            return tf.constant(np.random.randint(0, self.options_num, len(s) or len(visual_s)), dtype=tf.int32)
+
+        if not hasattr(self, 'options'):
+            self.options = generate_random_options()
+
+        a, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            self.options = tf.constant(np.random.randint(0, self.options_num, len(s) or len(visual_s)), dtype=tf.int32)
-        a, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+            self.options = generate_random_options()
+        else:
+            self.options = new_options
         a = a.numpy()
         return a
 
@@ -96,7 +104,8 @@ class OC(Off_Policy):
             pi = tf.reduce_sum(pi * op, axis=1) # [B, A]
             dist = tfp.distributions.Categorical(logits=pi) # [B, ]
             a = dist.sample()
-        return a, cell_state
+            new_options = tf.argmax(q, axis=-1) # [B, P] => [B, ]
+        return a, new_options, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -193,16 +202,4 @@ class OC(Off_Policy):
         )
 
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
-        self.data.add(
-            s,
-            visual_s,
-            a,
-            r[:, np.newaxis],
-            s_,
-            visual_s_,
-            done[:, np.newaxis],
-            self.options
-        )
+        pass
