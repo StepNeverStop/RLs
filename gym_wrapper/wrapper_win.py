@@ -1,6 +1,7 @@
 import gym
 import threading
 import numpy as np
+from copy import deepcopy
 from utils.sth import sth
 from typing import Dict
 from common.config import Config
@@ -76,9 +77,9 @@ class gym_envs(object):
             env = TimeLimit(env, max_episode_steps)
             return env
 
-        self._initialize(
-            env=get_env(config)
-        )
+        self.eval_env = get_env(config)
+        self._initialize(env=self.eval_env)
+        
         self.envs = [
             get_env(config)
             for _ in range(self.n)]
@@ -173,7 +174,6 @@ class gym_envs(object):
         return np.asarray([env.action_sample() for env in self.envs])
 
     def reset(self):
-        self.dones_index = []
         threadpool = []
         for i in range(self.n):
             th = FakeMultiThread(self.envs[i].reset, args=())
@@ -204,18 +204,24 @@ class gym_envs(object):
         results = [threadpool[i].get_result() for i in range(self.n)]
 
         obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
-        self.dones_index = np.where(done)[0]
-        # self.dones_index = [index for index, d in enumerate(done) if d]
-        return obs, reward.astype('float32'), done, info
+        reward = reward.astype('float32')
+        dones_index = np.where(done)[0]
+        if dones_index.shape[0] > 0:
+            correct_new_obs = self.partial_reset(obs, dones_index)
+        else:
+            correct_new_obs = obs
+        return obs, reward, done, info, correct_new_obs
 
-    def partial_reset(self):
+    def partial_reset(self, obs, dones_index):
+        correct_new_obs = deepcopy(obs)
         threadpool = []
-        for i in self.dones_index:
+        for i in dones_index:
             th = FakeMultiThread(self.envs[i].reset, args=())
             threadpool.append(th)
         for th in threadpool:
             th.start()
         for th in threadpool:
             threading.Thread.join(th)
-        obs = np.asarray([threadpool[i].get_result() for i in range(self.dones_index.shape[0])])
-        return obs
+        partial_obs = np.asarray([threadpool[i].get_result() for i in range(dones_index.shape[0])])
+        correct_new_obs[dones_index] = partial_obs
+        return correct_new_obs

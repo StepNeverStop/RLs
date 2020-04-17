@@ -110,7 +110,7 @@ class Base:
         """
         self.recorder.writer.set_as_default()
         tf.summary.experimental.set_step(global_step)
-        for i in [{'tag': 'MAIN/' + key, 'value': kargs[key]} for key in kargs]:
+        for i in [{'tag': 'AGENT/' + key, 'value': kargs[key]} for key in kargs]:
             tf.summary.scalar(i['tag'], i['value'])
         self.recorder.writer.flush()
 

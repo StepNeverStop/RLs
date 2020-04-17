@@ -1,6 +1,7 @@
 import gym
 import ray
 import numpy as np
+from copy import deepcopy
 from typing import Dict
 from gym.spaces import Box, Discrete, Tuple
 from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, TimeLimit
@@ -83,9 +84,9 @@ class gym_envs(object):
             env = TimeLimit(env, max_episode_steps)
             return env
 
-        self._initialize(
-            env=get_env(kwargs)
-        )
+        self.eval_env = get_env(config)
+        self._initialize(env=self.eval_env)
+        
         self.envs = [RayEnv.remote(get_env, kwargs) for i in range(self.n)]
         self.seeds = [seed + i for i in range(self.n)]
         [env.seed.remote(s) for env, s in zip(self.envs, self.seeds)]
@@ -167,13 +168,14 @@ class gym_envs(object):
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
     def reset(self):
-        self.dones_index = []
         obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
         return obs
 
-    def partial_reset(self):
-        obs = np.asarray(ray.get([self.envs[i].reset.remote() for i in self.dones_index]))
-        return obs
+    def partial_reset(self, obs, dones_index):
+        correct_new_obs = deepcopy(obs)
+        partial_obs = np.asarray(ray.get([self.envs[i].reset.remote() for i in dones_index]))
+        correct_new_obs[dones_index] = partial_obs
+        return correct_new_obs
 
     def render(self):
         '''
@@ -196,11 +198,15 @@ class gym_envs(object):
             elif self.action_type == 'Tuple(Discrete)':
                 actions = actions.reshape(self.n, -1).tolist()
         obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
-        self.dones_index = np.where(done)[0]
-        return (np.asarray(obs),
-                np.asarray(reward).astype(np.float32),
-                np.asarray(done),
-                info)
+        obs = np.asarray(obs),
+        reward = np.asarray(reward).astype(np.float32),
+        done = np.asarray(done),
+        dones_index = np.where(done)[0]
+        if dones_index.shape[0] > 0:
+            correct_new_obs = self.partial_reset(obs, dones_index)
+        else:
+            correct_new_obs = obs
+        return (obs, reward, done, info, correct_new_obs)
 
     def close(self):
         '''

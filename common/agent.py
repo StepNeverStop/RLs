@@ -8,9 +8,10 @@ from copy import deepcopy
 from common.config import Config
 from common.make_env import make_env
 from common.yaml_ops import save_config, load_config
+from common.train.gym import gym_train, gym_no_op, gym_inference
+from common.train.unity import unity_train, unity_no_op, unity_inference
+from common.train.unity import ma_unity_no_op, ma_unity_train, ma_unity_inference
 from Algorithms.register import get_model_info
-from utils.np_utils import SMA, arrprint
-from utils.list_utils import zeros_initializer
 from utils.replay_buffer import ExperienceReplay
 
 
@@ -253,624 +254,103 @@ class Agent:
     def train(self):
         if self.env_args['type'] == 'gym':
             try:
-                self.gym_no_op()
-                self.gym_train()
+                gym_no_op(
+                    env=self.env,
+                    model=self.model,
+                    print_func=self.pwi,
+                    pre_fill_steps=int(self.train_args['pre_fill_steps']),
+                    prefill_choose=bool(self.train_args['prefill_choose'])
+                )
+                gym_train(
+                    env=self.env,
+                    model=self.model,
+                    print_func=self.pwi,
+                    begin_episode=int(self.train_args['begin_episode']),
+                    render=bool(self.train_args['render']),
+                    render_episode=int(self.train_args.get('render_episode', 50000)),
+                    save_frequency=int(self.train_args['save_frequency']),
+                    max_step=int(self.train_args['max_step']),
+                    max_episode=int(self.train_args['max_episode']),
+                    eval_while_train=bool(self.train_args['eval_while_train']),
+                    max_eval_episode=int(self.train_args.get('max_eval_episode')),
+                    off_policy_step_eval=bool(self.train_args['off_policy_step_eval']),
+                    off_policy_step_eval_num=int(self.train_args.get('off_policy_step_eval_num')),
+                    policy_mode=str(self.model_args['policy_mode']),
+                    moving_average_episode=int(self.train_args['moving_average_episode']),
+                    add_noise2buffer=bool(self.train_args['add_noise2buffer']),
+                    add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
+                    add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
+                    total_step_control=bool(self.train_args['total_step_control']),
+                    eval_interval=int(self.train_args['eval_interval']),
+                    max_total_step=int(self.train_args['max_total_step'])
+                )
             finally:
                 self.model.close()
                 self.env.close()
         else:
             try:
                 if self.ma:
-                    self.ma_unity_no_op()
-                    self.ma_unity_train()
+                    ma_unity_no_op(
+                        env=self.env,
+                        models=self.models,
+                        buffer=self.ma_data,
+                        print_func=self.pwi,
+                        pre_fill_steps=int(self.train_args['pre_fill_steps']),
+                        prefill_choose=bool(self.train_args['prefill_choose'])
+                    )
+                    ma_unity_train(
+                        env=self.env,
+                        models=self.models,
+                        buffer=self.ma_data,
+                        print_func=self.pwi,
+                        begin_episode=int(self.train_args['begin_episode']),
+                        save_frequency=int(self.train_args['save_frequency']),
+                        max_step=int(self.train_args['max_step']),
+                        max_episode=int(self.train_args['max_episode']),
+                        policy_mode=str(self.model_args['policy_mode'])
+                    )
                 else:
-                    self.unity_no_op()
-                    self.unity_train()
+                    unity_no_op(
+                        env=self.env,
+                        models=self.models,
+                        print_func=self.pwi,
+                        pre_fill_steps=int(self.train_args['pre_fill_steps']),
+                        prefill_choose=bool(self.train_args['prefill_choose'])
+                    )
+                    unity_train(
+                        env=self.env,
+                        models=self.models,
+                        print_func=self.pwi,
+                        begin_episode=int(self.train_args['begin_episode']),
+                        save_frequency=int(self.train_args['save_frequency']),
+                        max_step=int(self.train_args['max_step']),
+                        max_episode=int(self.train_args['max_episode']),
+                        policy_mode=str(self.model_args['policy_mode']),
+                        moving_average_episode=int(self.train_args['moving_average_episode']),
+                        add_noise2buffer=bool(self.train_args['add_noise2buffer']),
+                        add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
+                        add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps'])
+                    )
             finally:
                 [model.close() for model in self.models]
                 self.env.close()
 
     def evaluate(self):
         if self.env_args['type'] == 'gym':
-            self.gym_inference()
+            gym_inference(
+                env=self.env,
+                model=self.model
+            )
         else:
             if self.ma:
-                self.ma_unity_inference()
+                ma_unity_inference(
+                    env=self.env,
+                    models=self.models
+                )
             else:
-                self.unity_inference()
-
-    def init_variables(self, evaluate=False):
-        """
-        inputs:
-            env: Environment
-        outputs:
-            i: specify which item of state should be modified
-            state: [vector_obs, visual_obs]
-            newstate: [vector_obs, visual_obs]
-        """
-        if evaluate:
-            env = self.eval_env
-        else:
-            env = self.env
-        i = 1 if env.obs_type == 'visual' else 0
-        return i, [np.array([[]] * env.n), np.array([[]] * env.n)], [np.array([[]] * env.n), np.array([[]] * env.n)]
-
-    def gym_train(self):
-        """
-        Inputs:
-            env:                gym environment
-            gym_model:          algorithm model
-            begin_episode:      initial episode
-            save_frequency:     how often to save checkpoints
-            max_step:           maximum number of steps in an episode
-            max_episode:        maximum number of episodes in this training task
-            render:             specify whether render the env or not
-            render_episode:     if 'render' is false, specify from which episode to render the env
-            policy_mode:        'on-policy' or 'off-policy'
-        """
-        begin_episode = int(self.train_args['begin_episode'])
-        render = bool(self.train_args['render'])
-        render_episode = int(self.train_args.get('render_episode', 50000))
-        save_frequency = int(self.train_args['save_frequency'])
-        max_step = int(self.train_args['max_step'])
-        max_episode = int(self.train_args['max_episode'])
-        eval_while_train = bool(self.train_args['eval_while_train'])
-        max_eval_episode = int(self.train_args.get('max_eval_episode'))
-        off_policy_step_eval = bool(self.train_args['off_policy_step_eval'])
-        off_policy_step_eval_num = int(self.train_args.get('off_policy_step_eval_num'))
-        policy_mode = str(self.model_args['policy_mode'])
-        moving_average_episode = int(self.train_args['moving_average_episode'])
-        add_noise2buffer = bool(self.train_args['add_noise2buffer'])
-        add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
-        add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
-
-
-        total_step_control = bool(self.train_args['total_step_control'])
-        eval_interval = int(self.train_args['eval_interval'])
-        max_total_step = int(self.train_args['max_total_step'])
-        if total_step_control:
-            max_episode = max_total_step
-
-        i, state, new_state = self.init_variables()
-        sma = SMA(moving_average_episode)
-        total_step = 0
-
-        self.model.reset()
-
-        for episode in range(begin_episode, max_episode):
-            state[i] = self.env.reset()
-            dones_flag = np.full(self.env.n, False)
-            step = 0
-            r = np.zeros(self.env.n)
-            last_done_step = -1
-            while True:
-                step += 1
-                r_tem = np.zeros(self.env.n)
-                if render or episode > render_episode:
-                    self.env.render()
-                action = self.model.choose_action(s=state[0], visual_s=state[1])
-                new_state[i], reward, done, info = self.env.step(action)
-                self.model.reset_partial_cell_state(done)
-                unfinished_index = np.where(dones_flag == False)[0]
-                dones_flag += done
-                r_tem[unfinished_index] = reward[unfinished_index]
-                r += r_tem
-                self.model.store_data(
-                    s=state[0],
-                    visual_s=state[1],
-                    a=action,
-                    r=reward,
-                    s_=new_state[0],
-                    visual_s_=new_state[1],
-                    done=done
+                unity_inference(
+                    env=self.env,
+                    models=self.models
                 )
 
-                if policy_mode == 'off-policy':
-                    self.model.learn(episode=episode, step=1)
-                    if off_policy_step_eval and total_step % eval_interval == 0:
-                        self.gym_step_eval(total_step, self.model, off_policy_step_eval_num, max_step)
-                total_step += 1
-                if total_step_control and total_step > max_total_step:
-                    return
 
-                if all(dones_flag):
-                    if last_done_step == -1:
-                        last_done_step = step
-                    if policy_mode == 'off-policy':
-                        break
-
-                if step >= max_step:
-                    break
-
-                if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
-                    new_state[i][self.env.dones_index] = self.env.partial_reset()
-                state[i] = new_state[i]
-
-            self.model.reset()
-
-            sma.update(r)
-            if policy_mode == 'on-policy':
-                self.model.learn(episode=episode, step=step)
-            self.model.writer_summary(
-                episode,
-                reward_mean=r.mean(),
-                reward_min=r.min(),
-                reward_max=r.max(),
-                step=last_done_step,
-                **sma.rs
-            )
-            self.pwi('-' * 40, out_time=True)
-            self.pwi(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 3)}')
-            if episode % save_frequency == 0:
-                self.model.save_checkpoint(episode)
-
-            if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-                self.gym_random_sample(steps=add_noise2buffer_steps)
-
-            if eval_while_train and self.env.reward_threshold is not None:
-                if r.max() >= self.env.reward_threshold:
-                    self.pwi(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
-                    self.gym_evaluate()
-
-    def gym_step_eval(self, idx, model, episodes_num, max_step):
-        '''
-        1个环境的推断模式
-        '''
-        cs = model.get_cell_state() # 暂存训练时候的RNN隐状态
-        model.reset()
-
-        i, state, _ = self.init_variables(evaluate=True)
-        ret = 0.
-        ave_steps = 0.
-        for _ in range(episodes_num):
-            state[i] = self.eval_env.reset()
-            r = 0.
-            step = 0
-            while True:
-                action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
-                state[i], reward, done, info = self.eval_env.step(action)
-                reward = reward[0]
-                done = done[0]
-                r += reward
-                step += 1
-                if done or step > max_step:
-                    ret += r
-                    ave_steps += step
-                    break
-            model.reset()
-
-        model.writer_summary(
-            idx,
-            eval_return=ret/episodes_num,
-            eval_ave_step=ave_steps//episodes_num,
-        )
-        model.set_cell_state(cs)
-
-    def gym_random_sample(self, steps):
-        i, state, new_state = self.init_variables()
-        state[i] = self.env.reset()
-
-        for _ in range(steps):
-            action = self.env.sample_actions()
-            new_state[i], reward, done, info = self.env.step(action)
-            self.model.no_op_store(
-                s=state[0],
-                visual_s=state[1],
-                a=action,
-                r=reward,
-                s_=new_state[0],
-                visual_s_=new_state[1],
-                done=done
-            )
-            if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
-                new_state[i][self.env.dones_index] = self.env.partial_reset()
-            state[i] = new_state[i]
-        self.pwi('Noise added complete.')
-
-    def gym_evaluate(self):
-        max_step = int(self.train_args['max_step'])
-        max_eval_episode = int(self.train_args['max_eval_episode'])
-
-        i, state, _ = self.init_variables()
-        total_r = np.zeros(self.env.n)
-        total_steps = np.zeros(self.env.n)
-        episodes = max_eval_episode // self.env.n
-
-        self.model.reset()
-
-        for _ in range(episodes):
-            state[i] = self.env.reset()
-            dones_flag = np.full(self.env.n, False)
-            steps = np.zeros(self.env.n)
-            r = np.zeros(self.env.n)
-            while True:
-                r_tem = np.zeros(self.env.n)
-                action = self.model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
-                state[i], reward, done, info = self.env.step(action)
-                self.model.reset_partial_cell_state(done)
-                unfinished_index = np.where(dones_flag == False)
-                dones_flag += done
-                r_tem[unfinished_index] = reward[unfinished_index]
-                steps[unfinished_index] += 1
-                r += r_tem
-                if all(dones_flag) or any(steps >= max_step):
-                    break
-            total_r += r
-            total_steps += steps
-            self.model.reset()
-        average_r = total_r.mean() / episodes
-        average_step = int(total_steps.mean() / episodes)
-        solved = True if average_r >= self.env.reward_threshold else False
-        self.pwi(f'evaluate number: {max_eval_episode:3d} | average step: {average_step} | average reward: {average_r} | SOLVED: {solved}')
-        self.pwi('----------------------------------------------------------------------------------------------------------------------------')
-
-    def gym_no_op(self):
-        steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['prefill_choose']
-        assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-
-        i, state, new_state = self.init_variables()
-
-        self.model.reset()
-
-        state[i] = self.env.reset()
-
-        steps = steps // self.env.n
-
-        for step in range(steps):
-            self.pwi(f'no op step {step}')
-            if choose:
-                action = self.model.choose_action(s=state[0], visual_s=state[1])
-            else:
-                action = self.env.sample_actions()
-            new_state[i], reward, done, info = self.env.step(action)
-            self.model.reset_partial_cell_state(done)
-            self.model.no_op_store(
-                s=state[0],
-                visual_s=state[1],
-                a=action,
-                r=reward,
-                s_=new_state[0],
-                visual_s_=new_state[1],
-                done=done
-            )
-            if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
-                new_state[i][self.env.dones_index] = self.env.partial_reset()
-            state[i] = new_state[i]
-
-    def gym_inference(self):
-        i, state, _ = self.init_variables()
-
-        self.model.reset()
-
-        while True:
-            state[i] = self.env.reset()
-            while True:
-                self.env.render()
-                action = self.model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
-                state[i], reward, done, info = self.env.step(action)
-                self.model.reset_partial_cell_state(done)
-                if len(self.env.dones_index):    # 判断是否有线程中的环境需要局部reset
-                    state[i][self.env.dones_index] = self.env.partial_reset()
-
-    def unity_train(self):
-        """
-        Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
-        Inputs:
-            env:                    Environment for interaction.
-            models:                 all models for this trianing task.
-            save_frequency:         how often to save checkpoints.
-            reset_config:           configuration to reset for Unity environment.
-            max_step:               maximum number of steps for an episode.
-            sampler_manager:        sampler configuration parameters for 'reset_config'.
-            resampling_interval:    how often to resample parameters for env reset.
-        Variables:
-            brain_names:    a list of brain names set in Unity.
-            state: store    a list of states for each brain. each item contain a list of states for each agents that controlled by the same brain.
-            visual_state:   store a list of visual state information for each brain.
-            action:         store a list of actions for each brain.
-            dones_flag:     store a list of 'done' for each brain. use for judge whether an episode is finished for every agents.
-            rewards:        use to record rewards of agents for each brain.
-        """
-        begin_episode = int(self.train_args['begin_episode'])
-        save_frequency = int(self.train_args['save_frequency'])
-        max_step = int(self.train_args['max_step'])
-        max_episode = int(self.train_args['max_episode'])
-        policy_mode = str(self.model_args['policy_mode'])
-        moving_average_episode = int(self.train_args['moving_average_episode'])
-        add_noise2buffer = bool(self.train_args['add_noise2buffer'])
-        add_noise2buffer_episode_interval = int(self.train_args['add_noise2buffer_episode_interval'])
-        add_noise2buffer_steps = int(self.train_args['add_noise2buffer_steps'])
-
-        state, visual_state, action, dones_flag, rewards = zeros_initializer(self.env.brain_num, 5)
-        sma = [SMA(moving_average_episode) for i in range(self.env.brain_num)]
-
-        [model.reset() for model in self.models]
-
-        for episode in range(begin_episode, max_episode):
-            ObsRewDone = self.env.reset()
-            for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
-                dones_flag[i] = np.zeros(self.env.brain_agents[i])
-                rewards[i] = np.zeros(self.env.brain_agents[i])
-                state[i] = _v
-                visual_state[i] = _vs
-            step = 0
-            last_done_step = -1
-            while True:
-                step += 1
-                for i in range(self.env.brain_num):
-                    action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i])
-                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(actions)
-
-                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                    unfinished_index = np.where(dones_flag[i] == False)[0]
-                    dones_flag[i] += _d
-                    self.models[i].store_data(
-                        s=state[i],
-                        visual_s=visual_state[i],
-                        a=action[i],
-                        r=_r,
-                        s_=_v,
-                        visual_s_=_vs,
-                        done=_d
-                    )
-                    self.models[i].reset_partial_cell_state(_d)
-                    rewards[i][unfinished_index] += _r[unfinished_index]
-                    state[i] = _v
-                    visual_state[i] = _vs
-                    if policy_mode == 'off-policy':
-                        self.models[i].learn(episode=episode, step=1)
-
-                if all([all(dones_flag[i]) for i in range(self.env.brain_num)]):
-                    if last_done_step == -1:
-                        last_done_step = step
-                    if policy_mode == 'off-policy':
-                        break
-
-                if step >= max_step:
-                    break
-
-            [model.reset() for model in self.models]
-
-            for i in range(self.env.brain_num):
-                sma[i].update(rewards[i])
-                if policy_mode == 'on-policy':
-                    self.models[i].learn(episode=episode, step=step)
-                self.models[i].writer_summary(
-                    episode,
-                    reward_mean=rewards[i].mean(),
-                    reward_min=rewards[i].min(),
-                    reward_max=rewards[i].max(),
-                    step=last_done_step,
-                    **sma[i].rs
-                )
-            self.pwi('-' * 40, out_time=True)
-            self.pwi(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
-            for i, bn in enumerate(self.env.brain_names):
-                self.pwi(f'{bn} reward: {arrprint(rewards[i], 3)}')
-            if episode % save_frequency == 0:
-                for i in range(self.env.brain_num):
-                    self.models[i].save_checkpoint(episode)
-
-            if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-                self.unity_random_sample(steps=add_noise2buffer_steps)
-
-    def unity_random_sample(self, steps):
-        state, visual_state = zeros_initializer(self.env.brain_num, 2)
-
-        ObsRewDone = self.env.reset()
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-            state[i] = _v
-            visual_state[i] = _vs
-
-        for _ in range(steps):
-            action = self.env.random_action()
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(actions)
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                self.models[i].store_data(
-                    s=state[i],
-                    visual_s=visual_state[i],
-                    a=action[i],
-                    r=_r,
-                    s_=_v,
-                    visual_s_=_vs,
-                    done=_d
-                )
-                state[i] = _v
-                visual_state[i] = _vs
-        self.pwi('Noise added complete.')
-
-    def unity_no_op(self):
-        '''
-        Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
-        Make sure steps is greater than n-step if using any n-step ReplayBuffer.
-        '''
-        steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['prefill_choose']
-        assert isinstance(steps, int) and steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-
-        state, visual_state, action = zeros_initializer(self.env.brain_num, 3)
-
-        [model.reset() for model in self.models]
-
-        ObsRewDone = self.env.reset()
-        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
-            state[i] = _v
-            visual_state[i] = _vs
-
-        steps = steps // min(self.env.brain_agents) + 1
-
-        for step in range(steps):
-            self.pwi(f'no op step {step}')
-            if choose:
-                for i in range(self.env.brain_num):
-                    action[i] = self.models[i].choose_action(s=state[i], visual_s=visual_state[i])
-            else:
-                action = self.env.random_action()
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(actions)
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                self.models[i].no_op_store(
-                    s=state[i],
-                    visual_s=visual_state[i],
-                    a=action[i],
-                    r=_r,
-                    s_=_v,
-                    visual_s_=_vs,
-                    done=_d
-                )
-                state[i] = _v
-                visual_state[i] = _vs
-                self.models[i].reset_partial_cell_state(_d)
-
-    def unity_inference(self):
-        """
-        inference mode. algorithm model will not be train, only used to show agents' behavior
-        """
-        action = zeros_initializer(self.env.brain_num, 1)
-
-        [model.reset() for model in self.models]
-
-        while True:
-            ObsRewDone = self.env.reset()
-            while True:
-                for i, (_v, _vs, _, _d) in enumerate(ObsRewDone):
-                    action[i] = self.models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
-                    self.models[i].reset_partial_cell_state(_d)
-                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(actions)
-
-    def ma_unity_no_op(self):
-        steps = self.train_args['pre_fill_steps']
-        choose = self.train_args['prefill_choose']
-        assert isinstance(steps, int), 'multi-agent no_op.steps must have type of int'
-
-        if steps < self.ma_data.batch_size:
-            steps = self.ma_data.batch_size
-        state, action, reward, next_state, dones = zeros_initializer(self.env.brain_num, 5)
-        ObsRewDone = self.env.reset()
-        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
-            state[i] = _v
-
-        for i in range(self.env.brain_num):
-            # initialize actions to zeros
-            if self.env.is_continuous[i]:
-                action[i] = np.zeros((self.env.brain_agents[i], self.env.a_dim_or_list[i][0]), dtype=np.int32)
-            else:
-                action[i] = np.zeros((self.env.brain_agents[i], len(self.env.a_dim_or_list[i])), dtype=np.int32)
-
-        a = [np.asarray(e) for e in zip(*action)]
-        for step in range(steps):
-            self.pwi(f'no op step {step}')
-            for i in range(self.env.brain_num):
-                if choose:
-                    action[i] = self.models[i].choose_action(s=state[i])
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-            ObsRewDone = self.env.step(actions)
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                reward[i] = _r[:, np.newaxis]
-                next_state[i] = _vs
-                dones[i] = _d[:, np.newaxis]
-
-            def func(x): return [np.asarray(e) for e in zip(*x)]
-            s, a, r, s_, done = map(func, [state, action, reward, next_state, dones])
-            self.ma_data.add(s, a, r, s_, done)
-            for i in range(self.env.brain_num):
-                state[i] = next_state[i]
-
-    def ma_unity_train(self):
-        begin_episode = int(self.train_args['begin_episode'])
-        save_frequency = int(self.train_args['save_frequency'])
-        max_step = int(self.train_args['max_step'])
-        max_episode = int(self.train_args['max_episode'])
-        policy_mode = str(self.model_args['policy_mode'])
-        assert policy_mode == 'off-policy', "multi-agents algorithms now support off-policy only."
-
-        batch_size = self.ma_data.batch_size
-        state, action, new_action, next_action, reward, next_state, dones, dones_flag, rewards = zeros_initializer(self.env.brain_num, 9)
-
-        for episode in range(begin_episode, max_episode):
-            ObsRewDone = self.env.reset()
-            for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
-                dones_flag[i] = np.zeros(self.env.brain_agents[i])
-                rewards[i] = np.zeros(self.env.brain_agents[i])
-                state[i] = _v
-            step = 0
-            last_done_step = -1
-            while True:
-                step += 1
-                for i in range(self.env.brain_num):
-                    action[i] = self.models[i].choose_action(s=state[i])
-                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(actions)
-
-                for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                    reward[i] = _r[:, np.newaxis]
-                    next_state = _v
-                    dones[i] = _d[:, np.newaxis]
-                    unfinished_index = np.where(dones_flag[i] == False)[0]
-                    dones_flag[i] += _d
-                    rewards[i][unfinished_index] += _r[unfinished_index]
-
-                def func(x): return [np.asarray(e) for e in zip(*x)]
-                s, a, r, s_, done = map(func, [state, action, reward, next_state, dones])
-                self.ma_data.add(s, a, r, s_, done)
-
-                for i in range(self.env.brain_num):
-                    state[i] = next_state[i]
-
-                s, a, r, s_, done = self.ma_data.sample()
-                for i, _ in enumerate(self.env.brain_names):
-                    next_action[i] = self.models[i].get_target_action(s=s_[:, i])
-                    new_action[i] = self.models[i].choose_action(s=s[:, i], evaluation=True)
-                a_ = np.asarray([np.asarray(e) for e in zip(*next_action)])
-                if policy_mode == 'off-policy':
-                    for i in range(self.env.brain_num):
-                        self.models[i].learn(
-                            episode=episode,
-                            ap=np.asarray([np.asarray(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
-                            al=np.asarray([np.asarray(e) for e in zip(*next_action[-(self.env.brain_num - i - 1):])]
-                                          ).reshape(batch_size, -1) if self.env.brain_num - i != 1 else np.zeros((batch_size, 0)),
-                            ss=s.reshape(batch_size, -1),
-                            ss_=s_.reshape(batch_size, -1),
-                            aa=a.reshape(batch_size, -1),
-                            aa_=a_.reshape(batch_size, -1),
-                            s=s[:, i],
-                            r=r[:, i]
-                        )
-
-                if all([all(dones_flag[i]) for i in range(self.env.brain_num)]):
-                    if last_done_step == -1:
-                        last_done_step = step
-                    if policy_mode == 'off-policy':
-                        break
-
-                if step >= max_step:
-                    break
-
-            for i in range(self.env.brain_num):
-                self.models[i].writer_summary(
-                    episode,
-                    total_reward=rewards[i].mean(),
-                    step=last_done_step
-                )
-            self.pwi('-' * 40, out_time=True)
-            self.pwi(f'episode {episode:3d} | step {step:4d} last_done_step | {last_done_step:4d}')
-            if episode % save_frequency == 0:
-                for i in range(self.env.brain_num):
-                    self.models[i].save_checkpoint(episode)
-
-    def ma_unity_inference(self):
-        """
-        inference mode. algorithm model will not be train, only used to show agents' behavior
-        """
-        action = zeros_initializer(self.env.brain_num, 1)
-        while True:
-            ObsRewDone = self.env.reset()
-            while True:
-                for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
-                    action[i] = self.models[i].choose_action(s=_v, evaluation=True)
-                actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(self.env.brain_names)}
-                ObsRewDone = self.env.step(actions)

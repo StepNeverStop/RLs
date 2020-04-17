@@ -232,7 +232,7 @@ class oc(M):
         x = self.share(x)
         q = self.q(x)   # [B, P]
         pi = self.pi(x) # [B, P*A]
-        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # B, P*A] => [B, P, A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
         beta = self.beta(x) # [B, P]
         return q, pi, beta
 
