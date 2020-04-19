@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from Algorithms.tf2algos.base.off_policy import Off_Policy
 from utils.expl_expt import ExplorationExploitationClass
+from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 
 
 class OC(Off_Policy):
@@ -31,7 +32,6 @@ class OC(Off_Policy):
                  assign_interval=1000,
                  hidden_units=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'option-critic only support discrete action space'
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
@@ -57,6 +57,9 @@ class OC(Off_Policy):
         self.q_net = _q_net()
         self.q_target_net = _q_net()
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
+        if self.is_continuous:
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.critic_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode), clipvalue=5.)
@@ -86,6 +89,7 @@ class OC(Off_Policy):
 
         if not hasattr(self, 'options'):
             self.options = generate_random_options()
+        self.last_options = self.options
 
         a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
@@ -98,11 +102,19 @@ class OC(Off_Policy):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q, pi, beta = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
-            op = tf.expand_dims(tf.one_hot(options, self.options_num, dtype=tf.float32), axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * op, axis=1) # [B, A]
-            dist = tfp.distributions.Categorical(logits=pi) # [B, ]
-            a = dist.sample()
-            new_options = tf.argmax(q, axis=-1) # [B, P] => [B, ]
+            options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
+            options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
+            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
+            if self.is_continuous:
+                mu = tf.math.tanh(pi)
+                a, _ = gaussian_clip_rsample(mu, self.log_std)
+            else:
+                dist = tfp.distributions.Categorical(logits=pi) # [B, ]
+                a = dist.sample()
+            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
+            beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
+            beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
+            new_options = tf.where(beta_dist.sample()<1, options, max_options)
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
@@ -115,13 +127,14 @@ class OC(Off_Policy):
                 'train_function': self.train,
                 'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]]),
-                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'options'],
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'options']
+                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
+                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options']
             })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):
-        ss, vvss, a, r, done, options = memories
+        ss, vvss, a, r, done, last_options, options = memories
+        last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -152,12 +165,18 @@ class OC(Off_Policy):
                     adv = tf.stop_gradient(qu_target)
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
                 pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
-                log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
-                entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
-                log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
+                if self.is_continuous:
+                    mu = tf.math.tanh(pi)
+                    log_p = gaussian_likelihood_sum(mu, a, self.log_std)
+                    entropy = gaussian_entropy(self.log_std)
+                else:
+                    log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
+                    entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
+                    log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
                 pi_loss = -(log_p * adv + self.ent_coff * entropy)              # [B, 1] * [B, 1] => [B, 1]
 
-                beta_s = tf.reduce_sum(beta * options_onehot, axis=-1, keepdims=True)   # [B, 1]
+                last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
+                beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 v_s = tf.reduce_max(q, axis=-1, keepdims=True)   # [B, 1]
                 # v_s = tf.reduce_mean(q, axis=-1, keepdims=True)   # [B, 1]
                 beta_loss = beta_s * tf.stop_gradient(q_s - v_s + self.termination_regularizer)   # [B, 1]
@@ -197,6 +216,7 @@ class OC(Off_Policy):
             s_,
             visual_s_,
             done[:, np.newaxis], # 升维
+            self.last_options,
             self.options
         )
 

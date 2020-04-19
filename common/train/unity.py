@@ -125,7 +125,7 @@ def unity_random_sample(env, models, print_func, steps):
             visual_state[i] = _vs
     print_func('Noise added complete.')
 
-def unity_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
+def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
     '''
     Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
