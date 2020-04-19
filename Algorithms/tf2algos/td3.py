@@ -152,8 +152,8 @@ class TD3(Off_Policy):
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
-                    q1_loss = tf.reduce_mean(tf.square(td_error1))
-                    q2_loss = tf.reduce_mean(tf.square(td_error2))
+                    q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
+                    q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                     critic_loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
                 critic_grads = tape.gradient(critic_loss, self.critic_tv)
                 self.optimizer_critic.apply_gradients(

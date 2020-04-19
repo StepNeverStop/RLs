@@ -164,9 +164,9 @@ class critic_q_all(M):
     output: q(s, *)
     '''
 
-    def __init__(self, vector_dim, output_shape, hidden_units):
+    def __init__(self, vector_dim, output_shape, hidden_units, out_activation=None):
         super().__init__()
-        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=None)
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=out_activation)
         self(I(shape=vector_dim))
 
     def call(self, x):
@@ -213,28 +213,22 @@ class critic_dueling(M):
         q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
         return q
 
-class oc(M):
+class oc_intra_option(M):
     '''
-    Neural network for option-critic.
+    Intra Option Neural network of Option-Critic.
     '''
 
-    def __init__(self, vector_dim, output_shape, options_num, hidden_units):
+    def __init__(self, vector_dim, output_shape, options_num, hidden_units, out_activation=None):
         super().__init__()
         self.actions_num = output_shape
         self.options_num = options_num
-        self.share = mlp(hidden_units, out_layer=False)
-        self.q = mlp([], output_shape=options_num, out_activation=None)
-        self.pi = mlp([], output_shape=options_num*output_shape, out_activation=None)
-        self.beta = mlp([], output_shape=options_num, out_activation='sigmoid')
+        self.pi = mlp(hidden_units, output_shape=options_num*output_shape, out_activation=out_activation)
         self(I(shape=vector_dim))
 
     def call(self, x):
-        x = self.share(x)
-        q = self.q(x)   # [B, P]
         pi = self.pi(x) # [B, P*A]
         pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
-        beta = self.beta(x) # [B, P]
-        return q, pi, beta
+        return pi
 
 
 class a_c_v_continuous(M):

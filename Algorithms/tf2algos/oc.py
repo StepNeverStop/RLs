@@ -18,11 +18,14 @@ class OC(Off_Policy):
                  a_dim_or_list,
                  is_continuous,
 
-                 lr=5.0e-4,
+                 q_lr=5.0e-3,
+                 intra_option_lr=5.0e-4,
+                 termination_lr=5.0e-4,
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
                  init2mid_annealing_episode=100,
+                 boltzmann_temperature=1.0,
                  options_num=4,
                  ent_coff=0.01,
                  double_q=False,
@@ -30,7 +33,11 @@ class OC(Off_Policy):
                  terminal_mask=True,
                  termination_regularizer=0.01,
                  assign_interval=1000,
-                 hidden_units=[32, 32],
+                 hidden_units={
+                     'q': [32, 32],
+                     'intra_option': [32, 32],
+                     'termination': [32, 32]
+                 },
                  **kwargs):
         super().__init__(
             s_dim=s_dim,
@@ -51,22 +58,35 @@ class OC(Off_Policy):
         self.use_baseline = use_baseline
         self.terminal_mask = terminal_mask
         self.double_q = double_q
+        self.boltzmann_temperature = boltzmann_temperature
 
-        _q_net = lambda : Nn.oc(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units)
+        _q_net= lambda: Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
+        self.intra_option_net = Nn.oc_intra_option(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units['intra_option'])
+        self.termination_net = Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['termination'], 'sigmoid')
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
+        self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
-            self.critic_tv += [self.log_std]
+            self.actor_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode), clipvalue=5.)
+
+        self.q_lr = tf.keras.optimizers.schedules.PolynomialDecay(q_lr, self.max_episode, 1e-10, power=1.0)
+        self.intra_option_lr = tf.keras.optimizers.schedules.PolynomialDecay(intra_option_lr, self.max_episode, 1e-10, power=1.0)
+        self.termination_lr = tf.keras.optimizers.schedules.PolynomialDecay(termination_lr, self.max_episode, 1e-10, power=1.0)
+        self.q_optimizer = tf.keras.optimizers.Adam(learning_rate=self.q_lr(self.episode), clipvalue=5.)
+        self.intra_option_optimizer = tf.keras.optimizers.Adam(learning_rate=self.intra_option_lr(self.episode), clipvalue=5.)
+        self.termination_optimizer = tf.keras.optimizers.Adam(learning_rate=self.termination_lr(self.episode), clipvalue=5.)
 
         self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
+            q_net=self.q_net,
+            intra_option_net=self.intra_option_net,
+            termination_net=self.termination_net,
+            q_optimizer=self.q_optimizer,
+            intra_option_optimizer=self.intra_option_optimizer,
+            termination_optimizer=self.termination_optimizer
         ))
 
     def show_logo(self):
@@ -101,7 +121,9 @@ class OC(Off_Policy):
     def _get_action(self, s, visual_s, cell_state, options):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
-            q, pi, beta = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
+            q = self.q_net(feat)  # [B, P]
+            pi = self.intra_option_net(feat) # [B, P, A]
+            beta = self.termination_net(feat) # [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
@@ -109,6 +131,7 @@ class OC(Off_Policy):
                 mu = tf.math.tanh(pi)
                 a, _ = gaussian_clip_rsample(mu, self.log_std)
             else:
+                pi = pi / self.boltzmann_temperature
                 dist = tfp.distributions.Categorical(logits=pi) # [B, ]
                 a = dist.sample()
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
@@ -126,9 +149,14 @@ class OC(Off_Policy):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': _update,
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]]),
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options']
+                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
+                'summary_dict': dict([
+                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
+                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.episode)],
+                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.episode)],
+                    ['Statistics/option', self.options[0]]
+                    ])
             })
 
     @tf.function(experimental_relax_shapes=True)
@@ -137,10 +165,13 @@ class OC(Off_Policy):
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
-            with tf.GradientTape() as tape:
+            with tf.GradientTape(persistent=True) as tape:
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
-                q, pi, beta = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
-                q_next, pi_next, beta_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
+                q = self.q_net(feat)  # [B, P]
+                pi = self.intra_option_net(feat) # [B, P, A]
+                beta = self.termination_net(feat)   # [B, P]
+                q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
+                beta_next = self.termination_net(feat_)  # [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
                 q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True) # [B, 1]
@@ -148,7 +179,7 @@ class OC(Off_Policy):
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
                 if self.double_q:
-                    q_, pi_, beta_ = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
+                    q_ = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
                     max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
                     q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
                 else:
@@ -156,7 +187,7 @@ class OC(Off_Policy):
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
                 qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
                 td_error =  qu_target - qu_eval     # gradient : q
-                q_loss = tf.square(td_error)        # [B, 1]
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss        # [B, 1] => 1
 
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
                 if self.use_baseline:
@@ -170,10 +201,11 @@ class OC(Off_Policy):
                     log_p = gaussian_likelihood_sum(mu, a, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
+                    pi = pi / self.boltzmann_temperature
                     log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
                     entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
                     log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
-                pi_loss = -(log_p * adv + self.ent_coff * entropy)              # [B, 1] * [B, 1] => [B, 1]
+                pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
 
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
                 beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
@@ -183,22 +215,28 @@ class OC(Off_Policy):
                 # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
                 if self.terminal_mask:
                     beta_loss *= (1 - done)
+                beta_loss = tf.reduce_mean(beta_loss) # [B, 1] => 1
 
-                loss = tf.reduce_mean((q_loss + pi_loss + beta_loss) * isw) + crsty_loss
-
-            grads = tape.gradient(loss, self.critic_tv)
-            self.optimizer.apply_gradients(
-                zip(grads, self.critic_tv)
+            q_grads = tape.gradient(q_loss, self.critic_tv)
+            intra_option_grads = tape.gradient(pi_loss, self.actor_tv)
+            termination_grads = tape.gradient(beta_loss, self.termination_net.trainable_variables)
+            self.q_optimizer.apply_gradients(
+                zip(q_grads, self.critic_tv)
+            )
+            self.intra_option_optimizer.apply_gradients(
+                zip(intra_option_grads, self.actor_tv)
+            )
+            self.termination_optimizer.apply_gradients(
+                zip(termination_grads, self.termination_net.trainable_variables)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
-                ['LOSS/loss', loss],
                 ['LOSS/q_loss', tf.reduce_mean(q_loss)],
                 ['LOSS/pi_loss', tf.reduce_mean(pi_loss)],
                 ['LOSS/beta_loss', tf.reduce_mean(beta_loss)],
-                ['Statistics/q_max', tf.reduce_max(q_s)],
-                ['Statistics/q_min', tf.reduce_min(q_s)],
-                ['Statistics/q_mean', tf.reduce_mean(q_s)]
+                ['Statistics/q_option_max', tf.reduce_max(q_s)],
+                ['Statistics/q_option_min', tf.reduce_min(q_s)],
+                ['Statistics/q_option_mean', tf.reduce_mean(q_s)]
             ])
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):

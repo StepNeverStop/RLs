@@ -113,7 +113,7 @@ For now, these algorithms are available:
 |       MADPG        |          |     √      |       |  √   |      ma_dpg       |
 |       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
 |       MATD3        |          |     √      |       |  √   |      ma_td3       |
-|         OC         |    √     |            |   √   |  √   |        oc         |
+|         OC         |    √     |     √      |   √   |  √   |        oc         |
 
 ## Getting started
 

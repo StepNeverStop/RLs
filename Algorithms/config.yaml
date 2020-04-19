@@ -74,13 +74,16 @@ bootstrappeddqn:
     n_step: true
     hidden_units: [64, 64]
 
-oc: 
-    lr: 5.0e-4
+oc:
+    q_lr: 5.0e-3
+    intra_option_lr: 5.0e-4
+    termination_lr: 5.0e-4
     gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     ent_coff: 0.01
+    boltzmann_temperature: 1.0
     use_baseline: true
     terminal_mask: true
     double_q: false
@@ -92,7 +95,10 @@ oc:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units: [32, 32]
+    hidden_units:
+        q: [32, 32]
+        intra_option: [32, 32]
+        termination: [32, 32]
 
 sql:
     lr: 5.0e-4
