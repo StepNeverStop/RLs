@@ -213,7 +213,6 @@ class UnityReturnWrapper(BasicWrapper):
         return np.array(ss)
 
     def resize_image(self, image):
-        image = image.astype(np.uint8)
         return cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize)+[-1])
 
 

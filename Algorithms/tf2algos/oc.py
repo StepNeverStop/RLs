@@ -105,18 +105,18 @@ class OC(Off_Policy):
 　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘ
         ''')
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        def generate_random_options():
-            return tf.constant(np.random.randint(0, self.options_num, len(s) or len(visual_s)), dtype=tf.int32)
+    def _generate_random_options(self):
+        return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
+    def choose_action(self, s, visual_s, evaluation=False):
         if not hasattr(self, 'options'):
-            self.options = generate_random_options()
+            self.options = self._generate_random_options()
         self.last_options = self.options
 
         a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         if self.use_eps_greedy:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
-                self.options = generate_random_options()
+                self.options = self._generate_random_options()
         a = a.numpy()
         return a
 

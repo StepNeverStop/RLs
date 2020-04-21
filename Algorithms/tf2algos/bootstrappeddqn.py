@@ -80,7 +80,7 @@ class BootstrappedDQN(Off_Policy):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, len(s) or len(visual_s))
+            a = np.random.randint(0, self.a_counts, self.n_agents)
         else:
             q, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             q = q.numpy()

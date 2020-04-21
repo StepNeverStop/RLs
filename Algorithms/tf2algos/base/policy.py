@@ -27,6 +27,9 @@ class Policy(Base):
         self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
 
         self.batch_size = int(kwargs.get('batch_size', 128))
+        self.n_agents = int(kwargs.get('n_agents', 0))
+        if self.n_agents <= 0:
+            raise ValueError('agents num must larger than zero.')
 
         self.use_rnn = bool(kwargs.get('use_rnn', False))
         self.rnn_units = int(kwargs.get('rnn_units', 16))

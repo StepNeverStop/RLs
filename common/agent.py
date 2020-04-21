@@ -158,7 +158,8 @@ class Agent:
                 'max_episode': self.train_args.max_episode,
                 'base_dir': base_dir,
                 'logger2file': self.model_args.logger2file,
-                'seed': self.model_args.seed
+                'seed': self.model_args.seed,
+                'n_agents': self.env.n
             }
             self.model = Model(**model_params, **algorithm_config)
             self.model.set_buffer(self.buffer)
@@ -202,6 +203,7 @@ class Agent:
                 'base_dir': os.path.join(base_dir, b),
                 'logger2file': self.model_args_s[i].logger2file,
                 'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                'n_agents': self.env.brain_agents[i],
             } for i, b in enumerate(self.env.fixed_brain_names)]
 
             # multi agent training------------------------------------

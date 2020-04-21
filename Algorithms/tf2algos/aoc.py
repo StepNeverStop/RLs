@@ -98,20 +98,29 @@ class AOC(On_Policy):
 　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
 　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　
         ''')
+
+    def reset(self):
+        super().reset()
+        self._done_mask = np.full(self.n_agents, True)
+
+    def partial_reset(self, done):
+        super().partial_reset(done)
+        self._done_mask = done
         
+    def _generate_random_options(self):
+        return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
     def choose_action(self, s, visual_s, evaluation=False):
-        def generate_random_options():
-            return tf.constant(np.random.randint(0, self.options_num, len(s) or len(visual_s)), dtype=tf.int32)
-
         if not hasattr(self, 'options'):
-            self.options = generate_random_options()
+            self.options = self._generate_random_options()
         self.last_options = self.options
         if not hasattr(self, 'oc_mask'):
-            self.oc_mask = tf.constant(np.zeros(len(s) or len(visual_s)), dtype=tf.int32)
+            self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
 
-        a, value, log_prob, beta_adv, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, value, log_prob, beta_adv, new_options, max_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         a = a.numpy()
+        new_options = tf.where(self._done_mask, max_options, new_options)
+        self._done_mask = np.full(self.n_agents, False)
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
         self._beta_adv = np.squeeze(beta_adv.numpy()) + self.dc
@@ -143,7 +152,7 @@ class AOC(On_Policy):
             beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
             beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
             new_options = tf.where(beta_dist.sample()<1, options, max_options)    # <1 则不改变op， =1 则改变op
-        return sample_op, q_o, log_prob, beta_adv, new_options, cell_state
+        return sample_op, q_o, log_prob, beta_adv, new_options, max_options, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
