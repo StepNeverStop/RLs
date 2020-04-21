@@ -20,7 +20,7 @@ class GymCollector(object):
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
-            model.reset_partial_cell_state(done)
+            model.partial_reset(done)
             unfinished_index = np.where(dones_flag == False)[0]
             for i in unfinished_index:
                 trajectories[i].append(

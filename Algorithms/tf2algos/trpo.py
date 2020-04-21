@@ -130,7 +130,7 @@ class TRPO(On_Policy):
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(mu, sample_op, self.log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
                 return sample_op, value, log_prob, mu, cell_state
             else:
                 logits = self.actor_net(feat)
@@ -219,7 +219,7 @@ class TRPO(On_Policy):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
                     mu = self.actor_net(feat)
-                    new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(feat)

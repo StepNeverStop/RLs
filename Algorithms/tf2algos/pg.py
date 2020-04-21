@@ -113,7 +113,7 @@ class PG(On_Policy):
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
                     mu = self.net(feat)
-                    log_act_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    log_act_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.net(feat)

@@ -29,7 +29,8 @@ algos = {
     'cem':      {'class': 'CEM',    'policy': 'on-policy',  'update': 'perEpisode'},
     'sql':      {'class': 'SQL',    'policy': 'off-policy', 'update': 'perStep'},
     'bootstrappeddqn': {'class': 'BootstrappedDQN',    'policy': 'off-policy', 'update': 'perStep'},
-    'oc':       {'class': 'OC',     'policy': 'off-policy', 'update': 'perStep'}
+    'oc':       {'class': 'OC',     'policy': 'off-policy', 'update': 'perStep'},
+    'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
 }
 
 
@@ -43,7 +44,7 @@ def get_model_info(name: str):
         mode of policy, `on-policy` or `off-policy`
     '''
     if name not in algos.keys():
-        raise NotImplementedError('name')
+        raise NotImplementedError(name)
     else:
         class_name = algos[name]['class']
         policy_mode = algos[name]['policy']

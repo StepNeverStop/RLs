@@ -69,7 +69,7 @@ class Policy(Base):
     def set_cell_state(self, cs):
         self.cell_state = cs
 
-    def reset_partial_cell_state(self, done):
+    def partial_reset(self, done):
         self._partial_reset_cell_state(index=np.where(done)[0])
 
     def _partial_reset_cell_state(self, index: List):

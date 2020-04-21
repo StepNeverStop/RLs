@@ -149,7 +149,7 @@ class PPO(On_Policy):
                     mu = self.actor_net(feat)
                     value = self.critic_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(mu, sample_op, self.log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
             else:
                 if self.share_net:
                     logits, value = self.net(feat)
@@ -258,7 +258,7 @@ class PPO(On_Policy):
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
                     mu, value = self.net(feat)
-                    new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits, value = self.net(feat)
@@ -305,7 +305,7 @@ class PPO(On_Policy):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
                     mu = self.actor_net(feat)
-                    new_log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(feat)

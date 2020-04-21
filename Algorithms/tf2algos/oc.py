@@ -21,6 +21,7 @@ class OC(Off_Policy):
                  q_lr=5.0e-3,
                  intra_option_lr=5.0e-4,
                  termination_lr=5.0e-4,
+                 use_eps_greedy=False,
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
@@ -59,6 +60,7 @@ class OC(Off_Policy):
         self.terminal_mask = terminal_mask
         self.double_q = double_q
         self.boltzmann_temperature = boltzmann_temperature
+        self.use_eps_greedy = use_eps_greedy
 
         _q_net= lambda: Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['q'])
 
@@ -112,8 +114,9 @@ class OC(Off_Policy):
         self.last_options = self.options
 
         a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
-            self.options = generate_random_options()
+        if self.use_eps_greedy:
+            if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
+                self.options = generate_random_options()
         a = a.numpy()
         return a
 
@@ -135,9 +138,12 @@ class OC(Off_Policy):
                 dist = tfp.distributions.Categorical(logits=pi) # [B, ]
                 a = dist.sample()
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
-            beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
-            beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-            new_options = tf.where(beta_dist.sample()<1, options, max_options)
+            if self.use_eps_greedy:
+                new_options = max_options
+            else:
+                beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
+                beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
+                new_options = tf.where(beta_dist.sample()<1, options, max_options)
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
@@ -198,7 +204,7 @@ class OC(Off_Policy):
                 pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
                 if self.is_continuous:
                     mu = tf.math.tanh(pi)
-                    log_p = gaussian_likelihood_sum(mu, a, self.log_std)
+                    log_p = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
@@ -209,9 +215,12 @@ class OC(Off_Policy):
 
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
                 beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                v_s = tf.reduce_max(q, axis=-1, keepdims=True)   # [B, 1]
-                # v_s = tf.reduce_mean(q, axis=-1, keepdims=True)   # [B, 1]
-                beta_loss = beta_s * tf.stop_gradient(q_s - v_s + self.termination_regularizer)   # [B, 1]
+                if self.use_eps_greedy:
+                    v_s = tf.reduce_max(q, axis=-1, keepdims=True) - self.termination_regularizer   # [B, 1]
+                else:
+                    v_s = (1 - beta_s) * q_s + beta_s * tf.reduce_max(q, axis=-1, keepdims=True)    # [B, 1]
+                    # v_s = tf.reduce_mean(q, axis=-1, keepdims=True)   # [B, 1]
+                beta_loss = beta_s * tf.stop_gradient(q_s - v_s)   # [B, 1]
                 # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
                 if self.terminal_mask:
                     beta_loss *= (1 - done)

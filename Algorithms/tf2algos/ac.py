@@ -78,7 +78,7 @@ class AC(Off_Policy):
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(mu, sample_op, self.log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
             else:
                 logits = self.actor_net(feat)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -138,7 +138,7 @@ class AC(Off_Policy):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
                     mu = self.actor_net(feat)
-                    log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(feat)
@@ -174,7 +174,7 @@ class AC(Off_Policy):
                     next_mu = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
                     mu, sigma = self.actor_net(feat)
-                    log_prob = gaussian_likelihood_sum(mu, a, self.log_std)
+                    log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
                     entropy = gaussian_entropy(self.log_std)
                 else:
                     logits = self.actor_net(feat_)

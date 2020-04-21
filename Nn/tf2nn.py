@@ -230,6 +230,30 @@ class oc_intra_option(M):
         pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
         return pi
 
+class ppoc_share(M):
+    '''
+    Neural network for PPOC.
+    '''
+
+    def __init__(self, vector_dim, action_dim, options_num, hidden_units, is_continuous=True):
+        super().__init__()
+        self.actions_num = action_dim
+        self.options_num = options_num
+        self.share = mlp(hidden_units['share'], out_layer=False)
+        self.q = mlp(hidden_units['q'], output_shape=options_num, out_activation=None)
+        self.pi = mlp(hidden_units['intra_option'], output_shape=options_num*action_dim, out_activation='tanh' if is_continuous else None)
+        self.beta = mlp(hidden_units['termination'], output_shape=options_num, out_activation='sigmoid')
+        self.o = mlp(hidden_units['o'], output_shape=options_num, out_activation=tf.nn.log_softmax)
+        self(I(shape=vector_dim))
+
+    def call(self, x):
+        x = self.share(x)
+        q = self.q(x)   # [B, P]
+        pi = self.pi(x) # [B, P*A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
+        beta = self.beta(x) # [B, P]
+        o = self.o(x) # [B, P]
+        return q, pi, beta, o
 
 class a_c_v_continuous(M):
     '''
