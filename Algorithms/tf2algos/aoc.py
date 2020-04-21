@@ -6,9 +6,10 @@ from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaus
 from Algorithms.tf2algos.base.on_policy import On_Policy
 
 
-class PPOC(On_Policy):
+class AOC(On_Policy):
     '''
-    Learnings Options End-to-End for Continuous Action Tasks, PPOC, http://arxiv.org/abs/1712.00004
+    Asynchronous Advantage Option-Critic with Deliberation Cost, A2OC
+    When Waiting is not an Option : Learning Options with a Deliberation Cost, A2OC, http://arxiv.org/abs/1709.04571
     '''
     def __init__(self,
                  s_dim,
@@ -20,7 +21,7 @@ class PPOC(On_Policy):
                  options_num=4,
                  dc=0.01,
                  terminal_mask=False,
-                 o_beta=1.0e-3,
+                 eps=0.1,
                  epoch=4,
                  pi_beta=1.0e-3,
                  lr=5.0e-4,
@@ -38,8 +39,7 @@ class PPOC(On_Policy):
                      'share': [32, 32],
                      'q': [32, 32],
                      'intra_option': [32, 32],
-                     'termination': [32, 32],
-                     'o': [32, 32]
+                     'termination': [32, 32]
                  },
                  **kwargs):
         super().__init__(
@@ -67,10 +67,10 @@ class PPOC(On_Policy):
         self.options_num = options_num
         self.dc = dc
         self.terminal_mask = terminal_mask
-        self.o_beta = o_beta
+        self.eps = eps
 
 
-        self.net = Nn.ppoc_share(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units, self.is_continuous)
+        self.net = Nn.aoc_share(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_counts), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
@@ -84,19 +84,19 @@ class PPOC(On_Policy):
             ))
             
         self.initialize_data_buffer(
-            data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'o_log_prob', 'beta_adv', 'last_options', 'options'])
+            data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'beta_adv', 'last_options', 'options'])
 
     def show_logo(self):
         self.recorder.logger.info('''
-　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　ｘｘ　　ｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　
+　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
+　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
+　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
+　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
+　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
+　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　
+　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
+　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
+　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　
         ''')
         
 
@@ -110,11 +110,10 @@ class PPOC(On_Policy):
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = tf.constant(np.zeros(len(s) or len(visual_s)), dtype=tf.int32)
 
-        a, value, log_prob, o_log_prob, beta_adv, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, value, log_prob, beta_adv, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
-        self._o_log_prob = np.squeeze(o_log_prob.numpy()) + 1e-10
         self._beta_adv = np.squeeze(beta_adv.numpy()) + self.dc
         self.oc_mask = (new_options == self.options).numpy()  # equal means no change
         self.options = new_options
@@ -124,7 +123,7 @@ class PPOC(On_Policy):
     def _get_action(self, s, visual_s, cell_state, options):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
-            q, pi, beta, o = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
+            q, pi, beta = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
@@ -138,22 +137,20 @@ class PPOC(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-            o_log_prob = tf.reduce_sum(o*options_onehot, axis=-1)   # [B, ]
             q_o = tf.reduce_sum(q*options_onehot, axis=-1)  # [B, ]
-            beta_adv = q_o - tf.reduce_sum(q*tf.math.exp(o), axis=-1)   # [B, ]
-            option_norm_dist = tfp.distributions.Categorical(probs=tf.math.exp(o)) 
-            sample_options = option_norm_dist.sample()
+            beta_adv = q_o - ((1 - self.eps) * tf.reduce_max(q, axis=-1) + self.eps * tf.reduce_mean(q, axis=-1))   # [B, ]
+            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
             beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
             beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-            new_options = tf.where(beta_dist.sample()<1, options, sample_options)    # <1 则不改变op， =1 则改变op
-        return sample_op, q_o, log_prob, o_log_prob, beta_adv, new_options, cell_state
+            new_options = tf.where(beta_dist.sample()<1, options, max_options)    # <1 则不改变op， =1 则改变op
+        return sample_op, q_o, log_prob, beta_adv, new_options, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         r -= (1 - self.oc_mask) * self.dc
-        self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._o_log_prob, self._beta_adv, self.last_options, self.options)
+        self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._beta_adv, self.last_options, self.options)
         self.oc_mask = tf.zeros_like(self.oc_mask)
 
     @tf.function
@@ -161,7 +158,7 @@ class PPOC(On_Policy):
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-            q, _, _, _ = self.net(feat)
+            q, _, _ = self.net(feat)
             q_o = tf.reduce_sum(q*options_onehot, axis=-1)  # [B, ]
             return q_o
 
@@ -178,7 +175,7 @@ class PPOC(On_Policy):
         def _train(data, crsty_loss, cell_state):
             early_step = 0
             for i in range(self.epoch):
-                loss, pi_loss, q_loss, o_loss, beta_loss, entropy, o_entropy, kl = self.train_share(
+                loss, pi_loss, q_loss, beta_loss, entropy, kl = self.train_share(
                     data,
                     self.kl_coef,
                     crsty_loss,
@@ -197,11 +194,9 @@ class PPOC(On_Policy):
                 ['LOSS/loss', loss],
                 ['LOSS/loss', pi_loss],
                 ['LOSS/loss', q_loss],
-                ['LOSS/loss', o_loss],
                 ['LOSS/loss', beta_loss],
                 ['Statistics/kl', kl],
                 ['Statistics/entropy', entropy],
-                ['Statistics/o_entropy', o_entropy],
                 ['Statistics/kl_coef', self.kl_coef],
                 ['Statistics/early_step', early_step],
             ])
@@ -212,19 +207,19 @@ class PPOC(On_Policy):
         self._learn(function_dict={
                         'calculate_statistics': self.calculate_statistics,
                         'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value', 'o_log_prob', 'beta_adv', 'last_options', 'options'],
+                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value', 'beta_adv', 'last_options', 'options'],
                         'summary_dict': summary_dict
                     })
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, memories, kl_coef, crsty_loss, cell_state):
-        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, old_o_log_prob, beta_advantage, last_options, options = memories
+        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, beta_advantage, last_options, options = memories
         last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,)) # [B, 1] => [B,]
         options = tf.reshape(tf.cast(options, tf.int32), (-1,))
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
-                q, pi, beta, o = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
+                q, pi, beta = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
 
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
@@ -271,20 +266,11 @@ class PPOC(On_Policy):
                 if self.terminal_mask:
                     beta_loss *= (1 - done)
 
-                o_log_prob = tf.reduce_sum(o*options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                o_ratio = tf.exp(o_log_prob - old_o_log_prob)
-                o_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(o) * o, axis=1, keepdims=True))
-                o_loss = -tf.reduce_mean(
-                    tf.minimum(
-                        o_ratio * advantage,
-                        tf.clip_by_value(o_ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
-                    ))
-
-                loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - self.pi_beta * entropy - self.o_beta * o_entropy + crsty_loss
+                loss = pi_loss + 1.0 * q_loss + beta_loss - self.pi_beta * entropy + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
             )
             self.global_step.assign_add(1)
-            return loss, pi_loss, q_loss, o_loss, beta_loss, entropy, o_entropy, kl
+            return loss, pi_loss, q_loss, beta_loss, entropy, kl
 

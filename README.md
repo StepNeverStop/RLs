@@ -80,6 +80,7 @@ For now, these algorithms are available:
     - [Bootstrapped DQN](http://arxiv.org/abs/1602.04621)
 - Hierachical training algorithms:
     - [Option-Critic, OC](http://arxiv.org/abs/1609.05140)
+    - [Asynchronous Advantage Option-Critic, A2OC](http://arxiv.org/abs/1709.04571)
     - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
@@ -115,7 +116,8 @@ For now, these algorithms are available:
 |       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
 |       MATD3        |          |     √      |       |  √   |      ma_td3       |
 |         OC         |    √     |     √      |   √   |  √   |        oc         |
-|       PPOC         |    √     |     √      |   √   |  √   |      ppoc         |
+|        AOC         |    √     |     √      |   √   |  √   |        aoc        |
+|       PPOC         |    √     |     √      |   √   |  √   |       ppoc        |
 
 ## Getting started
 
@@ -182,7 +184,6 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 ## Ongoing things
 
 - RNN for on-policy algorithms
-- A2OC
 - Fix multi-agent algorithms
 - DARQN
 - ACER

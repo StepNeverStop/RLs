@@ -71,7 +71,7 @@ class OC(Off_Policy):
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_counts), dtype=np.float32), trainable=True)   # [P, A]
             self.actor_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 
@@ -131,8 +131,9 @@ class OC(Off_Policy):
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
             if self.is_continuous:
+                log_std = tf.gather(self.log_std, options)
                 mu = tf.math.tanh(pi)
-                a, _ = gaussian_clip_rsample(mu, self.log_std)
+                a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
                 dist = tfp.distributions.Categorical(logits=pi) # [B, ]
@@ -203,9 +204,10 @@ class OC(Off_Policy):
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
                 pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
                 if self.is_continuous:
+                    log_std = tf.gather(self.log_std, options)
                     mu = tf.math.tanh(pi)
-                    log_p = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    log_p = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
                     log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
