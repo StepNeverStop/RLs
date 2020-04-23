@@ -182,6 +182,8 @@ class gym_envs(object):
         for th in threadpool:
             threading.Thread.join(th)
         obs = np.asarray([threadpool[i].get_result() for i in range(self.n)])
+        if self.obs_type == 'visual':
+            obs = obs[:, np.newaxis, ...]
         return obs
 
     def step(self, actions):
@@ -209,6 +211,9 @@ class gym_envs(object):
             correct_new_obs = self.partial_reset(obs, dones_index)
         else:
             correct_new_obs = obs
+        if self.obs_type == 'visual':
+            obs = obs[:, np.newaxis, ...]
+            correct_new_obs = correct_new_obs[:, np.newaxis, ...]
         return obs, reward, done, info, correct_new_obs
 
     def partial_reset(self, obs, dones_index):

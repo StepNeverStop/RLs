@@ -169,6 +169,8 @@ class gym_envs(object):
 
     def reset(self):
         obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
+        if self.obs_type == 'visual':
+            obs = obs[:, np.newaxis, ...]
         return obs
 
     def partial_reset(self, obs, dones_index):
@@ -206,6 +208,9 @@ class gym_envs(object):
             correct_new_obs = self.partial_reset(obs, dones_index)
         else:
             correct_new_obs = obs
+        if self.obs_type == 'visual':
+            obs = obs[:, np.newaxis, ...]
+            correct_new_obs = correct_new_obs[:, np.newaxis, ...]
         return (obs, reward, done, info, correct_new_obs)
 
     def close(self):
