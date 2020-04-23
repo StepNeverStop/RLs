@@ -88,9 +88,9 @@ class Agent:
                 self.train_args['load_model_path'] = os.path.join(self.train_args['base_dir'], self.model_args['load'] + f'-{self.model_index}')
 
         # ENV
-        logger.debug('Initialize environment begin...')
+        logger.info('Initialize environment begin...')
         self.env = make_env(self.env_args.to_dict)
-        logger.debug('Initialize environment successful.')
+        logger.info('Initialize environment successful.')
 
 
         # ALGORITHM CONFIG
@@ -105,14 +105,14 @@ class Agent:
         if _policy_mode == 'off-policy':
             if algorithm_config['use_rnn'] == True:
                 self.buffer_args['type'] = 'EpisodeER'
-                self.buffer_args['batch_size'] = algorithm_config['episode_batch_size']
-                self.buffer_args['buffer_size'] = algorithm_config['episode_buffer_size']
+                self.buffer_args['batch_size'] = algorithm_config.get('episode_batch_size', 0)
+                self.buffer_args['buffer_size'] = algorithm_config.get('episode_buffer_size', 0)
 
-                self.buffer_args['EpisodeER']['burn_in_time_step'] = algorithm_config['burn_in_time_step']
-                self.buffer_args['EpisodeER']['train_time_step'] = algorithm_config['train_time_step']
+                self.buffer_args['EpisodeER']['burn_in_time_step'] = algorithm_config.get('burn_in_time_step', 0)
+                self.buffer_args['EpisodeER']['train_time_step'] = algorithm_config.get('train_time_step', 0)
             else:
-                self.buffer_args['batch_size'] = algorithm_config['batch_size']
-                self.buffer_args['buffer_size'] = algorithm_config['buffer_size']
+                self.buffer_args['batch_size'] = algorithm_config.get('episode_batch_size', 0)
+                self.buffer_args['buffer_size'] = algorithm_config.get('episode_buffer_size', 0)
 
                 _use_priority = algorithm_config.get('use_priority', False)
                 _n_step = algorithm_config.get('n_step', False)
@@ -131,7 +131,7 @@ class Agent:
                 else:
                     self.buffer_args['type'] = 'ER'
         else:
-            self.buffer_args['type'] = 'Pandas'
+            self.buffer_args['type'] = 'None'
 
         # MODEL
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME

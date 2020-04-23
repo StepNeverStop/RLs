@@ -147,12 +147,12 @@ class OneHotObsEnv(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         sh = env.observation_space
-        if isinstance(sh.n, (int, np.int32)):
-            obs_dim = [int(sh.n)]
-            self._obs_dim = (1,)
-        else:
+        if hasattr(sh, '__len__'):
             obs_dim = list(sh.n)    # 在CliffWalking-v0环境其类型为numpy.int32
             self._obs_dim = obs_dim
+        else:
+            obs_dim = [int(sh.n)]
+            self._obs_dim = (1,)
         self.one_hot_len = np.array(obs_dim).prod()
         self.multiplication_factor = np.asarray(obs_dim[1:] + [1])
 
@@ -197,10 +197,10 @@ class TimeLimit(gym.Wrapper):
     def __init__(self, env, max_episode_steps=None):
         super().__init__(env)
         if max_episode_steps is None and self.env.spec is not None:
-            max_episode_steps = env.spec.max_episode_steps
+            max_episode_steps = self.env.spec.max_episode_steps
         if self.env.spec is not None:
             self.env.spec.max_episode_steps = max_episode_steps
-        self._max_episode_steps = max_episode_steps
+        self._max_episode_steps = max_episode_steps or 10000
         self._elapsed_steps = None
 
     def step(self, action):

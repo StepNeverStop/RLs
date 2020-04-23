@@ -3,12 +3,11 @@ from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
 from tensorflow.keras.layers import Dense, GaussianNoise
 from tensorflow.keras.layers import Conv2D, Flatten
-
-activation_fn = 'tanh'
+from Nn.activations import default_activation
 
 
 class mlp(Sequential):
-    def __init__(self, hidden_units, *, layer=Dense, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
+    def __init__(self, hidden_units, *, layer=Dense, act_fn=default_activation, output_shape=1, out_activation=None, out_layer=True):
         """
         Args:
             hidden_units: like [32, 32]
@@ -24,7 +23,7 @@ class mlp(Sequential):
 
 
 class mlp_with_noisy(Sequential):
-    def __init__(self, hidden_units, act_fn=activation_fn, output_shape=1, out_activation=None, out_layer=True):
+    def __init__(self, hidden_units, act_fn=default_activation, output_shape=1, out_activation=None, out_layer=True):
         """
         Add a gaussian noise to to the result of Dense layer. The added gaussian noise is not related to the origin input.
         Args:

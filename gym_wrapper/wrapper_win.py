@@ -53,7 +53,6 @@ class gym_envs(object):
             resize = config.get('resize', [84, 84])
             obs_scale = bool(config.get('obs_scale', False))
             max_episode_steps = config.get('max_episode_steps', None)
-
             env = gym.make(gym_env_name)
             env = BaseEnv(env)
             if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:

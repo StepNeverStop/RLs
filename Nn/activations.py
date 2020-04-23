@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+default_activation = 'relu' # 'tanh', 'relu', swish, mish
 
 def swish(x):
     """Swish activation function. For more info: https://arxiv.org/abs/1710.05941"""

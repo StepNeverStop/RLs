@@ -55,7 +55,7 @@ This project supports:
 For now, these algorithms are available:
 
 - Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
-
+    - Q-Learning, Sarsa, Expected Sarsa
     - :bug:Policy Gradient, PG
     - :bug:Actor Critic, AC
     - Advantage Actor Critic, A2C
@@ -89,35 +89,36 @@ For now, these algorithms are available:
 
 
 
-|     Algorithms     | Discrete | Continuous | Image | RNN  | Command parameter |
-| :----------------: | :------: | :--------: | :---: | :--: | :---------------: |
-|         PG         |    √     |     √      |   √   |      |        pg         |
-|         AC         |    √     |     √      |   √   |  √   |        ac         |
-|        A2C         |    √     |     √      |   √   |      |        a2c        |
-|        TRPO        |    √     |     √      |   √   |      |       trpo        |
-|        PPO         |    √     |     √      |   √   |      |        ppo        |
-|        DQN         |    √     |            |   √   |  √   |        dqn        |
-|     Double DQN     |    √     |            |   √   |  √   |       ddqn        |
-| Dueling Double DQN |    √     |            |   √   |  √   |       dddqn       |
-|  Bootstrapped DQN  |    √     |            |   √   |  √   |  bootstrappeddqn  |
-|  Soft Q-Learning   |    √     |            |   √   |  √   |        sql        |
-|        C51         |    √     |            |   √   |  √   |        c51        |
-|       QR-DQN       |    √     |            |   √   |  √   |       qrdqn       |
-|        IQN         |    √     |            |   √   |  √   |        iqn        |
-|      Rainbow       |    √     |            |   √   |  √   |      rainbow      |
-|        DPG         |    √     |     √      |   √   |  √   |        dpg        |
-|        DDPG        |    √     |     √      |   √   |  √   |       ddpg        |
-|        TD3         |    √     |     √      |   √   |  √   |        td3        |
-| SAC(has V network) |    √     |     √      |   √   |  √   |       sac_v       |
-|        SAC         |    √     |     √      |   √   |  √   |        sac        |
-|        TAC         |   sac    |     √      |   √   |  √   |        tac        |
-|       MaxSQN       |    √     |            |   √   |  √   |      maxsqn       |
-|       MADPG        |          |     √      |       |  √   |      ma_dpg       |
-|       MADDPG       |          |     √      |       |  √   |      ma_ddpg      |
-|       MATD3        |          |     √      |       |  √   |      ma_td3       |
-|         OC         |    √     |     √      |   √   |  √   |        oc         |
-|        AOC         |    √     |     √      |   √   |  √   |        aoc        |
-|       PPOC         |    √     |     √      |   √   |  √   |       ppoc        |
+|           Algorithms            | Discrete | Continuous | Image | RNN  | Command parameter |
+| :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
+| Q-Learning/Sarsa/Expected Sarsa |    √     |            |       |      |        qs         |
+|               PG                |    √     |     √      |   √   |      |        pg         |
+|               AC                |    √     |     √      |   √   |  √   |        ac         |
+|               A2C               |    √     |     √      |   √   |      |        a2c        |
+|              TRPO               |    √     |     √      |   √   |      |       trpo        |
+|               PPO               |    √     |     √      |   √   |      |        ppo        |
+|               DQN               |    √     |            |   √   |  √   |        dqn        |
+|           Double DQN            |    √     |            |   √   |  √   |       ddqn        |
+|       Dueling Double DQN        |    √     |            |   √   |  √   |       dddqn       |
+|        Bootstrapped DQN         |    √     |            |   √   |  √   |  bootstrappeddqn  |
+|         Soft Q-Learning         |    √     |            |   √   |  √   |        sql        |
+|               C51               |    √     |            |   √   |  √   |        c51        |
+|             QR-DQN              |    √     |            |   √   |  √   |       qrdqn       |
+|               IQN               |    √     |            |   √   |  √   |        iqn        |
+|             Rainbow             |    √     |            |   √   |  √   |      rainbow      |
+|               DPG               |    √     |     √      |   √   |  √   |        dpg        |
+|              DDPG               |    √     |     √      |   √   |  √   |       ddpg        |
+|               TD3               |    √     |     √      |   √   |  √   |        td3        |
+|       SAC(has V network)        |    √     |     √      |   √   |  √   |       sac_v       |
+|               SAC               |    √     |     √      |   √   |  √   |        sac        |
+|               TAC               |   sac    |     √      |   √   |  √   |        tac        |
+|             MaxSQN              |    √     |            |   √   |  √   |      maxsqn       |
+|              MADPG              |          |     √      |       |  √   |      ma_dpg       |
+|             MADDPG              |          |     √      |       |  √   |      ma_ddpg      |
+|              MATD3              |          |     √      |       |  √   |      ma_td3       |
+|               OC                |    √     |     √      |   √   |  √   |        oc         |
+|               AOC               |    √     |     √      |   √   |  √   |        aoc        |
+|              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
 
 ## Getting started
 

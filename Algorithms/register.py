@@ -32,6 +32,7 @@ algos = {
     'oc':       {'class': 'OC',     'policy': 'off-policy', 'update': 'perStep'},
     'aoc':      {'class': 'AOC',    'policy': 'on-policy',  'update': 'perEpisode'},
     'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
+    'qs':       {'class': 'QS',     'policy': 'off-policy', 'update': 'perStep'},
 }
 
 

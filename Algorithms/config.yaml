@@ -26,6 +26,15 @@ cem:
     extra_var_last_multiplier: 0.2
     hidden_units: [32, 32]
 
+qs:
+    mode: 'q'   # 'q', 'sarsa', 'expected_sarsa'
+    lr: 0.2
+    gamma: 0.99
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_episode: 20
+
 dqn:    &dqn
     lr: 5.0e-4
     gamma: 0.99

@@ -5,7 +5,6 @@ from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from Nn.layers import Noisy, mlp
 
-activation_fn = 'tanh'
 
 initKernelAndBias = {
     'kernel_initializer': tf.random_normal_initializer(0.0, .1),

@@ -1,6 +1,10 @@
+import logging
 import numpy as np
 
 from utils.np_utils import SMA, arrprint
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("common.train.gym")
 
 
 def init_variables(env):
@@ -218,10 +222,16 @@ def gym_inference(env, model):
     i, state, _ = init_variables(env)
     model.reset()
     while True:
+        step = 0
         state[i] = env.reset()
         while True:
+            logger.info(f'step: {step}')
             env.render()
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
+            step += 1
             state[i], reward, done, info, correct_new_state = env.step(action)
             model.partial_reset(done)
+            if done[0]:
+                logger.info(f'done: {done[0]}, reward: {reward[0]}')
+                step = 0
             state[i] = correct_new_state

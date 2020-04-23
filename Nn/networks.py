@@ -5,8 +5,8 @@ from tensorflow.keras import Input as I
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 from utils.tf2_utils import get_device
 from Nn.layers import ConvLayer
+from Nn.activations import default_activation
 
-activation_fn = 'tanh'
 
 class ObsRNN(M):
     '''输入状态的RNN
@@ -49,7 +49,7 @@ class VisualNet(M):
         self.nets = []
         for _ in range(self.camera_num):
             net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
-            net.add(Dense(visual_feature, activation_fn))
+            net.add(Dense(visual_feature, default_activation))
             self.nets.append(net)
 
         self.hdim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
@@ -97,7 +97,7 @@ class CuriosityModel(M):
         self.nets = []
         for _ in range(self.camera_num):
             net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='elu')
-            net.add(Dense(visual_feature, activation_fn))
+            net.add(Dense(visual_feature, default_activation))
             self.nets.append(net)
 
         self.s_dim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
@@ -105,13 +105,13 @@ class CuriosityModel(M):
         if self.use_visual:
             # S, S' => A
             self.inverse_dynamic_net = Sequential([
-                Dense(self.s_dim*2, activation_fn),
+                Dense(self.s_dim*2, default_activation),
                 Dense(action_dim, 'tanh' if is_continuous else None)
             ])
 
         # S, A => S'
         self.forward_net = Sequential([
-            Dense(self.s_dim+action_dim, activation_fn),
+            Dense(self.s_dim+action_dim, default_activation),
             Dense(self.s_dim, None)
         ]) 
         self.initial_weights(I(shape=visual_dim), I(shape=vector_dim), I(shape=action_dim))
