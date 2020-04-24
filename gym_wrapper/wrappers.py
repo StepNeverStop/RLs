@@ -2,6 +2,7 @@
 import gym
 import cv2
 cv2.ocl.setUseOpenCL(False)
+import imageio
 import numpy as np
 from collections import deque
 from gym.spaces import Box, Discrete, Tuple
@@ -13,6 +14,21 @@ class BaseEnv(gym.Wrapper):
 
     def action_sample(self):
         return self.env.action_space.sample()
+
+    def render(self, mode, **kwargs):
+        filename = kwargs.get('filename', None)
+        fps = kwargs.get('fps', 30)
+        if filename is not None:
+            if not hasattr(self, 'video_writer'):
+                self.video_writer = imageio.get_writer(filename, fps=fps)
+            self.video_writer.append_data(self.env.render(mode='rgb_array'))
+        else:
+            self.env.render(mode='human')
+
+    def close(self):
+        if hasattr(self, 'video_writer'):
+            self.value_writer.close()
+        self.env.close()
 
 
 class NoopResetEnv(gym.Wrapper):

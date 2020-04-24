@@ -7,6 +7,9 @@ from utils.tf2_utils import get_device
 from Nn.layers import ConvLayer
 from Nn.activations import default_activation
 
+SimpleCNN = lambda :ConvLayer(Conv2D, [16,32], [[8,8],[4,4]], [[4,4],[2,2]], padding='valid', activation='elu')
+NatureCNN = lambda :ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
+
 
 class ObsRNN(M):
     '''输入状态的RNN
@@ -42,13 +45,13 @@ class VisualNet(M):
     If there is no visual image input, Conv layers won't be built and initialized.
     '''
 
-    def __init__(self, vector_dim, visual_dim=[], visual_feature=128):
+    def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type='simple'):
         super().__init__()
         self.camera_num = visual_dim[0]
         
         self.nets = []
         for _ in range(self.camera_num):
-            net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
+            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
             net.add(Dense(visual_feature, default_activation))
             self.nets.append(net)
 
@@ -67,7 +70,7 @@ class CuriosityModel(M):
     '''
 
     def __init__(self, is_continuous, vector_dim, action_dim, visual_dim=[], visual_feature=128,
-                 *, eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10.):
+                 *, eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10., encoder_type='simple'):
         '''
         params:
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)
@@ -96,7 +99,7 @@ class CuriosityModel(M):
         
         self.nets = []
         for _ in range(self.camera_num):
-            net = ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='elu')
+            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
             net.add(Dense(visual_feature, default_activation))
             self.nets.append(net)
 

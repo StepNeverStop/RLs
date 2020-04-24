@@ -179,11 +179,14 @@ class gym_envs(object):
         correct_new_obs[dones_index] = partial_obs
         return correct_new_obs
 
-    def render(self):
+    def render(self, record):
         '''
         render game windows.
         '''
-        [self.envs[i].render.remote() for i in self.render_index]
+        if record:
+            [self.envs[i].render.remote(filename=r'videos/{0}-{1}.mp4'.format(self.envs[i].env.spec.id, i)) for i in self.render_index]
+        else:
+            [self.envs[i].render.remote() for i in self.render_index]
 
     def sample_actions(self):
         '''

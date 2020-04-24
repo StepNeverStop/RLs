@@ -226,7 +226,7 @@ def gym_inference(env, model):
         state[i] = env.reset()
         while True:
             logger.info(f'step: {step}')
-            env.render()
+            env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
             step += 1
             state[i], reward, done, info, correct_new_state = env.step(action)

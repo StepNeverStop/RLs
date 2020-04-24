@@ -154,17 +154,21 @@ class gym_envs(object):
         else:
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
-    def render(self):
+    def render(self, record):
         '''
         render game windows.
         '''
-        [self.envs[i].render() for i in self.render_index]
+        if record:
+            [self.envs[i].render(filename=r'videos/{0}-{1}.mp4'.format(self.envs[i].env.spec.id, i)) for i in self.render_index]
+        else:
+            [self.envs[i].render() for i in self.render_index]
 
     def close(self):
         '''
         close all environments.
         '''
         [env.close() for env in self.envs]
+        self.eval_env.close()
 
     def sample_actions(self):
         '''

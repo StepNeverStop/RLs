@@ -13,6 +13,7 @@ from common.train.unity import unity_train, unity_no_op, unity_inference
 from common.train.unity import ma_unity_no_op, ma_unity_train, ma_unity_inference
 from Algorithms.register import get_model_info
 from utils.replay_buffer import ExperienceReplay
+from utils.time import get_time_hhmmss
 
 
 logging.basicConfig(level=logging.INFO)
@@ -245,7 +246,7 @@ class Agent:
         elif int(self.model_index) == 0:
             model_info = f'|#ONLY#Model-{self.model_index} |'
         if out_time:
-            model_info += f"hours={(time.time()-self.start_time) / 60 / 60:.3f} |"
+            model_info += f"Pass time(h:m:s) {get_time_hhmmss(self.start_time)} |"
         logger.info(
             ''.join([model_info, *args])
             )
