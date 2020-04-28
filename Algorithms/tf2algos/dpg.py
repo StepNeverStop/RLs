@@ -46,10 +46,10 @@ class DPG(Off_Policy):
 
         self.q_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
-        self.actor_lr = tf.keras.optimizers.schedules.PolynomialDecay(actor_lr, self.max_episode, 1e-10, power=1.0)
-        self.critic_lr = tf.keras.optimizers.schedules.PolynomialDecay(critic_lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer_critic = tf.keras.optimizers.Adam(learning_rate=self.critic_lr(self.episode))
-        self.optimizer_actor = tf.keras.optimizers.Adam(learning_rate=self.actor_lr(self.episode))
+        self.actor_lr = self.init_lr(actor_lr)
+        self.critic_lr = self.init_lr(critic_lr)
+        self.optimizer_critic = self.init_optimizer(self.critic_lr)
+        self.optimizer_actor = self.init_optimizer(self.actor_lr)
 
         self.model_recorder(dict(
             actor=self.actor_net,

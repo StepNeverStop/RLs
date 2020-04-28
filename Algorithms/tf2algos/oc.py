@@ -75,12 +75,12 @@ class OC(Off_Policy):
             self.actor_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 
-        self.q_lr = tf.keras.optimizers.schedules.PolynomialDecay(q_lr, self.max_episode, 1e-10, power=1.0)
-        self.intra_option_lr = tf.keras.optimizers.schedules.PolynomialDecay(intra_option_lr, self.max_episode, 1e-10, power=1.0)
-        self.termination_lr = tf.keras.optimizers.schedules.PolynomialDecay(termination_lr, self.max_episode, 1e-10, power=1.0)
-        self.q_optimizer = tf.keras.optimizers.Adam(learning_rate=self.q_lr(self.episode), clipvalue=5.)
-        self.intra_option_optimizer = tf.keras.optimizers.Adam(learning_rate=self.intra_option_lr(self.episode), clipvalue=5.)
-        self.termination_optimizer = tf.keras.optimizers.Adam(learning_rate=self.termination_lr(self.episode), clipvalue=5.)
+        self.q_lr = self.init_lr(q_lr)
+        self.intra_option_lr = self.init_lr(intra_option_lr)
+        self.termination_lr = self.init_lr(termination_lr)
+        self.q_optimizer = self.init_optimizer(self.q_lr, clipvalue=5.)
+        self.intra_option_optimizer = self.init_optimizer(self.intra_option_lr, clipvalue=5.)
+        self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
 
         self.model_recorder(dict(
             q_net=self.q_net,

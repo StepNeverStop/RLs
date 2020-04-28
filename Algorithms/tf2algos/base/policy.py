@@ -4,6 +4,7 @@ from .base import Base
 from abc import abstractmethod
 from Nn.networks import CuriosityModel, VisualNet, ObsRNN
 from typing import List
+from Nn.learningrate import ConsistentLearningRate
 
 
 class Policy(Base):
@@ -46,6 +47,13 @@ class Policy(Base):
         self.max_episode = int(kwargs.get('max_episode', 1000))
         self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
+
+        if bool(kwargs.get('decay_lr', True)):
+            self.init_lr = lambda lr: tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
+        else:
+            self.init_lr = lambda lr: ConsistentLearningRate(lr)
+
+        self.init_optimizer = lambda lr, *args, **kwargs: tf.keras.optimizers.Adam(learning_rate=lr(self.episode), *args, **kwargs)
 
         self.use_curiosity = bool(kwargs.get('use_curiosity', False))
         if self.use_curiosity:

@@ -1,5 +1,6 @@
 general:
     use_rnn: false  # always false, using -r to active RNN
+    decay_lr: false
     burn_in_time_step: 10
     train_time_step: 5
     rnn_units: 8

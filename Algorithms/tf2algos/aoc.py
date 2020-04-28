@@ -76,8 +76,8 @@ class AOC(On_Policy):
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
         else:
             self.net_tv = self.net.trainable_variables + self.other_tv
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+        self.lr = self.init_lr(lr)
+        self.optimizer = self.init_optimizer(self.lr)
         self.model_recorder(dict(
             model=self.net,
             optimizer=self.optimizer

@@ -50,8 +50,8 @@ class DDDQN(Off_Policy):
         self.dueling_target_net = _net()
         self.critic_tv = self.dueling_net.trainable_variables + self.other_tv
         self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
-        self.lr = tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=self.lr(self.episode))
+        self.lr = self.init_lr(lr)
+        self.optimizer = self.init_optimizer(self.lr)
 
         self.model_recorder(dict(
             model=self.dueling_net,
