@@ -32,6 +32,7 @@ Options:
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
+    --use-wandb                 是否上传数据到W&B [default: False]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
     python run.py -a ppo -u -n train_in_unity --load last_train_name
@@ -88,7 +89,8 @@ def get_options(options: Dict):
         ['gym_env',         str(options['--gym-env'])],
         ['gym_env_seed',    int(options['--gym-env-seed'])],
         ['render_episode',  f('--render-episode', int)],
-        ['info',            f('--info', str)]
+        ['info',            f('--info', str)],
+        ['use_wandb',       bool(options['--use-wandb'])]
     ]))
     return op
         
@@ -163,6 +165,7 @@ def run():
 
     train_args.index = 0
     train_args.name = NAME
+    train_args.use_wandb = options.use_wandb
     train_args.inference = options.inference
     train_args.fill_in = options.fill_in
     train_args.prefill_choose= options.prefill_choose

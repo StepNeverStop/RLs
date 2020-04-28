@@ -30,6 +30,7 @@ algos = {
     'sql':      {'class': 'SQL',    'policy': 'off-policy', 'update': 'perStep'},
     'bootstrappeddqn': {'class': 'BootstrappedDQN',    'policy': 'off-policy', 'update': 'perStep'},
     'oc':       {'class': 'OC',     'policy': 'off-policy', 'update': 'perStep'},
+    'ioc':      {'class': 'IOC',    'policy': 'off-policy', 'update': 'perStep'},
     'aoc':      {'class': 'AOC',    'policy': 'on-policy',  'update': 'perEpisode'},
     'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
     'qs':       {'class': 'QS',     'policy': 'off-policy', 'update': 'perStep'},

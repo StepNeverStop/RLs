@@ -140,6 +140,13 @@ class Agent:
             self.train_args['pre_fill_steps'] = algorithm_config['batch_size']
 
         if self.env_args['type'] == 'gym':
+            if self.train_args['use_wandb']:
+                import wandb
+                wandb_path = os.path.join(base_dir, 'wandb')
+                if not os.path.exists(wandb_path):
+                    os.makedirs(wandb_path)
+                wandb.init(sync_tensorboard=True, name=self.train_args['name'], dir=base_dir, project=self.train_args['wandb_project'])
+
             self.eval_env_args = deepcopy(self.env_args)
             self.eval_env_args.env_num = 1
             self.eval_env = make_env(self.eval_env_args.to_dict)
@@ -177,6 +184,8 @@ class Agent:
                     'algo': algorithm_config
                 }
                 save_config(os.path.join(base_dir, 'config'), records_dict)
+                if self.train_args['use_wandb']:
+                    wandb.config.update(records_dict) 
         else:
             # buffer -----------------------------------
             self.buffer_args_s = []

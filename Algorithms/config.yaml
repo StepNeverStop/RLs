@@ -89,6 +89,30 @@ oc:
         intra_option: [32, 32]
         termination: [32, 32]
 
+ioc:
+    q_lr: 5.0e-3
+    intra_option_lr: 5.0e-4
+    termination_lr: 5.0e-4
+    interest_lr: 5.0e-4
+    gamma: 0.99
+    ent_coff: 0.01
+    boltzmann_temperature: 1.0
+    use_baseline: true
+    terminal_mask: true
+    double_q: false
+    termination_regularizer: 0.01
+    options_num: 4
+    batch_size: 256
+    buffer_size: 100000
+    assign_interval: 1000
+    use_priority: false
+    n_step: true
+    hidden_units:
+        q: [32, 32]
+        intra_option: [32, 32]
+        termination: [32, 32]
+        interest: [32, 32]
+
 aoc:
     options_num: 4
     dc: 0.01

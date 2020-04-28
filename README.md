@@ -82,6 +82,7 @@ For now, these algorithms are available:
     - [Option-Critic, OC](http://arxiv.org/abs/1609.05140)
     - [Asynchronous Advantage Option-Critic, A2OC](http://arxiv.org/abs/1709.04571)
     - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
+    - [Interest-Option-Critic, IOC](http://arxiv.org/abs/2001.00271)
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
     - Multi-Agent Deterministic Policy Gradient, MADPG
@@ -119,6 +120,7 @@ For now, these algorithms are available:
 |               OC                |    √     |     √      |   √   |  √   |        oc         |
 |               AOC               |    √     |     √      |   √   |  √   |        aoc        |
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
+|               IOC               |    √     |     √      |   √   |  √   |        ioc        |
 
 ## Getting started
 
@@ -155,6 +157,7 @@ Options:
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
+    --use-wandb                 是否上传数据到W&B [default: False]
 Example:
     python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
     python run.py -a ppo -u -n train_in_unity --load last_train_name
