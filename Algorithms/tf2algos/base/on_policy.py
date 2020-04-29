@@ -53,6 +53,9 @@ class On_Policy(Policy):
 
         self.intermediate_variable_reset()
 
+        if not self.is_continuous:
+            self.data.convert_action2one_hot(self.a_counts)
+
         if self.use_curiosity:
             s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()
             crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
@@ -62,8 +65,6 @@ class On_Policy(Policy):
             crsty_loss = tf.constant(value=0., dtype=self._data_type)
 
         _cal_stics()
-        if not self.is_continuous:
-            self.data.convert_action2one_hot(self.a_counts)
 
         all_data = self.data.sample_generater(self.batch_size, _train_data_list)
         for data in all_data:
