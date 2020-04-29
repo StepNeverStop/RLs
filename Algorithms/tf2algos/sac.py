@@ -86,12 +86,8 @@ class SAC(Off_Policy):
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
         )
-        self.actor_lr = self.init_lr(actor_lr)
-        self.critic_lr = self.init_lr(critic_lr)
-        self.alpha_lr = self.init_lr(alpha_lr)
-        self.optimizer_critic = self.init_optimizer(self.critic_lr)
-        self.optimizer_actor = self.init_optimizer(self.actor_lr)
-        self.optimizer_alpha = self.init_optimizer(self.alpha_lr)
+        self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
+        self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
         
         self.model_recorder(dict(
             actor=self.actor_net,

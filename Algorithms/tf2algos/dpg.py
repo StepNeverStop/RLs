@@ -46,10 +46,8 @@ class DPG(Off_Policy):
 
         self.q_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
-        self.actor_lr = self.init_lr(actor_lr)
-        self.critic_lr = self.init_lr(critic_lr)
-        self.optimizer_critic = self.init_optimizer(self.critic_lr)
-        self.optimizer_actor = self.init_optimizer(self.actor_lr)
+        self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
+        self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self.model_recorder(dict(
             actor=self.actor_net,

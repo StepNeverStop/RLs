@@ -37,10 +37,8 @@ class MADPG(Policy):
         self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
         self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_counts, hidden_units['actor'])
         self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, hidden_units['q'])
-        self.actor_lr = self.init_lr(actor_lr)
-        self.critic_lr = self.init_lr(critic_lr)
-        self.optimizer_critic = self.init_optimizer(self.critic_lr)
-        self.optimizer_actor = self.init_optimizer(self.actor_lr)
+        self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
+        self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self.model_recorder(dict(
             actor=self.actor_net,

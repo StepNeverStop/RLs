@@ -1,4 +1,5 @@
 import gym
+import gym_minigrid
 import threading
 import numpy as np
 from copy import deepcopy
@@ -54,6 +55,9 @@ class gym_envs(object):
             obs_scale = bool(config.get('obs_scale', False))
             max_episode_steps = config.get('max_episode_steps', None)
             env = gym.make(gym_env_name)
+            if gym_env_name.split('-')[0] == 'MiniGrid':
+                env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env) # Get pixel observations, or RGBImgObsWrapper
+                env = gym_minigrid.wrappers.ImgObsWrapper(env) # Get rid of the 'mission' field
             env = BaseEnv(env)
             if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
                 env = NoopResetEnv(env, noop_max=noop_max)

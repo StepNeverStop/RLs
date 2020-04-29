@@ -75,9 +75,7 @@ class OC(Off_Policy):
             self.actor_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 
-        self.q_lr = self.init_lr(q_lr)
-        self.intra_option_lr = self.init_lr(intra_option_lr)
-        self.termination_lr = self.init_lr(termination_lr)
+        self.q_lr, self.intra_option_lr, self.termination_lr = map(self.init_lr, [q_lr, intra_option_lr, termination_lr])
         self.q_optimizer = self.init_optimizer(self.q_lr, clipvalue=5.)
         self.intra_option_optimizer = self.init_optimizer(self.intra_option_lr, clipvalue=5.)
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)

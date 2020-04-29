@@ -1,11 +1,11 @@
 UnityEnvFile:
     3DBall:
-        simple500: &env C:\UnityBuild\Ball\simple500\train.exe
-        hard1: C:\UnityBuild\Ball\hard1\hard1.exe
-        hard3: C:\UnityBuild\Ball\hard3\hard3.exe
+        simple500: &env /Users/wangjianshu/UnityBuild/Ball/simple500/simple500.app
+        hard1: C:/UnityBuild/Ball/hard1/hard1.exe
+        hard3: C:/UnityBuild/Ball/hard3/hard3.exe
     RollerBall:
         OneFloor: C:/UnityBuild/RollerBall/OneFloor/RollerBall-custom.exe
-        PureCamera: C:\UnityBuild\RollerBall\PureCamera\train.exe
+        PureCamera: C:/UnityBuild/RollerBall/PureCamera/train.exe
     Boat:
         first: C:/UnityBuild/Boat/first/BoatTrain.exe
         second: C:/UnityBuild/Boat/second/BoatTrain.exe
@@ -18,7 +18,7 @@ train:
     max_step: 2000      # max_step per episode, if gym->env->max_episode_steps > max_step, them PEB(Partial Episode Bootstraping), else TimeLimit.
     max_episode: 5000   # if not specify max_total_step, max_episode will control when training end.
     max_total_step: 1000000
-    total_step_control: true
+    total_step_control: false   # only for gym training
     moving_average_episode: 100
     all_learner_print: true
     add_noise2buffer: false                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting

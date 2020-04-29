@@ -60,10 +60,8 @@ class MAXSQN(Off_Policy):
             self.q1_target_net.weights + self.q2_target_net.weights,
             self.q1_net.weights + self.q2_net.weights
         )
-        self.q_lr = self.init_lr(q_lr)
-        self.alpha_lr = self.init_lr(alpha_lr)
-        self.optimizer_critic = self.init_optimizer(self.q_lr)
-        self.optimizer_alpha = self.init_optimizer(self.alpha_lr)
+        self.q_lr, self.alpha_lr = map(self.init_lr, [q_lr, alpha_lr])
+        self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.q_lr, self.alpha_lr])
 
         self.model_recorder(dict(
             q1_net=self.q1_net,
