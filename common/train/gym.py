@@ -17,7 +17,9 @@ def init_variables(env):
         newstate: [vector_obs, visual_obs]
     """
     i = 1 if env.obs_type == 'visual' else 0
-    return i, [np.array([[]] * env.n), np.array([[]] * env.n)], [np.array([[]] * env.n), np.array([[]] * env.n)]
+    return (i, 
+            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)], 
+            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)])
 
 def gym_train(env, model, print_func,
               begin_episode, render, render_episode,

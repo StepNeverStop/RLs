@@ -1,67 +1,46 @@
 import gym
 import gym_minigrid
-import ray
 import numpy as np
-from copy import deepcopy
 from typing import Dict
+from copy import deepcopy
+from utils.sth import sth
 from gym.spaces import Box, Discrete, Tuple
-from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, TimeLimit
+from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, NoopResetEnv, TimeLimit, DtypeEnv
 
-
-@ray.remote
-class RayEnv:
-    def __init__(self, env_func, kwargs):
-        self.env = env_func(**kwargs)
-
-    def seed(self, s):
-        self.env.seed(s)
-
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
-
-    def step(self, action):
-        return self.env.step(action)
-
-    def render(self):
-        self.env.render()
-
-    def close(self):
-        self.env.close()
-
-    def sample(self):
-        return self.env.action_sample()
+import platform
+use_ray = False
+if platform.system() != "Windows" and use_ray:
+    from . import ray_wrapper as Asyn
+else:
+    from . import threading_wrapper as Asyn
 
 
 class gym_envs(object):
 
-    def __init__(self, kwargs: Dict):
+    def __init__(self, config: Dict):
         '''
         Input:
             gym_env_name: gym training environment id, i.e. CartPole-v0
             n: environment number
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
-        ray.init()
+        self.n = config['env_num']  # environments number
+        render_mode = config.get('render_mode', 'first')
 
-        self.n = kwargs['env_num']  # environments number
-        seed = kwargs['env_seed']
-        render_mode = kwargs.get('render_mode', 'first')
+        def get_env(config: Dict):
+            gym_env_name = config['env_name']
+            action_skip = bool(config.get('action_skip', False))
+            skip = int(config.get('skip', 4))
+            obs_stack = bool(config.get('obs_stack', False))
+            stack = int(config.get('stack', 4))
 
-        def get_env(kwargs):
-            gym_env_name = kwargs['env_name']
-            action_skip = bool(kwargs.get('action_skip', False))
-            skip = int(kwargs.get('skip', 4))
-            obs_stack = bool(kwargs.get('obs_stack', False))
-            stack = int(kwargs.get('stack', 4))
-
-            noop = bool(kwargs.get('noop', False))
-            noop_max = int(kwargs.get('noop_max', 30))
-            obs_grayscale = bool(kwargs.get('obs_grayscale', False))
-            obs_resize = bool(kwargs.get('obs_resize', False))
-            resize = kwargs.get('resize', [84, 84])
-            obs_scale = bool(kwargs.get('obs_scale', False))
-            max_episode_steps = kwargs.get('max_episode_steps', None)
-
+            noop = bool(config.get('noop', False))
+            noop_max = int(config.get('noop_max', 30))
+            obs_grayscale = bool(config.get('obs_grayscale', False))
+            obs_resize = bool(config.get('obs_resize', False))
+            resize = config.get('resize', [84, 84])
+            obs_scale = bool(config.get('obs_scale', False))
+            max_episode_steps = config.get('max_episode_steps', None)
             env = gym.make(gym_env_name)
             if gym_env_name.split('-')[0] == 'MiniGrid':
                 env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env) # Get pixel observations, or RGBImgObsWrapper
@@ -86,14 +65,13 @@ class gym_envs(object):
                 env = BoxActEnv(env)
 
             env = TimeLimit(env, max_episode_steps)
+            env = DtypeEnv(env)
             return env
 
         self.eval_env = get_env(config)
         self._initialize(env=self.eval_env)
         
-        self.envs = [RayEnv.remote(get_env, kwargs) for i in range(self.n)]
-        self.seeds = [seed + i for i in range(self.n)]
-        [env.seed.remote(s) for env, s in zip(self.envs, self.seeds)]
+        self.envs = Asyn.init_envs(get_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
 
     def _initialize(self, env):
@@ -142,13 +120,6 @@ class gym_envs(object):
     def _get_render_index(self, render_mode):
         '''
         get render windows list, i.e. [0, 1] when there are 4 training enviornment.
-        render_mode: mode of rendering, 
-        optional: 
-            - first, 
-            - last, 
-            - all, 
-            - random_[num] -> i.e. random_2, 
-            - [list] -> i.e. [0, 2, 4]
         '''
         assert isinstance(render_mode, (list, str)), 'render_mode must have type of str or list.'
         if isinstance(render_mode, list):
@@ -171,32 +142,30 @@ class gym_envs(object):
         else:
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
-    def reset(self):
-        obs = np.asarray(ray.get([env.reset.remote() for env in self.envs]))
-        if self.obs_type == 'visual':
-            obs = obs[:, np.newaxis, ...]
-        return obs
-
-    def partial_reset(self, obs, dones_index):
-        correct_new_obs = deepcopy(obs)
-        partial_obs = np.asarray(ray.get([self.envs[i].reset.remote() for i in dones_index]))
-        correct_new_obs[dones_index] = partial_obs
-        return correct_new_obs
-
-    def render(self, record):
+    def render(self, record=False):
         '''
         render game windows.
         '''
-        if record:
-            [self.envs[i].render.remote(filename=r'videos/{0}-{1}.mp4'.format(self.envs[i].env.spec.id, i)) for i in self.render_index]
-        else:
-            [self.envs[i].render.remote() for i in self.render_index]
+        Asyn.op_func([self.envs[i] for i in self.render_index], Asyn.OP.RENDER)
+
+    def close(self):
+        '''
+        close all environments.
+        '''
+        Asyn.op_func(self.envs, Asyn.OP.CLOSE)
+        self.eval_env.close()
 
     def sample_actions(self):
         '''
         generate random actions for all training environment.
         '''
-        return np.asarray(ray.get([env.sample.remote() for env in self.envs]))
+        return np.asarray(Asyn.op_func(self.envs, Asyn.OP.SAMPLE))
+
+    def reset(self):
+        obs = np.asarray(Asyn.op_func(self.envs, Asyn.OP.RESET))
+        if self.obs_type == 'visual':
+            obs = obs[:, np.newaxis, ...]
+        return obs
 
     def step(self, actions):
         actions = np.array(actions)
@@ -206,10 +175,9 @@ class gym_envs(object):
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':
                 actions = actions.reshape(self.n, -1).tolist()
-        obs, reward, done, info = list(zip(*ray.get([env.step.remote(action) for env, action in zip(self.envs, actions)])))
-        obs = np.asarray(obs),
-        reward = np.asarray(reward).astype(np.float32),
-        done = np.asarray(done),
+        results = Asyn.op_func(self.envs, Asyn.OP.STEP, actions)
+        obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
+        reward = reward.astype('float32')
         dones_index = np.where(done)[0]
         if dones_index.shape[0] > 0:
             correct_new_obs = self.partial_reset(obs, dones_index)
@@ -218,11 +186,10 @@ class gym_envs(object):
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
             correct_new_obs = correct_new_obs[:, np.newaxis, ...]
-        return (obs, reward, done, info, correct_new_obs)
+        return obs, reward, done, info, correct_new_obs
 
-    def close(self):
-        '''
-        close all environments.
-        '''
-        ray.get([env.close.remote() for env in self.envs])
-        ray.shutdown()
+    def partial_reset(self, obs, dones_index):
+        correct_new_obs = deepcopy(obs)
+        partial_obs = np.asarray(Asyn.op_func([self.envs[i] for i in dones_index], Asyn.OP.RESET))
+        correct_new_obs[dones_index] = partial_obs
+        return correct_new_obs

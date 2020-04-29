@@ -147,9 +147,6 @@ class Agent:
                     os.makedirs(wandb_path)
                 wandb.init(sync_tensorboard=True, name=self.train_args['name'], dir=base_dir, project=self.train_args['wandb_project'])
 
-            self.eval_env_args = deepcopy(self.env_args)
-            self.eval_env_args.env_num = 1
-            self.eval_env = make_env(self.eval_env_args.to_dict)
             # buffer ------------------------------
             if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
                 self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']

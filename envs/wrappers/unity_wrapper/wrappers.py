@@ -70,11 +70,12 @@ class InfoWrapper(BasicWrapper):
 
         self.visual_sources = [len(v) for v in self.visual_idxs]
         self.visual_resolutions = []
+        stack_visual_nums = env_args['stack_visual_nums'] if env_args['stack_visual_nums'] > 1 else 1
         for spec in self.brain_specs:
             for b in spec.observation_shapes:
                 if len(b) == 3:
                     self.visual_resolutions.append(
-                        list(self.resize)+[list(b)[-1]])
+                        list(self.resize)+[list(b)[-1] * stack_visual_nums])
                     break
             else:
                 self.visual_resolutions.append([])
@@ -210,7 +211,7 @@ class UnityReturnWrapper(BasicWrapper):
             for v in viss:
                 s.append(self.resize_image(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss)
+        return np.array(ss) # [B, N, (H, W, C)]
 
     def resize_image(self, image):
         image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize)+[-1])

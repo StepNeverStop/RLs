@@ -1,13 +1,13 @@
 import logging
 from copy import deepcopy
-from gym_wrapper import gym_envs
-from common.unity_wrapper import UnityWrapper
-from common.unity_wrapper import InfoWrapper, UnityReturnWrapper, SamplerWrapper, ActionWrapper
+from typing import Dict
+from envs.wrappers.gym_wrapper import gym_envs
+from envs.wrappers.unity_wrapper import UnityWrapper, InfoWrapper, UnityReturnWrapper, SamplerWrapper, ActionWrapper, StackVisualWrapper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.make_env")
 
-def make_env(env_args):
+def make_env(env_args: Dict):
     if env_args['type'] == 'gym':
         env = make_gym_env(env_args)
     elif env_args['type'] == 'unity':
@@ -31,7 +31,10 @@ def make_unity_env(env_args):
     env = InfoWrapper(env, env_args)
     logger.debug('Unity InfoWrapper success.')
 
-    env = UnityReturnWrapper(env)
+    if env_args['stack_visual_nums'] > 1:
+        env = StackVisualWrapper(env, stack_nums=env_args['stack_visual_nums'])
+    else:
+        env = UnityReturnWrapper(env)
     logger.debug('Unity UnityReturnWrapper success.')
 
     env = SamplerWrapper(env, env_args)

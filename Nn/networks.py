@@ -10,6 +10,22 @@ from Nn.activations import default_activation
 SimpleCNN = lambda :ConvLayer(Conv2D, [16,32], [[8,8],[4,4]], [[4,4],[2,2]], padding='valid', activation='elu')
 NatureCNN = lambda :ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
 
+class MultiCameraCNN(M):
+    '''多个图像来源输入的CNN，未初始化
+    '''
+    def __init__(self, n, feature_dim, activation_fn, encoder_type):
+        super().__init__()
+        self.n = n
+        self.nets = []
+        for _ in range(n):
+            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
+            net.add(Dense(feature_dim, activation_fn))
+            self.nets.append(net)
+
+    def call(self, vector_input, visual_input):
+        f = [self.nets[i](visual_input[:, i]) for i in range(self.n)]
+        f = tf.concat([vector_input, *f], axis=-1)
+        return f
 
 class ObsRNN(M):
     '''输入状态的RNN
@@ -48,20 +64,12 @@ class VisualNet(M):
     def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type='simple'):
         super().__init__()
         self.camera_num = visual_dim[0]
-        
-        self.nets = []
-        for _ in range(self.camera_num):
-            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
-            net.add(Dense(visual_feature, default_activation))
-            self.nets.append(net)
-
+        self.nets = MultiCameraCNN(n=self.camera_num, feature_dim=visual_feature, activation_fn=default_activation, encoder_type=encoder_type)
         self.hdim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
         self(I(shape=vector_dim), I(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        f = [self.nets[i](visual_input[:, i]) for i in range(self.camera_num)]
-        f = tf.concat([vector_input, *f], axis=-1)
-        return f
+        return self.nets(vector_input, visual_input)
 
 class CuriosityModel(M):
     '''
@@ -97,12 +105,7 @@ class CuriosityModel(M):
         else:
             self.use_visual = True
         
-        self.nets = []
-        for _ in range(self.camera_num):
-            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
-            net.add(Dense(visual_feature, default_activation))
-            self.nets.append(net)
-
+        self.nets = MultiCameraCNN(n=self.camera_num, feature_dim=visual_feature, activation_fn=default_activation, encoder_type=encoder_type)
         self.s_dim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
 
         if self.use_visual:
@@ -117,7 +120,7 @@ class CuriosityModel(M):
             Dense(self.s_dim+action_dim, default_activation),
             Dense(self.s_dim, None)
         ]) 
-        self.initial_weights(I(shape=visual_dim), I(shape=vector_dim), I(shape=action_dim))
+        self.initial_weights(I(shape=vector_dim), I(shape=visual_dim), I(shape=action_dim))
 
         self.tv = []
         if self.use_visual:
@@ -127,9 +130,8 @@ class CuriosityModel(M):
         self.tv += self.forward_net.trainable_variables   
 
 
-    def initial_weights(self, visual_input, vector_input, action):
-        f = [self.nets[i](visual_input[:, i]) for i in range(self.camera_num)]
-        s = tf.concat((*f, vector_input), -1)
+    def initial_weights(self, vector_input, visual_input, action):
+        s = self.nets(vector_input, visual_input)
         if self.use_visual:
             self.inverse_dynamic_net(tf.concat((s, s), -1))
         self.forward_net(tf.concat((s, action), -1))
