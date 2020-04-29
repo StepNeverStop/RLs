@@ -46,7 +46,7 @@ def gym_train(env, model, print_func,
             step += 1
             r_tem = np.zeros(env.n)
             if render or episode > render_episode:
-                env.render()
+                env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             model.partial_reset(done)
