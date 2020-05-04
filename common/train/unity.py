@@ -49,7 +49,6 @@ def unity_train(env, models, print_func,
             ObsRewDone = env.step(actions)
 
             for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-                models[i].partial_reset(_d)
                 unfinished_index = np.where(dones_flag[i] == False)[0]
                 dones_flag[i] += _d
                 models[i].store_data(
@@ -61,6 +60,7 @@ def unity_train(env, models, print_func,
                     visual_s_=_vs,
                     done=_d
                 )
+                models[i].partial_reset(_d)
                 rewards[i][unfinished_index] += _r[unfinished_index]
                 state[i] = _v
                 visual_state[i] = _vs
@@ -151,7 +151,6 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
         for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
-            models[i].partial_reset(_d)
             models[i].no_op_store(
                 s=state[i],
                 visual_s=visual_state[i],
@@ -161,6 +160,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
                 visual_s_=_vs,
                 done=_d
             )
+            models[i].partial_reset(_d)
             state[i] = _v
             visual_state[i] = _vs
 

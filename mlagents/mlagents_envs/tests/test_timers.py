@@ -10,9 +10,8 @@ def decorated_func(x: int = 0, y: float = 1.0) -> str:
 
 
 def test_timers() -> None:
-    with mock.patch(
-        "mlagents_envs.timers._global_timer_stack", new_callable=timers.TimerStack
-    ) as test_timer:
+    test_timer = timers.TimerStack()
+    with mock.patch("mlagents_envs.timers._get_thread_timer", return_value=test_timer):
         # First, run some simple code
         with timers.hierarchical_timer("top_level"):
             for i in range(3):
@@ -81,6 +80,13 @@ def test_timers() -> None:
                 }
             },
             "gauges": {"my_gauge": {"value": 4.0, "max": 4.0, "min": 0.0, "count": 3}},
+            "metadata": {
+                "timer_format_version": timers.TIMER_FORMAT_VERSION,
+                "start_time_seconds": mock.ANY,
+                "end_time_seconds": mock.ANY,
+                "python_version": mock.ANY,
+                "command_line_arguments": mock.ANY,
+            },
         }
 
         assert timer_tree == expected_tree

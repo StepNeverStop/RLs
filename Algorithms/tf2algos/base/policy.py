@@ -239,7 +239,7 @@ class Policy(Base):
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [-1, tf.shape(s)[-1]])    # [B, T+1, N] => [B*(T+1), N], [A, N] => [A, N]
-            visual_s = tf.reshape(visual_s, [-1, tf.shape(visual_s)[-1]])
+            visual_s = tf.reshape(visual_s, [-1, *tf.shape(visual_s)[2:]])
             feature = self.visual_net(s, visual_s)  # [B*(T+1), N]
             feature = tf.reshape(feature, [batch_size, -1, tf.shape(feature)[-1]])  # [B*(T+1), N] => [B, T+1, N]
             state, cell_state = self.rnn_net(feature, cell_state)

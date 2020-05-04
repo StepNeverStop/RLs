@@ -1,15 +1,21 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, NamedTuple, Iterable
-from mlagents_envs.base_env import BatchedStepResult, AgentGroupSpec, AgentGroup
+from typing import List, Dict, NamedTuple, Iterable, Tuple
+from mlagents_envs.base_env import (
+    DecisionSteps,
+    TerminalSteps,
+    BehaviorSpec,
+    BehaviorName,
+)
+from mlagents_envs.side_channel.stats_side_channel import StatsAggregationMethod
+
 from mlagents.trainers.brain import BrainParameters
 from mlagents.trainers.policy.tf_policy import TFPolicy
 from mlagents.trainers.agent_processor import AgentManager, AgentManagerQueue
 from mlagents.trainers.action_info import ActionInfo
 from mlagents_envs.logging_util import get_logger
 
-AllStepResult = Dict[AgentGroup, BatchedStepResult]
-AllGroupSpec = Dict[AgentGroup, AgentGroupSpec]
-
+AllStepResult = Dict[BehaviorName, Tuple[DecisionSteps, TerminalSteps]]
+AllGroupSpec = Dict[BehaviorName, BehaviorSpec]
 
 logger = get_logger(__name__)
 
@@ -17,29 +23,32 @@ logger = get_logger(__name__)
 class EnvironmentStep(NamedTuple):
     current_all_step_result: AllStepResult
     worker_id: int
-    brain_name_to_action_info: Dict[AgentGroup, ActionInfo]
+    brain_name_to_action_info: Dict[BehaviorName, ActionInfo]
+    environment_stats: Dict[str, Tuple[float, StatsAggregationMethod]]
 
     @property
-    def name_behavior_ids(self) -> Iterable[AgentGroup]:
+    def name_behavior_ids(self) -> Iterable[BehaviorName]:
         return self.current_all_step_result.keys()
 
     @staticmethod
     def empty(worker_id: int) -> "EnvironmentStep":
-        return EnvironmentStep({}, worker_id, {})
+        return EnvironmentStep({}, worker_id, {}, {})
 
 
 class EnvManager(ABC):
     def __init__(self):
-        self.policies: Dict[AgentGroup, TFPolicy] = {}
-        self.agent_managers: Dict[AgentGroup, AgentManager] = {}
+        self.policies: Dict[BehaviorName, TFPolicy] = {}
+        self.agent_managers: Dict[BehaviorName, AgentManager] = {}
         self.first_step_infos: List[EnvironmentStep] = None
 
-    def set_policy(self, brain_name: AgentGroup, policy: TFPolicy) -> None:
+    def set_policy(self, brain_name: BehaviorName, policy: TFPolicy) -> None:
         self.policies[brain_name] = policy
         if brain_name in self.agent_managers:
             self.agent_managers[brain_name].policy = policy
 
-    def set_agent_manager(self, brain_name: AgentGroup, manager: AgentManager) -> None:
+    def set_agent_manager(
+        self, brain_name: BehaviorName, manager: AgentManager
+    ) -> None:
         self.agent_managers[brain_name] = manager
 
     @abstractmethod
@@ -60,12 +69,7 @@ class EnvManager(ABC):
 
     @property
     @abstractmethod
-    def external_brains(self) -> Dict[AgentGroup, BrainParameters]:
-        pass
-
-    @property
-    @abstractmethod
-    def get_properties(self) -> Dict[AgentGroup, float]:
+    def external_brains(self) -> Dict[BehaviorName, BrainParameters]:
         pass
 
     @abstractmethod
@@ -79,13 +83,17 @@ class EnvManager(ABC):
         if self.first_step_infos is not None:
             self._process_step_infos(self.first_step_infos)
             self.first_step_infos = None
-        # Get new policies if found
+        # Get new policies if found. Always get the latest policy.
         for brain_name in self.external_brains:
+            _policy = None
             try:
-                _policy = self.agent_managers[brain_name].policy_queue.get_nowait()
-                self.set_policy(brain_name, _policy)
+                # We make sure to empty the policy queue before continuing to produce steps.
+                # This halts the trainers until the policy queue is empty.
+                while True:
+                    _policy = self.agent_managers[brain_name].policy_queue.get_nowait()
             except AgentManagerQueue.Empty:
-                pass
+                if _policy is not None:
+                    self.set_policy(brain_name, _policy)
         # Step the environment
         new_step_infos = self._step()
         # Add to AgentProcessor
@@ -102,11 +110,19 @@ class EnvManager(ABC):
                         )
                     )
                     continue
+                decision_steps, terminal_steps = step_info.current_all_step_result[
+                    name_behavior_id
+                ]
                 self.agent_managers[name_behavior_id].add_experiences(
-                    step_info.current_all_step_result[name_behavior_id],
+                    decision_steps,
+                    terminal_steps,
                     step_info.worker_id,
                     step_info.brain_name_to_action_info.get(
                         name_behavior_id, ActionInfo.empty()
                     ),
+                )
+
+                self.agent_managers[name_behavior_id].record_environment_stats(
+                    step_info.environment_stats, step_info.worker_id
                 )
         return len(step_infos)

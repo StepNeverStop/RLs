@@ -51,7 +51,6 @@ def gym_train(env, model, print_func,
                 env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
-            model.partial_reset(done)
             unfinished_index = np.where(dones_flag == False)[0]
             dones_flag += done
             r_tem[unfinished_index] = reward[unfinished_index]
@@ -65,6 +64,7 @@ def gym_train(env, model, print_func,
                 visual_s_=new_state[1],
                 done=done
             )
+            model.partial_reset(done)
             state[i] = correct_new_state
 
             if policy_mode == 'off-policy':
@@ -208,7 +208,6 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
         else:
             action = env.sample_actions()
         new_state[i], reward, done, info, correct_new_state = env.step(action)
-        model.partial_reset(done)
         model.no_op_store(
             s=state[0],
             visual_s=state[1],
@@ -218,6 +217,7 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
             visual_s_=new_state[1],
             done=done
         )
+        model.partial_reset(done)
         state[i] = correct_new_state
 
 def gym_inference(env, model):

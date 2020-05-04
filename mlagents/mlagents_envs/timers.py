@@ -29,10 +29,14 @@ over the timer name, or are splitting up multiple sections of a large function.
 """
 
 import math
-from time import perf_counter
+import sys
+import time
+import threading
 
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Generator, TypeVar
+from typing import Any, Callable, Dict, Generator, Optional, TypeVar
+
+TIMER_FORMAT_VERSION = "0.1.0"
 
 
 class TimerNode:
@@ -94,19 +98,31 @@ class GaugeNode:
     Tracks the most recent value of a metric. This is analogous to gauges in statsd.
     """
 
-    __slots__ = ["value", "min_value", "max_value", "count"]
+    __slots__ = ["value", "min_value", "max_value", "count", "_timestamp"]
 
     def __init__(self, value: float):
         self.value = value
         self.min_value = value
         self.max_value = value
         self.count = 1
+        # Internal timestamp so we can determine priority.
+        self._timestamp = time.time()
 
     def update(self, new_value: float) -> None:
         self.min_value = min(self.min_value, new_value)
         self.max_value = max(self.max_value, new_value)
         self.value = new_value
         self.count += 1
+        self._timestamp = time.time()
+
+    def merge(self, other: "GaugeNode") -> None:
+        if self._timestamp < other._timestamp:
+            # Keep the "later" value
+            self.value = other.value
+            self._timestamp = other._timestamp
+        self.min_value = min(self.min_value, other.min_value)
+        self.max_value = max(self.max_value, other.max_value)
+        self.count += other.count
 
     def as_dict(self) -> Dict[str, float]:
         return {
@@ -123,19 +139,23 @@ class TimerStack:
     sure that pushes and pops are already matched.
     """
 
-    __slots__ = ["root", "stack", "start_time", "gauges"]
+    __slots__ = ["root", "stack", "start_time", "gauges", "metadata"]
 
     def __init__(self):
         self.root = TimerNode()
         self.stack = [self.root]
-        self.start_time = perf_counter()
+        self.start_time = time.perf_counter()
         self.gauges: Dict[str, GaugeNode] = {}
+        self.metadata: Dict[str, str] = {}
+        self._add_default_metadata()
 
     def reset(self):
         self.root = TimerNode()
         self.stack = [self.root]
-        self.start_time = perf_counter()
+        self.start_time = time.perf_counter()
         self.gauges: Dict[str, GaugeNode] = {}
+        self.metadata: Dict[str, str] = {}
+        self._add_default_metadata()
 
     def push(self, name: str) -> TimerNode:
         """
@@ -157,7 +177,7 @@ class TimerStack:
         Update the total time and count of the root name, and return it.
         """
         root = self.root
-        root.total = perf_counter() - self.start_time
+        root.total = time.perf_counter() - self.start_time
         root.count = 1
         return root
 
@@ -174,6 +194,10 @@ class TimerStack:
             # Only output gauges at top level
             if self.gauges:
                 res["gauges"] = self._get_gauges()
+
+            if self.metadata:
+                self.metadata["end_time_seconds"] = str(int(time.time()))
+                res["metadata"] = self.metadata
 
         res["total"] = node.total
         res["count"] = node.count
@@ -205,16 +229,39 @@ class TimerStack:
         else:
             self.gauges[name] = GaugeNode(value)
 
+    def add_metadata(self, key: str, value: str) -> None:
+        self.metadata[key] = value
+
     def _get_gauges(self) -> Dict[str, Dict[str, float]]:
         gauges = {}
         for gauge_name, gauge_node in self.gauges.items():
             gauges[gauge_name] = gauge_node.as_dict()
         return gauges
 
+    def _add_default_metadata(self):
+        self.metadata["timer_format_version"] = TIMER_FORMAT_VERSION
+        self.metadata["start_time_seconds"] = str(int(time.time()))
+        self.metadata["python_version"] = sys.version
+        self.metadata["command_line_arguments"] = " ".join(sys.argv)
 
-# Global instance of a TimerStack. This is generally all that we need for profiling, but you can potentially
-# create multiple instances and pass them to the contextmanager
-_global_timer_stack = TimerStack()
+
+# Maintain a separate "global" timer per thread, so that they don't accidentally conflict with each other.
+_thread_timer_stacks: Dict[int, TimerStack] = {}
+
+
+def _get_thread_timer() -> TimerStack:
+    ident = threading.get_ident()
+    if ident not in _thread_timer_stacks:
+        timer_stack = TimerStack()
+        _thread_timer_stacks[ident] = timer_stack
+    return _thread_timer_stacks[ident]
+
+
+def get_timer_stack_for_thread(t: threading.Thread) -> Optional[TimerStack]:
+    if t.ident is None:
+        # Thread hasn't started, shouldn't ever happen
+        return None
+    return _thread_timer_stacks.get(t.ident)
 
 
 @contextmanager
@@ -223,9 +270,9 @@ def hierarchical_timer(name: str, timer_stack: TimerStack = None) -> Generator:
     Creates a scoped timer around a block of code. This time spent will automatically be incremented when
     the context manager exits.
     """
-    timer_stack = timer_stack or _global_timer_stack
+    timer_stack = timer_stack or _get_thread_timer()
     timer_node = timer_stack.push(name)
-    start_time = perf_counter()
+    start_time = time.perf_counter()
 
     try:
         # The wrapped code block will run here.
@@ -233,7 +280,7 @@ def hierarchical_timer(name: str, timer_stack: TimerStack = None) -> Generator:
     finally:
         # This will trigger either when the context manager exits, or an exception is raised.
         # We'll accumulate the time, and the exception (if any) gets raised automatically.
-        elapsed = perf_counter() - start_time
+        elapsed = time.perf_counter() - start_time
         timer_node.add_time(elapsed)
         timer_stack.pop()
 
@@ -264,29 +311,52 @@ def set_gauge(name: str, value: float, timer_stack: TimerStack = None) -> None:
     """
     Updates the value of the gauge (or creates it if it hasn't been set before).
     """
-    timer_stack = timer_stack or _global_timer_stack
+    timer_stack = timer_stack or _get_thread_timer()
     timer_stack.set_gauge(name, value)
+
+
+def merge_gauges(gauges: Dict[str, GaugeNode], timer_stack: TimerStack = None) -> None:
+    """
+    Merge the gauges from another TimerStack with the provided one (or the
+    current thread's stack if none is provided).
+    :param gauges:
+    :param timer_stack:
+    :return:
+    """
+    timer_stack = timer_stack or _get_thread_timer()
+    for n, g in gauges.items():
+        if n in timer_stack.gauges:
+            timer_stack.gauges[n].merge(g)
+        else:
+            timer_stack.gauges[n] = g
+
+
+def add_metadata(key: str, value: str, timer_stack: TimerStack = None) -> None:
+    timer_stack = timer_stack or _get_thread_timer()
+    timer_stack.add_metadata(key, value)
 
 
 def get_timer_tree(timer_stack: TimerStack = None) -> Dict[str, Any]:
     """
-    Return the tree of timings from the TimerStack as a dictionary (or the global stack if none is provided)
+    Return the tree of timings from the TimerStack as a dictionary (or the
+     current thread's  stack if none is provided)
     """
-    timer_stack = timer_stack or _global_timer_stack
+    timer_stack = timer_stack or _get_thread_timer()
     return timer_stack.get_timing_tree()
 
 
 def get_timer_root(timer_stack: TimerStack = None) -> TimerNode:
     """
-    Get the root TimerNode of the timer_stack (or the global TimerStack if not specified)
+    Get the root TimerNode of the timer_stack (or the current thread's
+    TimerStack if not specified)
     """
-    timer_stack = timer_stack or _global_timer_stack
+    timer_stack = timer_stack or _get_thread_timer()
     return timer_stack.get_root()
 
 
 def reset_timers(timer_stack: TimerStack = None) -> None:
     """
-    Reset the timer_stack (or the global TimerStack if not specified)
+    Reset the timer_stack (or the current thread's TimerStack if not specified)
     """
-    timer_stack = timer_stack or _global_timer_stack
+    timer_stack = timer_stack or _get_thread_timer()
     timer_stack.reset()

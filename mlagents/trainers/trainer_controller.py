@@ -4,7 +4,8 @@
 
 import os
 import sys
-from typing import Dict, Optional, Set
+import threading
+from typing import Dict, Optional, Set, List
 from collections import defaultdict
 
 import numpy as np
@@ -15,9 +16,15 @@ from mlagents.trainers.env_manager import EnvManager
 from mlagents_envs.exception import (
     UnityEnvironmentException,
     UnityCommunicationException,
+    UnityCommunicatorStoppedException,
 )
 from mlagents.trainers.sampler_class import SamplerManager
-from mlagents_envs.timers import hierarchical_timer, timed
+from mlagents_envs.timers import (
+    hierarchical_timer,
+    timed,
+    get_timer_stack_for_thread,
+    merge_gauges,
+)
 from mlagents.trainers.trainer import Trainer
 from mlagents.trainers.meta_curriculum import MetaCurriculum
 from mlagents.trainers.trainer_util import TrainerFactory
@@ -49,6 +56,7 @@ class TrainerController(object):
         :param training_seed: Seed to use for Numpy and Tensorflow random number generation.
         :param sampler_manager: SamplerManager object handles samplers for resampling the reset parameters.
         :param resampling_interval: Specifies number of simulation steps after which reset parameters are resampled.
+        :param threaded: Whether or not to run trainers in a separate thread. Disable for testing/debugging.
         """
         self.trainers: Dict[str, Trainer] = {}
         self.brain_name_to_identifier: Dict[str, Set] = defaultdict(set)
@@ -62,6 +70,10 @@ class TrainerController(object):
         self.meta_curriculum = meta_curriculum
         self.sampler_manager = sampler_manager
         self.resampling_interval = resampling_interval
+        self.ghost_controller = self.trainer_factory.ghost_controller
+
+        self.trainer_threads: List[threading.Thread] = []
+        self.kill_trainers = False
         np.random.seed(training_seed)
         tf.set_random_seed(training_seed)
 
@@ -156,26 +168,32 @@ class TrainerController(object):
         self, env_manager: EnvManager, name_behavior_id: str
     ) -> None:
 
-        brain_name = BehaviorIdentifiers.from_name_behavior_id(
-            name_behavior_id
-        ).brain_name
+        parsed_behavior_id = BehaviorIdentifiers.from_name_behavior_id(name_behavior_id)
+        brain_name = parsed_behavior_id.brain_name
+        trainerthread = None
         try:
             trainer = self.trainers[brain_name]
         except KeyError:
             trainer = self.trainer_factory.generate(brain_name)
             self.trainers[brain_name] = trainer
-            self.logger.info(trainer)
-            if self.train_model:
-                trainer.write_tensorboard_text("Hyperparameters", trainer.parameters)
+            if trainer.threaded:
+                # Only create trainer thread for new trainers
+                trainerthread = threading.Thread(
+                    target=self.trainer_update_func, args=(trainer,), daemon=True
+                )
+                self.trainer_threads.append(trainerthread)
 
-        policy = trainer.create_policy(env_manager.external_brains[name_behavior_id])
-        trainer.add_policy(name_behavior_id, policy)
+        policy = trainer.create_policy(
+            parsed_behavior_id, env_manager.external_brains[name_behavior_id]
+        )
+        trainer.add_policy(parsed_behavior_id, policy)
 
         agent_manager = AgentManager(
             policy,
             name_behavior_id,
             trainer.stats_reporter,
             trainer.parameters.get("time_horizon", sys.maxsize),
+            threaded=trainer.threaded,
         )
         env_manager.set_agent_manager(name_behavior_id, agent_manager)
         env_manager.set_policy(name_behavior_id, policy)
@@ -183,6 +201,10 @@ class TrainerController(object):
 
         trainer.publish_policy_queue(agent_manager.policy_queue)
         trainer.subscribe_trajectory_queue(agent_manager.trajectory_queue)
+
+        # Only start new trainers
+        if trainerthread is not None:
+            trainerthread.start()
 
     def _create_trainers_and_managers(
         self, env_manager: EnvManager, behavior_ids: Set[str]
@@ -210,16 +232,32 @@ class TrainerController(object):
                     self.reset_env_if_ready(env_manager, global_step)
                     if self._should_save_model(global_step):
                         self._save_model()
-
+            # Stop advancing trainers
+            self.join_threads()
             # Final save Tensorflow model
             if global_step != 0 and self.train_model:
                 self._save_model()
-        except (KeyboardInterrupt, UnityCommunicationException):
+        except (
+            KeyboardInterrupt,
+            UnityCommunicationException,
+            UnityEnvironmentException,
+            UnityCommunicatorStoppedException,
+        ) as ex:
+            self.join_threads()
             if self.train_model:
                 self._save_model_when_interrupted()
-            pass
-        if self.train_model:
-            self._export_graph()
+
+            if isinstance(ex, KeyboardInterrupt) or isinstance(
+                ex, UnityCommunicatorStoppedException
+            ):
+                pass
+            else:
+                # If the environment failed, we want to make sure to raise
+                # the exception so we exit the process with an return code of 1.
+                raise ex
+        finally:
+            if self.train_model:
+                self._export_graph()
 
     def end_trainer_episodes(
         self, env: EnvManager, lessons_incremented: Dict[str, bool]
@@ -257,7 +295,8 @@ class TrainerController(object):
             and (self.resampling_interval)
             and (steps % self.resampling_interval == 0)
         )
-        if meta_curriculum_reset or generalization_reset:
+        ghost_controller_reset = self.ghost_controller.should_reset()
+        if meta_curriculum_reset or generalization_reset or ghost_controller_reset:
             self.end_trainer_episodes(env, lessons_incremented)
 
     @timed
@@ -274,9 +313,38 @@ class TrainerController(object):
                         "Environment/Lesson", curr.lesson_num
                     )
 
-        # Advance trainers. This can be done in a separate loop in the future.
-        with hierarchical_timer("trainer_advance"):
-            for trainer in self.trainers.values():
-                trainer.advance()
+        for trainer in self.trainers.values():
+            if not trainer.threaded:
+                with hierarchical_timer("trainer_advance"):
+                    trainer.advance()
 
         return num_steps
+
+    def join_threads(self, timeout_seconds: float = 1.0) -> None:
+        """
+        Wait for threads to finish, and merge their timer information into the main thread.
+        :param timeout_seconds:
+        :return:
+        """
+        self.kill_trainers = True
+        for t in self.trainer_threads:
+            try:
+                t.join(timeout_seconds)
+            except Exception:
+                pass
+
+        with hierarchical_timer("trainer_threads") as main_timer_node:
+            for trainer_thread in self.trainer_threads:
+                thread_timer_stack = get_timer_stack_for_thread(trainer_thread)
+                if thread_timer_stack:
+                    main_timer_node.merge(
+                        thread_timer_stack.root,
+                        root_name="thread_root",
+                        is_parallel=True,
+                    )
+                    merge_gauges(thread_timer_stack.gauges)
+
+    def trainer_update_func(self, trainer: Trainer) -> None:
+        while not self.kill_trainers:
+            with hierarchical_timer("trainer_advance"):
+                trainer.advance()

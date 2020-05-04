@@ -86,7 +86,7 @@ class Off_Policy(Policy):
         TODO: Annotation
         '''
         _pre_process = function_dict.get('pre_process_function', lambda *args: None)    # 预处理过程
-        _train = function_dict.get('train_function', lambda *args: None)    # 训练过程
+        _train = function_dict.get('train_function', lambda *args: (None, {}))   # 训练过程
         _update = function_dict.get('update_function', lambda *args: None)  # maybe need update parameters of target networks
         _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
         _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) # 需要从经验池提取的经验

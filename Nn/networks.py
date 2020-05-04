@@ -37,7 +37,7 @@ class ObsRNN(M):
             self.dim = dim
             # self.masking = tf.keras.layers.Masking(mask_value=0.)
             self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
-            self(tf.keras.layers.Input(shape=(None, self.dim)))
+            self(I(shape=(None, self.dim)))
             self.hdim = hidden_units
         else:
             self.hdim = dim

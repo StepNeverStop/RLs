@@ -19,9 +19,9 @@ class actor_dpg(M):
     output: deterministic action(mu) and disturbed action(action) given a state
     '''
 
-    def __init__(self, vector_dim, output_shape, hidden_units):
+    def __init__(self, vector_dim, output_shape, hidden_units, out_activation='tanh'):
         super().__init__()
-        self.net = mlp(hidden_units, output_shape=output_shape, out_activation='tanh')
+        self.net = mlp(hidden_units, output_shape=output_shape, out_activation=out_activation)
         self(I(shape=vector_dim))
 
     def call(self, x):
