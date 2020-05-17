@@ -225,10 +225,10 @@ class SAC(Off_Policy):
                         logits = self.actor_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
-                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * tf.stop_gradient(log_pi - self.a_counts))
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -247,7 +247,7 @@ class SAC(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2., summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, memories, isw, crsty_loss, cell_state):
@@ -295,7 +295,7 @@ class SAC(Off_Policy):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
                 actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
                 if self.auto_adaption:
-                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
+                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * tf.stop_gradient(log_pi - self.a_counts))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -305,9 +305,9 @@ class SAC(Off_Policy):
                 zip(actor_grads, self.actor_tv)
             )
             if self.auto_adaption:
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -326,7 +326,7 @@ class SAC(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train_discrete(self, memories, isw, crsty_loss):
@@ -378,10 +378,10 @@ class SAC(Off_Policy):
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
-                    alpha_loss = -tf.reduce_mean(self.log_alpha * corr)
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * corr)
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -397,4 +397,4 @@ class SAC(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries
