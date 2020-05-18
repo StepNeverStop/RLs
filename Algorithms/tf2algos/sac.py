@@ -9,7 +9,7 @@ from utils.sundry_utils import LinearAnnealing
 
 class SAC(Off_Policy):
     """
-        Soft Actor Critic without Value neural network. https://arxiv.org/abs/1812.05905
+        Soft Actor-Critic Algorithms and Applications. https://arxiv.org/abs/1812.05905
         Soft Actor-Critic for Discrete Action Settings. https://arxiv.org/abs/1910.07207
     """
 

@@ -226,9 +226,9 @@ class SAC_V(Off_Policy):
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -300,9 +300,9 @@ class SAC_V(Off_Policy):
                 zip(critic_grads, self.critic_tv)
             )
             if self.auto_adaption:
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -375,9 +375,9 @@ class SAC_V(Off_Policy):
                     logp_all = tf.nn.log_softmax(logits)
                     corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
                     alpha_loss = -tf.reduce_mean(self.log_alpha * corr)
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([

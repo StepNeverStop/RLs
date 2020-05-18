@@ -214,9 +214,9 @@ class TAC(Off_Policy):
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
@@ -293,9 +293,9 @@ class TAC(Off_Policy):
                 zip(actor_grads, self.actor_tv)
             )
             if self.auto_adaption:
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([

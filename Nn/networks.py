@@ -8,7 +8,7 @@ from Nn.layers import ConvLayer
 from Nn.activations import default_activation
 
 SimpleCNN = lambda :ConvLayer(Conv2D, [16,32], [[8,8],[4,4]], [[4,4],[2,2]], padding='valid', activation='elu')
-NatureCNN = lambda :ConvLayer(Conv2D, [32,64,64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
+NatureCNN = lambda :ConvLayer(Conv2D, [32, 64, 64], [[8,8],[4,4],[3,3]], [[4,4],[2,2],[1,1]], padding='valid', activation='relu')
 
 class MultiCameraCNN(M):
     '''多个图像来源输入的CNN，未初始化

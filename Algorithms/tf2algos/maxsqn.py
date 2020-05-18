@@ -156,9 +156,9 @@ class MAXSQN(Off_Policy):
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(self.target_alpha - q1_entropy))
-                alpha_grads = tape.gradient(alpha_loss, [self.log_alpha])
+                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
-                    zip(alpha_grads, [self.log_alpha])
+                    [(alpha_grad, self.log_alpha)]
                 )
             self.global_step.assign_add(1)
             summaries = dict([
