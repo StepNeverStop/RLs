@@ -32,7 +32,7 @@ model:
 
 unity:
     train:
-        pre_fill_steps: 100
+        pre_fill_steps: 10000
     env:
         file_path: *env
         train_time_scale: 100

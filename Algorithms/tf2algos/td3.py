@@ -139,9 +139,12 @@ class TD3(Off_Policy):
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                     else:
                         target_logits = self.actor_target_net(feat_)
-                        target_cate_dist = tfp.distributions.Categorical(target_logits)
-                        target_pi = target_cate_dist.sample()
-                        action_target = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
+                        logp_all = tf.nn.log_softmax(target_logits)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
+                        _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                        _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                        action_target = _pi_diff + _pi
                     q1 = self.q1_net(feat, a)
                     q1_target = self.q1_target_net(feat_, action_target)
                     q2 = self.q2_net(feat, a)
@@ -160,16 +163,13 @@ class TD3(Off_Policy):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
                     mu = self.actor_net(feat)
-                    pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
                 else:
                     logits = self.actor_net(feat)
-                    logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
-                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi = tf.nn.softmax(logits)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    pi = _pi_diff + _pi
-                q1_actor = self.q1_net(feat, pi)
+                    mu = _pi_diff + _pi
+                q1_actor = self.q1_net(feat, mu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
@@ -196,24 +196,24 @@ class TD3(Off_Policy):
                         target_mu = self.actor_target_net(feat_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
                         mu = self.actor_net(feat)
-                        pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
                     else:
                         target_logits = self.actor_target_net(feat_)
-                        target_cate_dist = tfp.distributions.Categorical(target_logits)
-                        target_pi = target_cate_dist.sample()
-                        action_target = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
-                        logits = self.actor_net(feat)
-                        logp_all = tf.nn.log_softmax(logits)
+                        logp_all = tf.nn.log_softmax(target_logits)
                         gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                        pi = _pi_diff + _pi
+                        action_target = _pi_diff + _pi
+                        logits = self.actor_net(feat)
+                        _pi = tf.nn.softmax(logits)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
+                        _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
+                        mu = _pi_diff + _pi
                     q1 = self.q1_net(feat, a)
                     q1_target = self.q1_target_net(feat_, action_target)
                     q2 = self.q2_net(feat, a)
                     q2_target = self.q2_target_net(feat_, action_target)
-                    q1_actor = self.q1_net(feat, pi)
+                    q1_actor = self.q1_net(feat, mu)
                     q_target = tf.minimum(q1_target, q2_target)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
