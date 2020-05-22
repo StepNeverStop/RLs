@@ -80,8 +80,8 @@ class gym_envs(object):
         ObsSpace = env.observation_space
         if isinstance(ObsSpace, Box):
             self.s_dim = ObsSpace.shape[0] if len(ObsSpace.shape) == 1 else 0
-            self.obs_high = ObsSpace.high
-            self.obs_low = ObsSpace.low
+            # self.obs_high = ObsSpace.high
+            # self.obs_low = ObsSpace.low
         else:
             self.s_dim = int(ObsSpace.n)
         if len(ObsSpace.shape) == 3:

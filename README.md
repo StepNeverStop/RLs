@@ -83,6 +83,7 @@ For now, these algorithms are available:
     - [Asynchronous Advantage Option-Critic, A2OC](http://arxiv.org/abs/1709.04571)
     - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
     - [Interest-Option-Critic, IOC](http://arxiv.org/abs/2001.00271)
+    - [HIerarchical Reinforcement learning with Off-policy correction, HIRO](http://arxiv.org/abs/1805.08296)
 - Multi-Agent training algorithms(*not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
     - Multi-Agent Deterministic Policy Gradient, MADPG
@@ -121,6 +122,7 @@ For now, these algorithms are available:
 |               AOC               |    √     |     √      |   √   |  √   |        aoc        |
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
 |               IOC               |    √     |     √      |   √   |  √   |        ioc        |
+|              HIRO               |    √     |     √      |       |      |       hiro        |
 
 ## Getting started
 

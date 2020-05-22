@@ -19,6 +19,28 @@ off_policy:
     episode_batch_size: 256  # rnn
     episode_buffer_size: 100000
 
+hiro:
+    gamma: 0.99
+    ployak: 0.995
+    high_scale: 1.0
+    reward_scale: 1.0
+    sample_g_nums: 100
+    sub_goal_steps: 10
+    fn_goal_dim: 0
+    high_batch_size: 128
+    high_buffer_size: 100000
+    low_batch_size: 128
+    low_buffer_size: 100000
+    high_actor_lr: 1.0e-4
+    high_critic_lr: 1.0e-3
+    low_actor_lr: 1.0e-4
+    low_critic_lr: 1.0e-3
+    hidden_units:
+        high_actor: [64, 64]
+        high_critic: [64, 64]
+        low_actor: [64, 64]
+        low_critic: [64, 64]
+
 cem:
     frac: 0.2
     init_var: 1
