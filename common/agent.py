@@ -112,8 +112,8 @@ class Agent:
                 self.buffer_args['EpisodeER']['burn_in_time_step'] = algorithm_config.get('burn_in_time_step', 0)
                 self.buffer_args['EpisodeER']['train_time_step'] = algorithm_config.get('train_time_step', 0)
             else:
-                self.buffer_args['batch_size'] = algorithm_config.get('episode_batch_size', 0)
-                self.buffer_args['buffer_size'] = algorithm_config.get('episode_buffer_size', 0)
+                self.buffer_args['batch_size'] = algorithm_config.get('batch_size', 0)
+                self.buffer_args['buffer_size'] = algorithm_config.get('buffer_size', 0)
 
                 _use_priority = algorithm_config.get('use_priority', False)
                 _n_step = algorithm_config.get('n_step', False)

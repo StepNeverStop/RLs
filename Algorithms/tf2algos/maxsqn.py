@@ -174,4 +174,4 @@ class MAXSQN(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries

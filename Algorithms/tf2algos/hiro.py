@@ -25,6 +25,7 @@ class HIRO(Off_Policy):
                  sample_g_nums=100,
                  sub_goal_steps=10,
                  fn_goal_dim=0,
+                 intrinsic_reward_mode='os',
                  high_batch_size=256,
                  high_buffer_size=100000,
                  low_batch_size=8,
@@ -116,7 +117,7 @@ class HIRO(Off_Policy):
         self.counts = 0
         self._high_s = [[] for _ in range(self.n_agents)]
         self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
-        self.get_ir = self.generate_ir_func(mode='os')
+        self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
 
 
     def generate_ir_func(self, mode='os'):

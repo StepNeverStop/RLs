@@ -249,7 +249,7 @@ class SAC_V(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train_persistent(self, memories, isw, crsty_loss, cell_state):
@@ -323,7 +323,7 @@ class SAC_V(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries
     
     @tf.function(experimental_relax_shapes=True)
     def train_discrete(self, memories, isw, crsty_loss):
@@ -395,4 +395,4 @@ class SAC_V(Off_Policy):
                 summaries.update({
                     'LOSS/alpha_loss': alpha_loss
                 })
-            return td_error1 + td_error2 / 2, summaries
+            return (td_error1 + td_error2) / 2, summaries

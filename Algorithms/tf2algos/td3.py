@@ -176,7 +176,7 @@ class TD3(Off_Policy):
                 zip(actor_grads, self.actor_tv)
             )
             self.global_step.assign_add(1)
-            return td_error1 + td_error2 / 2, dict([
+            return (td_error1 + td_error2) / 2, dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
@@ -231,7 +231,7 @@ class TD3(Off_Policy):
                 zip(actor_grads, self.actor_tv)
             )
             self.global_step.assign_add(1)
-            return td_error1 + td_error2 / 2, dict([
+            return (td_error1 + td_error2) / 2, dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
