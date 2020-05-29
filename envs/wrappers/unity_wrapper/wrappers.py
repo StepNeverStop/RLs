@@ -124,13 +124,15 @@ class UnityReturnWrapper(BasicWrapper):
         visual = []
         reward = []
         done = []
+        info = []
         for i, bn in enumerate(self.brain_names):
-            vec, vis, r, d = self.coordinate_information(i, bn)
+            vec, vis, r, d, ifo = self.coordinate_information(i, bn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
-        return zip(vector, visual, reward, done)
+            info.append(ifo)
+        return zip(vector, visual, reward, done, info)
 
     def coordinate_information(self, i, bn):
         '''
@@ -150,9 +152,11 @@ class UnityReturnWrapper(BasicWrapper):
         
         obs, reward = d.obs, d.reward
         done = np.full(n, False)
+        info = dict(max_step=np.full(n, False))
 
         for t in ps:    # TODO: 有待优化
             if len(t) != 0:
+                info['max_step'][t.agent_id] = t.max_step
                 reward[t.agent_id] = t.reward
                 done[t.agent_id] = True
                 for _obs, _tobs in zip(obs, t.obs):
@@ -161,7 +165,8 @@ class UnityReturnWrapper(BasicWrapper):
         return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[i]]),
                 self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[i]]),
                 np.asarray(reward),
-                np.asarray(done))
+                np.asarray(done),
+                info)
         
 
     def deal_vector(self, n, vecs):

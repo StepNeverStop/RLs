@@ -69,21 +69,23 @@ class StackVisualWrapper(UnityReturnWrapper):
         visual = []
         reward = []
         done = []
+        info = []
         for i, bn in enumerate(self.brain_names):
-            vec, vis, r, d = self.coordinate_reset_information(i, bn)
+            vec, vis, r, d, ifo = self.coordinate_reset_information(i, bn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
-        return zip(vector, visual, reward, done)
+            info.append(ifo)
+        return zip(vector, visual, reward, done, info)
     
     def coordinate_reset_information(self, i, bn):
-        vector, visual, reward, done = super().coordinate_information(i, bn)
+        vector, visual, reward, done, info = super().coordinate_information(i, bn)
         for _ in range(self._stack_nums):
             self._stack_deque[bn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done)
+        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done, info)
 
     def coordinate_information(self, i, bn):
-        vector, visual, reward, done = super().coordinate_information(i, bn)
+        vector, visual, reward, done, info = super().coordinate_information(i, bn)
         self._stack_deque[bn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done)
+        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done, info)

@@ -34,7 +34,7 @@ def unity_train(env, models, print_func,
     for episode in range(begin_episode, max_episode):
         [model.reset() for model in models]
         ObsRewDone = env.reset()
-        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             dones_flag[i] = np.zeros(env.brain_agents[i])
             rewards[i] = np.zeros(env.brain_agents[i])
             state[i] = _v
@@ -48,7 +48,7 @@ def unity_train(env, models, print_func,
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
             ObsRewDone = env.step(actions)
 
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
                 unfinished_index = np.where(dones_flag[i] == False)[0]
                 dones_flag[i] += _d
                 models[i].store_data(
@@ -103,7 +103,7 @@ def unity_random_sample(env, models, print_func, steps):
     state, visual_state = zeros_initializer(env.brain_num, 2)
 
     ObsRewDone = env.reset()
-    for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+    for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
         state[i] = _v
         visual_state[i] = _vs
 
@@ -111,7 +111,7 @@ def unity_random_sample(env, models, print_func, steps):
         action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             models[i].store_data(
                 s=state[i],
                 visual_s=visual_state[i],
@@ -135,7 +135,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
 
     [model.reset() for model in models]
     ObsRewDone = env.reset()
-    for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+    for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
         state[i] = _v
         visual_state[i] = _vs
 
@@ -150,7 +150,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
             action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             models[i].no_op_store(
                 s=state[i],
                 visual_s=visual_state[i],
@@ -174,7 +174,7 @@ def unity_inference(env, models):
         [model.reset() for model in models]
         ObsRewDone = env.reset()
         while True:
-            for i, (_v, _vs, _, _d) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
                 action[i] = models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
                 models[i].partial_reset(_d)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
@@ -187,7 +187,7 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
         pre_fill_steps = buffer.batch_size
     state, action, reward, next_state, dones = zeros_initializer(env.brain_num, 5)
     ObsRewDone = env.reset()
-    for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+    for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
         state[i] = _v
 
     for i in range(env.brain_num):
@@ -205,7 +205,7 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
                 action[i] = models[i].choose_action(s=state[i])
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
-        for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             reward[i] = _r[:, np.newaxis]
             next_state[i] = _vs
             dones[i] = _d[:, np.newaxis]
@@ -225,7 +225,7 @@ def ma_unity_train(env, models, buffer, print_func,
 
     for episode in range(begin_episode, max_episode):
         ObsRewDone = env.reset()
-        for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             dones_flag[i] = np.zeros(env.brain_agents[i])
             rewards[i] = np.zeros(env.brain_agents[i])
             state[i] = _v
@@ -238,7 +238,7 @@ def ma_unity_train(env, models, buffer, print_func,
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
             ObsRewDone = env.step(actions)
 
-            for i, (_v, _vs, _r, _d) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
                 reward[i] = _r[:, np.newaxis]
                 next_state = _v
                 dones[i] = _d[:, np.newaxis]
@@ -302,7 +302,7 @@ def ma_unity_inference(env, models):
     while True:
         ObsRewDone = env.reset()
         while True:
-            for i, (_v, _vs, _, _) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
                 action[i] = models[i].choose_action(s=_v, evaluation=True)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
             ObsRewDone = env.step(actions)
