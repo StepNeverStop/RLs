@@ -1,11 +1,11 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class DDDQN(Off_Policy):
+class DDDQN(make_off_policy_class(mode='share')):
     '''
     Dueling Double DQN, https://arxiv.org/abs/1511.06581
     '''

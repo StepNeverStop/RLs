@@ -3,12 +3,11 @@ import numpy as np
 import tensorflow as tf
 from utils.sth import sth
 from tensorflow_probability import distributions as tfd
-from Algorithms.tf2algos.base.off_policy import Off_Policy
-
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.replay_buffer import ExperienceReplay
 
 
-class HIRO(Off_Policy):
+class HIRO(make_off_policy_class(mode='no_share')):
     '''
     Data-Efficient Hierarchical Reinforcement Learning, http://arxiv.org/abs/1805.08296
     '''

@@ -2,10 +2,10 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 
 
-class DPG(Off_Policy):
+class DPG(make_off_policy_class(mode='share')):
     '''
     Deterministic Policy Gradient, https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf
     '''

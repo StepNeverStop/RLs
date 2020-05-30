@@ -3,10 +3,10 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 
 
-class AC(Off_Policy):
+class AC(make_off_policy_class(mode='share')):
     # off-policy actor-critic
     def __init__(self,
                  s_dim,

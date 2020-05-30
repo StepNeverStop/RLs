@@ -2,11 +2,11 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class BootstrappedDQN(Off_Policy):
+class BootstrappedDQN(make_off_policy_class(mode='share')):
     '''
     Deep Exploration via Bootstrapped DQN, http://arxiv.org/abs/1602.04621
     '''

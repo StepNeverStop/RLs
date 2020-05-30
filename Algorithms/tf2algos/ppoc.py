@@ -3,10 +3,10 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import On_Policy
+from Algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
-class PPOC(On_Policy):
+class PPOC(make_on_policy_class(mode='share')):
     '''
     Learnings Options End-to-End for Continuous Action Tasks, PPOC, http://arxiv.org/abs/1712.00004
     '''

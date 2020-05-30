@@ -3,10 +3,10 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import On_Policy
+from Algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
-class PPO(On_Policy):
+class PPO(make_on_policy_class(mode='share')):
     '''
     Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
     Emergence of Locomotion Behaviours in Rich Environments, http://arxiv.org/abs/1707.02286, DPPO

@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import On_Policy
+from Algorithms.tf2algos.base.on_policy import make_on_policy_class
 '''
 Stole this from OpenAI SpinningUp. https://github.com/openai/spinningup/blob/master/spinup/algos/trpo/trpo.py
 '''
@@ -20,7 +20,7 @@ def assign_params_from_flat(x, params):
     return tf.group([p.assign(p_new) for p, p_new in zip(params, new_params)])
 
 
-class TRPO(On_Policy):
+class TRPO(make_on_policy_class(mode='share')):
     '''
     Trust Region Policy Optimization, https://arxiv.org/abs/1502.05477
     '''

@@ -3,11 +3,11 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.sundry_utils import LinearAnnealing
 
 
-class SAC(Off_Policy):
+class SAC(make_off_policy_class(mode='share')):
     """
         Soft Actor-Critic Algorithms and Applications. https://arxiv.org/abs/1812.05905
         Soft Actor-Critic for Discrete Action Settings. https://arxiv.org/abs/1910.07207
@@ -68,6 +68,8 @@ class SAC(Off_Policy):
             self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
             if self.use_gumbel:
                 self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
+            else:
+                self.target_entropy = -np.log(1.0 / self.a_counts) * 0.98
         self.actor_tv = self.actor_net.trainable_variables
         
         if self.is_continuous or self.use_gumbel:
@@ -157,6 +159,10 @@ class SAC(Off_Policy):
                                 ])
             })
 
+    @property
+    def alpha(self):
+        return tf.exp(self.log_alpha)
+
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
@@ -178,8 +184,8 @@ class SAC(Off_Policy):
                 q1_target = self.q1_target_net(feat_, target_pi)
                 q2 = self.q2_net(feat, a)
                 q2_target = self.q2_target_net(feat_, target_pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
@@ -208,7 +214,7 @@ class SAC(Off_Policy):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1_s_pi = self.q1_net(feat, pi)
                 q2_s_pi = self.q2_net(feat, pi)
-                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
+                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - self.alpha * log_pi)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_tv)
@@ -225,7 +231,7 @@ class SAC(Off_Policy):
                         logits = self.actor_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
-                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * tf.stop_gradient(log_pi - self.a_counts))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.a_counts))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
@@ -237,7 +243,7 @@ class SAC(Off_Policy):
                 ['LOSS/q2_loss', q2_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/entropy', entropy],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
@@ -286,16 +292,16 @@ class SAC(Off_Policy):
                 q2_target = self.q2_target_net(feat_, target_pi)
                 q1_s_pi = self.q1_net(feat, pi)
                 q2_s_pi = self.q2_net(feat, pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - tf.exp(self.log_alpha) * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - tf.exp(self.log_alpha) * target_log_pi))
+                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
+                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r_q1
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
-                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - tf.exp(self.log_alpha) * log_pi)
+                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - self.alpha * log_pi)
                 if self.auto_adaption:
-                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * tf.stop_gradient(log_pi - self.a_counts))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.a_counts))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -316,7 +322,7 @@ class SAC(Off_Policy):
                 ['LOSS/q2_loss', q2_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/entropy', entropy],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
@@ -343,7 +349,7 @@ class SAC(Off_Policy):
                 target_log_probs = tf.nn.log_softmax(target_logits)     #[B, A]
                 q1_target = self.q1_target_net(feat_)   # [B, A]
                 q2_target = self.q2_target_net(feat_)   # [B, A]
-                v_target_function = lambda x: tf.reduce_sum(tf.exp(target_log_probs)*(x-tf.exp(self.log_alpha)*target_log_probs), axis=-1, keepdims=True)   #[B, 1]
+                v_target_function = lambda x: tf.reduce_sum(tf.exp(target_log_probs)*(x-self.alpha*target_log_probs), axis=-1, keepdims=True)   #[B, 1]
                 v1_target = v_target_function(q1_target)
                 v2_target = v_target_function(q2_target)
                 dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * v1_target)
@@ -361,13 +367,16 @@ class SAC(Off_Policy):
             with tf.GradientTape() as tape:
                 logits = self.actor_net(feat)
                 logp_all = tf.nn.log_softmax(logits)
-                entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
+                entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
                 q1_all = self.q1_net(feat)   # [B, A]
                 q2_all = self.q2_net(feat)   # [B, A]
                 q_all = tf.minimum(q1_all, q2_all)  # [B, A]
                 actor_loss = -tf.reduce_mean(
-                    tf.reduce_sum((q_all - tf.exp(self.log_alpha) * logp_all) * tf.exp(logp_all)) # [B, A] => [B,]
+                    tf.reduce_sum((q_all - self.alpha * logp_all) * tf.exp(logp_all)) # [B, A] => [B,]
                 )
+                # actor_loss = - tf.reduce_mean(
+                #     q_all + self.alpha * entropy
+                #     )
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_tv)
@@ -377,8 +386,10 @@ class SAC(Off_Policy):
                 with tf.GradientTape() as tape:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
-                    alpha_loss = -tf.reduce_mean(tf.exp(self.log_alpha) * corr)
+                    entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
+                    corr = tf.stop_gradient(self.target_entropy - entropy) 
+                    # corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
+                    alpha_loss = -tf.reduce_mean(self.alpha * corr)
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
@@ -390,8 +401,8 @@ class SAC(Off_Policy):
                 ['LOSS/q2_loss', q2_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
-                ['Statistics/entropy', entropy]
+                ['Statistics/alpha', self.alpha],
+                ['Statistics/entropy', tf.reduce_mean(entropy)]
             ])
             if self.auto_adaption:
                 summaries.update({

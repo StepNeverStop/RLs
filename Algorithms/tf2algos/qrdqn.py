@@ -1,12 +1,12 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 from utils.tf2_utils import huber_loss
 
 
-class QRDQN(Off_Policy):
+class QRDQN(make_off_policy_class(mode='share')):
     '''
     Quantile Regression DQN
     Distributional Reinforcement Learning with Quantile Regression, https://arxiv.org/abs/1710.10044

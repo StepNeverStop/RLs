@@ -1,11 +1,11 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class RAINBOW(Off_Policy):
+class RAINBOW(make_off_policy_class(mode='share')):
     '''
     Rainbow DQN:    https://arxiv.org/abs/1710.02298
         1. Double

@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.on_policy import On_Policy
+from Algorithms.tf2algos.base.on_policy import make_on_policy_class
 from Nn.layers import mlp
 
 class Model(tf.keras.Model):
@@ -34,7 +34,7 @@ class Model(tf.keras.Model):
         self.set_weights(wbs)
 
 
-class CEM(On_Policy):
+class CEM(make_on_policy_class(mode='share')):
     '''
     Cross-Entropy Method
     '''

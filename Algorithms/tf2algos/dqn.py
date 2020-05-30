@@ -1,11 +1,11 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class DQN(Off_Policy):
+class DQN(make_off_policy_class(mode='share')):
     '''
     Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
     DQN + LSTM, https://arxiv.org/abs/1507.06527

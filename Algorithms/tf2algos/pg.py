@@ -3,10 +3,10 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import On_Policy
+from Algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
-class PG(On_Policy):
+class PG(make_on_policy_class(mode='share')):
     def __init__(self,
                  s_dim,
                  visual_sources,

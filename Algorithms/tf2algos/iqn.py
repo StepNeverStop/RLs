@@ -1,12 +1,12 @@
 import Nn
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 from utils.tf2_utils import huber_loss
 
 
-class IQN(Off_Policy):
+class IQN(make_off_policy_class(mode='share')):
     '''
     Implicit Quantile Networks, https://arxiv.org/abs/1806.06923
     Double DQN

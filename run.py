@@ -24,7 +24,7 @@ Options:
     --max-episode=<n>           总的训练回合数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
-    --fill-in                   指定是否预填充经验池至batch_size [default: False]
+    --prefill-steps=<n>         指定预填充的经验数量 [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
     --gym-agents=<n>            指定并行训练的数量 [default: 1]
@@ -39,7 +39,7 @@ Example:
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
     python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
-    python run.py -u -a ddpg -n pre_fill --fill-in --prefill-choose
+    python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
 """
 
 import os
@@ -82,7 +82,7 @@ def get_options(options: Dict):
         ['max_episode',     f('--max-episode', int)],
         ['sampler',         f('--sampler', str)],
         ['load',            f('--load', str)],
-        ['fill_in',         bool(options['--fill-in'])],
+        ['prefill_steps',   f('--prefill-steps', int)],
         ['prefill_choose',  bool(options['--prefill-choose'])],
         ['gym',             bool(options['--gym'])],
         ['gym_agents',      int(options['--gym-agents'])],
@@ -167,7 +167,6 @@ def run():
     train_args.name = NAME
     train_args.use_wandb = options.use_wandb
     train_args.inference = options.inference
-    train_args.fill_in = options.fill_in
     train_args.prefill_choose= options.prefill_choose
     train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, model_args.algo)
     train_args.update(
@@ -176,6 +175,7 @@ def run():
             ['max_step', options.max_step],
             ['max_episode', options.max_episode],
             ['save_frequency', options.save_frequency],
+            ['pre_fill_steps', options.prefill_steps],
             ['info', options.info]
         ])
     )

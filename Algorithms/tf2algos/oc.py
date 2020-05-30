@@ -2,12 +2,12 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
 
 
-class OC(Off_Policy):
+class OC(make_off_policy_class(mode='share')):
     '''
     The Option-Critic Architecture. http://arxiv.org/abs/1609.05140
     '''

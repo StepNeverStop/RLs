@@ -2,11 +2,11 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
-class MAXSQN(Off_Policy):
+class MAXSQN(make_off_policy_class(mode='share')):
     '''
     https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py
     '''
@@ -84,6 +84,10 @@ class MAXSQN(Off_Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
+    @property
+    def alpha(self):
+        return tf.exp(self.log_alpha)
+
     def choose_action(self, s, visual_s, evaluation=False):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
             a = np.random.randint(0, self.a_counts, self.n_agents)
@@ -97,7 +101,7 @@ class MAXSQN(Off_Policy):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
             q = self.q1_net(feat)
-            cate_dist = tfp.distributions.Categorical(logits=q / tf.exp(self.log_alpha))
+            cate_dist = tfp.distributions.Categorical(logits=q / self.alpha)
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi, cell_state
 
@@ -129,7 +133,7 @@ class MAXSQN(Off_Policy):
 
                 q1_target = self.q1_target_net(feat_)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
-                q1_target_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1) + 1e-8
+                q1_target_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
                 q1_target_log_max = tf.reduce_max(q1_target_log_probs, axis=1, keepdims=True)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))
 
@@ -138,7 +142,7 @@ class MAXSQN(Off_Policy):
                 # q2_target_log_probs = tf.nn.log_softmax(q2_target, axis=1)
                 # q2_target_log_max = tf.reduce_max(q2_target_log_probs, axis=1, keepdims=True)
 
-                q_target = tf.minimum(q1_target_max, q2_target_max) + tf.exp(self.log_alpha) * q1_target_entropy
+                q_target = tf.minimum(q1_target_max, q2_target_max) + self.alpha * q1_target_entropy
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error1 = q1_eval - dc_r
                 td_error2 = q2_eval - dc_r
@@ -152,7 +156,7 @@ class MAXSQN(Off_Policy):
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     q1 = self.q1_net(feat)
-                    q1_log_probs = tf.nn.log_softmax(q1_target / tf.exp(self.log_alpha), axis=1) + 1e-8
+                    q1_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(self.target_alpha - q1_entropy))
@@ -164,7 +168,7 @@ class MAXSQN(Off_Policy):
             summaries = dict([
                 ['LOSS/loss', loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/q1_entropy', q1_entropy],
                 ['Statistics/q_min', tf.reduce_mean(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(q1)],

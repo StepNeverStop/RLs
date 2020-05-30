@@ -136,8 +136,6 @@ class Agent:
 
         # MODEL
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
-        if 'batch_size' in algorithm_config.keys() and train_args['fill_in']:
-            self.train_args['pre_fill_steps'] = algorithm_config['batch_size']
 
         if self.env_args['type'] == 'gym':
             if self.train_args['use_wandb']:

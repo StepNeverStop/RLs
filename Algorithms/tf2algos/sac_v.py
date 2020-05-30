@@ -3,11 +3,11 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.sundry_utils import LinearAnnealing
 
 
-class SAC_V(Off_Policy):
+class SAC_V(make_off_policy_class(mode='share')):
     """
         Soft Actor Critic with Value neural network. https://arxiv.org/abs/1812.05905
         Soft Actor-Critic for Discrete Action Settings. https://arxiv.org/abs/1910.07207
@@ -112,6 +112,10 @@ class SAC_V(Off_Policy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
         ''')
 
+    @property
+    def alpha(self):
+        return tf.exp(self.log_alpha)
+
     def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
@@ -179,7 +183,7 @@ class SAC_V(Off_Policy):
                 q2_pi = self.q2_net(feat, pi)
                 v_target = self.v_target_net(feat_)
                 dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
-                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_pi)
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - self.alpha * log_pi)
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
@@ -208,7 +212,7 @@ class SAC_V(Off_Policy):
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q1_pi = self.q1_net(feat, pi)
-                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_pi)
+                actor_loss = -tf.reduce_mean(q1_pi - self.alpha * log_pi)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_tv)
@@ -238,7 +242,7 @@ class SAC_V(Off_Policy):
                 ['LOSS/v_loss', v_loss_stop],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/entropy', entropy],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
@@ -280,7 +284,7 @@ class SAC_V(Off_Policy):
                 q2_pi = self.q2_net(feat, pi)
                 v_target = self.v_target_net(feat_)
                 dc_r = tf.stop_gradient(r + self.gamma * v_target * (1 - done))
-                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - tf.exp(self.log_alpha) * log_pi)
+                v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - self.alpha * log_pi)
                 td_v = v - v_from_q_stop
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
@@ -288,7 +292,7 @@ class SAC_V(Off_Policy):
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                 v_loss_stop = tf.reduce_mean(tf.square(td_v) * isw)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop + crsty_loss
-                actor_loss = -tf.reduce_mean(q1_pi - tf.exp(self.log_alpha) * log_pi)
+                actor_loss = -tf.reduce_mean(q1_pi - self.alpha * log_pi)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(log_pi - self.a_counts))
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
@@ -312,7 +316,7 @@ class SAC_V(Off_Policy):
                 ['LOSS/v_loss', v_loss_stop],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/entropy', entropy],
                 ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
                 ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
@@ -363,7 +367,7 @@ class SAC_V(Off_Policy):
                 q2_all = self.q2_net(feat)   # [B, A]
                 q_all = tf.minimum(q1_all, q2_all)  # [B, A]
                 actor_loss = -tf.reduce_mean(
-                    tf.reduce_sum((q_all - tf.exp(self.log_alpha) * logp_all) * tf.exp(logp_all)) # [B, A] => [B,]
+                    tf.reduce_sum((q_all - self.alpha * logp_all) * tf.exp(logp_all)) # [B, A] => [B,]
                 )
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
@@ -387,7 +391,7 @@ class SAC_V(Off_Policy):
                 ['LOSS/v_loss', v_loss_stop],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', tf.exp(self.log_alpha)],
+                ['Statistics/alpha', self.alpha],
                 ['Statistics/entropy', entropy],
                 ['Statistics/v_mean', tf.reduce_mean(v)]
             ])

@@ -2,10 +2,10 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 
 
-class SQL(Off_Policy):
+class SQL(make_off_policy_class(mode='share')):
     '''
         Soft Q-Learning.
         Reinforcement Learning with Deep Energy-Based Policies: https://arxiv.org/abs/1702.08165

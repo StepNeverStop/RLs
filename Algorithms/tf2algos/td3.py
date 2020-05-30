@@ -2,10 +2,10 @@ import Nn
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import Off_Policy
+from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 
 
-class TD3(Off_Policy):
+class TD3(make_off_policy_class(mode='share')):
     '''
     Twin Delayed Deep Deterministic Policy Gradient, https://arxiv.org/abs/1802.09477
     '''
