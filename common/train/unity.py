@@ -7,7 +7,8 @@ from utils.list_utils import zeros_initializer
 
 def unity_train(env, models, print_func,
                 begin_episode, save_frequency, max_step, max_episode, policy_mode,
-                moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps):
+                moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
+                total_step_control, max_total_step):
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -28,8 +29,12 @@ def unity_train(env, models, print_func,
         rewards:        use to record rewards of agents for each brain.
     """
 
+    if total_step_control:
+        max_episode = max_total_step
+
     state, visual_state, action, dones_flag, rewards = zeros_initializer(env.brain_num, 5)
     sma = [SMA(moving_average_episode) for i in range(env.brain_num)]
+    total_step = 0
 
     for episode in range(begin_episode, max_episode):
         [model.reset() for model in models]
@@ -66,6 +71,10 @@ def unity_train(env, models, print_func,
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':
                     models[i].learn(episode=episode, step=1)
+
+            total_step += 1
+            if total_step_control and total_step > max_total_step:
+                return
 
             if all([all(dones_flag[i]) for i in range(env.brain_num)]):
                 if last_done_step == -1:

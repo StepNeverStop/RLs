@@ -336,7 +336,9 @@ class Agent:
                         moving_average_episode=int(self.train_args['moving_average_episode']),
                         add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
-                        add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps'])
+                        add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
+                        total_step_control=bool(self.train_args['total_step_control']),
+                        max_total_step=int(self.train_args['max_total_step'])
                     )
             finally:
                 [model.close() for model in self.models]
