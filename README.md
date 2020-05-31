@@ -88,6 +88,8 @@ For now, these algorithms are available:
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
     - Multi-Agent Deterministic Policy Gradient, MADPG
     - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
+- Safe Reinforcement Learning algorithms(*not stable yet*):
+    - [Primal-Dual Deep Deterministic Policy Gradient, PD-DDPG](http://arxiv.org/abs/1802.06480)
 
 
 
@@ -110,6 +112,7 @@ For now, these algorithms are available:
 |             Rainbow             |    √     |            |   √   |  √   |      rainbow      |
 |               DPG               |    √     |     √      |   √   |  √   |        dpg        |
 |              DDPG               |    √     |     √      |   √   |  √   |       ddpg        |
+|             PD-DDPG             |    √     |     √      |   √   |  √   |      pd_ddpg      |
 |               TD3               |    √     |     √      |   √   |  √   |        td3        |
 |       SAC(has V network)        |    √     |     √      |   √   |  √   |       sac_v       |
 |               SAC               |    √     |     √      |   √   |  √   |        sac        |

@@ -11,6 +11,7 @@ algos = {
     'a2c':      {'class': 'A2C',    'policy': 'on-policy',  'update': 'perEpisode'},
     'dpg':      {'class': 'DPG',    'policy': 'off-policy', 'update': 'perStep'},
     'ddpg':     {'class': 'DDPG',   'policy': 'off-policy', 'update': 'perStep'},
+    'pd_ddpg':  {'class': 'PD_DDPG','policy': 'off-policy', 'update': 'perStep'},
     'td3':      {'class': 'TD3',    'policy': 'off-policy', 'update': 'perStep'},
     'sac_v':    {'class': 'SAC_V',  'policy': 'off-policy', 'update': 'perStep'},
     'sac':      {'class': 'SAC',    'policy': 'off-policy', 'update': 'perStep'},

@@ -393,6 +393,24 @@ ddpg:
         actor_discrete: [64, 64]
         q: [64, 64]
 
+pd_ddpg:
+    gamma: 0.99
+    ployak: 0.995
+    actor_lr: 5.0e-4
+    reward_critic_lr: 1.0e-3
+    cost_critic_lr: 1.0e-3
+    lambda_lr: 5.0e-4
+    discrete_tau: 1.0
+    cost_constraint: 1.0
+    batch_size: 256
+    buffer_size: 100000
+    use_priority: false
+    hidden_units:
+        actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        reward: [64, 64]
+        cost: [64, 64]
+
 td3:
     gamma: 0.99
     ployak: 0.995

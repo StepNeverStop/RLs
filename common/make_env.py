@@ -33,9 +33,10 @@ def make_unity_env(env_args):
 
     if env_args['stack_visual_nums'] > 1:
         env = StackVisualWrapper(env, stack_nums=env_args['stack_visual_nums'])
+        logger.debug('Unity StackVisualWrapper success.')
     else:
         env = UnityReturnWrapper(env)
-    logger.debug('Unity UnityReturnWrapper success.')
+        logger.debug('Unity UnityReturnWrapper success.')
 
     env = SamplerWrapper(env, env_args)
     logger.debug('Unity SamplerWrapper success.')
