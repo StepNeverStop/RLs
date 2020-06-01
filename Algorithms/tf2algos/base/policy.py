@@ -46,6 +46,8 @@ class Policy(Base):
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
+        self.use_rnn = False
+
 
     def init_lr(self, lr):
         if self.delay_lr:

@@ -159,7 +159,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                     q1_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
-                    alpha_loss = -tf.reduce_mean(self.log_alpha * tf.stop_gradient(self.target_alpha - q1_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(self.target_alpha - q1_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]

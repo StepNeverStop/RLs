@@ -78,6 +78,7 @@ For now, these algorithms are available:
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
     - [Soft Q-Learning, SQL](https://arxiv.org/abs/1702.08165)
     - [Bootstrapped DQN](http://arxiv.org/abs/1602.04621)
+    - [Contrastive Unsupervised RL, CURL](http://arxiv.org/abs/2004.04136)
 - Hierachical training algorithms:
     - [Option-Critic, OC](http://arxiv.org/abs/1609.05140)
     - [Asynchronous Advantage Option-Critic, A2OC](http://arxiv.org/abs/1709.04571)
@@ -93,7 +94,7 @@ For now, these algorithms are available:
 
 
 
-|           Algorithms            | Discrete | Continuous | Image | RNN  | Command parameter |
+|         Algorithms(28)          | Discrete | Continuous | Image | RNN  | Command parameter |
 | :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
 | Q-Learning/Sarsa/Expected Sarsa |    √     |            |       |      |        qs         |
 |               PG                |    √     |     √      |   √   |      |        pg         |
@@ -126,6 +127,7 @@ For now, these algorithms are available:
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
 |               IOC               |    √     |     √      |   √   |  √   |        ioc        |
 |              HIRO               |    √     |     √      |       |      |       hiro        |
+|              CURL               |    √     |     √      |   √   |      |       curl        |
 
 ## Getting started
 
@@ -204,9 +206,8 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 ### Dependencies
 
-- python>3.6, <3.7
-- tensorflow==2.1.0
-- ~~pandas~~
+- python>3.6, <=3.8
+- tensorflow>=2.1.0
 - numpy
 - pywin32==224
 - docopt

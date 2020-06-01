@@ -89,7 +89,7 @@ def make_off_policy_class(mode='share'):
             '''
             TODO: Annotation
             '''
-            _pre_process = function_dict.get('pre_process_function', lambda *args: None)    # 预处理过程
+            _pre_process = function_dict.get('pre_process_function', lambda *args: args)    # 预处理过程
             _train = function_dict.get('train_function', lambda *args: (None, {}))   # 训练过程
             _update = function_dict.get('update_function', lambda *args: None)  # maybe need update parameters of target networks
             _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
@@ -122,7 +122,7 @@ def make_off_policy_class(mode='share'):
                 # --------------------------------------
 
                 # --------------------------------------预处理过程
-                _pre_process(data)
+                data = _pre_process(data)[0]
                 # --------------------------------------
 
                 # --------------------------------------好奇心部分

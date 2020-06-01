@@ -36,6 +36,7 @@ algos = {
     'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
     'qs':       {'class': 'QS',     'policy': 'off-policy', 'update': 'perStep'},
     'hiro':     {'class': 'HIRO',   'policy': 'off-policy', 'update': 'perStep'},
+    'curl':     {'class': 'CURL',   'policy': 'off-policy', 'update': 'perStep'},
 }
 
 

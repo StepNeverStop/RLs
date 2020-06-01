@@ -42,6 +42,33 @@ hiro:
         low_actor: [64, 64]
         low_critic: [64, 64]
 
+curl:
+    alpha: 0.2
+    auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
+    log_std_bound: [-20, 2]
+    actor_lr: 5.0e-4
+    critic_lr: 1.0e-3
+    alpha_lr: 5.0e-4
+    curl_lr: 5.0e-4
+    gamma: 0.99
+    ployak: 0.995
+    discrete_tau: 1.0
+    batch_size: 8
+    buffer_size: 1000
+    img_size: 64
+    use_priority: false
+    n_step: false
+    hidden_units:
+        actor_continuous:
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
+        encoder: 128
+
 cem:
     frac: 0.2
     init_var: 1
