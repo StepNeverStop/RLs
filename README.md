@@ -94,7 +94,7 @@ For now, these algorithms are available:
 
 
 
-|         Algorithms(28)          | Discrete | Continuous | Image | RNN  | Command parameter |
+|         Algorithms(29)          | Discrete | Continuous | Image | RNN  | Command parameter |
 | :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
 | Q-Learning/Sarsa/Expected Sarsa |    √     |            |       |      |        qs         |
 |               PG                |    √     |     √      |   √   |      |        pg         |

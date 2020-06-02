@@ -5,6 +5,7 @@ import tensorflow_probability as tfp
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
 from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.sundry_utils import LinearAnnealing
+from Nn.modules import DoubleQ
 
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
@@ -129,29 +130,26 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.actor_tv = self.actor_net.trainable_variables
         
         _q_net = lambda : Nn.critic_q_one(self.s_dim+self.vis_feat_size, self.a_counts, hidden_units['q'])
-        self.q1_net = _q_net()
-        self.q2_net = _q_net()
-        self.q1_target_net = _q_net()
-        self.q2_target_net = _q_net()
+        self.critic_net = DoubleQ(_q_net)
+        self.critic_target_net = DoubleQ(_q_net)
 
         self.encoder = VisualEncoder(self.img_dim, hidden_units['encoder'])
         self.encoder_target = VisualEncoder(self.img_dim, hidden_units['encoder'])
 
         self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
 
-        self.critic_tv = self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.encoder.trainable_variables
+        self.critic_tv = self.critic_net.trainable_variables + self.encoder.trainable_variables
         
         self.update_target_net_weights(
-            self.q1_target_net.weights + self.q2_target_net.weights + self.encoder_target.trainable_variables,
-            self.q1_net.weights + self.q2_net.weights + self.encoder.trainable_variables
+            self.critic_target_net.weights + self.encoder_target.trainable_variables,
+            self.critic_net.weights + self.encoder.trainable_variables
         )
         self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr, curl_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha, self.optimizer_curl = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr])
         
         self.model_recorder(dict(
             actor=self.actor_net,
-            q1_net=self.q1_net,
-            q2_net=self.q2_net,
+            critic_net=self.critic_net,
             curl_w=self.curl_w,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
@@ -220,8 +218,8 @@ class CURL(make_off_policy_class(mode='no_share')):
             self._learn(function_dict={
                 'train_function': _train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.q1_target_net.weights + self.q2_target_net.weights + self.encoder_target.trainable_variables,
-                                            self.q1_net.weights + self.q2_net.weights + self.encoder.trainable_variables,
+                                            self.critic_target_net.weights + self.encoder_target.trainable_variables,
+                                            self.critic_net.weights + self.encoder.trainable_variables,
                                             self.ployak),
                 'summary_dict': dict([
                                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
@@ -258,10 +256,8 @@ class CURL(make_off_policy_class(mode='no_share')):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
-                q1 = self.q1_net(feat, a)
-                q1_target = self.q1_target_net(target_feat_, target_pi)
-                q2 = self.q2_net(feat, a)
-                q2_target = self.q2_target_net(target_feat_, target_pi)
+                q1, q2 = self.critic_net(feat, a)
+                q1_target, q2_target = self.critic_target_net(feat_, target_pi)
                 dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
                 dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r_q1
@@ -300,9 +296,8 @@ class CURL(make_off_policy_class(mode='no_share')):
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                q1_s_pi = self.q1_net(feat, pi)
-                q2_s_pi = self.q2_net(feat, pi)
-                actor_loss = -tf.reduce_mean(tf.minimum(q1_s_pi, q2_s_pi) - self.alpha * log_pi)
+                q_s_pi = self.critic_net.get_min(feat, pi)
+                actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_tv)

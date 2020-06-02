@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from Nn.modules import DoubleQ
 
 
 class TD3(make_off_policy_class(mode='share')):
@@ -58,23 +59,20 @@ class TD3(make_off_policy_class(mode='share')):
         self.actor_tv = self.actor_net.trainable_variables
         
         _q_net = lambda : Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
-        self.q1_net = _q_net()
-        self.q2_net = _q_net()
-        self.q1_target_net = _q_net()
-        self.q2_target_net = _q_net()
-        self.critic_tv = self.q1_net.trainable_variables + self.q2_net.trainable_variables + self.other_tv
+        self.critic_net = DoubleQ(_q_net)
+        self.critic_target_net = DoubleQ(_q_net)
+        self.critic_tv = self.critic_net.trainable_variables + self.other_tv
 
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
+            self.actor_target_net.weights + self.critic_target_net.weights,
+            self.actor_net.weights + self.critic_net.weights
         )
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self.model_recorder(dict(
             actor=self.actor_net,
-            q1_net=self.q1_net,
-            q2_net=self.q2_net,
+            critic_net=self.critic_net,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic
             ))
@@ -117,8 +115,8 @@ class TD3(make_off_policy_class(mode='share')):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda : self.update_target_net_weights(
-                                            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-                                            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
+                                            self.actor_target_net.weights + self.critic_target_net.weights,
+                                            self.actor_net.weights + self.critic_net.weights,
                                             self.ployak),
                 'summary_dict': dict([
                                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
@@ -145,11 +143,8 @@ class TD3(make_off_policy_class(mode='share')):
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         action_target = _pi_diff + _pi
-                    q1 = self.q1_net(feat, a)
-                    q1_target = self.q1_target_net(feat_, action_target)
-                    q2 = self.q2_net(feat, a)
-                    q2_target = self.q2_target_net(feat_, action_target)
-                    q_target = tf.minimum(q1_target, q2_target)
+                    q1, q2 = self.critic_net(feat, a)
+                    q_target = self.critic_target_net.get_min(feat_, action_target)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
@@ -169,7 +164,7 @@ class TD3(make_off_policy_class(mode='share')):
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q1_actor = self.q1_net(feat, mu)
+                q1_actor = self.critic_net.Q1(feat, mu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
@@ -209,12 +204,9 @@ class TD3(make_off_policy_class(mode='share')):
                         _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         mu = _pi_diff + _pi
-                    q1 = self.q1_net(feat, a)
-                    q1_target = self.q1_target_net(feat_, action_target)
-                    q2 = self.q2_net(feat, a)
-                    q2_target = self.q2_target_net(feat_, action_target)
-                    q1_actor = self.q1_net(feat, mu)
-                    q_target = tf.minimum(q1_target, q2_target)
+                    q1, q2 = self.critic_net(feat, a)
+                    q_target = self.critic_target_net.get_min(feat_, action_target)
+                    q1_actor = self.critic_net.Q1(feat, mu)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r

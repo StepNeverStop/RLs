@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import Nn
 from Algorithms.tf2algos.base.policy import Policy
+from Nn.modules import DoubleQ
 
 
 class MATD3(Policy):
@@ -40,21 +41,18 @@ class MATD3(Policy):
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         _q_net = lambda: Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, hidden_units['q'])
-        self.q1_net = _q_net()
-        self.q1_target_net = _q_net()
-        self.q2_net = _q_net()
-        self.q2_target_net = _q_net()
+        self.critic_net = DoubleQ(_q_net)
+        self.critic_target_net = DoubleQ(_q_net)
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights
+            self.actor_target_net.weights + self.critic_target_net.weights,
+            self.actor_net.weights + self.critic_net.weights
         )
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self.model_recorder(dict(
             actor=self.actor_net,
-            q1_net=self.q1_net,
-            q2_net=self.q2_net,
+            critic_net=self.critic_net,
             optimizer_critic=self.optimizer_critic,
             optimizer_actor=self.optimizer_actor
         ))
@@ -102,8 +100,8 @@ class MATD3(Policy):
         ap, al, ss, ss_, aa, aa_, s, r = map(self.data_convert, (ap, al, ss, ss_, aa, aa_, s, r))
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         self.update_target_net_weights(
-            self.actor_target_net.weights + self.q1_target_net.weights + self.q2_target_net.weights,
-            self.actor_net.weights + self.q1_net.weights + self.q2_net.weights,
+            self.actor_target_net.weights + self.critic_target_net.weights,
+            self.actor_net.weights + self.critic_net.weights,
             self.ployak)
         summaries.update(dict([
             ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
@@ -122,25 +120,22 @@ class MATD3(Policy):
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape() as tape:
-                    q1 = self.q1_net(ss, aa)
-                    q1_target = self.q1_target_net(ss_, aa_)
-                    q2 = self.q2_net(ss, aa)
-                    q2_target = self.q2_target_net(ss_, aa_)
-                    q_target = tf.minimum(q1_target, q2_target)
+                    q1, q2 = self.critic_net(ss, aa)
+                    q_target = self.critic_target_net.get_min(ss_, aa_)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target)
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
                     q1_loss = tf.reduce_mean(tf.square(td_error1))
                     q2_loss = tf.reduce_mean(tf.square(td_error2))
                     critic_loss = 0.5 * (q1_loss + q2_loss)
-                critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
                 self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                    zip(critic_grads, self.critic_net.trainable_variables)
                 )
             with tf.GradientTape() as tape:
                 mu = self.actor_net(s)
                 mumu = tf.concat((q_actor_a_previous, mu, q_actor_a_later), axis=1)
-                q1_actor = self.q1_net(ss, mumu)
+                q1_actor = self.critic_net.Q1(ss, mumu)
                 actor_loss = -tf.reduce_mean(q1_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
@@ -161,12 +156,9 @@ class MATD3(Policy):
                 with tf.GradientTape(persistent=True) as tape:
                     mu = self.actor_net(s)
                     mumu = tf.concat((q_actor_a_previous, mu, q_actor_a_later), axis=1)
-                    q1 = self.q1_net(ss, aa)
-                    q1_target = self.q1_target_net(ss_, aa_)
-                    q2 = self.q2_net(ss, aa)
-                    q2_target = self.q2_target_net(ss_, aa_)
-                    q1_actor = self.q1_net(ss, mumu)
-                    q_target = tf.minimum(q1_target, q2_target)
+                    q1, q2 = self.critic_net(ss, aa)
+                    q_target = self.critic_target_net.get_min(ss_, aa_)
+                    q1_actor = self.critic_net.Q1(ss, mumu)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target)
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
@@ -174,9 +166,9 @@ class MATD3(Policy):
                     q2_loss = tf.reduce_mean(tf.square(td_error2))
                     critic_loss = 0.5 * (q1_loss + q2_loss)
                     actor_loss = -tf.reduce_mean(q1_actor)
-                critic_grads = tape.gradient(critic_loss, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                critic_grads = tape.gradient(critic_loss, self.critic_net.trainable_variables)
                 self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.q1_net.trainable_variables + self.q2_net.trainable_variables)
+                    zip(critic_grads, self.critic_net.trainable_variables)
                 )
             actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(

@@ -5,6 +5,7 @@ from utils.sth import sth
 from tensorflow_probability import distributions as tfd
 from Algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.replay_buffer import ExperienceReplay
+from Nn.modules import DoubleQ
 
 
 class HIRO(make_off_policy_class(mode='no_share')):
@@ -79,20 +80,14 @@ class HIRO(make_off_policy_class(mode='no_share')):
         _high_critic_net = lambda : Nn.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
         _low_critic_net = lambda : Nn.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_counts, hidden_units['low_critic'])
 
-        self.high_critic_1 = _high_critic_net()
-        self.high_critic_2 = _high_critic_net()
-        self.high_critic_target_1 = _high_critic_net()
-        self.high_critic_target_2 = _high_critic_net()
-        self.low_critic_1 = _low_critic_net()
-        self.low_critic_2 = _low_critic_net()
-        self.low_critic_target_1 = _low_critic_net()
-        self.low_critic_target_2 = _low_critic_net()
+        self.high_critic = DoubleQ(_high_critic_net)
+        self.high_critic_target = DoubleQ(_high_critic_net)
+        self.low_critic = DoubleQ(_low_critic_net)
+        self.low_critic_target = DoubleQ(_low_critic_net)
 
         self.update_target_net_weights(
-            self.low_actor_target.weights + self.low_critic_target_1.weights + self.high_actor_target.weights + self.high_critic_target_1.weights \
-                + self.low_critic_target_2.weights + self.high_critic_target_2.weights,
-            self.low_actor.weights + self.low_critic_1.weights + self.high_actor.weights + self.high_critic_1.weights \
-                + self.low_critic_2.weights + self.high_critic_2.weights,
+            self.low_actor_target.weights + self.low_critic_target.weights + self.high_actor_target.weights + self.high_critic_target.weights,
+            self.low_actor.weights + self.low_critic.weights + self.high_actor.weights + self.high_critic.weights
         )
 
         self.low_actor_lr, self.low_critic_lr = map(self.init_lr, [low_actor_lr, low_critic_lr])
@@ -102,11 +97,9 @@ class HIRO(make_off_policy_class(mode='no_share')):
 
         self.model_recorder(dict(
             high_actor=self.high_actor,
-            high_critic_1=self.high_critic_1,
-            high_critic_2=self.high_critic_2,
+            high_critic=self.high_critic,
             low_actor=self.low_actor,
-            low_critic_1=self.low_critic_1,
-            low_critic_2=self.low_critic_2,
+            low_critic=self.low_critic,
             low_actor_optimizer=self.low_actor_optimizer,
             low_critic_optimizer=self.low_critic_optimizer,
             high_actor_optimizer=self.high_actor_optimizer,
@@ -247,15 +240,15 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 summaries = self.train_low(_low_training_data)
 
                 self.summaries.update(summaries)
-                self.update_target_net_weights(self.low_actor_target.weights + self.low_critic_target_1.weights + self.low_critic_target_2.weights,
-                                               self.low_actor.weights + self.low_critic_1.weights + self.low_critic_2.weights,
+                self.update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
+                                               self.low_actor.weights + self.low_critic.weights,
                                                self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(_high_training_data)
                     self.summaries.update(high_summaries)
-                    self.update_target_net_weights(self.high_actor_target.weights + self.high_critic_target_1.weights + self.high_critic_target_2.weights,
-                                                   self.high_actor.weights + self.high_critic_1.weights + self.high_critic_2.weights,
+                    self.update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
+                                                   self.high_actor.weights + self.high_critic.weights,
                                                    self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
@@ -285,21 +278,18 @@ class HIRO(make_off_policy_class(mode='no_share')):
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     action_target = _pi_diff + _pi
-                q1 = self.low_critic_1(feat, a)
-                q2 = self.low_critic_2(feat, a)
+                q1, q2 = self.low_critic(feat, a)
                 q = tf.minimum(q1, q2)
-                q_target_1 = self.low_critic_target_1(feat_, action_target)
-                q_target_2 = self.low_critic_target_2(feat_, action_target)
-                q_target = tf.minimum(q_target_1, q_target_2)
+                q_target = self.low_critic_target.get_min(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
                 q2_loss = tf.reduce_mean(tf.square(td_error2))
                 low_critic_loss = q1_loss + q2_loss
-            low_critic_grads = tape.gradient(low_critic_loss, self.low_critic_1.trainable_variables + self.low_critic_2.trainable_variables)
+            low_critic_grads = tape.gradient(low_critic_loss, self.low_critic.weights)
             self.low_critic_optimizer.apply_gradients(
-                zip(low_critic_grads, self.low_critic_1.trainable_variables + self.low_critic_2.trainable_variables)
+                zip(low_critic_grads, self.low_critic.weights)
             )
             with tf.GradientTape() as tape:
                 if self.is_continuous:
@@ -310,7 +300,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q_actor = self.low_critic_1(feat, mu)
+                q_actor = self.low_critic.Q1(feat, mu)
                 low_actor_loss = -tf.reduce_mean(q_actor)
             low_actor_grads = tape.gradient(low_actor_loss, self.low_actor.trainable_variables)
             self.low_actor_optimizer.apply_gradients(
@@ -367,15 +357,12 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 idx = tf.stack([tf.range(batchs), idx], axis=1)  # [B, 2]
                 g = tf.gather_nd(tf.transpose(gs, [1, 0, 2]), idx)  # [B, N]
 
-                q1 = self.high_critic_1(s, g)
-                q2 = self.high_critic_2(s, g)
+                q1, q2 = self.high_critic(s, g)
                 q = tf.minimum(q1, q2)
 
                 target_sub_goal = self.high_actor_target(s_) * self.high_scale
                 target_sub_goal = tf.clip_by_value(target_sub_goal + self.high_noise(), -self.high_scale, self.high_scale)
-                q_target_1 = self.high_critic_target_1(s_, target_sub_goal)
-                q_target_2 = self.high_critic_target_2(s_, target_sub_goal)
-                q_target = tf.minimum(q_target_1, q_target_2)
+                q_target = self.high_critic_target.get_min(s_, target_sub_goal)
 
                 dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * q_target)
                 td_error1 = q1 - dc_r
@@ -384,13 +371,13 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 q2_loss = tf.reduce_mean(tf.square(td_error2))
                 high_critic_loss = q1_loss + q2_loss
                 
-            high_critic_grads = tape.gradient(high_critic_loss, self.high_critic_1.trainable_variables + self.high_critic_2.trainable_variables)
+            high_critic_grads = tape.gradient(high_critic_loss, self.high_critic.weights)
             self.high_critic_optimizer.apply_gradients(
-                zip(high_critic_grads, self.high_critic_1.trainable_variables + self.high_critic_2.trainable_variables)
+                zip(high_critic_grads, self.high_critic.weights)
             )
             with tf.GradientTape() as tape:
                 mu = self.high_actor(s) * self.high_scale
-                q_actor = self.high_critic_1(s, mu)
+                q_actor = self.high_critic.Q1(s, mu)
                 high_actor_loss = -tf.reduce_mean(q_actor)
             high_actor_grads = tape.gradient(high_actor_loss, self.high_actor.trainable_variables)
             self.high_actor_optimizer.apply_gradients(
