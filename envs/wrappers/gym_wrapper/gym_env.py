@@ -1,5 +1,22 @@
 import gym
-import gym_minigrid
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('envs.wrappers.gym_wrapper.gym_env')
+
+try:
+    import gym_minigrid
+except:
+    logger.warning("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.")
+    pass
+
+try:
+    # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
+    import pybullet_envs
+except:
+    logger.warning("import pybullet_envs failed, using 'pip3 install PyBullet' install it.")
+    pass
+
 import numpy as np
 from typing import Dict
 from copy import deepcopy
