@@ -41,7 +41,6 @@ class SharedPolicy(Policy):
         self.get_burn_in_feature = tf.function(
             func=self.generate_get_brun_in_feature_function(), 
             experimental_relax_shapes=True)
-        # self.get_feature = self.generate_get_feature_function()
 
 
     def model_recorder(self, kwargs):
@@ -51,12 +50,14 @@ class SharedPolicy(Policy):
             kwargs.update(rnn_net=self.rnn_net)
         super().model_recorder(kwargs)
 
-    def initial_cell_state(self):
-        return (tf.zeros((self.episode_batch_size, self.rnn_units), dtype=tf.float32), tf.zeros((self.episode_batch_size, self.rnn_units), dtype=tf.float32))
+    def initial_cell_state(self, n=None):
+        if n is None:
+            n = self.episode_batch_size
+        return (tf.zeros((n, self.rnn_units), dtype=tf.float32), tf.zeros((n, self.rnn_units), dtype=tf.float32))
 
     def reset(self):
         if self.use_rnn:
-            self.cell_state = (tf.zeros((self.n_agents, self.rnn_units), dtype=tf.float32), tf.zeros((self.n_agents, self.rnn_units), dtype=tf.float32))
+            self.cell_state = self.initial_cell_state(self.n_agents)
         else:
             self.cell_state = (None,)
 

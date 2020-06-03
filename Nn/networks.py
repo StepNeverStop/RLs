@@ -33,12 +33,16 @@ class ObsRNN(M):
     def __init__(self, dim, hidden_units):
         super().__init__()
         # self.masking = tf.keras.layers.Masking(mask_value=0.)
-        self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
-        self(I(shape=(None, dim)), I(shape=(hidden_units)), I(shape=(hidden_units)))
+
+        # ValueError: Tried to convert 'tensor' to a tensor and failed. Error: None values not supported.
+        # https://github.com/tensorflow/tensorflow/issues/31998
+        cell = tf.keras.layers.LSTMCell(hidden_units)
+        self.lstm_net = tf.keras.layers.RNN(cell, return_state=True, return_sequences=True)
+        self(I(shape=(None, dim)), I(shape=(hidden_units,)), I(shape=(hidden_units,)))
 
     def call(self, s, h, c):
         # s = self.masking(s)
-        x, h, c = self.lstm_net(s, (h, c)) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
+        x, h, c = self.lstm_net(s, initial_state=(h, c)) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
         return (x, (h, c))
 
 
