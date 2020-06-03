@@ -89,6 +89,7 @@ class sth(object):
                 [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
                 [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
         '''
+        x = np.asarray(x).flatten()
         if hasattr(x, '__len__'):
             a = np.zeros([len(x), action_dim_prod])
             for i in range(len(x)):

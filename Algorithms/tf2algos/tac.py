@@ -67,7 +67,8 @@ class TAC(make_off_policy_class(mode='share')):
             self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables            
-        self.target_entropy = -self.a_counts
+        # entropy = -log(1/|A|) = log |A|
+        self.target_entropy = 0.98 * (self.a_counts if self.is_continuous else np.log(self.a_counts))
         
         _q_net = lambda : Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
@@ -210,7 +211,7 @@ class TAC(make_off_policy_class(mode='share')):
                         logits = self.actor_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
@@ -277,7 +278,7 @@ class TAC(make_off_policy_class(mode='share')):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
                 actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
                 if self.auto_adaption:
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

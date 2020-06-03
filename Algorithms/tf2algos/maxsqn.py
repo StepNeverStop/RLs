@@ -48,7 +48,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
-        self.target_alpha = beta * np.log(self.a_counts)
+        self.target_entropy = beta * np.log(self.a_counts)
 
         _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_counts, hidden_units)
         self.critic_net = DoubleQ(_q_net)
@@ -149,7 +149,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                     q1_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
                     q1_log_max = tf.reduce_max(q1_log_probs, axis=1, keepdims=True)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(self.target_alpha - q1_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(self.target_entropy - q1_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
