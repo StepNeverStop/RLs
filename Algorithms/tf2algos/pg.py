@@ -31,11 +31,11 @@ class PG(make_on_policy_class(mode='share')):
         self.epoch = epoch
         # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:
-            self.net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
         else:
-            self.net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            self.net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)

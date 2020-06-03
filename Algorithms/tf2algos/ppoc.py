@@ -70,7 +70,7 @@ class PPOC(make_on_policy_class(mode='share')):
         self.o_beta = o_beta
 
 
-        self.net = Nn.ppoc_share(self.rnn_net.hdim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
+        self.net = Nn.ppoc_share(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv

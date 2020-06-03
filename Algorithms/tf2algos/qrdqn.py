@@ -50,7 +50,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.qrdqn_distributional(self.rnn_net.hdim, self.a_dim, self.nums, hidden_units)
+        _net = lambda: Nn.qrdqn_distributional(self.feat_dim, self.a_dim, self.nums, hidden_units)
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv

@@ -33,7 +33,7 @@ class SQL(make_off_policy_class(mode='share')):
         self.alpha = alpha
         self.ployak = ployak
 
-        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_dim, hidden_units)
+        _q_net = lambda : Nn.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()

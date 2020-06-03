@@ -50,7 +50,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
-        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_dim, hidden_units)
+        _q_net = lambda : Nn.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv

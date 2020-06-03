@@ -74,12 +74,14 @@ def make_on_policy_class(mode='share'):
             all_data = self.data.sample_generater(self.batch_size, _train_data_list)
             for data in all_data:
 
-                if self.use_rnn and self.burn_in_time_step:
+                if self.use_rnn:
                     raise NotImplementedError
+                    if self.burn_in_time_step:
+                        pass
                     # _s, _visual_s = self.data.get_burn_in_states()
                     # cell_state = self.get_burn_in_feature(_s, _visual_s)
                 else:
-                    cell_state = None
+                    cell_state = (None,)
 
                 data = list(map(self.data_convert, data))
                 summaries = _train(data, crsty_loss, cell_state)

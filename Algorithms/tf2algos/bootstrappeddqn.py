@@ -44,7 +44,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self._probs = [1./head_num for _ in range(head_num)]
         self.now_head = 0
 
-        _q_net = lambda : Nn.critic_q_bootstrap(self.rnn_net.hdim, self.a_dim, self.head_num, hidden_units)
+        _q_net = lambda : Nn.critic_q_bootstrap(self.feat_dim, self.a_dim, self.head_num, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()

@@ -32,13 +32,13 @@ class AC(make_off_policy_class(mode='share')):
             **kwargs)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.actor_tv = self.actor_net.trainable_variables
-        self.critic_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hidden_units['critic'])
+        self.critic_net = Nn.critic_q_one(self.feat_dim, self.a_dim, hidden_units['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])

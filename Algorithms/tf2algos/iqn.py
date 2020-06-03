@@ -56,7 +56,7 @@ class IQN(make_off_policy_class(mode='share')):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        _net = lambda: Nn.iqn_net(self.rnn_net.hdim, self.a_dim, self.quantiles_idx, hidden_units)
+        _net = lambda: Nn.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
 
         self.q_net = _net()
         self.q_target_net = _net()

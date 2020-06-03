@@ -38,13 +38,13 @@ class DPG(make_off_policy_class(mode='share')):
         if self.is_continuous:
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
-            self.actor_net = Nn.actor_dpg(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables
 
-        self.q_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hidden_units['q'])
+        self.q_net = Nn.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])

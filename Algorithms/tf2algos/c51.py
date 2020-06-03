@@ -51,7 +51,7 @@ class C51(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.c51_distributional(self.rnn_net.hdim, self.a_dim, self.atoms, hidden_units)
+        _net = lambda: Nn.c51_distributional(self.feat_dim, self.a_dim, self.atoms, hidden_units)
 
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()

@@ -44,18 +44,18 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.cost_constraint = cost_constraint  # long tern cost <= d
 
         if self.is_continuous:
-            _actor_net = lambda: Nn.actor_dpg(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            _actor_net = lambda: Nn.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
         else:
-            _actor_net = lambda: Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            _actor_net = lambda: Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         self.actor_tv = self.actor_net.trainable_variables
         
-        _critic_net = lambda hiddens: Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hiddens)
+        _critic_net = lambda hiddens: Nn.critic_q_one(self.feat_dim, self.a_dim, hiddens)
         self.reward_critic_net = _critic_net(hidden_units['reward'])
         self.reward_critic_target_net = _critic_net(hidden_units['reward'])
         self.cost_critic_net = _critic_net(hidden_units['cost'])

@@ -65,9 +65,9 @@ class SAC_V(make_off_policy_class(mode='share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_continuous(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             if self.use_gumbel:
                 self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
                 
@@ -80,8 +80,8 @@ class SAC_V(make_off_policy_class(mode='share')):
         else:
             critic_net = Nn.critic_q_all
 
-        _q_net = lambda : critic_net(self.rnn_net.hdim, self.a_dim, hidden_units['q'])
-        _v_net = lambda : Nn.critic_v(self.rnn_net.hdim, hidden_units['v'])
+        _q_net = lambda : critic_net(self.feat_dim, self.a_dim, hidden_units['q'])
+        _v_net = lambda : Nn.critic_v(self.feat_dim, hidden_units['v'])
         self.q_net = DoubleQ(_q_net)
         self.v_net = _v_net()
         self.v_target_net = _v_net()

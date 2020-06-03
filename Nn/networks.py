@@ -30,28 +30,16 @@ class MultiCameraCNN(M):
 class ObsRNN(M):
     '''输入状态的RNN
     '''
-    def __init__(self, dim, hidden_units, use_rnn):
+    def __init__(self, dim, hidden_units):
         super().__init__()
-        self.use_rnn = use_rnn
-        if use_rnn:
-            self.dim = dim
-            # self.masking = tf.keras.layers.Masking(mask_value=0.)
-            self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
-            self(I(shape=(None, self.dim)))
-            self.hdim = hidden_units
-        else:
-            self.hdim = dim
+        # self.masking = tf.keras.layers.Masking(mask_value=0.)
+        self.lstm_net = tf.keras.layers.LSTM(hidden_units, return_state=True, return_sequences=True)
+        self(I(shape=(None, dim)), I(shape=(hidden_units)), I(shape=(hidden_units)))
 
-    def call(self, s, state=None):
-        if self.use_rnn:
-            # s = self.masking(s)
-            if state is None:
-                x, h, c = self.lstm_net(s) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
-            else:
-                x, h, c = self.lstm_net(s, state)
-            return (x, (h, c))
-        else:
-            return (s, None)
+    def call(self, s, h, c):
+        # s = self.masking(s)
+        x, h, c = self.lstm_net(s, (h, c)) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
+        return (x, (h, c))
 
 
 class VisualNet(M):

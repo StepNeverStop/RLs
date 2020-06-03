@@ -62,15 +62,15 @@ class TAC(make_off_policy_class(mode='share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_continuous(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables            
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
         
-        _q_net = lambda : Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hidden_units['q'])
+        _q_net = lambda : Nn.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv

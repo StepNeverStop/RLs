@@ -62,12 +62,12 @@ class OC(make_off_policy_class(mode='share')):
         self.boltzmann_temperature = boltzmann_temperature
         self.use_eps_greedy = use_eps_greedy
 
-        _q_net= lambda: Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['q'])
+        _q_net= lambda: Nn.critic_q_all(self.feat_dim, self.options_num, hidden_units['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
-        self.intra_option_net = Nn.oc_intra_option(self.rnn_net.hdim, self.a_dim, self.options_num, hidden_units['intra_option'])
-        self.termination_net = Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['termination'], 'sigmoid')
+        self.intra_option_net = Nn.oc_intra_option(self.feat_dim, self.a_dim, self.options_num, hidden_units['intra_option'])
+        self.termination_net = Nn.critic_q_all(self.feat_dim, self.options_num, hidden_units['termination'], 'sigmoid')
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:

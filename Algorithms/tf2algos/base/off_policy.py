@@ -154,11 +154,13 @@ def make_off_policy_class(mode='share'):
                 # --------------------------------------
 
                 # --------------------------------------burn in隐状态部分
-                if self.use_rnn and self.burn_in_time_step:
-                    _s, _visual_s = self.data.get_burn_in_states()
-                    cell_state = self.get_burn_in_feature(_s, _visual_s)
+                if self.use_rnn:
+                    cell_state = self.initial_cell_state()
+                    if self.burn_in_time_step > 0:
+                        _s, _visual_s = self.data.get_burn_in_states()
+                        cell_state = self.get_burn_in_feature(_s, _visual_s, cell_state)
                 else:
-                    cell_state = None
+                    cell_state = (None,)
                 # --------------------------------------
                 
                 # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息

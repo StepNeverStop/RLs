@@ -82,10 +82,10 @@ class PPO(make_on_policy_class(mode='share')):
         if self.share_net:
             # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1], [1])
             if self.is_continuous:
-                self.net = Nn.a_c_v_continuous(self.rnn_net.hdim, self.a_dim, hidden_units['share']['continuous'])
+                self.net = Nn.a_c_v_continuous(self.feat_dim, self.a_dim, hidden_units['share']['continuous'])
                 self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
             else:
-                self.net = Nn.a_c_v_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['share']['discrete'])
+                self.net = Nn.a_c_v_discrete(self.feat_dim, self.a_dim, hidden_units['share']['discrete'])
                 self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
@@ -97,12 +97,12 @@ class PPO(make_on_policy_class(mode='share')):
             # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
             # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
-                self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+                self.actor_net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
                 self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
             else:
-                self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
+                self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
                 self.actor_net_tv = self.actor_net.trainable_variables
-            self.critic_net = Nn.critic_v(self.rnn_net.hdim, hidden_units['critic'])
+            self.critic_net = Nn.critic_v(self.feat_dim, hidden_units['critic'])
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
             self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])

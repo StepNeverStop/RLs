@@ -16,13 +16,18 @@ class Policy(Base):
                  **kwargs):
         super().__init__(**kwargs)
         self.s_dim = s_dim
+        self.feat_dim = self.s_dim
         self.visual_sources = visual_sources
         if visual_sources >= 1:
             self.use_visual = True
             self.visual_dim = [visual_sources, *visual_resolution]
         else:
             self.use_visual = False
-            self.visual_dim = [0]
+            self.visual_dim = [0]        
+        
+        self.use_rnn = bool(kwargs.get('use_rnn', False))
+
+        self.other_tv = []
 
         self.batch_size = int(kwargs.get('batch_size', 128))
         self.n_agents = int(kwargs.get('n_agents', 0))
@@ -45,9 +50,6 @@ class Policy(Base):
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
-        self.use_rnn = False
-
-
     def init_lr(self, lr):
         if self.delay_lr:
             return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
@@ -58,10 +60,10 @@ class Policy(Base):
         return tf.keras.optimizers.Adam(learning_rate=lr(self.episode), *args, **kwargs)
 
     def reset(self):
-        self.cell_state = None
+        self.cell_state = (None,)
 
     def get_cell_state(self):
-        return None
+        return self.cell_state
 
     def set_cell_state(self, cs):
         pass

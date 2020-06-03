@@ -20,17 +20,20 @@ class SharedPolicy(Policy):
             a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
-        self.visual_feature = int(kwargs.get('visual_feature', 128))
-        self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
+        if self.use_visual:
+            self.visual_feature = int(kwargs.get('visual_feature', 128))
+            self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
+            self.other_tv += self.visual_net.trainable_variables
+            self.feat_dim = self.visual_net.hdim
         
-        self.use_rnn = bool(kwargs.get('use_rnn', False))
-        self.rnn_units = int(kwargs.get('rnn_units', 16))
-        self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 20))
-        self.train_time_step = int(kwargs.get('train_time_step', 40))
-        self.rnn_net = ObsRNN(self.visual_net.hdim, self.rnn_units, self.use_rnn)
-        self.cell_state = None
-
-        self.other_tv = self.visual_net.trainable_variables + self.rnn_net.trainable_variables
+        if self.use_rnn:
+            self.rnn_units = int(kwargs.get('rnn_units', 16))
+            self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 20))
+            self.train_time_step = int(kwargs.get('train_time_step', 40))
+            self.episode_batch_size = int(kwargs.get('episode_batch_size', 32))
+            self.rnn_net = ObsRNN(self.feat_dim, self.rnn_units)
+            self.other_tv += self.rnn_net.trainable_variables
+            self.feat_dim = self.rnn_units
 
         self.get_feature = tf.function(
             func=self.generate_get_feature_function(),
@@ -38,16 +41,24 @@ class SharedPolicy(Policy):
         self.get_burn_in_feature = tf.function(
             func=self.generate_get_brun_in_feature_function(), 
             experimental_relax_shapes=True)
+        # self.get_feature = self.generate_get_feature_function()
 
 
     def model_recorder(self, kwargs):
-        kwargs.update(dict(
-            visual_net=self.visual_net,
-            rnn_net=self.rnn_net))
+        if self.use_visual:
+            kwargs.update(visual_net=self.visual_net)
+        if self.use_rnn:
+            kwargs.update(rnn_net=self.rnn_net)
         super().model_recorder(kwargs)
 
+    def initial_cell_state(self):
+        return (tf.zeros((self.episode_batch_size, self.rnn_units), dtype=tf.float32), tf.zeros((self.episode_batch_size, self.rnn_units), dtype=tf.float32))
+
     def reset(self):
-        self.cell_state = None
+        if self.use_rnn:
+            self.cell_state = (tf.zeros((self.n_agents, self.rnn_units), dtype=tf.float32), tf.zeros((self.n_agents, self.rnn_units), dtype=tf.float32))
+        else:
+            self.cell_state = (None,)
 
     def get_cell_state(self):
         return self.cell_state
@@ -63,7 +74,7 @@ class SharedPolicy(Policy):
         根据环境的done的index，局部初始化RNN的隐藏状态
         '''
         assert isinstance(index, (list, np.ndarray))
-        if self.cell_state is not None and len(index) > 0:
+        if self.cell_state[0] is not None and len(index) > 0:
             _arr = np.ones(shape=self.cell_state[0].shape, dtype=np.float32)    # h, c
             _arr[index] = 0.
             self.cell_state = [c * _arr for c in self.cell_state]        # [A, B] * [A, B] => [A, B] 将某行全部替换为0.
@@ -86,12 +97,12 @@ class SharedPolicy(Policy):
                     if s_and_s_:
                         state_s, state_s_ = tf.split(s, num_or_size_splits=2, axis=0)
                         if record_cs:
-                            return state_s, state_s_, None
+                            return state_s, state_s_, (None,)
                         else:
                             return state_s, state_s_
                     else:
                         if record_cs:
-                            return s, None
+                            return s, (None,)
                         else:
                             return s
                 return _f
@@ -107,12 +118,12 @@ class SharedPolicy(Policy):
             if s_and_s_:
                 state_s, state_s_ = tf.split(feature, num_or_size_splits=2, axis=0)
                 if record_cs:
-                    return state_s, state_s_, None
+                    return state_s, state_s_, (None,)
                 else:
                     return state_s, state_s_
             else:
                 if record_cs:
-                    return feature, None
+                    return feature, (None,)
                 else:
                     return feature
 
@@ -124,7 +135,7 @@ class SharedPolicy(Policy):
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [batch_size, -1, tf.shape(s)[-1]])    # [A, N] => [A, 1, N]
-            state, cell_state = self.rnn_net(s, cell_state) # [B, T, N] => [B, T, N']
+            state, cell_state = self.rnn_net(s, *cell_state) # [B, T, N] => [B, T, N']
 
             if s_and_s_:
                 if train:
@@ -157,7 +168,7 @@ class SharedPolicy(Policy):
             visual_s = tf.reshape(visual_s, [-1, *tf.shape(visual_s)[2:]])
             feature = self.visual_net(s, visual_s)  # [B*(T+1), N]
             feature = tf.reshape(feature, [batch_size, -1, tf.shape(feature)[-1]])  # [B*(T+1), N] => [B, T+1, N]
-            state, cell_state = self.rnn_net(feature, cell_state)
+            state, cell_state = self.rnn_net(feature, *cell_state)
 
             if s_and_s_:
                 if train:
@@ -191,7 +202,7 @@ class SharedPolicy(Policy):
             visual_s = tf.reshape(visual_s, [-1, tf.shape(visual_s)[-1]])
             feature = self.visual_net(s, visual_s)  # [B*(T+1), N]
             feature = tf.reshape(feature, [batch_size, -1, tf.shape(feature)[-1]])  # [B*(T+1), N] => [B, T+1, N]
-            state, cell_state = self.rnn_net(feature, cell_state)
+            state, cell_state = self.rnn_net(feature, *cell_state)
 
             if s_and_s_:
                 if train:
@@ -223,10 +234,10 @@ class SharedPolicy(Policy):
         else:
             return self._rnn_get_burn_in_feature
 
-    def _rnn_get_burn_in_feature(self, s, visual_s):
+    def _rnn_get_burn_in_feature(self, s, visual_s, cell_state):
         s = self.cast(s)[0]
         with tf.device(self.device):
-            _, cell_state = self.rnn_net(s)
+            _, cell_state = self.rnn_net(s, *cell_state)
             return cell_state
 
     def _cnn_rnn_get_burn_in_feature(self, s, visual_s):
