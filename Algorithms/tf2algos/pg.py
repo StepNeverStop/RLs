@@ -11,7 +11,7 @@ class PG(make_on_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  lr=5.0e-4,
@@ -25,17 +25,17 @@ class PG(make_on_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.epoch = epoch
-        # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1])
+        # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:
-            self.net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
         else:
-            self.net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+            self.net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
             self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)

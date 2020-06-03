@@ -12,7 +12,7 @@ class DDQN(DQN):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  lr=5.0e-4,
@@ -28,7 +28,7 @@ class DDQN(DQN):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             lr=lr,
             eps_init=eps_init,
@@ -64,7 +64,7 @@ class DDQN(DQN):
                 q = self.q_net(feat)
                 q_next = self.q_net(feat_)
                 next_max_action = tf.argmax(q_next, axis=1)
-                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
+                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
                 q_target_next = self.q_target_net(feat_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)

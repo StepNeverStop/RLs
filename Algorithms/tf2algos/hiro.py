@@ -16,7 +16,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  ployak=0.995,
@@ -46,7 +46,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.data_high = ExperienceReplay(high_batch_size, high_buffer_size)
@@ -63,13 +63,13 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.sub_goal_dim = self.s_dim - self.fn_goal_dim
 
         self.high_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale/2)
-        self.low_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_counts), sigma=1.0 * np.ones(self.a_counts), bound=0.5)
+        self.low_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
         _high_actor_net = lambda : Nn.actor_dpg(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
         if self.is_continuous:
-            _low_actor_net = lambda : Nn.actor_dpg(self.s_dim+self.sub_goal_dim, self.a_counts, hidden_units['low_actor'])
+            _low_actor_net = lambda : Nn.actor_dpg(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
         else:
-            _low_actor_net = lambda: Nn.actor_discrete(self.s_dim+self.sub_goal_dim, self.a_counts, hidden_units['low_actor'])
+            _low_actor_net = lambda: Nn.actor_discrete(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
         self.high_actor = _high_actor_net()
@@ -78,7 +78,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor_target =_low_actor_net()
 
         _high_critic_net = lambda : Nn.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
-        _low_critic_net = lambda : Nn.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_counts, hidden_units['low_critic'])
+        _low_critic_net = lambda : Nn.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
 
         self.high_critic = DoubleQ(_high_critic_net)
         self.high_critic_target = DoubleQ(_high_critic_net)
@@ -273,9 +273,9 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 else:
                     target_logits = self.low_actor_target(feat_)
                     logp_all = tf.nn.log_softmax(target_logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([tf.shape(feat_)[0], self.a_counts]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([tf.shape(feat_)[0], self.a_dim]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / 1.)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     action_target = _pi_diff + _pi
                 q1, q2 = self.low_critic(feat, a)
@@ -297,7 +297,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 else:
                     logits = self.low_actor(feat)
                     _pi = tf.nn.softmax(logits)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q_actor = self.low_critic.Q1(feat, mu)
@@ -348,7 +348,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 feat = tf.concat([ss, all_g], axis=-1)  # [10*B*T, *]
                 _aa = self.low_actor(feat)  # [10*B*T, A]
                 if not self.is_continuous:
-                    _aa = tf.one_hot(tf.argmax(_aa, axis=-1), self.a_counts, dtype=tf.float32)
+                    _aa = tf.one_hot(tf.argmax(_aa, axis=-1), self.a_dim, dtype=tf.float32)
                 diff = _aa - aa
                 diff = tf.reshape(diff, [self.sample_g_nums, batchs, self.sub_goal_steps, -1]) # [10, B, T, A]
                 diff = tf.transpose(diff, [1, 0, 2, 3])   # [B, 10, T, A]
@@ -454,7 +454,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             a = data[a_idx].astype(np.int32)
             pre_shape = a.shape
             a = a.reshape(-1)
-            a = sth.int2one_hot(a, self.a_counts)
+            a = sth.int2one_hot(a, self.a_dim)
             a = a.reshape(pre_shape+(-1,))
             data[a_idx] = a
         return dict([

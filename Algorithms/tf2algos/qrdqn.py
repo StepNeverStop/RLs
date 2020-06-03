@@ -17,7 +17,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  nums=20,
@@ -36,13 +36,13 @@ class QRDQN(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.nums = nums
         self.huber_delta = huber_delta
         self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums]) # [1, N]
-        self.batch_quantiles = tf.tile(self.quantiles, [self.a_counts, 1])  # [1, N] => [A, N]
+        self.batch_quantiles = tf.tile(self.quantiles, [self.a_dim, 1])  # [1, N] => [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -50,7 +50,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.qrdqn_distributional(self.rnn_net.hdim, self.a_counts, self.nums, hidden_units)
+        _net = lambda: Nn.qrdqn_distributional(self.rnn_net.hdim, self.a_dim, self.nums, hidden_units)
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
@@ -80,7 +80,7 @@ class QRDQN(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = a.numpy()

@@ -15,7 +15,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  alpha=0.2,
@@ -36,7 +36,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -48,9 +48,9 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
         self.auto_adaption = auto_adaption
-        self.target_entropy = beta * np.log(self.a_counts)
+        self.target_entropy = beta * np.log(self.a_dim)
 
-        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_counts, hidden_units)
+        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_dim, hidden_units)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -84,7 +84,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = pi.numpy()

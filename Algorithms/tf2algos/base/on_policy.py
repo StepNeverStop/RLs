@@ -15,14 +15,14 @@ def make_on_policy_class(mode='share'):
                     s_dim,
                     visual_sources,
                     visual_resolution,
-                    a_dim_or_list,
+                    a_dim,
                     is_continuous,
                     **kwargs):
             super().__init__(
                 s_dim=s_dim,
                 visual_sources=visual_sources,
                 visual_resolution=visual_resolution,
-                a_dim_or_list=a_dim_or_list,
+                a_dim=a_dim,
                 is_continuous=is_continuous,
                 **kwargs)
 
@@ -59,7 +59,7 @@ def make_on_policy_class(mode='share'):
             self.intermediate_variable_reset()
 
             if not self.is_continuous:
-                self.data.convert_action2one_hot(self.a_counts)
+                self.data.convert_action2one_hot(self.a_dim)
 
             if self.use_curiosity:
                 s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()

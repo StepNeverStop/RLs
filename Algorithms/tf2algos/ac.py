@@ -12,7 +12,7 @@ class AC(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  actor_lr=5.0e-4,
@@ -27,18 +27,18 @@ class AC(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
             self.actor_tv = self.actor_net.trainable_variables
-        self.critic_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['critic'])
+        self.critic_net = Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hidden_units['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
@@ -124,7 +124,7 @@ class AC(make_off_policy_class(mode='share')):
                 else:
                     logits = self.actor_net(feat_)
                     max_a = tf.argmax(logits, axis=1)
-                    max_a_one_hot = tf.one_hot(max_a, self.a_counts, dtype=tf.float32)
+                    max_a_one_hot = tf.one_hot(max_a, self.a_dim, dtype=tf.float32)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, max_a_one_hot))
                 q = self.critic_net(feat, a)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
@@ -177,7 +177,7 @@ class AC(make_off_policy_class(mode='share')):
                 else:
                     logits = self.actor_net(feat_)
                     max_a = tf.argmax(logits, axis=1)
-                    max_a_one_hot = tf.one_hot(max_a, self.a_counts)
+                    max_a_one_hot = tf.one_hot(max_a, self.a_dim)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, max_a_one_hot))
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)

@@ -14,14 +14,14 @@ def make_off_policy_class(mode='share'):
                     s_dim,
                     visual_sources,
                     visual_resolution,
-                    a_dim_or_list,
+                    a_dim,
                     is_continuous,
                     **kwargs):
             super().__init__(
                 s_dim=s_dim,
                 visual_sources=visual_sources,
                 visual_resolution=visual_resolution,
-                a_dim_or_list=a_dim_or_list,
+                a_dim=a_dim,
                 is_continuous=is_continuous,
                 **kwargs)
             self.buffer_size = int(kwargs.get('buffer_size', 10000))
@@ -73,7 +73,7 @@ def make_off_policy_class(mode='share'):
             data = self.data.sample()   # 经验池取数据
             if not self.is_continuous and 'a' in data_name_list:
                 a_idx = data_name_list.index('a')
-                data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_counts)
+                data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
             
             return dict([
                 [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))

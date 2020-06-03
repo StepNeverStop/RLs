@@ -81,7 +81,8 @@ class InfoWrapper(BasicWrapper):
                 self.visual_resolutions.append([])
 
         self.s_dim = [sum(v) for v in self.vector_dims]
-        self.a_dim_or_list = [spec.action_shape for spec in self.brain_specs]
+        self.a_dim = [int(np.asarray(spec.action_shape).prod()) for spec in self.brain_specs]
+        self.discrete_action_dim_list = [spec.action_shape for spec in self.brain_specs]
         self.a_size = [spec.action_size for spec in self.brain_specs]
         self.is_continuous = [spec.is_action_continuous() for spec in self.brain_specs]
 
@@ -96,9 +97,9 @@ class InfoWrapper(BasicWrapper):
         actions = []
         for i in range(self.brain_num):
             if self.is_continuous[i]:
-                actions.append(np.random.random((self.brain_agents[i], self.a_dim_or_list[i])) * 2 - 1) # [-1, 1]
+                actions.append(np.random.random((self.brain_agents[i], self.a_dim[i])) * 2 - 1) # [-1, 1]
             else:
-                actions.append(np.random.randint(self.a_dim_or_list[i], size=(self.brain_agents[i], self.a_size[i]), dtype=np.int32))
+                actions.append(np.random.randint(self.a_dim[i], size=(self.brain_agents[i], 1), dtype=np.int32))
         return actions
 
 
@@ -222,5 +223,5 @@ class ActionWrapper(BasicWrapper):
             if self.is_continuous[i]:
                 pass
             else:
-                actions[k] = sth.int2action_index(actions[k], self.a_dim_or_list[i])
+                actions[k] = sth.int2action_index(actions[k], self.discrete_action_dim_list[i])
         return self._env.step(actions)

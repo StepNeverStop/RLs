@@ -14,7 +14,7 @@ class TD3(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  ployak=0.995,
@@ -35,7 +35,7 @@ class TD3(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.ployak = ployak
@@ -45,20 +45,20 @@ class TD3(make_off_policy_class(mode='share')):
         self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
-            _actor_net = lambda: Nn.actor_dpg(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
+            _actor_net = lambda: Nn.actor_dpg(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
             if noise_type == 'gaussian':
-                self.action_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_counts), sigma=self.gaussian_noise_sigma * np.ones(self.a_counts), bound=self.gaussian_noise_bound)
+                self.action_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
-                self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
+                self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
         else:
-            _actor_net = lambda: Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+            _actor_net = lambda: Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         self.actor_tv = self.actor_net.trainable_variables
         
-        _q_net = lambda : Nn.critic_q_one(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
+        _q_net = lambda : Nn.critic_q_one(self.rnn_net.hdim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -138,9 +138,9 @@ class TD3(make_off_policy_class(mode='share')):
                     else:
                         target_logits = self.actor_target_net(feat_)
                         logp_all = tf.nn.log_softmax(target_logits)
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         action_target = _pi_diff + _pi
                     q1, q2 = self.critic_net(feat, a)
@@ -161,7 +161,7 @@ class TD3(make_off_policy_class(mode='share')):
                 else:
                     logits = self.actor_net(feat)
                     _pi = tf.nn.softmax(logits)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q1_actor = self.critic_net.Q1(feat, mu)
@@ -194,14 +194,14 @@ class TD3(make_off_policy_class(mode='share')):
                     else:
                         target_logits = self.actor_target_net(feat_)
                         logp_all = tf.nn.log_softmax(target_logits)
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         action_target = _pi_diff + _pi
                         logits = self.actor_net(feat)
                         _pi = tf.nn.softmax(logits)
-                        _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_counts, dtype=tf.float32)
+                        _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         mu = _pi_diff + _pi
                     q1, q2 = self.critic_net(feat, a)

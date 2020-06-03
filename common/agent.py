@@ -160,7 +160,7 @@ class Agent:
                 's_dim': self.env.s_dim,
                 'visual_sources': self.env.visual_sources,
                 'visual_resolution': self.env.visual_resolution,
-                'a_dim_or_list': self.env.a_dim_or_list,
+                'a_dim': self.env.a_dim,
                 'is_continuous': self.env.is_continuous,
                 'max_episode': self.train_args.max_episode,
                 'base_dir': base_dir,
@@ -204,7 +204,7 @@ class Agent:
                 self.model_args_s.append(_margs)
             model_params = [{
                 's_dim': self.env.s_dim[i],
-                'a_dim_or_list': self.env.a_dim_or_list[i],
+                'a_dim': self.env.a_dim[i],
                 'visual_sources': self.env.visual_sources[i],
                 'visual_resolution': self.env.visual_resolutions[i],
                 'is_continuous': self.env.is_continuous[i],

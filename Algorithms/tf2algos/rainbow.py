@@ -20,7 +20,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  v_min=-10,
@@ -43,7 +43,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.v_min = v_min
@@ -51,7 +51,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
         self.z = tf.reshape(tf.constant([self.v_min + i * self.delta_z for i in range(self.atoms)], dtype=tf.float32), [-1, self.atoms])  # [1, N]
-        self.zb = tf.tile(self.z, tf.constant([self.a_counts, 1]))  # [A, N]
+        self.zb = tf.tile(self.z, tf.constant([self.a_dim, 1]))  # [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -59,7 +59,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.rainbow_dueling(self.rnn_net.hdim, self.a_counts, self.atoms, hidden_units)
+        _net = lambda: Nn.rainbow_dueling(self.rnn_net.hdim, self.a_dim, self.atoms, hidden_units)
         self.rainbow_net = _net()
         self.rainbow_target_net = _net()
         self.critic_tv = self.rainbow_net.trainable_variables + self.other_tv
@@ -88,7 +88,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = a.numpy()

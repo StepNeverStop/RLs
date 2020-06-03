@@ -14,7 +14,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  lr=5.0e-4,
@@ -34,7 +34,7 @@ class DDDQN(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -44,7 +44,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.critic_dueling(self.rnn_net.hdim, self.a_counts, hidden_units)
+        _net = lambda: Nn.critic_dueling(self.rnn_net.hdim, self.a_dim, hidden_units)
 
         self.dueling_net = _net()
         self.dueling_target_net = _net()
@@ -76,7 +76,7 @@ class DDDQN(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = a.numpy()
@@ -111,7 +111,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 next_q = self.dueling_net(feat_)
                 next_max_action = tf.argmax(next_q, axis=1, name='next_action_int')
-                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)
+                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
                 q_target = self.dueling_target_net(feat_)
 

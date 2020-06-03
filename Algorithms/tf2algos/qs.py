@@ -10,7 +10,7 @@ class QS:
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  mode='q',
@@ -24,11 +24,10 @@ class QS:
         assert not is_continuous
         self.mode = mode
         self.s_dim = s_dim
-        self.a_dim_or_list = a_dim_or_list
+        self.a_dim = a_dim
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_episode = int(kwargs.get('max_episode', 1000))
         self.step = 0
-        self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
         self.n_agents = int(kwargs.get('n_agents', 0))
         if self.n_agents <= 0:
@@ -38,7 +37,7 @@ class QS:
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        self.table = np.zeros(shape=(self.s_dim, self.a_counts))
+        self.table = np.zeros(shape=(self.s_dim, self.a_dim))
         self.lr = lr
         self.next_a = np.zeros(self.n_agents, dtype=np.int32)
         self.mask = []
@@ -64,7 +63,7 @@ class QS:
         a = np.array([np.argmax(self.table[i, :]) for i in s])
         if not _max:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-                a = np.random.randint(0, self.a_counts, self.n_agents)
+                a = np.random.randint(0, self.a_dim, self.n_agents)
         return a
 
     def learn(self, **kwargs):
@@ -85,7 +84,7 @@ class QS:
                 value = self.table[s_, self.next_a]
         self.table[s, a] = (1 - self.lr) * self.table[s, a] + self.lr * (r + self.gamma * (1 - done) * value) 
         if self.step % 1000 == 0:
-            plot_heatmap(self.s_dim, self.a_counts, self.table)
+            plot_heatmap(self.s_dim, self.a_dim, self.table)
     
     def close(self):
         ioff()

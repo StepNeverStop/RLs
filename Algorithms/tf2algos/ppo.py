@@ -15,7 +15,7 @@ class PPO(make_on_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  policy_epoch=4,
@@ -57,7 +57,7 @@ class PPO(make_on_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.beta = beta
@@ -78,14 +78,14 @@ class PPO(make_on_policy_class(mode='share')):
         self.kl_high = kl_target * kl_beta[-1]
 
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_counts, dtype=np.float32), trainable=True)
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
         if self.share_net:
-            # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1], [1])
+            # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1], [1])
             if self.is_continuous:
-                self.net = Nn.a_c_v_continuous(self.rnn_net.hdim, self.a_counts, hidden_units['share']['continuous'])
+                self.net = Nn.a_c_v_continuous(self.rnn_net.hdim, self.a_dim, hidden_units['share']['continuous'])
                 self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
             else:
-                self.net = Nn.a_c_v_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['share']['discrete'])
+                self.net = Nn.a_c_v_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['share']['discrete'])
                 self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
@@ -94,13 +94,13 @@ class PPO(make_on_policy_class(mode='share')):
                 optimizer=self.optimizer
                 ))
         else:
-            # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_counts], [1], [1])
+            # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
             # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
-                self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
+                self.actor_net = Nn.actor_mu(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
                 self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
             else:
-                self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+                self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
                 self.actor_net_tv = self.actor_net.trainable_variables
             self.critic_net = Nn.critic_v(self.rnn_net.hdim, hidden_units['critic'])
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv

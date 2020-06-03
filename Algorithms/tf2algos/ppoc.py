@@ -14,7 +14,7 @@ class PPOC(make_on_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  options_num=4,
@@ -46,7 +46,7 @@ class PPOC(make_on_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.pi_beta = pi_beta
@@ -70,9 +70,9 @@ class PPOC(make_on_policy_class(mode='share')):
         self.o_beta = o_beta
 
 
-        self.net = Nn.ppoc_share(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units, self.is_continuous)
+        self.net = Nn.ppoc_share(self.rnn_net.hdim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_counts), dtype=np.float32), trainable=True)   # [P, A]
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
         else:
             self.net_tv = self.net.trainable_variables + self.other_tv

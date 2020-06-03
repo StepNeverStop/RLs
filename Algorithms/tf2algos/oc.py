@@ -15,7 +15,7 @@ class OC(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  q_lr=5.0e-3,
@@ -44,7 +44,7 @@ class OC(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -66,12 +66,12 @@ class OC(make_off_policy_class(mode='share')):
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
-        self.intra_option_net = Nn.oc_intra_option(self.rnn_net.hdim, self.a_counts, self.options_num, hidden_units['intra_option'])
+        self.intra_option_net = Nn.oc_intra_option(self.rnn_net.hdim, self.a_dim, self.options_num, hidden_units['intra_option'])
         self.termination_net = Nn.critic_q_all(self.rnn_net.hdim, self.options_num, hidden_units['termination'], 'sigmoid')
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_counts), dtype=np.float32), trainable=True)   # [P, A]
+            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.actor_tv += [self.log_std]
         self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 

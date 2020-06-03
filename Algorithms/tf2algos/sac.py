@@ -18,7 +18,7 @@ class SAC(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  alpha=0.2,
@@ -46,7 +46,7 @@ class SAC(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.ployak = ployak
@@ -64,22 +64,22 @@ class SAC(make_off_policy_class(mode='share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.rnn_net.hdim, self.a_counts, hidden_units['actor_continuous'])
+            self.actor_net = Nn.actor_continuous(self.rnn_net.hdim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_counts, hidden_units['actor_discrete'])
+            self.actor_net = Nn.actor_discrete(self.rnn_net.hdim, self.a_dim, hidden_units['actor_discrete'])
             if self.use_gumbel:
                 self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
                 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
-        self.target_entropy = 0.98 * (self.a_counts if self.is_continuous else np.log(self.a_counts))
+        self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
         
         if self.is_continuous or self.use_gumbel:
             critic_net = Nn.critic_q_one
         else:
             critic_net = Nn.critic_q_all
         
-        _q_net = lambda : critic_net(self.rnn_net.hdim, self.a_counts, hidden_units['q'])
+        _q_net = lambda : critic_net(self.rnn_net.hdim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -173,7 +173,7 @@ class SAC(make_off_policy_class(mode='share')):
                     target_cate_dist = tfp.distributions.Categorical(target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
-                    target_pi = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
+                    target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
                 q1, q2 = self.critic_net(feat, a)
                 q1_target, q2_target = self.critic_target_net(feat_, target_pi)
                 dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
@@ -197,9 +197,9 @@ class SAC(make_off_policy_class(mode='share')):
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
@@ -266,9 +266,9 @@ class SAC(make_off_policy_class(mode='share')):
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_counts]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_counts)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
@@ -278,7 +278,7 @@ class SAC(make_off_policy_class(mode='share')):
                     target_cate_dist = tfp.distributions.Categorical(target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
-                    target_pi = tf.one_hot(target_pi, self.a_counts, dtype=tf.float32)
+                    target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
                 q1, q2 = self.critic_net(feat, a)
                 q1_target, q2_target = self.critic_target_net(feat_, target_pi)
                 q_s_pi = self.critic_net.get_min(feat, pi)
@@ -375,7 +375,7 @@ class SAC(make_off_policy_class(mode='share')):
                     logp_all = tf.nn.log_softmax(logits)
                     entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
                     corr = tf.stop_gradient(-entropy - self.target_entropy) 
-                    # corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_counts) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
+                    # corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_dim) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
                     # J(\alpha)=\pi_{t}\left(s_{t}\right)^{T}\left[-\alpha\left(\log \left(\pi_{t}\left(s_{t}\right)\right)+\bar{H}\right)\right]
                     # \bar{H} is negative
                     alpha_loss = -tf.reduce_mean(self.alpha * corr)

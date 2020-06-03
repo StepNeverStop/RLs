@@ -16,7 +16,7 @@ class IQN(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  online_quantiles=8,
@@ -41,7 +41,7 @@ class IQN(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.pi = tf.constant(np.pi)
@@ -56,7 +56,7 @@ class IQN(make_off_policy_class(mode='share')):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        _net = lambda: Nn.iqn_net(self.rnn_net.hdim, self.a_counts, self.quantiles_idx, hidden_units)
+        _net = lambda: Nn.iqn_net(self.rnn_net.hdim, self.a_dim, self.quantiles_idx, hidden_units)
 
         self.q_net = _net()
         self.q_target_net = _net()
@@ -89,7 +89,7 @@ class IQN(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             a = a.numpy()
@@ -143,7 +143,7 @@ class IQN(make_off_policy_class(mode='share')):
                     quantiles_idx=self.quantiles_idx
                 )
                 quantiles_value, q = self.q_net(feat, quantiles_tiled, quantiles_num=self.online_quantiles)    # [N, B, A], [B, A]
-                _a = tf.reshape(tf.tile(a, [self.online_quantiles, 1]), [self.online_quantiles, -1, self.a_counts])  # [B, A] => [N*B, A] => [N, B, A]
+                _a = tf.reshape(tf.tile(a, [self.online_quantiles, 1]), [self.online_quantiles, -1, self.a_dim])  # [B, A] => [N*B, A] => [N, B, A]
                 quantiles_value = tf.reduce_sum(quantiles_value * _a, axis=-1, keepdims=True)   # [N, B, A] => [N, B, 1]
                 q_eval = tf.reduce_sum(q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
 
@@ -154,8 +154,8 @@ class IQN(make_off_policy_class(mode='share')):
                 )
                 _, q_values = self.q_net(feat_, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
                 next_max_action = tf.argmax(q_values, axis=-1)   # [B,]
-                next_max_action = tf.one_hot(tf.squeeze(next_max_action), self.a_counts, 1., 0., dtype=tf.float32)  # [B, A]
-                _next_max_action = tf.reshape(tf.tile(next_max_action, [self.target_quantiles, 1]), [self.target_quantiles, -1, self.a_counts])  # [B, A] => [N'*B, A] => [N', B, A]
+                next_max_action = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)  # [B, A]
+                _next_max_action = tf.reshape(tf.tile(next_max_action, [self.target_quantiles, 1]), [self.target_quantiles, -1, self.a_dim])  # [B, A] => [N'*B, A] => [N', B, A]
                 _, target_quantiles_tiled = self._generate_quantiles(   # [N'*B, 64]
                     batch_size=batch_size,
                     quantiles_num=self.target_quantiles,

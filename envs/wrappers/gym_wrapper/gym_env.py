@@ -116,16 +116,18 @@ class gym_envs(object):
             assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self.action_type = 'continuous'
             self._is_continuous = True
-            self.a_dim_or_list = ActSpace.shape
+            self.a_dim = ActSpace.shape
         elif isinstance(ActSpace, Tuple):
             assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self.action_type = 'Tuple(Discrete)'
             self._is_continuous = False
-            self.a_dim_or_list = [i.n for i in ActSpace]
+            self.a_dim = int(np.asarray([i.n for i in ActSpace]).prod())
+            self.discrete_action_dim_list = [i.n for i in ActSpace]
         else:
             self.action_type = 'discrete'
             self._is_continuous = False
-            self.a_dim_or_list = [env.action_space.n]
+            self.a_dim = env.action_space.n
+            self.discrete_action_dim_list = [env.action_space.n]
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
         env.close()
@@ -187,7 +189,7 @@ class gym_envs(object):
     def step(self, actions):
         actions = np.array(actions)
         if not self.is_continuous:
-            actions = sth.int2action_index(actions, self.a_dim_or_list)
+            actions = sth.int2action_index(actions, self.discrete_action_dim_list)
             if self.action_type == 'discrete':
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':

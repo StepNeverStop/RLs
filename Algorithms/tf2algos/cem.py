@@ -42,7 +42,7 @@ class CEM(make_on_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  hidden_units=[32, 32],
@@ -57,7 +57,7 @@ class CEM(make_on_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.frac = frac
@@ -132,7 +132,7 @@ class CEM(make_on_policy_class(mode='share')):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations*self.frac)),1)
-        self.cem_models = [Model(self.s_dim, self.a_counts, self.hidden_units, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.s_dim, self.a_dim, self.hidden_units, self.is_continuous) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums)*self.init_var
         self._update_models_weights()

@@ -11,7 +11,7 @@ class Policy(Base):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
                  **kwargs):
         super().__init__(**kwargs)
@@ -30,10 +30,9 @@ class Policy(Base):
             raise ValueError('agents num must larger than zero.')
 
         self.is_continuous = is_continuous
-        self.a_dim_or_list = a_dim_or_list
+        self.a_dim = a_dim
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_episode = int(kwargs.get('max_episode', 1000))
-        self.a_counts = int(np.asarray(a_dim_or_list).prod())
         self.episode = 0    # episode of now
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
@@ -43,7 +42,7 @@ class Policy(Base):
             self.curiosity_lr = float(kwargs.get('curiosity_lr'))
             self.curiosity_beta = float(kwargs.get('curiosity_beta'))
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
-            self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_counts, self.visual_dim, 128, 
+            self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128, 
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
         self.use_rnn = False

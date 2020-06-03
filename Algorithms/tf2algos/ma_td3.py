@@ -8,7 +8,7 @@ from Nn.modules import DoubleQ
 class MATD3(Policy):
     def __init__(self,
                  s_dim,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  ployak=0.995,
@@ -27,20 +27,20 @@ class MATD3(Policy):
             s_dim=s_dim,
             visual_sources=0,
             visual_resolution=0,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.n = n
         self.i = i
         self.ployak = ployak
 
-        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_counts), sigma=1 * np.ones(self.a_counts))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_counts), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_counts))
+        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
+        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
 
-        _actor_net = lambda: Nn.actor_dpg(self.s_dim, 0, self.a_counts, hidden_units['actor'])
+        _actor_net = lambda: Nn.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
-        _q_net = lambda: Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_counts) * self.n, hidden_units['q'])
+        _q_net = lambda: Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.update_target_net_weights(

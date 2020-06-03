@@ -14,7 +14,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  lr=5.0e-4,
@@ -31,7 +31,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -44,7 +44,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self._probs = [1./head_num for _ in range(head_num)]
         self.now_head = 0
 
-        _q_net = lambda : Nn.critic_q_bootstrap(self.rnn_net.hdim, self.a_counts, self.head_num, hidden_units)
+        _q_net = lambda : Nn.critic_q_bootstrap(self.rnn_net.hdim, self.a_dim, self.head_num, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -80,7 +80,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
-            a = np.random.randint(0, self.a_counts, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             q, self.cell_state = self._get_action(s, visual_s, self.cell_state)
             q = q.numpy()

@@ -202,9 +202,9 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
     for i in range(env.brain_num):
         # initialize actions to zeros
         if env.is_continuous[i]:
-            action[i] = np.zeros((env.brain_agents[i], env.a_dim_or_list[i][0]), dtype=np.int32)
+            action[i] = np.zeros((env.brain_agents[i], env.a_dim[i][0]), dtype=np.int32)
         else:
-            action[i] = np.zeros((env.brain_agents[i], len(env.a_dim_or_list[i])), dtype=np.int32)
+            action[i] = np.zeros((env.brain_agents[i], 1), dtype=np.int32)
 
     a = [np.asarray(e) for e in zip(*action)]
     for step in range(pre_fill_steps):

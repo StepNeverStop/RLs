@@ -10,14 +10,14 @@ class SharedPolicy(Policy):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
                  **kwargs):
         super().__init__(
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.visual_feature = int(kwargs.get('visual_feature', 128))

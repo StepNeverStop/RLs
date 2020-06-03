@@ -14,7 +14,7 @@ class Base:
     def __init__(self, *args, **kwargs):
         '''
         inputs:
-            a_dim_or_list: action spaces, if continuous, it will like [2,], if discrete, it will like [2,3,4]
+            a_dim: action spaces
             is_continuous: action type, refer to whether this control problem is continuous(True) or discrete(False)
             base_dir: the directory that store data, like model, logs, and other data
         '''

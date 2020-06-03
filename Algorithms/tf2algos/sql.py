@@ -14,7 +14,7 @@ class SQL(make_off_policy_class(mode='share')):
                  s_dim,
                  visual_sources,
                  visual_resolution,
-                 a_dim_or_list,
+                 a_dim,
                  is_continuous,
 
                  lr=5.0e-4,
@@ -27,13 +27,13 @@ class SQL(make_off_policy_class(mode='share')):
             s_dim=s_dim,
             visual_sources=visual_sources,
             visual_resolution=visual_resolution,
-            a_dim_or_list=a_dim_or_list,
+            a_dim=a_dim,
             is_continuous=is_continuous,
             **kwargs)
         self.alpha = alpha
         self.ployak = ployak
 
-        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_counts, hidden_units)
+        _q_net = lambda : Nn.critic_q_all(self.rnn_net.hdim, self.a_dim, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
