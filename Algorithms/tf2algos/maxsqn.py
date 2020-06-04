@@ -1,10 +1,10 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
-from Nn.modules import DoubleQ
+from rls.modules import DoubleQ
 
 
 class MAXSQN(make_off_policy_class(mode='share')):
@@ -50,7 +50,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
-        _q_net = lambda : Nn.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
+        _q_net = lambda : rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -93,7 +93,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.critic_net.Q1(feat)
             cate_dist = tfp.distributions.Categorical(logits=q / self.alpha)
             pi = cate_dist.sample()

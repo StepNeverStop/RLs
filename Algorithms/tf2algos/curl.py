@@ -1,17 +1,17 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.sundry_utils import LinearAnnealing
-from Nn.modules import DoubleQ
+from rls.modules import DoubleQ
 
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense, Flatten, LayerNormalization
-from Nn.networks import NatureCNN
+from rls.networks import NatureCNN
 from skimage.util.shape import view_as_windows
 
 class VisualEncoder(M):
@@ -121,16 +121,16 @@ class CURL(make_off_policy_class(mode='no_share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = rls.actor_continuous(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = rls.actor_discrete(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)            
 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
         
-        _q_net = lambda : Nn.critic_q_one(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['q'])
+        _q_net = lambda : rls.critic_q_one(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
 

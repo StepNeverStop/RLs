@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
-import Nn
-from Algorithms.tf2algos.base.policy import Policy
+import rls
+from algorithms.tf2algos.base.policy import Policy
 
 
 class MADPG(Policy):
@@ -33,10 +33,10 @@ class MADPG(Policy):
         self.i = i
         self.ployak = ployak
 
-        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
-        self.actor_net = Nn.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
-        self.q_net = Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
+        # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
+        self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+        self.actor_net = rls.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
+        self.q_net = rls.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 

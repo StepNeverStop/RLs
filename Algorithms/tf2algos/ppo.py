@@ -1,9 +1,9 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import show_graph, get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import make_on_policy_class
+from algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
 class PPO(make_on_policy_class(mode='share')):
@@ -82,10 +82,10 @@ class PPO(make_on_policy_class(mode='share')):
         if self.share_net:
             # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1], [1])
             if self.is_continuous:
-                self.net = Nn.a_c_v_continuous(self.feat_dim, self.a_dim, hidden_units['share']['continuous'])
+                self.net = rls.a_c_v_continuous(self.feat_dim, self.a_dim, hidden_units['share']['continuous'])
                 self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
             else:
-                self.net = Nn.a_c_v_discrete(self.feat_dim, self.a_dim, hidden_units['share']['discrete'])
+                self.net = rls.a_c_v_discrete(self.feat_dim, self.a_dim, hidden_units['share']['discrete'])
                 self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
@@ -97,12 +97,12 @@ class PPO(make_on_policy_class(mode='share')):
             # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
             # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
-                self.actor_net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+                self.actor_net = rls.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
                 self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
             else:
-                self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+                self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
                 self.actor_net_tv = self.actor_net.trainable_variables
-            self.critic_net = Nn.critic_v(self.feat_dim, hidden_units['critic'])
+            self.critic_net = rls.critic_v(self.feat_dim, hidden_units['critic'])
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
             self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
@@ -139,7 +139,7 @@ class PPO(make_on_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 if self.share_net:
                     mu, value = self.net(feat)
@@ -175,7 +175,7 @@ class PPO(make_on_policy_class(mode='share')):
             return value
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True)
         init_value = np.squeeze(self._get_value(feat).numpy())
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)

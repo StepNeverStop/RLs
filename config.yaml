@@ -1,5 +1,5 @@
 UnityEnvFile:
-    3DBall:
+    Empty: &env /
         simple500: &env /Users/wangjianshu/UnityBuild/Ball/simple500/simple500.app
         hard1: C:/UnityBuild/Ball/hard1/hard1.exe
         hard3: C:/UnityBuild/Ball/hard3/hard3.exe

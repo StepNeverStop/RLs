@@ -1,11 +1,11 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 from utils.sth import sth
 from tensorflow_probability import distributions as tfd
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.replay_buffer import ExperienceReplay
-from Nn.modules import DoubleQ
+from rls.modules import DoubleQ
 
 
 class HIRO(make_off_policy_class(mode='no_share')):
@@ -62,14 +62,14 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.sub_goal_steps = sub_goal_steps
         self.sub_goal_dim = self.s_dim - self.fn_goal_dim
 
-        self.high_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale/2)
-        self.low_noise = Nn.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
+        self.high_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale/2)
+        self.low_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
-        _high_actor_net = lambda : Nn.actor_dpg(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
+        _high_actor_net = lambda : rls.actor_dpg(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
         if self.is_continuous:
-            _low_actor_net = lambda : Nn.actor_dpg(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            _low_actor_net = lambda : rls.actor_dpg(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
         else:
-            _low_actor_net = lambda: Nn.actor_discrete(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            _low_actor_net = lambda: rls.actor_discrete(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
         self.high_actor = _high_actor_net()
@@ -77,8 +77,8 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor = _low_actor_net()
         self.low_actor_target =_low_actor_net()
 
-        _high_critic_net = lambda : Nn.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
-        _low_critic_net = lambda : Nn.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
+        _high_critic_net = lambda : rls.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
+        _low_critic_net = lambda : rls.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
 
         self.high_critic = DoubleQ(_high_critic_net)
         self.high_critic_target = DoubleQ(_high_critic_net)

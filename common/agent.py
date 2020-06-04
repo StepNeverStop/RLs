@@ -11,7 +11,7 @@ from common.yaml_ops import save_config, load_config
 from common.train.gym import gym_train, gym_no_op, gym_inference
 from common.train.unity import unity_train, unity_no_op, unity_inference
 from common.train.unity import ma_unity_no_op, ma_unity_train, ma_unity_inference
-from Algorithms.register import get_model_info
+from algorithms.register import get_model_info
 from utils.replay_buffer import ExperienceReplay
 from utils.time import get_time_hhmmss
 
@@ -137,6 +137,7 @@ class Agent:
                     self.buffer_args['type'] = 'ER'
         else:
             self.buffer_args['type'] = 'None'
+            self.train_args['pre_fill_steps'] = 0 # if on-policy, prefill experience replay is no longer needed.
 
         # MODEL
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME

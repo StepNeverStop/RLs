@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 from .base import Base
 from abc import abstractmethod
-from Nn.networks import CuriosityModel
-from Nn.learningrate import ConsistentLearningRate
+from rls.networks import CuriosityModel
+from rls.learningrate import ConsistentLearningRate
 
 
 class Policy(Base):

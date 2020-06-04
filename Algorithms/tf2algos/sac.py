@@ -1,11 +1,11 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import clip_nn_log_std, squash_rsample, gaussian_entropy
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.sundry_utils import LinearAnnealing
-from Nn.modules import DoubleQ
+from rls.modules import DoubleQ
 
 
 class SAC(make_off_policy_class(mode='share')):
@@ -64,9 +64,9 @@ class SAC(make_off_policy_class(mode='share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         if self.is_continuous:
-            self.actor_net = Nn.actor_continuous(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = rls.actor_continuous(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             if self.use_gumbel:
                 self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
                 
@@ -75,9 +75,9 @@ class SAC(make_off_policy_class(mode='share')):
         self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
         
         if self.is_continuous or self.use_gumbel:
-            critic_net = Nn.critic_q_one
+            critic_net = rls.critic_q_one
         else:
-            critic_net = Nn.critic_q_all
+            critic_net = rls.critic_q_all
         
         _q_net = lambda : critic_net(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
@@ -117,7 +117,7 @@ class SAC(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 mu, log_std = self.actor_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)

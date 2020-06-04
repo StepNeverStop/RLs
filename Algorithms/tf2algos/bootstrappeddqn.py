@@ -1,8 +1,8 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 
 
@@ -44,7 +44,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self._probs = [1./head_num for _ in range(head_num)]
         self.now_head = 0
 
-        _q_net = lambda : Nn.critic_q_bootstrap(self.feat_dim, self.a_dim, self.head_num, hidden_units)
+        _q_net = lambda : rls.critic_q_bootstrap(self.feat_dim, self.a_dim, self.head_num, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -90,7 +90,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q_values = self.q_net(feat) # [H, B, A]
         return q_values, cell_state
 

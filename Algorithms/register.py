@@ -54,14 +54,14 @@ def get_model_info(name: str):
     else:
         class_name = algos[name]['class']
         policy_mode = algos[name]['policy']
-        model_file = importlib.import_module('Algorithms.tf2algos.' + name)
+        model_file = importlib.import_module('algorithms.tf2algos.' + name)
         model = getattr(model_file, class_name)
-        algo_general_config = load_yaml(f'Algorithms/config.yaml')['general']
+        algo_general_config = load_yaml(f'algorithms/config.yaml')['general']
         if policy_mode == 'on-policy':
-            algo_policy_config = load_yaml(f'Algorithms/config.yaml')['on_policy']
+            algo_policy_config = load_yaml(f'algorithms/config.yaml')['on_policy']
         elif policy_mode == 'off-policy':
-            algo_policy_config = load_yaml(f'Algorithms/config.yaml')['off_policy']
-        algo_config = load_yaml(f'Algorithms/config.yaml')[name]
+            algo_policy_config = load_yaml(f'algorithms/config.yaml')['off_policy']
+        algo_config = load_yaml(f'algorithms/config.yaml')[name]
         algo_config.update(algo_policy_config)
         algo_config.update(algo_general_config)
         return model, algo_config, policy_mode

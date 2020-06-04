@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
-import Nn
-from Algorithms.tf2algos.base.policy import Policy
-from Nn.modules import DoubleQ
+import rls
+from algorithms.tf2algos.base.policy import Policy
+from rls.modules import DoubleQ
 
 
 class MATD3(Policy):
@@ -34,13 +34,13 @@ class MATD3(Policy):
         self.i = i
         self.ployak = ployak
 
-        # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-        self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+        # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
+        self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
 
-        _actor_net = lambda: Nn.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
+        _actor_net = lambda: rls.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
-        _q_net = lambda: Nn.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
+        _q_net = lambda: rls.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.update_target_net_weights(

@@ -3,7 +3,7 @@ from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
 from tensorflow.keras.layers import Dense, GaussianNoise
 from tensorflow.keras.layers import Conv2D, Flatten
-from Nn.activations import default_activation
+from rls.activations import default_activation
 
 
 class mlp(Sequential):

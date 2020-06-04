@@ -1,9 +1,9 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import make_on_policy_class
+from algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
 class PPOC(make_on_policy_class(mode='share')):
@@ -70,7 +70,7 @@ class PPOC(make_on_policy_class(mode='share')):
         self.o_beta = o_beta
 
 
-        self.net = Nn.ppoc_share(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
+        self.net = rls.ppoc_share(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
@@ -132,7 +132,7 @@ class PPOC(make_on_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state, options):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q, pi, beta, o = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
@@ -175,7 +175,7 @@ class PPOC(make_on_policy_class(mode='share')):
             return q_o
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True)
         init_value = np.squeeze(self._get_value(feat, self.data.buffer['options'][-1]).numpy())
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)

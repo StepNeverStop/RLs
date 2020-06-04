@@ -1,9 +1,9 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import make_on_policy_class
+from algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
 class PG(make_on_policy_class(mode='share')):
@@ -31,11 +31,11 @@ class PG(make_on_policy_class(mode='share')):
         self.epoch = epoch
         # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:
-            self.net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            self.net = rls.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
         else:
-            self.net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            self.net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
@@ -69,7 +69,7 @@ class PG(make_on_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 mu = self.net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)

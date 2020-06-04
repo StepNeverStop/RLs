@@ -1,7 +1,7 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 from utils.tf2_utils import huber_loss
 
@@ -56,7 +56,7 @@ class IQN(make_off_policy_class(mode='share')):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        _net = lambda: Nn.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
+        _net = lambda: rls.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
 
         self.q_net = _net()
         self.q_target_net = _net()
@@ -99,7 +99,7 @@ class IQN(make_off_policy_class(mode='share')):
     def _get_action(self, s, visual_s, cell_state):
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
                 batch_size=batch_size,
                 quantiles_num=self.select_quantiles,

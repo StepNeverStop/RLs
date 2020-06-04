@@ -185,12 +185,12 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `Algorithms/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
-    2. write default configuration in `Algorithms/tf2algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `Algorithms/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the classname matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [Algorithms/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/Algorithms/tf2algos/config.yaml)
+    1. write `.py` in `a/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    2. write default configuration in `algorithms/tf2algos/config.yaml`
+    3. register new algorithm at dictionary *algos* in `algorithms/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the classname matches the name of the algorithm class
+7. set algorithms' hyper-parameters in [algorithms/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/algorithms/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [Nn/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/Nn/tf2nn.py)
+9. change neural network structure in [rls/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/rls/tf2nn.py)
 
 ## Ongoing things
 

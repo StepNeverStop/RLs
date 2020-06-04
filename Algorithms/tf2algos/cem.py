@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.on_policy import make_on_policy_class
-from Nn.layers import mlp
+from algorithms.tf2algos.base.on_policy import make_on_policy_class
+from rls.layers import mlp
 
 class Model(tf.keras.Model):
 

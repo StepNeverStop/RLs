@@ -1,7 +1,7 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 from utils.expl_expt import ExplorationExploitationClass
 from utils.tf2_utils import huber_loss
 
@@ -50,7 +50,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: Nn.qrdqn_distributional(self.feat_dim, self.a_dim, self.nums, hidden_units)
+        _net = lambda: rls.qrdqn_distributional(self.feat_dim, self.a_dim, self.nums, hidden_units)
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
@@ -89,7 +89,7 @@ class QRDQN(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.get_q(feat)  # [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 

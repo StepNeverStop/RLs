@@ -5,9 +5,9 @@ from typing import Dict
 
 def make_off_policy_class(mode='share'):
     if mode == 'share':
-        from Algorithms.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
+        from algorithms.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
     else:
-        from Algorithms.tf2algos.base.policy import Policy as BasePolicy
+        from algorithms.tf2algos.base.policy import Policy as BasePolicy
 
     class Off_Policy(BasePolicy):
         def __init__(self,

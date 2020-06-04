@@ -1,5 +1,5 @@
 import tensorflow as tf
-from Algorithms.tf2algos.dqn import DQN
+from algorithms.tf2algos.dqn import DQN
 
 
 class DDQN(DQN):

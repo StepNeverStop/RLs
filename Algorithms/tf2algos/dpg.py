@@ -1,8 +1,8 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-from Algorithms.tf2algos.base.off_policy import make_off_policy_class
+from algorithms.tf2algos.base.off_policy import make_off_policy_class
 
 
 class DPG(make_off_policy_class(mode='share')):
@@ -36,15 +36,15 @@ class DPG(make_off_policy_class(mode='share')):
         self.discrete_tau = discrete_tau
 
         if self.is_continuous:
-            # self.action_noise = Nn.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-            self.action_noise = Nn.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
-            self.actor_net = Nn.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
+            self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+            self.actor_net = rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables
 
-        self.q_net = Nn.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
+        self.q_net = rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
@@ -78,7 +78,7 @@ class DPG(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)

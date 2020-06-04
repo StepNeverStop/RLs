@@ -1,9 +1,9 @@
-import Nn
+import rls
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from utils.tf2_utils import get_TensorSpecs, gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
-from Algorithms.tf2algos.base.on_policy import make_on_policy_class
+from algorithms.tf2algos.base.on_policy import make_on_policy_class
 
 
 class A2C(make_on_policy_class(mode='share')):
@@ -36,13 +36,13 @@ class A2C(make_on_policy_class(mode='share')):
 
         # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:
-            self.actor_net = Nn.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = rls.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
             self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
         else:
-            self.actor_net = Nn.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.actor_tv = self.actor_net.trainable_variables
-        self.critic_net = Nn.critic_v(self.feat_dim, hidden_units['critic'])
+        self.critic_net = rls.critic_v(self.feat_dim, hidden_units['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
@@ -76,7 +76,7 @@ class A2C(make_on_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True, train=False)
+            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 mu = self.actor_net(feat)
                 sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
@@ -93,7 +93,7 @@ class A2C(make_on_policy_class(mode='share')):
             return value
 
     def calculate_statistics(self):
-        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True, train=False)
+        feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True)
         init_value = np.squeeze(self._get_value(feat).numpy())
         self.data.cal_dc_r(self.gamma, init_value)
 

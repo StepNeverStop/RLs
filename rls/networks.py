@@ -4,8 +4,8 @@ from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras.layers import Conv2D, Dense, Flatten
 from utils.tf2_utils import get_device
-from Nn.layers import ConvLayer
-from Nn.activations import default_activation
+from rls.layers import ConvLayer
+from rls.activations import default_activation
 
 SimpleCNN = lambda :ConvLayer(Conv2D, [16, 32], [[8, 8],[4, 4]], [[4, 4],[2, 2]], padding='valid', activation='elu')
 NatureCNN = lambda :ConvLayer(Conv2D, [32, 64, 64], [[8, 8],[4, 4],[3, 3]], [[4, 4],[2, 2],[1, 1]], padding='valid', activation='relu')
@@ -32,6 +32,7 @@ class ObsRNN(M):
     '''
     def __init__(self, dim, hidden_units):
         super().__init__()
+        self.rnn_type = 'lstm'
         # self.masking = tf.keras.layers.Masking(mask_value=0.)
 
         # ValueError: Tried to convert 'tensor' to a tensor and failed. Error: None values not supported.

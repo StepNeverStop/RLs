@@ -6,9 +6,9 @@ from utils.on_policy_buffer import DataBuffer
 
 def make_on_policy_class(mode='share'):
     if mode == 'share':
-        from Algorithms.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
+        from algorithms.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
     else:
-        from Algorithms.tf2algos.base.policy import Policy as BasePolicy
+        from algorithms.tf2algos.base.policy import Policy as BasePolicy
 
     class On_Policy(BasePolicy):
         def __init__(self,
@@ -75,7 +75,7 @@ def make_on_policy_class(mode='share'):
             for data in all_data:
 
                 if self.use_rnn:
-                    raise NotImplementedError
+                    raise NotImplementedError('RNN with on-policy is under implemented.')
                     if self.burn_in_time_step:
                         pass
                     # _s, _visual_s = self.data.get_burn_in_states()
