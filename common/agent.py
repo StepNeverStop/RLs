@@ -11,7 +11,7 @@ from common.yaml_ops import save_config, load_config
 from common.train.gym import gym_train, gym_no_op, gym_inference
 from common.train.unity import unity_train, unity_no_op, unity_inference
 from common.train.unity import ma_unity_no_op, ma_unity_train, ma_unity_inference
-from algorithms.register import get_model_info
+from algos.register import get_model_info
 from utils.replay_buffer import ExperienceReplay
 from utils.time import get_time_hhmmss
 
@@ -367,4 +367,13 @@ class Agent:
                     models=self.models
                 )
 
+    def run(self, mode='worker'):
+        if mode == 'worker':
+            ApexWorker(self.env, self.models)()
+        elif mode == 'learner':
+            ApexLearner(self.models)()
+        elif mode == 'buffer':
+            ApexBuffer()()
+        else:
+            raise Exception('unknown mode')
 

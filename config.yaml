@@ -1,17 +1,5 @@
 UnityEnvFile:
     Empty: &env /
-        simple500: &env /Users/wangjianshu/UnityBuild/Ball/simple500/simple500.app
-        hard1: C:/UnityBuild/Ball/hard1/hard1.exe
-        hard3: C:/UnityBuild/Ball/hard3/hard3.exe
-    RollerBall:
-        OneFloor: C:/UnityBuild/RollerBall/OneFloor/RollerBall-custom.exe
-        PureCamera: C:/UnityBuild/RollerBall/PureCamera/train.exe
-    Boat:
-        first: C:/UnityBuild/Boat/first/BoatTrain.exe
-        second: C:/UnityBuild/Boat/second/BoatTrain.exe
-        interval1: C:/UnityBuild/Boat/interval1/BoatTrain.exe
-        no_border: C:/UnityBuild/Boat/no_border/BoatTrain.exe
-        no_border2: C:/UnityBuild/Boat/no_border2/BoatTrain.exe
 
 train:
     save_frequency: 20
