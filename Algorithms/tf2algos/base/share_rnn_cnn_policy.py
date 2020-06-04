@@ -50,10 +50,10 @@ class SharedPolicy(Policy):
             kwargs.update(rnn_net=self.rnn_net)
         super().model_recorder(kwargs)
 
-    def initial_cell_state(self, n=None):
-        if n is None:
-            n = self.episode_batch_size
-        return (tf.zeros((n, self.rnn_units), dtype=tf.float32), tf.zeros((n, self.rnn_units), dtype=tf.float32))
+    def initial_cell_state(self, batch=None, n=2):
+        if batch is None:
+            batch = self.episode_batch_size
+        return tuple(tf.zeros((batch, self.rnn_units), dtype=tf.float32) for _ in range(n))
 
     def reset(self):
         if self.use_rnn:

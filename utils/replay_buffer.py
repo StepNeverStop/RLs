@@ -248,6 +248,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         super().__init__(batch_size, capacity)
         self.agents_num = agents_num
         self.burn_in_time_step = burn_in_time_step
+        self.train_time_step =train_time_step
         self.timestep = burn_in_time_step + train_time_step
         self.queue = [[] for _ in range(agents_num)]
         self._data_pointer = 0
@@ -316,16 +317,15 @@ class EpisodeExperienceReplay(ReplayBuffer):
         experience_type_num = len(trajs[0][0])  # 获取经验的类型种类 ， 如 <s, a, r> 即为3
 
         def truncate(traj):
-            idx = np.random.randint(
-                max(1, len(traj)-self.timestep))
+            idx = np.random.randint(max(1, len(traj)-self.timestep+1))    #[min, max)
             return traj[idx:idx+self.timestep]
 
         truncated_trajs = list(map(truncate, trajs))
 
         data_list = [[] for _ in range(experience_type_num)]    # [s, visual_s, a, r, s_, visual_s_, done, others...]
-        for traj in truncated_trajs:    # i即为1条轨迹 [(s,a,r,s_,done), (s,a,r,s_,done),...]
-            data = [exps for exps in zip(*traj)]
-            [dl.append(exps) for dl, exps in zip(data_list, data)]
+        for traj in truncated_trajs:    # traj即为1条轨迹 [(s,a,r,s_,done), (s,a,r,s_,done),...]
+            data = [exps for exps in zip(*traj)]    # s [T, N], s_ [T, N]
+            [dl.append(exps) for dl, exps in zip(data_list, data)]  # [B, T, NStep]
         
         def f(v, l):    # [B, T, N]
             return lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='pre', dtype='float32', value=v, maxlen=l, truncating='pre')
@@ -335,9 +335,10 @@ class EpisodeExperienceReplay(ReplayBuffer):
             data_list[7:] = map(f(v=0., l=self.timestep), data_list[7:])   # padding 后的 [B, T, N]
 
         self.burn_in_states = list(map(lambda x: x[:, :self.burn_in_time_step], data_list[:2]))
-        data_list = list(map(lambda x: x[:, self.burn_in_time_step:], data_list))
+        data_list = list(map(lambda x: x[:, self.burn_in_time_step:], data_list))   # s: [B, T, N]
 
-        data_list[2], data_list[3] = map(lambda x: x.reshape(-1, x.shape[-1]), [data_list[2], data_list[3]])  # s: [B, T, N], a: [B*T, N]
+        data_list[2] = data_list[2].reshape(n_sample*self.train_time_step, -1)  # a: [B*T, N]
+        data_list[3] = data_list[3].reshape(-1, 1)  # a: [B*T, 1]
         data_list[6:] = map(lambda x: x.reshape(-1, x.shape[-1]), data_list[6:])
         return data_list
 
