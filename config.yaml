@@ -20,6 +20,7 @@ model:
 
 unity:
     train:
+        real_done: true
         pre_fill_steps: 10000
     env:
         file_path: *env

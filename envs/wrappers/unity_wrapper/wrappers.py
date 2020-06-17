@@ -153,11 +153,12 @@ class UnityReturnWrapper(BasicWrapper):
         
         obs, reward = d.obs, d.reward
         done = np.full(n, False)
-        info = dict(max_step=np.full(n, False))
+        info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
         for t in ps:    # TODO: 有待优化
             if len(t) != 0:
                 info['max_step'][t.agent_id] = t.max_step
+                info['real_done'][t.agent_id[~t.max_step]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
                 reward[t.agent_id] = t.reward
                 done[t.agent_id] = True
                 for _obs, _tobs in zip(obs, t.obs):

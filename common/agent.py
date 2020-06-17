@@ -327,7 +327,8 @@ class Agent:
                         models=self.models,
                         print_func=self.pwi,
                         pre_fill_steps=int(self.train_args['pre_fill_steps']),
-                        prefill_choose=bool(self.train_args['prefill_choose'])
+                        prefill_choose=bool(self.train_args['prefill_choose']),
+                        real_done=bool(self.train_args['real_done'])
                     )
                     unity_train(
                         env=self.env,
@@ -343,7 +344,8 @@ class Agent:
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                         add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
                         total_step_control=bool(self.train_args['total_step_control']),
-                        max_total_step=int(self.train_args['max_total_step'])
+                        max_total_step=int(self.train_args['max_total_step']),
+                        real_done=bool(self.train_args['real_done'])
                     )
             finally:
                 [model.close() for model in self.models]

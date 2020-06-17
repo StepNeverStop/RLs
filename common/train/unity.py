@@ -8,7 +8,7 @@ from utils.list_utils import zeros_initializer
 def unity_train(env, models, print_func,
                 begin_episode, save_frequency, max_step, max_episode, policy_mode,
                 moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-                total_step_control, max_total_step):
+                total_step_control, max_total_step, real_done):
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -63,7 +63,7 @@ def unity_train(env, models, print_func,
                     r=_r,
                     s_=_v,
                     visual_s_=_vs,
-                    done=_d
+                    done=_info['real_done'] if real_done else _d
                 )
                 models[i].partial_reset(_d)
                 rewards[i][unfinished_index] += _r[unfinished_index]
@@ -106,9 +106,9 @@ def unity_train(env, models, print_func,
                 models[i].save_checkpoint(episode)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            unity_random_sample(env, models, print_func, steps=add_noise2buffer_steps)
+            unity_random_sample(env, models, print_func, steps=add_noise2buffer_steps, real_done=real_done)
 
-def unity_random_sample(env, models, print_func, steps):
+def unity_random_sample(env, models, print_func, steps, real_done):
     state, visual_state = zeros_initializer(env.brain_num, 2)
 
     ObsRewDone = env.reset()
@@ -128,13 +128,13 @@ def unity_random_sample(env, models, print_func, steps):
                 r=_r,
                 s_=_v,
                 visual_s_=_vs,
-                done=_d
+                done=_info['real_done'] if real_done else _d
             )
             state[i] = _v
             visual_state[i] = _vs
     print_func('Noise added complete.')
 
-def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
+def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done):
     '''
     Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
@@ -167,7 +167,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose):
                 r=_r,
                 s_=_v,
                 visual_s_=_vs,
-                done=_d
+                done=_info['real_done'] if real_done else _d
             )
             models[i].partial_reset(_d)
             state[i] = _v
