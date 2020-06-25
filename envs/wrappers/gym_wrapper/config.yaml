@@ -1,0 +1,13 @@
+atari:
+  noop_max: 30
+  skip: 4
+  max_episode_steps: null
+  episode_life: true
+  clip_rewards: true
+  frame_stack: true
+  scale: false
+  stack: 4
+  resize: true
+  grayscale: true
+  width: 84
+  height: 84

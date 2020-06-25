@@ -22,7 +22,7 @@ from typing import Dict
 from copy import deepcopy
 from utils.sth import sth
 from gym.spaces import Box, Discrete, Tuple
-from .wrappers import SkipEnv, StackEnv, GrayResizeEnv, ScaleEnv, OneHotObsEnv, BoxActEnv, BaseEnv, NoopResetEnv, TimeLimit, DtypeEnv
+from envs.wrappers.gym_wrapper.utils import build_env
 
 import platform
 use_ray = False
@@ -44,51 +44,10 @@ class gym_envs(object):
         self.n = config['env_num']  # environments number
         render_mode = config.get('render_mode', 'first')
 
-        def get_env(config: Dict):
-            gym_env_name = config['env_name']
-            action_skip = bool(config.get('action_skip', False))
-            skip = int(config.get('skip', 4))
-            obs_stack = bool(config.get('obs_stack', False))
-            stack = int(config.get('stack', 4))
-
-            noop = bool(config.get('noop', False))
-            noop_max = int(config.get('noop_max', 30))
-            obs_grayscale = bool(config.get('obs_grayscale', False))
-            obs_resize = bool(config.get('obs_resize', False))
-            resize = config.get('resize', [84, 84])
-            obs_scale = bool(config.get('obs_scale', False))
-            max_episode_steps = config.get('max_episode_steps', None)
-            env = gym.make(gym_env_name)
-            if gym_env_name.split('-')[0] == 'MiniGrid':
-                env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env) # Get pixel observations, or RGBImgObsWrapper
-                env = gym_minigrid.wrappers.ImgObsWrapper(env) # Get rid of the 'mission' field
-            env = BaseEnv(env)
-            if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
-                env = NoopResetEnv(env, noop_max=noop_max)
-            if action_skip:
-                env = SkipEnv(env, skip=skip)
-            if isinstance(env.observation_space, Box):
-                if len(env.observation_space.shape) == 3:
-                    if obs_grayscale or obs_resize:
-                        env = GrayResizeEnv(env, resize=obs_resize, grayscale=obs_grayscale, width=resize[0], height=resize[-1])
-                    if obs_scale:
-                        env = ScaleEnv(env)
-                if obs_stack:
-                    env = StackEnv(env, stack=stack)
-            else:
-                env = OneHotObsEnv(env)
-
-            if isinstance(env.action_space, Box) and len(env.action_space.shape) == 1:
-                env = BoxActEnv(env)
-
-            env = TimeLimit(env, max_episode_steps)
-            env = DtypeEnv(env)
-            return env
-
-        self.eval_env = get_env(config)
+        self.eval_env = build_env(config)
         self._initialize(env=self.eval_env)
         
-        self.envs = Asyn.init_envs(get_env, config, self.n, config['env_seed'])
+        self.envs = Asyn.init_envs(build_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
 
     def _initialize(self, env):

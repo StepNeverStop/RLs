@@ -7,8 +7,10 @@ from utils.tf2_utils import get_device
 from rls.layers import ConvLayer
 from rls.activations import default_activation
 
-SimpleCNN = lambda :ConvLayer(Conv2D, [16, 32], [[8, 8],[4, 4]], [[4, 4],[2, 2]], padding='valid', activation='elu')
-NatureCNN = lambda :ConvLayer(Conv2D, [32, 64, 64], [[8, 8],[4, 4],[3, 3]], [[4, 4],[2, 2],[1, 1]], padding='valid', activation='relu')
+CNNS = {
+    'simple': lambda :ConvLayer(Conv2D, [16, 32], [[8, 8],[4, 4]], [[4, 4],[2, 2]], padding='valid', activation='elu'),
+    'nature': lambda :ConvLayer(Conv2D, [32, 64, 64], [[8, 8],[4, 4],[3, 3]], [[4, 4],[2, 2],[1, 1]], padding='valid', activation='relu')
+}
 
 class MultiCameraCNN(M):
     '''多个图像来源输入的CNN，未初始化
@@ -18,7 +20,7 @@ class MultiCameraCNN(M):
         self.n = n
         self.nets = []
         for _ in range(n):
-            net = SimpleCNN() if encoder_type == 'simple' else NatureCNN()
+            net = CNNS[encoder_type]()
             net.add(Dense(feature_dim, activation_fn))
             self.nets.append(net)
 
@@ -54,7 +56,7 @@ class VisualNet(M):
     If there is no visual image input, Conv layers won't be built and initialized.
     '''
 
-    def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type='simple'):
+    def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type='nature'):
         super().__init__()
         self.camera_num = visual_dim[0]
         self.nets = MultiCameraCNN(n=self.camera_num, feature_dim=visual_feature, activation_fn=default_activation, encoder_type=encoder_type)
