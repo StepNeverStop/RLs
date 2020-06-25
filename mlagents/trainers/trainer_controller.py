@@ -3,7 +3,6 @@
 """Launches trainers for each External Brains in a Unity Environment."""
 
 import os
-import sys
 import threading
 from typing import Dict, Optional, Set, List
 from collections import defaultdict
@@ -30,16 +29,16 @@ from mlagents.trainers.meta_curriculum import MetaCurriculum
 from mlagents.trainers.trainer_util import TrainerFactory
 from mlagents.trainers.behavior_id_utils import BehaviorIdentifiers
 from mlagents.trainers.agent_processor import AgentManager
+from mlagents.trainers.settings import CurriculumSettings
+from mlagents.trainers.training_status import GlobalTrainingStatus, StatusType
 
 
 class TrainerController(object):
     def __init__(
         self,
         trainer_factory: TrainerFactory,
-        model_path: str,
-        summaries_dir: str,
+        output_path: str,
         run_id: str,
-        save_freq: int,
         meta_curriculum: Optional[MetaCurriculum],
         train: bool,
         training_seed: int,
@@ -47,10 +46,9 @@ class TrainerController(object):
         resampling_interval: Optional[int],
     ):
         """
-        :param model_path: Path to save the model.
+        :param output_path: Path to save the model.
         :param summaries_dir: Folder to save training summaries.
         :param run_id: The sub-directory name for model and summary statistics
-        :param save_freq: Frequency at which to save model
         :param meta_curriculum: MetaCurriculum object which stores information about all curricula.
         :param train: Whether to train model, or only run inference.
         :param training_seed: Seed to use for Numpy and Tensorflow random number generation.
@@ -61,11 +59,9 @@ class TrainerController(object):
         self.trainers: Dict[str, Trainer] = {}
         self.brain_name_to_identifier: Dict[str, Set] = defaultdict(set)
         self.trainer_factory = trainer_factory
-        self.model_path = model_path
-        self.summaries_dir = summaries_dir
+        self.output_path = output_path
         self.logger = get_logger(__name__)
         self.run_id = run_id
-        self.save_freq = save_freq
         self.train_model = train
         self.meta_curriculum = meta_curriculum
         self.sampler_manager = sampler_manager
@@ -87,12 +83,12 @@ class TrainerController(object):
                 # Skip brains that are in the metacurriculum but no trainer yet.
                 if brain_name not in self.trainers:
                     continue
-                if curriculum.measure == "progress":
+                if curriculum.measure == CurriculumSettings.MeasureType.PROGRESS:
                     measure_val = self.trainers[brain_name].get_step / float(
                         self.trainers[brain_name].get_max_steps
                     )
                     brain_names_to_measure_vals[brain_name] = measure_val
-                elif curriculum.measure == "reward":
+                elif curriculum.measure == CurriculumSettings.MeasureType.REWARD:
                     measure_val = np.mean(self.trainers[brain_name].reward_buffer)
                     brain_names_to_measure_vals[brain_name] = measure_val
         else:
@@ -126,16 +122,16 @@ class TrainerController(object):
                 self.trainers[brain_name].export_model(name_behavior_id)
 
     @staticmethod
-    def _create_model_path(model_path):
+    def _create_output_path(output_path):
         try:
-            if not os.path.exists(model_path):
-                os.makedirs(model_path)
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
         except Exception:
             raise UnityEnvironmentException(
-                "The folder {} containing the "
+                f"The folder {output_path} containing the "
                 "generated model could not be "
                 "accessed. Please make sure the "
-                "permissions are set correctly.".format(model_path)
+                "permissions are set correctly."
             )
 
     @timed
@@ -152,11 +148,6 @@ class TrainerController(object):
         )
         sampled_reset_param.update(new_meta_curriculum_config)
         env.reset(config=sampled_reset_param)
-
-    def _should_save_model(self, global_step: int) -> bool:
-        return (
-            global_step % self.save_freq == 0 and global_step != 0 and self.train_model
-        )
 
     def _not_done_training(self) -> bool:
         return (
@@ -192,7 +183,7 @@ class TrainerController(object):
             policy,
             name_behavior_id,
             trainer.stats_reporter,
-            trainer.parameters.get("time_horizon", sys.maxsize),
+            trainer.parameters.time_horizon,
             threaded=trainer.threaded,
         )
         env_manager.set_agent_manager(name_behavior_id, agent_manager)
@@ -214,7 +205,7 @@ class TrainerController(object):
 
     @timed
     def start_learning(self, env_manager: EnvManager) -> None:
-        self._create_model_path(self.model_path)
+        self._create_output_path(self.output_path)
         tf.reset_default_graph()
         global_step = 0
         last_brain_behavior_ids: Set[str] = set()
@@ -230,13 +221,8 @@ class TrainerController(object):
                 for _ in range(n_steps):
                     global_step += 1
                     self.reset_env_if_ready(env_manager, global_step)
-                    if self._should_save_model(global_step):
-                        self._save_model()
             # Stop advancing trainers
             self.join_threads()
-            # Final save Tensorflow model
-            if global_step != 0 and self.train_model:
-                self._save_model()
         except (
             KeyboardInterrupt,
             UnityCommunicationException,
@@ -244,9 +230,9 @@ class TrainerController(object):
             UnityCommunicatorStoppedException,
         ) as ex:
             self.join_threads()
-            if self.train_model:
-                self._save_model_when_interrupted()
-
+            self.logger.info(
+                "Learning was interrupted. Please wait while the graph is generated."
+            )
             if isinstance(ex, KeyboardInterrupt) or isinstance(
                 ex, UnityCommunicatorStoppedException
             ):
@@ -257,6 +243,7 @@ class TrainerController(object):
                 raise ex
         finally:
             if self.train_model:
+                self._save_model()
                 self._export_graph()
 
     def end_trainer_episodes(
@@ -311,6 +298,9 @@ class TrainerController(object):
                 if brain_name in self.trainers:
                     self.trainers[brain_name].stats_reporter.set_stat(
                         "Environment/Lesson", curr.lesson_num
+                    )
+                    GlobalTrainingStatus.set_parameter_state(
+                        brain_name, StatusType.LESSON_NUM, curr.lesson_num
                     )
 
         for trainer in self.trainers.values():

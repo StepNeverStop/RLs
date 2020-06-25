@@ -60,9 +60,9 @@ class InfoWrapper(BasicWrapper):
         super().__init__(env)
         self.resize = env_args['resize']
 
-        self.brain_names = self._env.get_behavior_names()  #所有脑的名字列表
+        self.brain_names = list(self._env.behavior_specs.keys()) #所有脑的名字列表
         self.fixed_brain_names = list(map(lambda x: x.replace('?','_'), self.brain_names))
-        self.brain_specs = [self._env.get_behavior_spec(b) for b in self.brain_names] # 所有脑的信息
+        self.brain_specs = [self._env.behavior_specs[b] for b in self.brain_names] # 所有脑的信息
         self.vector_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
         self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b)==1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度
         self.visual_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==3] for spec in self.brain_specs]   # 得到所有脑 观测值为图像的下标
@@ -157,8 +157,8 @@ class UnityReturnWrapper(BasicWrapper):
 
         for t in ps:    # TODO: 有待优化
             if len(t) != 0:
-                info['max_step'][t.agent_id] = t.max_step
-                info['real_done'][t.agent_id[~t.max_step]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                info['max_step'][t.agent_id] = t.interrupted
+                info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
                 reward[t.agent_id] = t.reward
                 done[t.agent_id] = True
                 for _obs, _tobs in zip(obs, t.obs):
