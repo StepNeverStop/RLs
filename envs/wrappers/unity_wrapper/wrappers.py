@@ -8,6 +8,7 @@ from utils.sampler import create_sampler_manager
 from mlagents.mlagents_envs.environment import UnityEnvironment
 from mlagents.mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents.mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+from common.yaml_ops import load_yaml
 
 class UnityWrapper(object):
 
@@ -27,13 +28,14 @@ class UnityWrapper(object):
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel])
         else:
+            unity_env_dict = load_yaml('../../unity_env_dict.yaml')
             self._env = UnityEnvironment(file_name=env_args['file_path'],
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel],
                                          additional_args=[
-                                             '--scene', str(env_args.get('env_name', 'Roller')),
+                                             '--scene', str(unity_env_dict[env_args.get('env_name', 'Roller')]),
                                              '--n_agents', str(env_args.get('env_num', 1))
                                          ])
 

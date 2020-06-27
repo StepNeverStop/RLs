@@ -64,7 +64,7 @@ class VisualNet(M):
         self(I(shape=vector_dim), I(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        visual_input /= 255.0
+        visual_input = tf.cast(visual_input / 255., tf.float32)
         return self.nets(vector_input, visual_input)
 
 class CuriosityModel(M):
