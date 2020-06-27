@@ -17,6 +17,8 @@ Options:
     -s,--save-frequency=<n>     保存频率 [default: None]
     -m,--models=<n>             同时训练多少个模型 [default: 1]
     -r,--rnn                    是否使用RNN模型 [default: False]
+    --copys=<n>                 指定并行训练的数量 [default: 1]
+    --unity-env=<name>          指定unity环境的名字 [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
@@ -27,18 +29,17 @@ Options:
     --prefill-steps=<n>         指定预填充的经验数量 [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
-    --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
     --use-wandb                 是否上传数据到W&B [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
     python run.py -a ppo -u -n train_in_unity --load last_train_name
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
+    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --copys 4
     python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
 """
 
@@ -85,12 +86,13 @@ def get_options(options: Dict):
         ['prefill_steps',   f('--prefill-steps', int)],
         ['prefill_choose',  bool(options['--prefill-choose'])],
         ['gym',             bool(options['--gym'])],
-        ['gym_agents',      int(options['--gym-agents'])],
+        ['n_copys',      int(options['--copys'])],
         ['gym_env',         str(options['--gym-env'])],
         ['gym_env_seed',    int(options['--gym-env-seed'])],
         ['render_episode',  f('--render-episode', int)],
         ['info',            f('--info', str)],
-        ['use_wandb',       bool(options['--use-wandb'])]
+        ['use_wandb',       bool(options['--use-wandb'])],
+        ['unity_env',       f('--unity-env', str)]
     ]))
     return op
         
@@ -130,13 +132,13 @@ def run():
     model_args.seed = options.seed
     model_args.load = options.load
 
+    env_args.env_num = options.n_copys
     if options.gym:
         train_args.add_dict(default_config['gym']['train'])
         train_args.update({'render_episode': options.render_episode})
         env_args.add_dict(default_config['gym']['env'])
         env_args.type = 'gym'
         env_args.env_name = options.gym_env
-        env_args.env_num = options.gym_agents
         env_args.env_seed = options.gym_env_seed
     else:
         train_args.add_dict(default_config['unity']['train'])
@@ -151,9 +153,12 @@ def run():
         else:
             env_args.update({'file_path': options.env})
             if os.path.exists(env_args.file_path):
-                env_args.env_name = os.path.join(
+                env_args.env_name = options.unity_env or os.path.join(
                     *os.path.split(env_args.file_path)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
                 )
+                if 'visual' in env_args.env_name.lower():
+                    # if traing with visual input but do not render the environment, all 0 obs will be passed.
+                    options.graphic = True
             else:
                 raise Exception('can not find this file.')
         if options.inference:

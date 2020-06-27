@@ -31,7 +31,11 @@ class UnityWrapper(object):
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
                                          seed=env_args['env_seed'],
-                                         side_channels=[self.engine_configuration_channel, self.float_properties_channel])
+                                         side_channels=[self.engine_configuration_channel, self.float_properties_channel],
+                                         additional_args=[
+                                             '--scene', str(env_args.get('env_name', 'Roller')),
+                                             '--n_agents', str(env_args.get('env_num', 1))
+                                         ])
 
     def reset(self, **kwargs):
         reset_config = kwargs.get('reset_config', {})
@@ -191,10 +195,11 @@ class UnityReturnWrapper(BasicWrapper):
             for v in viss:
                 s.append(self.resize_image(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss) # [B, N, (H, W, C)]
+        return np.array(ss, dtype=np.uint8) # [B, N, (H, W, C)]
 
     def resize_image(self, image):
         image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize)+[-1])
+        image *= 255
         return image
 
 

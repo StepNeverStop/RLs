@@ -149,6 +149,8 @@ Options:
     -s,--save-frequency=<n>     保存频率 [default: None]
     -m,--models=<n>             同时训练多少个模型 [default: 1]
     -r,--rnn                    是否使用RNN模型 [default: False]
+    --copys=<n>                 指定并行训练的数量 [default: 1]
+    --unity-env=<name>          指定unity环境的名字 [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
@@ -159,18 +161,17 @@ Options:
     --prefill-steps=<n>         指定预填充的经验数量 [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0 [default: False]
     --gym                       是否使用gym训练环境 [default: False]
-    --gym-agents=<n>            指定并行训练的数量 [default: 1]
     --gym-env=<name>            指定gym环境的名字 [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子 [default: 0]
     --render-episode=<n>        指定gym环境从何时开始渲染 [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
     --use-wandb                 是否上传数据到W&B [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
     python run.py -a ppo -u -n train_in_unity --load last_train_name
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --gym-agents 4
+    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --copys 4
     python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
 """
 ```
