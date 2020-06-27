@@ -1,4 +1,4 @@
-
+import os
 import cv2
 cv2.ocl.setUseOpenCL(False)
 import numpy as np
@@ -28,7 +28,7 @@ class UnityWrapper(object):
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel])
         else:
-            unity_env_dict = load_yaml('../../unity_env_dict.yaml')
+            unity_env_dict = load_yaml(os.path.dirname(__file__)+'/../../unity_env_dict.yaml')
             self._env = UnityEnvironment(file_name=env_args['file_path'],
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
