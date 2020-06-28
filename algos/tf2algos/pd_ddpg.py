@@ -294,6 +294,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
+        self._running_average(s)
         cost = self.get_cost(s, visual_s, a, r, s_, visual_s_, done)
         self.data.add(
             s,
@@ -310,6 +311,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
+        self._running_average(s)
         cost = self.get_cost(s, visual_s, a, r, s_, visual_s_, done)
         self.data.add(
             s,

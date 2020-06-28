@@ -4,6 +4,7 @@ from .base import Base
 from abc import abstractmethod
 from rls.networks import CuriosityModel
 from rls.learningrate import ConsistentLearningRate
+from utils.vector_runing_average import DefaultRunningAverage, SimpleRunningAverage
 
 
 class Policy(Base):
@@ -26,6 +27,9 @@ class Policy(Base):
             self.visual_dim = [0]        
         
         self.use_rnn = bool(kwargs.get('use_rnn', False))
+
+        self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
+        self._running_average = SimpleRunningAverage(dim=self.s_dim) if self._normalize_vector_obs else DefaultRunningAverage()
 
         self.other_tv = []
 
@@ -55,6 +59,9 @@ class Policy(Base):
             return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
         else:
             return ConsistentLearningRate(lr)
+
+    def normalize_vector_obs(self, x):
+        return self._running_average.normalize(x)
 
     def init_optimizer(self, lr, *args, **kwargs):
         return tf.keras.optimizers.Adam(learning_rate=lr(self.episode), *args, **kwargs)

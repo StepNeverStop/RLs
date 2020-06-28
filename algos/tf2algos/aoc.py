@@ -158,6 +158,7 @@ class AOC(make_on_policy_class(mode='share')):
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
+        self._running_average(s)
         r -= (1 - self.oc_mask) * self.dc
         self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._beta_adv, self.last_options, self.options)
         self.oc_mask = tf.zeros_like(self.oc_mask)

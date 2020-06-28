@@ -42,6 +42,7 @@ def make_off_policy_class(mode='share'):
             assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
             assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
             assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
+            self._running_average(s)
             self.data.add(
                 s,
                 visual_s,
@@ -56,6 +57,7 @@ def make_off_policy_class(mode='share'):
             assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
             assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
             assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
+            self._running_average(s)
             self.data.add(
                 s,
                 visual_s,
@@ -74,6 +76,12 @@ def make_off_policy_class(mode='share'):
             if not self.is_continuous and 'a' in data_name_list:
                 a_idx = data_name_list.index('a')
                 data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
+            if 's' in data_name_list:
+                s_idx = data_name_list.index('s')
+                data[s_idx] = self.normalize_vector_obs(data[s_idx])
+            if 's_' in data_name_list:
+                s_idx = data_name_list.index('s_')
+                data[s_idx] = self.normalize_vector_obs(data[s_idx])
             
             return dict([
                 [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))

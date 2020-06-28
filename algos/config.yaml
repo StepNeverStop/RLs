@@ -11,6 +11,7 @@ general:
     curiosity_reward_eta: 0.01  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
     curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
     curiosity_loss_weight: 5    # weight that scale the gradient loss and ICM loss
+    normalize_vector_obs: False
 
 on_policy: {}
 

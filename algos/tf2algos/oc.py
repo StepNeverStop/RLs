@@ -255,6 +255,7 @@ class OC(make_off_policy_class(mode='share')):
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
+        self._running_average(s)
         self.data.add(
             s,
             visual_s,

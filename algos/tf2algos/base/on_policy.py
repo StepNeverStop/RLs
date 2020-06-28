@@ -36,6 +36,7 @@ def make_on_policy_class(mode='share'):
             assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
             assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
             assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
+            self._running_average(s)
             self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
         def no_op_store(self, *args, **kwargs):
@@ -57,6 +58,8 @@ def make_on_policy_class(mode='share'):
             _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
 
             self.intermediate_variable_reset()
+
+            self.data.normalize_vector_obs(self.normalize_vector_obs)
 
             if not self.is_continuous:
                 self.data.convert_action2one_hot(self.a_dim)

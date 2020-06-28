@@ -122,3 +122,9 @@ class DataBuffer(object):
 
     def __getitem__(self, name):
         return self.buffer[name]
+
+    def normalize_vector_obs(self, func):
+        if 's' in self.buffer.keys():
+            self.buffer['s'] = [func(s) for s in self.buffer['s']]
+        if 's_' in self.buffer.keys():
+            self.buffer['s_'] = [func(s) for s in self.buffer['s_']]
