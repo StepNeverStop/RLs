@@ -104,7 +104,7 @@ class Noisy(Dense):
             return y
 
 def ConvLayer(conv_function=Conv2D, 
-              flitters=[32, 64, 64], 
+              filters=[32, 64, 64], 
               kernels=[[8,8], [4,4], [3,3]], 
               strides=[[4,4], [2,2], [1,1]], 
               padding='valid', 
@@ -112,7 +112,7 @@ def ConvLayer(conv_function=Conv2D,
     '''
     Params:
         conv_function: the convolution function
-        flitters: list of flitter of all hidden conv layers
+        filters: list of flitter of all hidden conv layers
         kernels: list of kernel of all hidden conv layers
         strides: list of stride of all hidden conv layers
         padding: padding mode
@@ -120,6 +120,6 @@ def ConvLayer(conv_function=Conv2D,
     Return:
         A sequential of multi-convolution layers, with Flatten.
     '''
-    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation) for f, k, s in zip(flitters, kernels, strides)])
+    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation) for f, k, s in zip(filters, kernels, strides)])
     layers.add(Flatten())
     return layers
