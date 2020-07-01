@@ -13,7 +13,8 @@ general:
     curiosity_loss_weight: 5    # weight that scale the gradient loss and ICM loss
     normalize_vector_obs: False
 
-on_policy: {}
+on_policy:
+    rnn_time_step: 8
 
 off_policy:
     use_isw: false
@@ -308,7 +309,7 @@ iqn:
 pg:
     lr: 5.0e-4
     gamma: 0.99
-    batch_size: 512
+    batch_size: 64
     epoch: 1 # very important
     hidden_units:
         actor_continuous: [64, 64]
@@ -332,7 +333,7 @@ a2c:
     critic_lr: 1.0e-3
     gamma: 0.99
     beta: 1.0e-3
-    batch_size: 512
+    batch_size: 64
     epoch: 4 # very important
     hidden_units:
         actor_continuous: [64, 64]
@@ -347,7 +348,7 @@ ppo:
     beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 512
+    batch_size: 64
     policy_epoch: 4 # very important
     value_epoch: 4
     actor_lr: 3.0e-4
@@ -385,7 +386,7 @@ trpo:
     backtrack_iters: 10
     backtrack_coeff: 0.8
     train_v_iters: 10
-    batch_size: 512
+    batch_size: 64
     critic_lr: 1.0e-3
     hidden_units:
         actor_continuous: [64, 64]

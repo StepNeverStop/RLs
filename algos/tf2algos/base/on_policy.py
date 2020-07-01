@@ -25,9 +25,10 @@ def make_on_policy_class(mode='share'):
                 a_dim=a_dim,
                 is_continuous=is_continuous,
                 **kwargs)
+            self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
         def initialize_data_buffer(self, data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']):
-            self.data = DataBuffer(dict_keys=data_name_list)
+            self.data = DataBuffer(dict_keys=data_name_list, n_agents=self.n_agents)
 
         def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
             """
@@ -74,19 +75,20 @@ def make_on_policy_class(mode='share'):
 
             _cal_stics()
 
-            all_data = self.data.sample_generater(self.batch_size, _train_data_list)
-            for data in all_data:
+            if self.use_rnn:
+                all_data = self.data.sample_generater_rnn(self.rnn_time_step, _train_data_list)
+            else:
+                all_data = self.data.sample_generater(self.batch_size, _train_data_list)
 
+            for data in all_data:
+                data = list(map(self.data_convert, data))
                 if self.use_rnn:
-                    raise NotImplementedError('RNN with on-policy is under implemented.')
-                    if self.burn_in_time_step:
-                        pass
-                    # _s, _visual_s = self.data.get_burn_in_states()
-                    # cell_state = self.get_burn_in_feature(_s, _visual_s)
+                    cell_state = self.initial_cell_state(batch=self.n_agents)
+                    # if self.burn_in_time_step:
+                    #     pass
                 else:
                     cell_state = (None,)
 
-                data = list(map(self.data_convert, data))
                 summaries = _train(data, crsty_loss, cell_state)
 
             self.summaries.update(summaries)

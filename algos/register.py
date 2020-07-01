@@ -4,11 +4,17 @@ from common.yaml_ops import load_yaml
 assert tf.__version__[0] == '2'
 # algorithms based on TF 2.0
 algos = {
+    # On-Policy
     'pg':       {'class': 'PG',     'policy': 'on-policy',  'update': 'perEpisode'},
     'trpo':     {'class': 'TRPO',   'policy': 'on-policy',  'update': 'perEpisode'},
     'ppo':      {'class': 'PPO',    'policy': 'on-policy',  'update': 'perEpisode'},
-    'ac':       {'class': 'AC',     'policy': 'off-policy', 'update': 'perStep'},
     'a2c':      {'class': 'A2C',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'cem':      {'class': 'CEM',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'aoc':      {'class': 'AOC',    'policy': 'on-policy',  'update': 'perEpisode'},
+    'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
+
+    # Off-Policy
+    'ac':       {'class': 'AC',     'policy': 'off-policy', 'update': 'perStep'},
     'dpg':      {'class': 'DPG',    'policy': 'off-policy', 'update': 'perStep'},
     'ddpg':     {'class': 'DDPG',   'policy': 'off-policy', 'update': 'perStep'},
     'pd_ddpg':  {'class': 'PD_DDPG','policy': 'off-policy', 'update': 'perStep'},
@@ -27,13 +33,10 @@ algos = {
     'ma_dpg':   {'class': 'MADPG',  'policy': 'off-policy', 'update': 'perStep'},
     'ma_ddpg':  {'class': 'MADDPG', 'policy': 'off-policy', 'update': 'perStep'},
     'ma_td3':   {'class': 'MATD3',  'policy': 'off-policy', 'update': 'perStep'},
-    'cem':      {'class': 'CEM',    'policy': 'on-policy',  'update': 'perEpisode'},
     'sql':      {'class': 'SQL',    'policy': 'off-policy', 'update': 'perStep'},
     'bootstrappeddqn': {'class': 'BootstrappedDQN',    'policy': 'off-policy', 'update': 'perStep'},
     'oc':       {'class': 'OC',     'policy': 'off-policy', 'update': 'perStep'},
     'ioc':      {'class': 'IOC',    'policy': 'off-policy', 'update': 'perStep'},
-    'aoc':      {'class': 'AOC',    'policy': 'on-policy',  'update': 'perEpisode'},
-    'ppoc':     {'class': 'PPOC',   'policy': 'on-policy',  'update': 'perEpisode'},
     'qs':       {'class': 'QS',     'policy': 'off-policy', 'update': 'perStep'},
     'hiro':     {'class': 'HIRO',   'policy': 'off-policy', 'update': 'perStep'},
     'curl':     {'class': 'CURL',   'policy': 'off-policy', 'update': 'perStep'},

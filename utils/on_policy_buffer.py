@@ -7,11 +7,13 @@ class DataBuffer(object):
     On-policy 算法的经验池
     '''
 
-    def __init__(self, dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']):
+    def __init__(self, dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'], n_agents=1):
+        assert n_agents > 0
         self.dict_keys = dict_keys
         self.buffer = dict([
             [n, []] for n in dict_keys
         ])
+        self.n_agents = n_agents
         self.eps_len = 0
 
     def add(self, *args):
@@ -82,12 +84,43 @@ class DataBuffer(object):
         return self.buffer['visual_s_'][-1]
 
     def sample_generater(self, batch_size, keys=None):
-        if keys is None:
-            keys = self.buffer.keys()
-        agents_num = len(self.buffer['s'][0])
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*agents_num, -1).astype(np.float32) for k in keys]
-        for i in range(0, self.eps_len*agents_num, batch_size):
+        '''
+        create sampling data iterator without using rnn.
+
+        params:
+            batch_size: the batch size of training data
+            keys: the keys of data that should be sampled to train policies
+        return:
+            sampled data.
+        '''
+        keys = keys or self.buffer.keys()
+        keys_shape = self.calculate_dim_before_sample(keys)
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+        for i in range(0, self.eps_len*self.n_agents, batch_size*self.n_agents):
             yield [data[i:i+batch_size] for data in all_data]
+
+    def sample_generater_rnn(self, time_step, keys=None):
+        '''
+        create rnn sampling data iterator.
+
+        params:
+            time_step: the length of time slide window
+            keys: the keys of data that should be sampled to train policies
+        return:
+            sampled data.
+            if key in ['s', 's_', 'visual_s', 'visual_s_'], then return data with shape (agents_num, time_step, *)
+            else return with shape (agents_num*time_step, *)
+        '''
+        keys = keys or self.buffer.keys()
+        keys_shape = self.calculate_dim_before_sample(keys)
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len, self.n_agents, -1).astype(np.float32) for k in keys]
+        all_data = [np.transpose(data, (1, 0, 2)) for data in all_data]
+        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in ['s', 's_', 'visual_s', 'visual_s_'] \
+            else np.reshape(data, (self.n_agents*self.eps_len, *keys_shape[k]))
+            for k, data in zip(keys, all_data)]
+        for i in range(0, self.eps_len, time_step):
+            yield [data[:, i:i+time_step] if k in ['s', 's_', 'visual_s', 'visual_s_'] else data[i*self.n_agents:(i+time_step)*self.n_agents]
+            for k, data in zip(keys, all_data)]
 
     def get_curiosity_data(self):
         '''
@@ -97,8 +130,8 @@ class DataBuffer(object):
         for k in keys:
             if k not in self.buffer.keys():
                 raise Exception('Buffer does not has key {k}.')
-        agents_num = len(self.buffer['s'][0])
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*agents_num, -1).astype(np.float32) for k in keys]
+        keys_shape = self.calculate_dim_before_sample(keys)
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
         return all_data
 
     def convert_action2one_hot(self, a_counts):
@@ -118,13 +151,38 @@ class DataBuffer(object):
             self.buffer[k].clear()
 
     def __getattr__(self, name):
+        '''
+        TODO: Annotation
+        '''
         return self.buffer[name]
 
     def __getitem__(self, name):
+        '''
+        TODO: Annotation
+        '''
         return self.buffer[name]
 
     def normalize_vector_obs(self, func):
+        '''
+        TODO: Annotation
+        '''
         if 's' in self.buffer.keys():
             self.buffer['s'] = [func(s) for s in self.buffer['s']]
         if 's_' in self.buffer.keys():
             self.buffer['s_'] = [func(s) for s in self.buffer['s_']]
+
+    def calculate_dim_before_sample(self, keys=None):
+        '''
+        calculate the dimension of each items stored in data buffer. This will help to reshape the data.
+        For example, if the dimension of vector obs is 4, and the dimension of visual obs is (84, 84, 3),
+        you cannot just use tf.reshape(x, (batch_size, time_step, -1)) to get the correct shape of visual obs.
+        By recording the data dimension in this way, it is easy to reshape them.
+
+        params: 
+            keys: the key of items in data buffer
+        return:
+            keys_shape: a dict that include all dimension info of each key in data buffer
+        '''
+        keys = keys or self.buffer.keys()
+        keys_shape = {k: self.buffer[k][0].shape[1:] if len(self.buffer[k][0].shape[1:]) >0 else (-1,) for k in keys}
+        return keys_shape
