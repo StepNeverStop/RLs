@@ -10,6 +10,7 @@ class DQN(make_off_policy_class(mode='share')):
     Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
     DQN + LSTM, https://arxiv.org/abs/1507.06527
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -40,7 +41,7 @@ class DQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _q_net = lambda : rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -87,6 +88,7 @@ class DQN(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)

@@ -4,6 +4,7 @@ from typing import Dict
 from utils.sth import sth
 from utils.on_policy_buffer import DataBuffer
 
+
 def make_on_policy_class(mode='share'):
     if mode == 'share':
         from algos.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
@@ -12,12 +13,12 @@ def make_on_policy_class(mode='share'):
 
     class On_Policy(BasePolicy):
         def __init__(self,
-                    s_dim,
-                    visual_sources,
-                    visual_resolution,
-                    a_dim,
-                    is_continuous,
-                    **kwargs):
+                     s_dim,
+                     visual_sources,
+                     visual_resolution,
+                     a_dim,
+                     is_continuous,
+                     **kwargs):
             super().__init__(
                 s_dim=s_dim,
                 visual_sources=visual_sources,

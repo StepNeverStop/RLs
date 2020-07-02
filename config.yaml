@@ -3,15 +3,15 @@ UnityEnvFile:
 
 train:
     save_frequency: 20
-    max_step: 2000      # max_step per episode, if gym->env->max_episode_steps > max_step, them PEB(Partial Episode Bootstraping), else TimeLimit.
-    max_episode: 5000   # if not specify max_total_step, max_episode will control when training end.
-    max_total_step: 1000000
-    total_step_control: false
+    max_step: 2000 # max_step per episode, if gym->env->max_episode_steps > max_step, them PEB(Partial Episode Bootstraping), else TimeLimit.
+    max_episode: 5000
+    max_learn_step: 0 # if max_learn_step > 0, then training will stop when training steps > max_learn_step.
+    max_frame_step: 0
     moving_average_episode: 100
     all_learner_print: true
-    add_noise2buffer: false                  # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
-    add_noise2buffer_episode_interval: 10    # episode interval when adding noise into replay buffer while training
-    add_noise2buffer_steps: 1000             # how many steps should be added into replay buffer
+    add_noise2buffer: false # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
+    add_noise2buffer_episode_interval: 10 # episode interval when adding noise into replay buffer while training
+    add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
     info: None
     wandb_project: RLs
 
@@ -63,8 +63,8 @@ gym:
 buffer:
     ER: {}
     PER:
-        alpha: 0.6  # priority
-        beta: 0.4   # importance sampling ratio
+        alpha: 0.6 # priority
+        beta: 0.4 # importance sampling ratio
         epsilon: 0.01
         global_v: false
     NstepER:
@@ -77,4 +77,4 @@ buffer:
         n: 4
     EpisodeER:
         burn_in_time_step: 20
-        train_time_step: 40   # null
+        train_time_step: 40 # null

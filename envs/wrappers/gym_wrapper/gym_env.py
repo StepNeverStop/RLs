@@ -46,7 +46,7 @@ class gym_envs(object):
 
         self.eval_env = build_env(config)
         self._initialize(env=self.eval_env)
-        
+
         self.envs = Asyn.init_envs(build_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
 

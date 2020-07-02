@@ -71,4 +71,3 @@ if __name__ == "__main__":
     # a = np.random.randn(10, 5, 2)
     # b = np.random.randn(5, 2)
     # print((a/b).shape)
-

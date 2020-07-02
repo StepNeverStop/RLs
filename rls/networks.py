@@ -8,13 +8,15 @@ from rls.layers import ConvLayer
 from rls.activations import default_activation
 
 CNNS = {
-    'simple': lambda :ConvLayer(Conv2D, [16, 32], [[8, 8],[4, 4]], [[4, 4],[2, 2]], padding='valid', activation='elu'),
-    'nature': lambda :ConvLayer(Conv2D, [32, 64, 64], [[8, 8],[4, 4],[3, 3]], [[4, 4],[2, 2],[1, 1]], padding='valid', activation='relu')
+    'simple': lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
+    'nature': lambda: ConvLayer(Conv2D, [32, 64, 64], [[8, 8], [4, 4], [3, 3]], [[4, 4], [2, 2], [1, 1]], padding='valid', activation='relu')
 }
+
 
 class MultiCameraCNN(M):
     '''多个图像来源输入的CNN，未初始化
     '''
+
     def __init__(self, n, feature_dim, activation_fn, encoder_type):
         super().__init__()
         self.n = n
@@ -29,9 +31,11 @@ class MultiCameraCNN(M):
         f = tf.concat([vector_input, *f], axis=-1)
         return f
 
+
 class ObsRNN(M):
     '''输入状态的RNN
     '''
+
     def __init__(self, dim, hidden_units):
         super().__init__()
         self.rnn_type = 'lstm'
@@ -45,7 +49,7 @@ class ObsRNN(M):
 
     def call(self, s, h, c):
         # s = self.masking(s)
-        x, h, c = self.lstm_net(s, initial_state=(h, c)) # 如果没指定初始化隐状态，就用burn_in的， 或者 None
+        x, h, c = self.lstm_net(s, initial_state=(h, c))  # 如果没指定初始化隐状态，就用burn_in的， 或者 None
         return (x, (h, c))
 
 
@@ -66,6 +70,7 @@ class VisualNet(M):
     def call(self, vector_input, visual_input):
         visual_input = tf.cast(visual_input / 255., tf.float32)
         return self.nets(vector_input, visual_input)
+
 
 class CuriosityModel(M):
     '''
@@ -100,22 +105,22 @@ class CuriosityModel(M):
             self.use_visual = False
         else:
             self.use_visual = True
-        
+
         self.nets = MultiCameraCNN(n=self.camera_num, feature_dim=visual_feature, activation_fn=default_activation, encoder_type=encoder_type)
         self.s_dim = vector_dim + (visual_feature * self.camera_num) * (self.camera_num > 0)
 
         if self.use_visual:
             # S, S' => A
             self.inverse_dynamic_net = Sequential([
-                Dense(self.s_dim*2, default_activation),
+                Dense(self.s_dim * 2, default_activation),
                 Dense(action_dim, 'tanh' if is_continuous else None)
             ])
 
         # S, A => S'
         self.forward_net = Sequential([
-            Dense(self.s_dim+action_dim, default_activation),
+            Dense(self.s_dim + action_dim, default_activation),
             Dense(self.s_dim, None)
-        ]) 
+        ])
         self.initial_weights(I(shape=vector_dim), I(shape=visual_dim), I(shape=action_dim))
 
         self.tv = []
@@ -123,8 +128,7 @@ class CuriosityModel(M):
             for net in self.nets:
                 self.tv += net.trainable_variables
             self.tv += self.inverse_dynamic_net.trainable_variables
-        self.tv += self.forward_net.trainable_variables   
-
+        self.tv += self.forward_net.trainable_variables
 
     def initial_weights(self, vector_input, visual_input, action):
         s = self.nets(vector_input, visual_input)
@@ -150,14 +154,14 @@ class CuriosityModel(M):
                     f = tf.concat((*fs, s, *fs_, s_), axis=-1)
                     a_eval = self.inverse_dynamic_net(f)
                     if self.is_continuous:
-                        loss_inverse = 0.5 * tf.reduce_mean(tf.reduce_sum(tf.square(a_eval-a), axis=-1))
+                        loss_inverse = 0.5 * tf.reduce_mean(tf.reduce_sum(tf.square(a_eval - a), axis=-1))
                     else:
-                        idx = tf.argmax(a, axis=-1) #[B, ]
+                        idx = tf.argmax(a, axis=-1)  # [B, ]
                         loss_inverse = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=idx, logits=a_eval))
-                    loss = (1-self.beta)*loss_inverse+self.beta*loss_forward
+                    loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
                 else:
                     loss = loss_forward
-            
+
             grads = tape.gradient(loss, self.tv)
             self.optimizer.apply_gradients(zip(grads, self.tv))
             summaries = dict([
@@ -168,4 +172,4 @@ class CuriosityModel(M):
                 summaries.update({
                     'LOSS/inverse_loss': loss_inverse
                 })
-            return intrinsic_reward, loss*self.loss_weight, summaries
+            return intrinsic_reward, loss * self.loss_weight, summaries

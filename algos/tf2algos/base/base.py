@@ -9,6 +9,7 @@ from utils.recorder import Recorder
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("algos.base")
 
+
 class Base:
 
     def __init__(self, *args, **kwargs):
@@ -47,7 +48,7 @@ class Base:
             with tf.device(self.device):
                 return func(*args, **kwargs)
         return inner
-    
+
     def data_convert(self, data):
         '''
         TODO: Annotation

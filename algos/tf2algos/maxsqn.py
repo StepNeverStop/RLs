@@ -11,6 +11,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
     '''
     https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -50,7 +51,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
-        _q_net = lambda : rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -62,8 +63,8 @@ class MAXSQN(make_off_policy_class(mode='share')):
             critic_net=self.critic_net,
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha
-            ))
-    
+        ))
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘ　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘ　　　ｘｘ　　　
@@ -104,12 +105,12 @@ class MAXSQN(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
+                                                                          self.ployak),
                 'summary_dict': dict([
-                                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
-                                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
-                                ])
+                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)
@@ -122,7 +123,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                 q1_eval = tf.reduce_sum(tf.multiply(q1, a), axis=1, keepdims=True)
                 q2_eval = tf.reduce_sum(tf.multiply(q2, a), axis=1, keepdims=True)
 
-                q1_target, q2_target= self.critic_target_net(feat_)
+                q1_target, q2_target = self.critic_target_net(feat_)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
                 q1_target_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))

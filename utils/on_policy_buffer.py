@@ -2,6 +2,7 @@ import numpy as np
 from utils.sth import sth
 from utils.np_utils import normalization, standardization
 
+
 class DataBuffer(object):
     '''
     On-policy 算法的经验池
@@ -95,9 +96,9 @@ class DataBuffer(object):
         '''
         keys = keys or self.buffer.keys()
         keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
-        for i in range(0, self.eps_len*self.n_agents, batch_size*self.n_agents):
-            yield [data[i:i+batch_size] for data in all_data]
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+        for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
+            yield [data[i:i + batch_size] for data in all_data]
 
     def sample_generater_rnn(self, time_step, keys=None):
         '''
@@ -115,12 +116,12 @@ class DataBuffer(object):
         keys_shape = self.calculate_dim_before_sample(keys)
         all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len, self.n_agents, -1).astype(np.float32) for k in keys]
         all_data = [np.transpose(data, (1, 0, 2)) for data in all_data]
-        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in ['s', 's_', 'visual_s', 'visual_s_'] \
-            else np.reshape(data, (self.n_agents*self.eps_len, *keys_shape[k]))
-            for k, data in zip(keys, all_data)]
+        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in ['s', 's_', 'visual_s', 'visual_s_']
+                    else np.reshape(data, (self.n_agents * self.eps_len, *keys_shape[k]))
+                    for k, data in zip(keys, all_data)]
         for i in range(0, self.eps_len, time_step):
-            yield [data[:, i:i+time_step] if k in ['s', 's_', 'visual_s', 'visual_s_'] else data[i*self.n_agents:(i+time_step)*self.n_agents]
-            for k, data in zip(keys, all_data)]
+            yield [data[:, i:i + time_step] if k in ['s', 's_', 'visual_s', 'visual_s_'] else data[i * self.n_agents:(i + time_step) * self.n_agents]
+                   for k, data in zip(keys, all_data)]
 
     def get_curiosity_data(self):
         '''
@@ -131,7 +132,7 @@ class DataBuffer(object):
             if k not in self.buffer.keys():
                 raise Exception('Buffer does not has key {k}.')
         keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len*self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
         return all_data
 
     def convert_action2one_hot(self, a_counts):
@@ -141,7 +142,6 @@ class DataBuffer(object):
         if 'a' in self.buffer.keys():
             self.buffer['a'] = [sth.int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
 
-        
     def clear(self):
         '''
         清空临时存储经验池
@@ -184,5 +184,5 @@ class DataBuffer(object):
             keys_shape: a dict that include all dimension info of each key in data buffer
         '''
         keys = keys or self.buffer.keys()
-        keys_shape = {k: self.buffer[k][0].shape[1:] if len(self.buffer[k][0].shape[1:]) >0 else (-1,) for k in keys}
+        keys_shape = {k: self.buffer[k][0].shape[1:] if len(self.buffer[k][0].shape[1:]) > 0 else (-1,) for k in keys}
         return keys_shape

@@ -7,6 +7,7 @@ from envs.wrappers.unity_wrapper import UnityWrapper, InfoWrapper, UnityReturnWr
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.make_env")
 
+
 def make_env(env_args: Dict):
     if env_args['type'] == 'gym':
         env = make_gym_env(env_args)
@@ -43,5 +44,5 @@ def make_unity_env(env_args):
 
     env = ActionWrapper(env)
     logger.debug('Unity ActionWrapper success.')
-    
+
     return env

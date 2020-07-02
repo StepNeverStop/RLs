@@ -66,11 +66,11 @@ class TAC(make_off_policy_class(mode='share')):
         else:
             self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-        self.actor_tv = self.actor_net.trainable_variables            
+        self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
-        
-        _q_net = lambda : rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
+
+        def _q_net(): return rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -86,7 +86,7 @@ class TAC(make_off_policy_class(mode='share')):
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha,
-            ))
+        ))
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -128,6 +128,7 @@ class TAC(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _train(memories, isw, crsty_loss, cell_state):
             td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
             if self.annealing and not self.auto_adaption:
@@ -137,15 +138,15 @@ class TAC(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : self.update_target_net_weights(
-                                            self.critic_target_net.weights,
-                                            self.critic_net.weights,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(
+                    self.critic_target_net.weights,
+                    self.critic_net.weights,
+                    self.ployak),
                 'summary_dict': dict([
-                                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
-                                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
-                                ])
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)

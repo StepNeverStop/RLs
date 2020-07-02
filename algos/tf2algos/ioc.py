@@ -11,6 +11,7 @@ class IOC(make_off_policy_class(mode='share')):
     Learning Options with Interest Functions, https://www.aaai.org/ojs/index.php/AAAI/article/view/5114/4987 
     Options of Interest: Temporal Abstraction with Interest Functions, http://arxiv.org/abs/2001.00271
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -53,7 +54,7 @@ class IOC(make_off_policy_class(mode='share')):
         self.double_q = double_q
         self.boltzmann_temperature = boltzmann_temperature
 
-        _q_net= lambda: rls.critic_q_all(self.feat_dim, self.options_num, hidden_units['q'])
+        def _q_net(): return rls.critic_q_all(self.feat_dim, self.options_num, hidden_units['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -115,25 +116,26 @@ class IOC(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.q_net(feat)  # [B, P]
-            pi = self.intra_option_net(feat) # [B, P, A]
+            pi = self.intra_option_net(feat)  # [B, P, A]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
+            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
             if self.is_continuous:
                 log_std = tf.gather(self.log_std, options)
                 mu = tf.math.tanh(pi)
                 a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=pi) # [B, ]
+                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
                 a = dist.sample()
-            interests = self.interest_net(feat) # [B, P]
-            op_logits = interests * q # [B, P] or tf.nn.softmax(q)
+            interests = self.interest_net(feat)  # [B, P]
+            op_logits = interests * q  # [B, P] or tf.nn.softmax(q)
             new_options = tfp.distributions.Categorical(logits=op_logits).sample()
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
@@ -148,7 +150,7 @@ class IOC(make_off_policy_class(mode='share')):
                     ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.episode)],
                     ['LEARNING_RATE/termination_lr', self.termination_lr(self.episode)],
                     ['Statistics/option', self.options[0]]
-                    ])
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)
@@ -160,15 +162,15 @@ class IOC(make_off_policy_class(mode='share')):
             with tf.GradientTape(persistent=True) as tape:
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q = self.q_net(feat)  # [B, P]
-                pi = self.intra_option_net(feat) # [B, P, A]
+                pi = self.intra_option_net(feat)  # [B, P, A]
                 beta = self.termination_net(feat)   # [B, P]
                 q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
                 beta_next = self.termination_net(feat_)  # [B, P]
-                interests = self.interest_net(feat) # [B, P]
+                interests = self.interest_net(feat)  # [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
-                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True) # [B, 1]
-                beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True) # [B, 1]
+                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
+                beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True)  # [B, 1]
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 if self.double_q:
                     q_ = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
@@ -178,7 +180,7 @@ class IOC(make_off_policy_class(mode='share')):
                     q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
                 qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
-                td_error =  qu_target - qu_eval     # gradient : q
+                td_error = qu_target - qu_eval     # gradient : q
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss        # [B, 1] => 1
 
                 if self.use_baseline:
@@ -186,7 +188,7 @@ class IOC(make_off_policy_class(mode='share')):
                 else:
                     adv = tf.stop_gradient(qu_target)
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
-                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
+                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, P, A] => [B, A]
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
                     mu = tf.math.tanh(pi)
@@ -194,7 +196,7 @@ class IOC(make_off_policy_class(mode='share')):
                     entropy = gaussian_entropy(log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
-                    log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
+                    log_pi = tf.nn.log_softmax(pi, axis=-1)  # [B, A]
                     entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
                     log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
                 pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
@@ -203,13 +205,13 @@ class IOC(make_off_policy_class(mode='share')):
                 beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
 
                 pi_op = tf.nn.softmax(interests * tf.stop_gradient(q))  # [B, P] or tf.nn.softmax(q)
-                interest_loss = -tf.reduce_mean(beta_s * tf.reduce_sum(pi_op * options_onehot, axis=-1, keepdims=True) * q_s) # [B, 1] => 1
+                interest_loss = -tf.reduce_mean(beta_s * tf.reduce_sum(pi_op * options_onehot, axis=-1, keepdims=True) * q_s)  # [B, 1] => 1
 
-                v_s = tf.reduce_sum(q * pi_op, axis=-1, keepdims=True) # [B, P] * [B, P] => [B, 1]
+                v_s = tf.reduce_sum(q * pi_op, axis=-1, keepdims=True)  # [B, P] * [B, P] => [B, 1]
                 beta_loss = beta_s * tf.stop_gradient(q_s - v_s)   # [B, 1]
                 if self.terminal_mask:
                     beta_loss *= (1 - done)
-                beta_loss = tf.reduce_mean(beta_loss) # [B, 1] => 1
+                beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
 
             q_grads = tape.gradient(q_loss, self.critic_tv)
             intra_option_grads = tape.gradient(pi_loss, self.actor_tv)
@@ -253,7 +255,7 @@ class IOC(make_off_policy_class(mode='share')):
             r[:, np.newaxis],   # 升维
             s_,
             visual_s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             self.last_options,
             self.options
         )

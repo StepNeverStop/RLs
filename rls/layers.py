@@ -103,11 +103,12 @@ class Noisy(Dense):
         else:
             return y
 
-def ConvLayer(conv_function=Conv2D, 
-              filters=[32, 64, 64], 
-              kernels=[[8,8], [4,4], [3,3]], 
-              strides=[[4,4], [2,2], [1,1]], 
-              padding='valid', 
+
+def ConvLayer(conv_function=Conv2D,
+              filters=[32, 64, 64],
+              kernels=[[8, 8], [4, 4], [3, 3]],
+              strides=[[4, 4], [2, 2], [1, 1]],
+              padding='valid',
               activation='relu'):
     '''
     Params:

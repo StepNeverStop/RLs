@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import Model as M
 
+
 class DoubleQ(M):
     def __init__(self, q):
         super().__init__()

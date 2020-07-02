@@ -11,6 +11,7 @@ class AOC(make_on_policy_class(mode='share')):
     Asynchronous Advantage Option-Critic with Deliberation Cost, A2OC
     When Waiting is not an Option : Learning Options with a Deliberation Cost, A2OC, http://arxiv.org/abs/1709.04571
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -69,7 +70,6 @@ class AOC(make_on_policy_class(mode='share')):
         self.terminal_mask = terminal_mask
         self.eps = eps
 
-
         self.net = rls.aoc_share(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
@@ -81,8 +81,8 @@ class AOC(make_on_policy_class(mode='share')):
         self.model_recorder(dict(
             model=self.net,
             optimizer=self.optimizer
-            ))
-            
+        ))
+
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'beta_adv', 'last_options', 'options'])
 
@@ -106,7 +106,7 @@ class AOC(make_on_policy_class(mode='share')):
     def partial_reset(self, done):
         super().partial_reset(done)
         self._done_mask = done
-        
+
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
@@ -132,10 +132,10 @@ class AOC(make_on_policy_class(mode='share')):
     def _get_action(self, s, visual_s, cell_state, options):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
-            q, pi, beta = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
+            q, pi, beta = self.net(feat)  # [B, P], [B, P, A], [B, P], [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
+            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
             if self.is_continuous:
                 log_std = tf.gather(self.log_std, options)
                 mu = pi
@@ -146,12 +146,12 @@ class AOC(make_on_policy_class(mode='share')):
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-            q_o = tf.reduce_sum(q*options_onehot, axis=-1)  # [B, ]
+            q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
             beta_adv = q_o - ((1 - self.eps) * tf.reduce_max(q, axis=-1) + self.eps * tf.reduce_mean(q, axis=-1))   # [B, ]
-            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
+            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
             beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
             beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-            new_options = tf.where(beta_dist.sample()<1, options, max_options)    # <1 则不改变op， =1 则改变op
+            new_options = tf.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
         return sample_op, q_o, log_prob, beta_adv, new_options, max_options, cell_state
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -169,7 +169,7 @@ class AOC(make_on_policy_class(mode='share')):
         with tf.device(self.device):
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             q, _, _ = self.net(feat)
-            q_o = tf.reduce_sum(q*options_onehot, axis=-1)  # [B, ]
+            q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
             return q_o
 
     def calculate_statistics(self):
@@ -190,7 +190,7 @@ class AOC(make_on_policy_class(mode='share')):
                     self.kl_coef,
                     crsty_loss,
                     cell_state
-                    )
+                )
                 if kl > self.kl_stop:
                     early_step = i
                     break
@@ -215,36 +215,36 @@ class AOC(make_on_policy_class(mode='share')):
         summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
 
         self._learn(function_dict={
-                        'calculate_statistics': self.calculate_statistics,
-                        'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value', 'beta_adv', 'last_options', 'options'],
-                        'summary_dict': summary_dict
-                    })
+            'calculate_statistics': self.calculate_statistics,
+            'train_function': _train,
+            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value', 'beta_adv', 'last_options', 'options'],
+            'summary_dict': summary_dict
+        })
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, memories, kl_coef, crsty_loss, cell_state):
         s, visual_s, a, dc_r, old_log_prob, advantage, old_value, beta_advantage, last_options, options = memories
-        last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,)) # [B, 1] => [B,]
+        last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,))  # [B, 1] => [B,]
         options = tf.reshape(tf.cast(options, tf.int32), (-1,))
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
-                q, pi, beta = self.net(feat) # [B, P], [B, P, A], [B, P], [B, P]
+                q, pi, beta = self.net(feat)  # [B, P], [B, P, A], [B, P], [B, P]
 
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
-                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
+                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, P, A] => [B, A]
                 value = tf.reduce_sum(q * options_onehot, axis=1, keepdims=True)    # [B, 1]
 
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
-                    mu = pi # [B, A]
+                    mu = pi  # [B, A]
                     new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = pi #[B, A]
+                    logits = pi  # [B, A]
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -255,7 +255,7 @@ class AOC(make_on_policy_class(mode='share')):
                 else:
                     kl = tf.reduce_mean(old_log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
                 surrogate = ratio * advantage
-                
+
                 value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
                 td_error_clip = dc_r - value_clip
@@ -283,4 +283,3 @@ class AOC(make_on_policy_class(mode='share')):
             )
             self.global_step.assign_add(1)
             return loss, pi_loss, q_loss, beta_loss, entropy, kl
-

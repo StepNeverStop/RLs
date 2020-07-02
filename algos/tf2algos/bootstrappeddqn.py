@@ -10,6 +10,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
     '''
     Deep Exploration via Bootstrapped DQN, http://arxiv.org/abs/1602.04621
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -41,10 +42,10 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
         self.head_num = head_num
-        self._probs = [1./head_num for _ in range(head_num)]
+        self._probs = [1. / head_num for _ in range(head_num)]
         self.now_head = 0
 
-        _q_net = lambda : rls.critic_q_bootstrap(self.feat_dim, self.a_dim, self.head_num, hidden_units)
+        def _q_net(): return rls.critic_q_bootstrap(self.feat_dim, self.a_dim, self.head_num, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -91,11 +92,12 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
-            q_values = self.q_net(feat) # [H, B, A]
+            q_values = self.q_net(feat)  # [H, B, A]
         return q_values, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
@@ -118,7 +120,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
                 td_error = q_eval - q_target    # [H, B, 1]
-                td_error = tf.reduce_sum(td_error, axis=-1) # [H, B]
+                td_error = tf.reduce_sum(td_error, axis=-1)  # [H, B]
 
                 mask_dist = tfp.distributions.Bernoulli(probs=self._probs)
                 mask = tf.transpose(mask_dist.sample(batch_size), [1, 0])   # [H, B]
@@ -128,7 +130,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
                 zip(grads, self.critic_tv)
             )
             self.global_step.assign_add(1)
-            return tf.reduce_mean(td_error, axis=0), dict([ # [H, B] => 
+            return tf.reduce_mean(td_error, axis=0), dict([  # [H, B] =>
                 ['LOSS/loss', q_loss],
                 ['Statistics/q_max', tf.reduce_max(q_eval)],
                 ['Statistics/q_min', tf.reduce_min(q_eval)],

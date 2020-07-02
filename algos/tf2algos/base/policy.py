@@ -24,8 +24,8 @@ class Policy(Base):
             self.visual_dim = [visual_sources, *visual_resolution]
         else:
             self.use_visual = False
-            self.visual_dim = [0]        
-        
+            self.visual_dim = [0]
+
         self.use_rnn = bool(kwargs.get('use_rnn', False))
 
         self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
@@ -51,7 +51,7 @@ class Policy(Base):
             self.curiosity_lr = float(kwargs.get('curiosity_lr'))
             self.curiosity_beta = float(kwargs.get('curiosity_beta'))
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
-            self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128, 
+            self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128,
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
 
     def init_lr(self, lr):

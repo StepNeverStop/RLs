@@ -10,6 +10,7 @@ class DPG(make_off_policy_class(mode='share')):
     Deterministic Policy Gradient, https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf
     '''
     # off-policy DPG
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -70,7 +71,7 @@ class DPG(make_off_policy_class(mode='share')):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
         ''')
 
-    def choose_action(self, s, visual_s, evaluation=False):        
+    def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
@@ -94,11 +95,11 @@ class DPG(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : None,
+                'update_function': lambda: None,
                 'summary_dict': dict([
-                                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                                ])
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)

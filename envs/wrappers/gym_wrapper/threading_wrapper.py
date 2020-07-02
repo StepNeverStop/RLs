@@ -1,12 +1,13 @@
 import threading
 from enum import Enum
 
+
 class OP(Enum):
-    RESET=0
-    STEP=1
-    CLOSE=2
-    RENDER=3
-    SAMPLE=4
+    RESET = 0
+    STEP = 1
+    CLOSE = 2
+    RENDER = 3
+    SAMPLE = 4
 
 
 class FakeMultiThread(threading.Thread):
@@ -25,11 +26,13 @@ class FakeMultiThread(threading.Thread):
         except Exception:
             return None
 
+
 def init_envs(func, config, n, seed):
     envs = [func(config) for _ in range(n)]
     seeds = [seed + i for i in range(n)]  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     [env.seed(s) for env, s in zip(envs, seeds)]
     return envs
+
 
 def op_func(envs, op: OP, _args=None):
     threadpool = []
@@ -51,6 +54,7 @@ def op_func(envs, op: OP, _args=None):
     for th in threadpool:
         threading.Thread.join(th)
     return [threadpool[i].get_result() for i in range(len(envs))]
+
 
 def render(envs, record):
     if record:

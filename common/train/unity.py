@@ -1,15 +1,18 @@
-
-
+import logging
 import numpy as np
 
 from tqdm import trange
 from utils.np_utils import SMA, arrprint
 from utils.list_utils import zeros_initializer
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("common.train.unity")
+
+
 def unity_train(env, models, print_func,
                 begin_episode, save_frequency, max_step, max_episode, policy_mode,
                 moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-                total_step_control, max_total_step, real_done):
+                max_learn_step, max_frame_step, real_done):
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -30,12 +33,11 @@ def unity_train(env, models, print_func,
         rewards:        use to record rewards of agents for each brain.
     """
 
-    if total_step_control:
-        max_episode = max_total_step
-
     state, visual_state, action, dones_flag, rewards = zeros_initializer(env.brain_num, 5)
     sma = [SMA(moving_average_episode) for i in range(env.brain_num)]
-    total_step = 0
+    frame_step = 0
+    min_of_all_agents = min(env.brain_agents)
+    learn_step = [0 for _ in range(env.brain_num)]
 
     for episode in range(begin_episode, max_episode):
         [model.reset() for model in models]
@@ -72,11 +74,13 @@ def unity_train(env, models, print_func,
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':
                     models[i].learn(episode=episode, step=1)
+                    learn_step[i] += 1
 
-            total_step += 1
-            if total_step_control and total_step > max_total_step:
+            frame_step += min_of_all_agents
+            if 0 < max_learn_step < min(learn_step) or 0 < max_frame_step < frame_step:
                 for i in range(env.brain_num):
                     models[i].save_checkpoint(episode)
+                logger.info(f'End Training, learn step: {learn_step}, frame_step: {frame_step}')
                 return
 
             if all([all(dones_flag[i]) for i in range(env.brain_num)]):
@@ -92,6 +96,7 @@ def unity_train(env, models, print_func,
             sma[i].update(rewards[i])
             if policy_mode == 'on-policy':
                 models[i].learn(episode=episode, step=step)
+                learn_step[i] += 1
             models[i].writer_summary(
                 episode,
                 reward_mean=rewards[i].mean(),
@@ -111,6 +116,7 @@ def unity_train(env, models, print_func,
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             unity_random_sample(env, models, print_func, steps=add_noise2buffer_steps, real_done=real_done)
 
+
 def unity_random_sample(env, models, print_func, steps, real_done):
     state, visual_state = zeros_initializer(env.brain_num, 2)
 
@@ -119,7 +125,9 @@ def unity_random_sample(env, models, print_func, steps, real_done):
         state[i] = _v
         visual_state[i] = _vs
 
-    for _ in range(steps):
+    tqdm_bar = trange(steps, ncols=80)
+    for _ in tqdm_bar:
+        tqdm_bar.set_description('adding noise')
         action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
@@ -137,6 +145,7 @@ def unity_random_sample(env, models, print_func, steps, real_done):
             visual_state[i] = _vs
     print_func('Noise added complete.')
 
+
 def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done):
     '''
     Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
@@ -151,8 +160,8 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
         state[i] = _v
         visual_state[i] = _vs
 
-    tqdm_bar = trange(0, pre_fill_steps, min(env.brain_agents) + 1)
-    for step in tqdm_bar:
+    tqdm_bar = trange(0, pre_fill_steps, min(env.brain_agents) + 1, ncols=80)
+    for _ in tqdm_bar:
         tqdm_bar.set_description('Pre-filling')
 
         if prefill_choose:
@@ -176,6 +185,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
             state[i] = _v
             visual_state[i] = _vs
 
+
 def unity_inference(env, models):
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
@@ -191,6 +201,7 @@ def unity_inference(env, models):
                 models[i].partial_reset(_d)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
             ObsRewDone = env.step(actions)
+
 
 def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choose):
     assert isinstance(pre_fill_steps, int), 'multi-agent no_op.steps must have type of int'
@@ -210,8 +221,9 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
             action[i] = np.zeros((env.brain_agents[i], 1), dtype=np.int32)
 
     a = [np.asarray(e) for e in zip(*action)]
-    for step in range(pre_fill_steps):
-        print_func(f'no op step {step}')
+    tqdm_bar = trange(pre_fill_steps, ncols=80)
+    for _ in tqdm_bar:
+        tqdm_bar.set_description('Pre-filling')
         for i in range(env.brain_num):
             if prefill_choose:
                 action[i] = models[i].choose_action(s=state[i])
@@ -227,6 +239,7 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
         buffer.add(s, a, r, s_, done)
         for i in range(env.brain_num):
             state[i] = next_state[i]
+
 
 def ma_unity_train(env, models, buffer, print_func,
                    begin_episode, save_frequency, max_step, max_episode, policy_mode):
@@ -276,7 +289,7 @@ def ma_unity_train(env, models, buffer, print_func,
                         episode=episode,
                         ap=np.asarray([np.asarray(e) for e in zip(*next_action[:i])]).reshape(batch_size, -1) if i != 0 else np.zeros((batch_size, 0)),
                         al=np.asarray([np.asarray(e) for e in zip(*next_action[-(env.brain_num - i - 1):])]
-                                        ).reshape(batch_size, -1) if env.brain_num - i != 1 else np.zeros((batch_size, 0)),
+                                      ).reshape(batch_size, -1) if env.brain_num - i != 1 else np.zeros((batch_size, 0)),
                         ss=s.reshape(batch_size, -1),
                         ss_=s_.reshape(batch_size, -1),
                         aa=a.reshape(batch_size, -1),
@@ -305,6 +318,7 @@ def ma_unity_train(env, models, buffer, print_func,
         if episode % save_frequency == 0:
             for i in range(env.brain_num):
                 models[i].save_checkpoint(episode)
+
 
 def ma_unity_inference(env, models):
     """

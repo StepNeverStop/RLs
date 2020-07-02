@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class LazyFrames(object):
     '''
     stole this from baselines.

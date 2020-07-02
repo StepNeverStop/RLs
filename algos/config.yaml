@@ -1,16 +1,16 @@
 general:
-    use_rnn: false  # always false, using -r to active RNN
+    use_rnn: false # always false, using -r to active RNN
     decay_lr: false
     burn_in_time_step: 10
     train_time_step: 5
     rnn_units: 8
-    tf_dtype: float32       # float32 or float64
+    tf_dtype: float32 # float32 or float64
     visual_feature: 128
-    use_curiosity: false     # whether to use ICM or not
-    curiosity_lr: 1.0e-3    # the learning rate for ICM
-    curiosity_reward_eta: 0.01  # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
-    curiosity_beta: 0.2         # weight that scale the forward loss and inverse loss of ICM
-    curiosity_loss_weight: 5    # weight that scale the gradient loss and ICM loss
+    use_curiosity: false # whether to use ICM or not
+    curiosity_lr: 1.0e-3 # the learning rate for ICM
+    curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
+    curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
+    curiosity_loss_weight: 5 # weight that scale the gradient loss and ICM loss
     normalize_vector_obs: False
 
 on_policy:
@@ -18,7 +18,7 @@ on_policy:
 
 off_policy:
     use_isw: false
-    episode_batch_size: 32  # rnn
+    episode_batch_size: 32 # rnn
     episode_buffer_size: 10000
 
 hiro:
@@ -80,7 +80,7 @@ cem:
     hidden_units: [32, 32]
 
 qs:
-    mode: 'q'   # 'q', 'sarsa', 'expected_sarsa'
+    mode: "q" # 'q', 'sarsa', 'expected_sarsa'
     lr: 0.2
     gamma: 0.99
     eps_init: 1
@@ -88,7 +88,7 @@ qs:
     eps_final: 0.01
     init2mid_annealing_episode: 20
 
-dqn:    &dqn
+dqn: &dqn
     lr: 5.0e-4
     gamma: 0.99
     eps_init: 1
@@ -230,7 +230,6 @@ sql:
     n_step: true
     hidden_units: [64, 64]
 
-
 c51:
     v_min: -100
     v_max: 100
@@ -285,10 +284,10 @@ qrdqn:
     hidden_units: [256, 256]
 
 iqn:
-    online_quantiles: 8 # quantile number of online network 
-    target_quantiles: 8 # quantile number of target network 
-    select_quantiles: 32    # quantile number for selecting actions
-    quantiles_idx: 64   # trails
+    online_quantiles: 8 # quantile number of online network
+    target_quantiles: 8 # quantile number of target network
+    select_quantiles: 32 # quantile number for selecting actions
+    quantiles_idx: 64 # trails
     huber_delta: 1. # delta for huber loss
     lr: 5.0e-4
     gamma: 0.99
@@ -301,7 +300,7 @@ iqn:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units: 
+    hidden_units:
         q_net: [128, &iqn_hm 64]
         quantile: [128, *iqn_hm]
         tile: [64]
@@ -366,7 +365,7 @@ ppo:
                 share: [64, 64]
                 mu: [64, 64]
                 v: [64, 64]
-            discrete: 
+            discrete:
                 share: [64, 64]
                 logits: [64, 64]
                 v: [64, 64]
@@ -516,11 +515,11 @@ tac:
     annealing: true
     last_alpha: 0.01
     log_std_bound: [-20, 2]
-    # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than 
+    # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than
     # when 0 < q < 1 and q ≥ 2, in terms of stable convergence and final total average returns.
     # q -> 0, more exploration, 2<= q -> +∞, more exploitation.
     # 1 <=q < 2 is much better. Note that q=1 equals SAC.
-    entropic_index: 1.5 
+    entropic_index: 1.5
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4

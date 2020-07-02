@@ -11,6 +11,7 @@ class OC(make_off_policy_class(mode='share')):
     '''
     The Option-Critic Architecture. http://arxiv.org/abs/1609.05140
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -62,7 +63,7 @@ class OC(make_off_policy_class(mode='share')):
         self.boltzmann_temperature = boltzmann_temperature
         self.use_eps_greedy = use_eps_greedy
 
-        _q_net= lambda: rls.critic_q_all(self.feat_dim, self.options_num, hidden_units['q'])
+        def _q_net(): return rls.critic_q_all(self.feat_dim, self.options_num, hidden_units['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -123,30 +124,31 @@ class OC(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.q_net(feat)  # [B, P]
-            pi = self.intra_option_net(feat) # [B, P, A]
-            beta = self.termination_net(feat) # [B, P]
+            pi = self.intra_option_net(feat)  # [B, P, A]
+            beta = self.termination_net(feat)  # [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, A]
+            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
             if self.is_continuous:
                 log_std = tf.gather(self.log_std, options)
                 mu = tf.math.tanh(pi)
                 a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=pi) # [B, ]
+                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
                 a = dist.sample()
-            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32) # [B, P] => [B, ]
+            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
             if self.use_eps_greedy:
                 new_options = max_options
             else:
                 beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
                 beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-                new_options = tf.where(beta_dist.sample()<1, options, max_options)
+                new_options = tf.where(beta_dist.sample() < 1, options, max_options)
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
@@ -161,7 +163,7 @@ class OC(make_off_policy_class(mode='share')):
                     ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.episode)],
                     ['LEARNING_RATE/termination_lr', self.termination_lr(self.episode)],
                     ['Statistics/option', self.options[0]]
-                    ])
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)
@@ -173,14 +175,14 @@ class OC(make_off_policy_class(mode='share')):
             with tf.GradientTape(persistent=True) as tape:
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 q = self.q_net(feat)  # [B, P]
-                pi = self.intra_option_net(feat) # [B, P, A]
+                pi = self.intra_option_net(feat)  # [B, P, A]
                 beta = self.termination_net(feat)   # [B, P]
                 q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
                 beta_next = self.termination_net(feat_)  # [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
-                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True) # [B, 1]
-                beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True) # [B, 1]
+                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
+                beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True)  # [B, 1]
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
                 if self.double_q:
@@ -191,7 +193,7 @@ class OC(make_off_policy_class(mode='share')):
                     q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
                 qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
-                td_error =  qu_target - qu_eval     # gradient : q
+                td_error = qu_target - qu_eval     # gradient : q
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss        # [B, 1] => 1
 
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
@@ -200,7 +202,7 @@ class OC(make_off_policy_class(mode='share')):
                 else:
                     adv = tf.stop_gradient(qu_target)
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
-                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1) # [B, P, A] => [B, A]
+                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, P, A] => [B, A]
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
                     mu = tf.math.tanh(pi)
@@ -208,7 +210,7 @@ class OC(make_off_policy_class(mode='share')):
                     entropy = gaussian_entropy(log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
-                    log_pi = tf.nn.log_softmax(pi, axis=-1) # [B, A]
+                    log_pi = tf.nn.log_softmax(pi, axis=-1)  # [B, A]
                     entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
                     log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
                 pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
@@ -224,7 +226,7 @@ class OC(make_off_policy_class(mode='share')):
                 # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
                 if self.terminal_mask:
                     beta_loss *= (1 - done)
-                beta_loss = tf.reduce_mean(beta_loss) # [B, 1] => 1
+                beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
 
             q_grads = tape.gradient(q_loss, self.critic_tv)
             intra_option_grads = tape.gradient(pi_loss, self.actor_tv)
@@ -263,7 +265,7 @@ class OC(make_off_policy_class(mode='share')):
             r[:, np.newaxis],   # 升维
             s_,
             visual_s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             self.last_options,
             self.options
         )

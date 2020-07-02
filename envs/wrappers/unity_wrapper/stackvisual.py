@@ -26,7 +26,7 @@ from envs.wrappers.LazyFrames import LazyFrames
 #     ],
 # ]
 
-# => 
+# =>
 
 # obs: [
 #     brain1: [
@@ -50,12 +50,13 @@ from envs.wrappers.LazyFrames import LazyFrames
 #     ],
 # ]
 
+
 class StackVisualWrapper(UnityReturnWrapper):
 
     def __init__(self, env, stack_nums=4):
         super().__init__(env)
         self._stack_nums = stack_nums
-        self._stack_deque = {bn:deque([], maxlen=self._stack_nums) for bn in self.brain_names}
+        self._stack_deque = {bn: deque([], maxlen=self._stack_nums) for bn in self.brain_names}
 
     def reset(self, **kwargs):
         self._env.reset(**kwargs)
@@ -78,7 +79,7 @@ class StackVisualWrapper(UnityReturnWrapper):
             done.append(d)
             info.append(ifo)
         return zip(vector, visual, reward, done, info)
-    
+
     def coordinate_reset_information(self, i, bn):
         vector, visual, reward, done, info = super().coordinate_information(i, bn)
         for _ in range(self._stack_nums):

@@ -18,25 +18,25 @@ def init_variables(env):
         newstate: [vector_obs, visual_obs]
     """
     i = 1 if env.obs_type == 'visual' else 0
-    return (i, 
-            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)], 
+    return (i,
+            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)],
             [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)])
+
 
 def gym_train(env, model, print_func,
               begin_episode, render, render_episode,
               save_frequency, max_step, max_episode, eval_while_train, max_eval_episode,
-              off_policy_step_eval, off_policy_step_eval_num, 
+              off_policy_step_eval, off_policy_step_eval_num,
               policy_mode, moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-              total_step_control, eval_interval, max_total_step):
+              eval_interval, max_learn_step, max_frame_step):
     """
     TODO: Annotation
     """
-    if total_step_control:
-        max_episode = max_total_step
 
     i, state, new_state = init_variables(env)
     sma = SMA(moving_average_episode)
-    total_step = 0
+    frame_step = 0
+    learn_step = 0
 
     for episode in range(begin_episode, max_episode):
         model.reset()
@@ -70,11 +70,15 @@ def gym_train(env, model, print_func,
 
             if policy_mode == 'off-policy':
                 model.learn(episode=episode, step=1)
-                if off_policy_step_eval and total_step % eval_interval == 0:
-                    gym_step_eval(env.eval_env, total_step, model, off_policy_step_eval_num, max_step)
-            total_step += 1
-            if total_step_control and total_step > max_total_step:
+                learn_step += 1
+                if off_policy_step_eval and learn_step % eval_interval == 0:
+                    gym_step_eval(env.eval_env, learn_step, model, off_policy_step_eval_num, max_step)
+
+            frame_step += env.n
+
+            if 0 < max_learn_step <= learn_step or 0 < max_frame_step <= frame_step:
                 model.save_checkpoint(episode)
+                logger.info(f'End Training, learn step: {learn_step}, frame_step: {frame_step}')
                 return
 
             if all(dones_flag):
@@ -89,6 +93,7 @@ def gym_train(env, model, print_func,
         sma.update(r)
         if policy_mode == 'on-policy':
             model.learn(episode=episode, step=step)
+            learn_step += 1
         model.writer_summary(
             episode,
             reward_mean=r.mean(),
@@ -103,24 +108,27 @@ def gym_train(env, model, print_func,
             model.save_checkpoint(episode)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            gym_random_sample(env, steps=add_noise2buffer_steps, print_func=print_func)
+            gym_random_sample(env, model, steps=add_noise2buffer_steps, print_func=print_func)
 
         if eval_while_train and env.reward_threshold is not None:
             if r.max() >= env.reward_threshold:
                 print_func(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                 gym_evaluate(env, model, max_step, max_eval_episode, print_func)
 
+
 def gym_step_eval(env, step, model, episodes_num, max_step):
     '''
     1个环境的推断模式
     '''
-    cs = model.get_cell_state() # 暂存训练时候的RNN隐状态
-    model.reset()
+    cs = model.get_cell_state()  # 暂存训练时候的RNN隐状态
 
     i, state, _ = init_variables(env)
     ret = 0.
     ave_steps = 0.
-    for _ in range(episodes_num):
+    tqdm_bar = trange(episodes_num, ncols=80)
+    for _ in tqdm_bar:
+        tqdm_bar.set_description('evaluating')
+        model.reset()
         state[i] = env.reset()
         r = 0.
         step = 0
@@ -135,20 +143,22 @@ def gym_step_eval(env, step, model, episodes_num, max_step):
                 ret += r
                 ave_steps += step
                 break
-        model.reset()
 
     model.writer_summary(
         step,
-        eval_return=ret/episodes_num,
-        eval_ave_step=ave_steps//episodes_num,
+        eval_return=ret / episodes_num,
+        eval_ave_step=ave_steps // episodes_num,
     )
     model.set_cell_state(cs)
 
-def gym_random_sample(env, steps, print_func):
+
+def gym_random_sample(env, model, steps, print_func):
     i, state, new_state = init_variables(env)
     state[i] = env.reset()
 
-    for _ in range(steps):
+    tqdm_bar = trange(steps, ncols=80)
+    for _ in tqdm_bar:
+        tqdm_bar.set_description('adding noise')
         action = env.sample_actions()
         new_state[i], reward, done, info, correct_new_state = env.step(action)
         model.no_op_store(
@@ -163,13 +173,15 @@ def gym_random_sample(env, steps, print_func):
         state[i] = correct_new_state
     print_func('Noise added complete.')
 
+
 def gym_evaluate(env, model, max_step, max_eval_episode, print_func):
     i, state, _ = init_variables(env)
     total_r = np.zeros(env.n)
     total_steps = np.zeros(env.n)
-    episodes = max_eval_episode // env.n
 
-    for _ in range(episodes):
+    tqdm_bar = trange(0, max_eval_episode, env.n, ncols=80)
+    for _ in tqdm_bar:
+        tqdm_bar.set_description('evaluating')
         model.reset()
         state[i] = env.reset()
         dones_flag = np.full(env.n, False)
@@ -189,11 +201,12 @@ def gym_evaluate(env, model, max_step, max_eval_episode, print_func):
                 break
         total_r += r
         total_steps += steps
-    average_r = total_r.mean() / episodes
-    average_step = int(total_steps.mean() / episodes)
+    average_r = total_r.mean() / tqdm_bar.total
+    average_step = int(total_steps.mean() / tqdm_bar.total)
     solved = True if average_r >= env.reward_threshold else False
     print_func(f'evaluate number: {max_eval_episode:3d} | average step: {average_step} | average reward: {average_r} | SOLVED: {solved}')
     print_func('----------------------------------------------------------------------------------------------------------------------------')
+
 
 def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
@@ -201,12 +214,11 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
     i, state, new_state = init_variables(env)
     model.reset()
     state[i] = env.reset()
-    steps = pre_fill_steps // env.n
 
-    tqdm_bar = trange(0, pre_fill_steps, env.n)
-    for step in tqdm_bar:
+    tqdm_bar = trange(0, pre_fill_steps, env.n, ncols=80)
+    for _ in tqdm_bar:
         tqdm_bar.set_description('Pre-filling')
-        
+
         if prefill_choose:
             action = model.choose_action(s=state[0], visual_s=state[1])
         else:
@@ -223,6 +235,7 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
         )
         model.partial_reset(done)
         state[i] = correct_new_state
+
 
 def gym_inference(env, model):
     i, state, _ = init_variables(env)

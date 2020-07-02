@@ -184,7 +184,7 @@ class critic_q_bootstrap(M):
         self(I(shape=vector_dim))
 
     def call(self, x):
-        q = tf.stack([net(x) for net in self.nets]) # [H, B, A]
+        q = tf.stack([net(x) for net in self.nets])  # [H, B, A]
         return q
 
 
@@ -212,6 +212,7 @@ class critic_dueling(M):
         q = v + adv - tf.reduce_mean(adv, axis=1, keepdims=True)  # [B, A]
         return q
 
+
 class oc_intra_option(M):
     '''
     Intra Option Neural network of Option-Critic.
@@ -221,13 +222,14 @@ class oc_intra_option(M):
         super().__init__()
         self.actions_num = output_shape
         self.options_num = options_num
-        self.pi = mlp(hidden_units, output_shape=options_num*output_shape, out_activation=out_activation)
+        self.pi = mlp(hidden_units, output_shape=options_num * output_shape, out_activation=out_activation)
         self(I(shape=vector_dim))
 
     def call(self, x):
-        pi = self.pi(x) # [B, P*A]
-        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
+        pi = self.pi(x)  # [B, P*A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num])  # [B, P*A] => [B, P, A]
         return pi
+
 
 class aoc_share(M):
     '''
@@ -240,17 +242,18 @@ class aoc_share(M):
         self.options_num = options_num
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.q = mlp(hidden_units['q'], output_shape=options_num, out_activation=None)
-        self.pi = mlp(hidden_units['intra_option'], output_shape=options_num*action_dim, out_activation='tanh' if is_continuous else None)
+        self.pi = mlp(hidden_units['intra_option'], output_shape=options_num * action_dim, out_activation='tanh' if is_continuous else None)
         self.beta = mlp(hidden_units['termination'], output_shape=options_num, out_activation='sigmoid')
         self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
         q = self.q(x)   # [B, P]
-        pi = self.pi(x) # [B, P*A]
-        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
-        beta = self.beta(x) # [B, P]
+        pi = self.pi(x)  # [B, P*A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num])  # [B, P*A] => [B, P, A]
+        beta = self.beta(x)  # [B, P]
         return q, pi, beta
+
 
 class ppoc_share(M):
     '''
@@ -263,7 +266,7 @@ class ppoc_share(M):
         self.options_num = options_num
         self.share = mlp(hidden_units['share'], out_layer=False)
         self.q = mlp(hidden_units['q'], output_shape=options_num, out_activation=None)
-        self.pi = mlp(hidden_units['intra_option'], output_shape=options_num*action_dim, out_activation='tanh' if is_continuous else None)
+        self.pi = mlp(hidden_units['intra_option'], output_shape=options_num * action_dim, out_activation='tanh' if is_continuous else None)
         self.beta = mlp(hidden_units['termination'], output_shape=options_num, out_activation='sigmoid')
         self.o = mlp(hidden_units['o'], output_shape=options_num, out_activation=tf.nn.log_softmax)
         self(I(shape=vector_dim))
@@ -271,11 +274,12 @@ class ppoc_share(M):
     def call(self, x):
         x = self.share(x)
         q = self.q(x)   # [B, P]
-        pi = self.pi(x) # [B, P*A]
-        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num]) # [B, P*A] => [B, P, A]
-        beta = self.beta(x) # [B, P]
-        o = self.o(x) # [B, P]
+        pi = self.pi(x)  # [B, P*A]
+        pi = tf.reshape(pi, [-1, self.options_num, self.actions_num])  # [B, P*A] => [B, P, A]
+        beta = self.beta(x)  # [B, P]
+        o = self.o(x)  # [B, P]
         return q, pi, beta, o
+
 
 class a_c_v_continuous(M):
     '''
@@ -335,6 +339,7 @@ class c51_distributional(M):
         q_dist = self.net(x)    # [B, A*N]
         q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
         return q_dist
+
 
 class qrdqn_distributional(M):
     '''

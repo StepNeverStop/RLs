@@ -12,6 +12,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
     '''
     Data-Efficient Hierarchical Reinforcement Learning, http://arxiv.org/abs/1805.08296
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -62,23 +63,23 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.sub_goal_steps = sub_goal_steps
         self.sub_goal_dim = self.s_dim - self.fn_goal_dim
 
-        self.high_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale/2)
+        self.high_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale / 2)
         self.low_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
-        _high_actor_net = lambda : rls.actor_dpg(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
+        def _high_actor_net(): return rls.actor_dpg(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
         if self.is_continuous:
-            _low_actor_net = lambda : rls.actor_dpg(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return rls.actor_dpg(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
         else:
-            _low_actor_net = lambda: rls.actor_discrete(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return rls.actor_discrete(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
         self.high_actor = _high_actor_net()
         self.high_actor_target = _high_actor_net()
         self.low_actor = _low_actor_net()
-        self.low_actor_target =_low_actor_net()
+        self.low_actor_target = _low_actor_net()
 
-        _high_critic_net = lambda : rls.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
-        _low_critic_net = lambda : rls.critic_q_one(self.s_dim+self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
+        def _high_critic_net(): return rls.critic_q_one(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
+        def _low_critic_net(): return rls.critic_q_one(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
 
         self.high_critic = DoubleQ(_high_critic_net)
         self.high_critic_target = DoubleQ(_high_critic_net)
@@ -111,17 +112,15 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
 
-
     def generate_ir_func(self, mode='os'):
         if mode == 'os':
             return lambda last_feat, subgoal, feat: -tf.norm(last_feat + subgoal - feat, ord=2, axis=-1, keepdims=True)
         elif mode == 'cos':
             return lambda last_feat, subgoal, feat: tf.expand_dims(
                 -tf.keras.losses.cosine_similarity(
-                    tf.cast(feat - last_feat, tf.float32), 
-                    tf.cast(subgoal, tf.float32), 
+                    tf.cast(feat - last_feat, tf.float32),
+                    tf.cast(subgoal, tf.float32),
                     axis=-1), axis=-1)
-
 
     def show_logo(self):
         self.recorder.logger.info('''
@@ -149,13 +148,13 @@ class HIRO(make_off_policy_class(mode='no_share')):
             r.append(sum(self._high_r[i][_l:_r]) * self.reward_scale)
             a.append(self._high_a[i][_l:_r])
             g.append(self._subgoals[i][_l])
-            d.append(self._done[i][_r-1])
-            s_.append(self._high_s_[i][_r-1])
+            d.append(self._done[i][_r - 1])
+            s_.append(self._high_s_[i][_r - 1])
 
         right = intervals[-1]
-        s.append(self._high_s[i][right:eps_len] + [self._high_s[i][-1]] * (self.sub_goal_steps+right-eps_len))
+        s.append(self._high_s[i][right:eps_len] + [self._high_s[i][-1]] * (self.sub_goal_steps + right - eps_len))
         r.append(sum(self._high_r[i][right:eps_len]))
-        a.append(self._high_a[i][right:eps_len] + [self._high_a[i][-1]] * (self.sub_goal_steps+right-eps_len))
+        a.append(self._high_a[i][right:eps_len] + [self._high_a[i][-1]] * (self.sub_goal_steps + right - eps_len))
         g.append(self._subgoals[i][right])
         d.append(self._done[i][-1])
         s_.append(self._high_s_[i][-1])
@@ -209,7 +208,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             return mu, pi
 
     def choose_action(self, s, visual_s, evaluation=False):
-        self._subgoal = np.where(self._c==self.sub_goal_steps, self.get_subgoal(s).numpy(), self._new_subgoal)
+        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(s).numpy(), self._new_subgoal)
         mu, pi = self._get_action(s, visual_s, self._subgoal)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
@@ -224,7 +223,6 @@ class HIRO(make_off_policy_class(mode='no_share')):
         new_subgoal = self.high_scale * self.high_actor(s)
         new_subgoal = tf.clip_by_value(new_subgoal + self.high_noise(), -self.high_scale, self.high_scale)
         return new_subgoal
-    
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
@@ -252,13 +250,13 @@ class HIRO(make_off_policy_class(mode='no_share')):
                                                    self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
-                                    ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.episode)],
-                                    ['LEARNING_RATE/low_critic_lr', self.low_critic_lr(self.episode)],
-                                    ['LEARNING_RATE/high_actor_lr', self.high_actor_lr(self.episode)],
-                                    ['LEARNING_RATE/high_critic_lr', self.high_critic_lr(self.episode)]
-                                ]))
+                    ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.episode)],
+                    ['LEARNING_RATE/low_critic_lr', self.low_critic_lr(self.episode)],
+                    ['LEARNING_RATE/high_actor_lr', self.high_actor_lr(self.episode)],
+                    ['LEARNING_RATE/high_critic_lr', self.high_critic_lr(self.episode)]
+                ]))
                 self.write_training_summaries(self.global_step, self.summaries)
-    
+
     @tf.function(experimental_relax_shapes=True)
     def train_low(self, memories):
         s, a, r, s_, done, g, g_ = memories
@@ -266,7 +264,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             with tf.GradientTape() as tape:
                 feat = tf.concat([s, g], axis=-1)
                 feat_ = tf.concat([s_, g_], axis=-1)
-                
+
                 if self.is_continuous:
                     target_mu = self.low_actor_target(feat_)
                     action_target = tf.clip_by_value(target_mu + self.low_noise(), -1, 1)
@@ -326,33 +324,33 @@ class HIRO(make_off_policy_class(mode='no_share')):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 s = ss[:, 0]                                # [B, N]
-                true_end = (s_-s)[:, self.fn_goal_dim:]
-                g_dist = tfd.Normal(loc=true_end, scale=0.5*self.high_scale[None, :])
+                true_end = (s_ - s)[:, self.fn_goal_dim:]
+                g_dist = tfd.Normal(loc=true_end, scale=0.5 * self.high_scale[None, :])
                 ss = tf.expand_dims(ss, 0)  # [1, B, T, *]
                 ss = tf.tile(ss, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
-                ss = tf.reshape(ss, [-1, tf.shape(ss)[-1]]) # [10*B*T, *]
+                ss = tf.reshape(ss, [-1, tf.shape(ss)[-1]])  # [10*B*T, *]
                 aa = tf.expand_dims(aa, 0)  # [1, B, T, *]
                 aa = tf.tile(aa, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
-                aa = tf.reshape(aa, [-1, tf.shape(aa)[-1]]) # [10*B*T, *]
+                aa = tf.reshape(aa, [-1, tf.shape(aa)[-1]])  # [10*B*T, *]
                 gs = tf.concat([
                     tf.expand_dims(g, 0),
                     tf.expand_dims(true_end, 0),
-                    tf.clip_by_value(g_dist.sample(self.sample_g_nums-2), -self.high_scale, self.high_scale)
+                    tf.clip_by_value(g_dist.sample(self.sample_g_nums - 2), -self.high_scale, self.high_scale)
                 ], axis=0)  # [10, B, N]
 
                 all_g = gs + s[:, self.fn_goal_dim:]
                 all_g = tf.expand_dims(all_g, 2)    # [10, B, 1, N]
                 all_g = tf.tile(all_g, [1, 1, self.sub_goal_steps, 1])   # [10, B, T, N]
                 all_g = tf.reshape(all_g, [-1, tf.shape(all_g)[-1]])    # [10*B*T, N]
-                all_g = all_g - ss[:, self.fn_goal_dim:] # [10*B*T, N]
+                all_g = all_g - ss[:, self.fn_goal_dim:]  # [10*B*T, N]
                 feat = tf.concat([ss, all_g], axis=-1)  # [10*B*T, *]
                 _aa = self.low_actor(feat)  # [10*B*T, A]
                 if not self.is_continuous:
                     _aa = tf.one_hot(tf.argmax(_aa, axis=-1), self.a_dim, dtype=tf.float32)
                 diff = _aa - aa
-                diff = tf.reshape(diff, [self.sample_g_nums, batchs, self.sub_goal_steps, -1]) # [10, B, T, A]
+                diff = tf.reshape(diff, [self.sample_g_nums, batchs, self.sub_goal_steps, -1])  # [10, B, T, A]
                 diff = tf.transpose(diff, [1, 0, 2, 3])   # [B, 10, T, A]
-                logps = -0.5*tf.reduce_sum(tf.norm(diff, ord=2, axis=-1)**2, axis=-1)   # [B, 10]
+                logps = -0.5 * tf.reduce_sum(tf.norm(diff, ord=2, axis=-1)**2, axis=-1)   # [B, 10]
                 idx = tf.argmax(logps, axis=-1, output_type=tf.int32)
                 idx = tf.stack([tf.range(batchs), idx], axis=1)  # [B, 2]
                 g = tf.gather_nd(tf.transpose(gs, [1, 0, 2]), idx)  # [B, N]
@@ -370,7 +368,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
                 q2_loss = tf.reduce_mean(tf.square(td_error2))
                 high_critic_loss = q1_loss + q2_loss
-                
+
             high_critic_grads = tape.gradient(high_critic_loss, self.high_critic.weights)
             self.high_critic_optimizer.apply_gradients(
                 zip(high_critic_grads, self.high_critic.weights)
@@ -390,7 +388,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 ['Statistics/high_q_mean', tf.reduce_mean(q)],
                 ['Statistics/high_q_max', tf.reduce_max(q)]
             ])
-    
+
     def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
         assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
@@ -410,7 +408,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             a,
             ir,
             s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             self._noop_subgoal,
             subgoal
         )
@@ -431,18 +429,18 @@ class HIRO(make_off_policy_class(mode='no_share')):
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._subgoal)]
 
         ir = self.get_ir(s[:, self.fn_goal_dim:], self._subgoal, s_[:, self.fn_goal_dim:])
-        self._new_subgoal = np.where(self._c==1, self.get_subgoal(s_).numpy(), s[:, self.fn_goal_dim:]+self._subgoal-s_[:, self.fn_goal_dim:])
-        
+        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(s_).numpy(), s[:, self.fn_goal_dim:] + self._subgoal - s_[:, self.fn_goal_dim:])
+
         self.data_low.add(
             s,
             a,
             ir,
             s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             self._subgoal,
             self._new_subgoal
         )
-        self._c = np.where(self._c==1, np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c-1)
+        self._c = np.where(self._c == 1, np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c - 1)
 
     def get_transitions(self, databuffer, data_name_list=['s', 'a', 'r', 's_', 'done']):
         '''
@@ -455,7 +453,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             pre_shape = a.shape
             a = a.reshape(-1)
             a = sth.int2one_hot(a, self.a_dim)
-            a = a.reshape(pre_shape+(-1,))
+            a = a.reshape(pre_shape + (-1,))
             data[a_idx] = a
         return dict([
             [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))

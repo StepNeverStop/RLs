@@ -41,7 +41,7 @@ class QRDQN(make_off_policy_class(mode='share')):
             **kwargs)
         self.nums = nums
         self.huber_delta = huber_delta
-        self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums]) # [1, N]
+        self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums])  # [1, N]
         self.batch_quantiles = tf.tile(self.quantiles, [self.a_dim, 1])  # [1, N] => [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
@@ -50,7 +50,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: rls.qrdqn_distributional(self.feat_dim, self.a_dim, self.nums, hidden_units)
+        def _net(): return rls.qrdqn_distributional(self.feat_dim, self.a_dim, self.nums, hidden_units)
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
@@ -60,8 +60,8 @@ class QRDQN(make_off_policy_class(mode='share')):
         self.model_recorder(dict(
             model=self.q_dist_net,
             optimizer=self.optimizer
-            ))
-    
+        ))
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
@@ -95,6 +95,7 @@ class QRDQN(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
@@ -126,7 +127,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                 q_target = tf.reduce_sum(target * self.quantiles, axis=-1)  # [B, 1]
                 td_error = q_eval - q_target    # [B, 1]
 
-                quantile_error = tf.expand_dims(q_dist, axis=-1) - tf.expand_dims(target, axis=1) # [B, N, 1] - [B, 1, N] => [B, N, N]
+                quantile_error = tf.expand_dims(q_dist, axis=-1) - tf.expand_dims(target, axis=1)  # [B, N, 1] - [B, 1, N] => [B, N, N]
                 huber = huber_loss(quantile_error, delta=self.huber_delta)  # [B, N, N]
                 huber_abs = tf.abs(self.quantiles - tf.where(quantile_error < 0, tf.ones_like(quantile_error), tf.zeros_like(quantile_error)))   # [1, N] - [B, N, N] => [B, N, N]
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]

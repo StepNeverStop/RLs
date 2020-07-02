@@ -2,6 +2,7 @@ import os
 import yaml
 from typing import Dict
 
+
 def load_yaml(rel_filepath, msg=''):
     '''
     Load YAML file.

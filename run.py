@@ -95,7 +95,7 @@ def get_options(options: Dict):
         ['unity_env',       f('--unity-env', str)]
     ]))
     return op
-        
+
 
 def agent_run(*args):
     Agent(*args)()
@@ -125,7 +125,7 @@ def run():
     train_args = Config(**default_config['train'])
     env_args = Config()
     buffer_args = Config(**default_config['buffer'])
-    
+
     model_args.algo = options.algo
     model_args.use_rnn = options.use_rnn
     model_args.algo_config = options.algo_config
@@ -172,7 +172,7 @@ def run():
     train_args.name = NAME
     train_args.use_wandb = options.use_wandb
     train_args.inference = options.inference
-    train_args.prefill_choose= options.prefill_choose
+    train_args.prefill_choose = options.prefill_choose
     train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, model_args.algo)
     train_args.update(
         dict([

@@ -3,6 +3,7 @@ import tensorflow as tf
 from utils.sth import sth
 from typing import Dict
 
+
 def make_off_policy_class(mode='share'):
     if mode == 'share':
         from algos.tf2algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
@@ -11,12 +12,12 @@ def make_off_policy_class(mode='share'):
 
     class Off_Policy(BasePolicy):
         def __init__(self,
-                    s_dim,
-                    visual_sources,
-                    visual_resolution,
-                    a_dim,
-                    is_continuous,
-                    **kwargs):
+                     s_dim,
+                     visual_sources,
+                     visual_resolution,
+                     a_dim,
+                     is_continuous,
+                     **kwargs):
             super().__init__(
                 s_dim=s_dim,
                 visual_sources=visual_sources,
@@ -50,7 +51,7 @@ def make_off_policy_class(mode='share'):
                 r[:, np.newaxis],   # 升维
                 s_,
                 visual_s_,
-                done[:, np.newaxis] # 升维
+                done[:, np.newaxis]  # 升维
             )
 
         def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
@@ -82,7 +83,7 @@ def make_off_policy_class(mode='share'):
             if 's_' in data_name_list:
                 s_idx = data_name_list.index('s_')
                 data[s_idx] = self.normalize_vector_obs(data[s_idx])
-            
+
             return dict([
                 [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))
             ])
@@ -101,8 +102,8 @@ def make_off_policy_class(mode='share'):
             _train = function_dict.get('train_function', lambda *args: (None, {}))   # 训练过程
             _update = function_dict.get('update_function', lambda *args: None)  # maybe need update parameters of target networks
             _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
-            _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) # 需要从经验池提取的经验
-            _train_data_list = function_dict.get('train_data_list', ['ss', 'vvss', 'a', 'r', 'done']) # 需要从经验池提取的经验
+            _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'])  # 需要从经验池提取的经验
+            _train_data_list = function_dict.get('train_data_list', ['ss', 'vvss', 'a', 'r', 'done'])  # 需要从经验池提取的经验
 
             if self.data.is_lg_batch_size:
                 # -----------初始化某些变量---------------
@@ -116,16 +117,16 @@ def make_off_policy_class(mode='share'):
                 # --------------------------------------如果使用RNN， 就将s和s‘状态进行拼接处理
                 if self.use_rnn:
                     data['ss'] = tf.concat([    # [B, T, N], [B, T, N] => [B, T+1, N]
-                                    data['s'], 
-                                    data['s_'][:,-1:]
-                                    ],axis=1)
+                        data['s'],
+                        data['s_'][:, -1:]
+                    ], axis=1)
                     data['vvss'] = tf.concat([
-                                    data['visual_s'],
-                                    data['visual_s_'][:,-1:]
-                                    ],axis=1)
+                        data['visual_s'],
+                        data['visual_s_'][:, -1:]
+                    ], axis=1)
                 # --------------------------------------如果不使用RNN， 就将s和s‘状态进行堆叠处理
                 else:
-                    data['ss'] = tf.concat([data['s'], data['s_']], axis=0) # [B, N] => [2*B, N]
+                    data['ss'] = tf.concat([data['s'], data['s_']], axis=0)  # [B, N] => [2*B, N]
                     data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
                 # --------------------------------------
 
@@ -170,7 +171,7 @@ def make_off_policy_class(mode='share'):
                 else:
                     cell_state = (None,)
                 # --------------------------------------
-                
+
                 # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
                 td_error, summaries = _train(_training_data, _isw, crsty_loss, cell_state)
                 # --------------------------------------

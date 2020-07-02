@@ -10,6 +10,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
     Accelerated Primal-Dual Policy Optimization for Safe Reinforcement Learning, http://arxiv.org/abs/1802.06480
     Refer to https://github.com/anita-hu/TF2-RL/blob/master/Primal-Dual_DDPG/TF2_PD_DDPG_Basic.py
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -44,23 +45,23 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.cost_constraint = cost_constraint  # long tern cost <= d
 
         if self.is_continuous:
-            _actor_net = lambda: rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            def _actor_net(): return rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
         else:
-            _actor_net = lambda: rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         self.actor_tv = self.actor_net.trainable_variables
-        
-        _critic_net = lambda hiddens: rls.critic_q_one(self.feat_dim, self.a_dim, hiddens)
+
+        def _critic_net(hiddens): return rls.critic_q_one(self.feat_dim, self.a_dim, hiddens)
         self.reward_critic_net = _critic_net(hidden_units['reward'])
         self.reward_critic_target_net = _critic_net(hidden_units['reward'])
         self.cost_critic_net = _critic_net(hidden_units['cost'])
         self.cost_critic_target_net = _critic_net(hidden_units['cost'])
-        
+
         self.reward_critic_tv = self.reward_critic_net.trainable_variables + self.other_tv
         self.update_target_net_weights(
             self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
@@ -117,15 +118,15 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : self.update_target_net_weights(
-                                            self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
-                                            self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(
+                    self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
+                    self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
+                    self.ployak),
                 'summary_dict': dict([
-                                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                    ['LEARNING_RATE/reward_critic_lr', self.reward_critic_lr(self.episode)],
-                                    ['LEARNING_RATE/cost_critic_lr', self.cost_critic_lr(self.episode)]
-                                ]),
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/reward_critic_lr', self.reward_critic_lr(self.episode)],
+                    ['LEARNING_RATE/cost_critic_lr', self.cost_critic_lr(self.episode)]
+                ]),
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'cost'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'cost'],
             })
@@ -182,7 +183,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                     mu = _pi_diff + _pi
                 reward_actor = self.reward_critic_net(feat, mu)
                 cost_actor = self.cost_critic_net(feat, mu)
-                actor_loss = -tf.reduce_mean(reward_actor-self._lambda*cost_actor)
+                actor_loss = -tf.reduce_mean(reward_actor - self._lambda * cost_actor)
             actor_grads = tape.gradient(actor_loss, self.actor_tv)
             self.optimizer_actor.apply_gradients(
                 zip(actor_grads, self.actor_tv)
@@ -249,7 +250,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
 
                 reward_actor = self.reward_critic_net(feat, mu)
                 cost_actor = self.cost_critic_net(feat, mu)
-                actor_loss = -tf.reduce_mean(reward_actor-self._lambda*cost_actor)
+                actor_loss = -tf.reduce_mean(reward_actor - self._lambda * cost_actor)
             q_grads = tape.gradient(reward_loss, self.reward_critic_tv)
             self.optimizer_reward_critic.apply_gradients(
                 zip(q_grads, self.reward_critic_tv)
@@ -303,7 +304,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             r[:, np.newaxis],   # 升维
             s_,
             visual_s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             cost
         )
 
@@ -320,6 +321,6 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             r[:, np.newaxis],
             s_,
             visual_s_,
-            done[:, np.newaxis], # 升维
+            done[:, np.newaxis],  # 升维
             cost
         )

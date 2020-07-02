@@ -56,7 +56,8 @@ class IQN(make_off_policy_class(mode='share')):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_episode=init2mid_annealing_episode,
                                                           max_episode=self.max_episode)
-        _net = lambda: rls.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
+
+        def _net(): return rls.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
 
         self.q_net = _net()
         self.q_target_net = _net()
@@ -120,6 +121,7 @@ class IQN(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
@@ -148,9 +150,9 @@ class IQN(make_off_policy_class(mode='share')):
                 q_eval = tf.reduce_sum(q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
 
                 _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-                batch_size=batch_size,
-                quantiles_num=self.select_quantiles,
-                quantiles_idx=self.quantiles_idx
+                    batch_size=batch_size,
+                    quantiles_num=self.select_quantiles,
+                    quantiles_idx=self.quantiles_idx
                 )
                 _, q_values = self.q_net(feat_, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
                 next_max_action = tf.argmax(q_values, axis=-1)   # [B,]
@@ -179,7 +181,7 @@ class IQN(make_off_policy_class(mode='share')):
                 huber_abs = tf.abs(quantiles - tf.where(quantile_error < 0, tf.ones_like(quantile_error), tf.zeros_like(quantile_error)))   # [B, N, 1] - [B, N, N'] => [B, N, N']
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N'] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
-                loss = tf.reduce_mean(loss * isw) + crsty_loss# [B, ] => 1
+                loss = tf.reduce_mean(loss * isw) + crsty_loss  # [B, ] => 1
             grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)

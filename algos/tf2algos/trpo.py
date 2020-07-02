@@ -89,8 +89,8 @@ class TRPO(make_on_policy_class(mode='share')):
             actor=self.actor_net,
             critic=self.critic_net,
             optimizer_critic=self.optimizer_critic
-            ))
-            
+        ))
+
         if self.is_continuous:
             data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
         else:
@@ -202,15 +202,15 @@ class TRPO(make_on_policy_class(mode='share')):
             train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_mu', 'old_log_std']
         else:
             train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_logp_all']
-        
+
         self._learn(function_dict={
-                        'calculate_statistics': self.calculate_statistics,
-                        'train_function': _train,
-                        'train_data_list': train_data_list,
-                        'summary_dict': dict([
-                            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                            ])
-                    })
+            'calculate_statistics': self.calculate_statistics,
+            'train_function': _train,
+            'train_data_list': train_data_list,
+            'summary_dict': dict([
+                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+            ])
+        })
 
     @tf.function(experimental_relax_shapes=True)
     def train_actor(self, memories, cell_state):

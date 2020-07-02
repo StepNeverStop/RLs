@@ -49,7 +49,7 @@ class AC(make_off_policy_class(mode='share')):
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic
         ))
-    
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
@@ -105,11 +105,11 @@ class AC(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : None,
+                'update_function': lambda: None,
                 'summary_dict': dict([
-                                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                            ]),
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ]),
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'old_log_prob'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'old_log_prob']
             })

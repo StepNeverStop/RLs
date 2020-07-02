@@ -131,7 +131,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        all_intervals = np.linspace(0, self.tree.total, n_sample+1)
+        all_intervals = np.linspace(0, self.tree.total, n_sample + 1)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         self.last_indexs, data_indx, p, data = self.tree.get_batch_parallel(ps)
         _min_p = self.min_p if self.global_v else p.min()
@@ -243,12 +243,12 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
 
 
 class EpisodeExperienceReplay(ReplayBuffer):
-    
+
     def __init__(self, batch_size, capacity, agents_num, burn_in_time_step, train_time_step):
         super().__init__(batch_size, capacity)
         self.agents_num = agents_num
         self.burn_in_time_step = burn_in_time_step
-        self.train_time_step =train_time_step
+        self.train_time_step = train_time_step
         self.timestep = burn_in_time_step + train_time_step
         self.queue = [[] for _ in range(agents_num)]
         self._data_pointer = 0
@@ -259,7 +259,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
-    
+
     def _per_store(self, i, data):
         '''
         data:
@@ -317,8 +317,8 @@ class EpisodeExperienceReplay(ReplayBuffer):
         experience_type_num = len(trajs[0][0])  # 获取经验的类型种类 ， 如 <s, a, r> 即为3
 
         def truncate(traj):
-            idx = np.random.randint(max(1, len(traj)-self.timestep+1))    #[min, max)
-            return traj[idx:idx+self.timestep]
+            idx = np.random.randint(max(1, len(traj) - self.timestep + 1))  # [min, max)
+            return traj[idx:idx + self.timestep]
 
         truncated_trajs = list(map(truncate, trajs))
 
@@ -326,7 +326,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         for traj in truncated_trajs:    # traj即为1条轨迹 [(s,a,r,s_,done), (s,a,r,s_,done),...]
             data = [exps for exps in zip(*traj)]    # s [T, N], s_ [T, N]
             [dl.append(exps) for dl, exps in zip(data_list, data)]  # [B, T, NStep]
-        
+
         def f(v, l):    # [B, T, N]
             return lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='pre', dtype='float32', value=v, maxlen=l, truncating='pre')
         data_list[:6] = map(f(v=0., l=self.timestep), data_list[:6])   # [B, T, N]
@@ -337,7 +337,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         self.burn_in_states = list(map(lambda x: x[:, :self.burn_in_time_step], data_list[:2]))
         data_list = list(map(lambda x: x[:, self.burn_in_time_step:], data_list))   # s: [B, T, N]
 
-        data_list[2] = data_list[2].reshape(n_sample*self.train_time_step, -1)  # a: [B*T, N]
+        data_list[2] = data_list[2].reshape(n_sample * self.train_time_step, -1)  # a: [B*T, N]
         data_list[3] = data_list[3].reshape(-1, 1)  # a: [B*T, 1]
         data_list[6:] = map(lambda x: x.reshape(-1, x.shape[-1]), data_list[6:])
         return data_list
@@ -364,6 +364,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         print('RB capacity: ', self.capacity)
         print(self._buffer)
 
+
 if __name__ == "__main__":
     buff = EpisodeExperienceReplay(4, 10, 2)
 
@@ -389,4 +390,3 @@ if __name__ == "__main__":
     # print(buff._buffer[1])
     # buff.show_rb
     # buff.sample()
-

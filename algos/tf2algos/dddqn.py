@@ -44,7 +44,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: rls.critic_dueling(self.feat_dim, self.a_dim, hidden_units)
+        def _net(): return rls.critic_dueling(self.feat_dim, self.a_dim, hidden_units)
 
         self.dueling_net = _net()
         self.dueling_target_net = _net()
@@ -57,7 +57,7 @@ class DDDQN(make_off_policy_class(mode='share')):
             model=self.dueling_net,
             optimizer=self.optimizer
         ))
-    
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
@@ -91,6 +91,7 @@ class DDDQN(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)

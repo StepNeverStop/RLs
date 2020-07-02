@@ -2,12 +2,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def ion():
     plt.ion()
+
 
 def ioff():
     plt.ioff()
     plt.show()
+
 
 def plot_heatmap(s_dim, a_dim, table):
     if s_dim > a_dim:

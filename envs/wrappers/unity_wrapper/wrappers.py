@@ -10,6 +10,7 @@ from mlagents.mlagents_envs.side_channel.engine_configuration_channel import Eng
 from mlagents.mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 from common.yaml_ops import load_yaml
 
+
 class UnityWrapper(object):
 
     def __init__(self, env_args):
@@ -17,18 +18,18 @@ class UnityWrapper(object):
         if env_args['train_mode']:
             self.engine_configuration_channel.set_configuration_parameters(time_scale=env_args['train_time_scale'])
         else:
-            self.engine_configuration_channel.set_configuration_parameters(width=env_args['width'], 
-                                                                           height=env_args['height'], 
-                                                                           quality_level=env_args['quality_level'], 
-                                                                           time_scale=env_args['inference_time_scale'], 
+            self.engine_configuration_channel.set_configuration_parameters(width=env_args['width'],
+                                                                           height=env_args['height'],
+                                                                           quality_level=env_args['quality_level'],
+                                                                           time_scale=env_args['inference_time_scale'],
                                                                            target_frame_rate=env_args['target_frame_rate'])
         self.float_properties_channel = EnvironmentParametersChannel()
         if env_args['file_path'] is None:
-            self._env = UnityEnvironment(base_port=5004, 
+            self._env = UnityEnvironment(base_port=5004,
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel])
         else:
-            unity_env_dict = load_yaml(os.path.dirname(__file__)+'/../../unity_env_dict.yaml')
+            unity_env_dict = load_yaml(os.path.dirname(__file__) + '/../../unity_env_dict.yaml')
             self._env = UnityEnvironment(file_name=env_args['file_path'],
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
@@ -37,7 +38,7 @@ class UnityWrapper(object):
                                          additional_args=[
                                              '--scene', str(unity_env_dict.get(env_args.get('env_name', 'Roller'), 'None')),
                                              '--n_agents', str(env_args.get('env_num', 1))
-                                         ])
+            ])
 
     def reset(self, **kwargs):
         reset_config = kwargs.get('reset_config', {})
@@ -49,6 +50,7 @@ class UnityWrapper(object):
         if name.startswith('_'):
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
         return getattr(self._env, name)
+
 
 class BasicWrapper:
     def __init__(self, env):
@@ -66,12 +68,12 @@ class InfoWrapper(BasicWrapper):
         super().__init__(env)
         self.resize = env_args['resize']
 
-        self.brain_names = list(self._env.behavior_specs.keys()) #所有脑的名字列表
-        self.fixed_brain_names = list(map(lambda x: x.replace('?','_'), self.brain_names))
-        self.brain_specs = [self._env.behavior_specs[b] for b in self.brain_names] # 所有脑的信息
-        self.vector_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
-        self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b)==1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度
-        self.visual_idxs = [[i for i,b in enumerate(spec.observation_shapes) if len(b)==3] for spec in self.brain_specs]   # 得到所有脑 观测值为图像的下标
+        self.brain_names = list(self._env.behavior_specs.keys())  # 所有脑的名字列表
+        self.fixed_brain_names = list(map(lambda x: x.replace('?', '_'), self.brain_names))
+        self.brain_specs = [self._env.behavior_specs[b] for b in self.brain_names]  # 所有脑的信息
+        self.vector_idxs = [[i for i, b in enumerate(spec.observation_shapes) if len(b) == 1] for spec in self.brain_specs]   # 得到所有脑 观测值为向量的下标
+        self.vector_dims = [[b[0] for b in spec.observation_shapes if len(b) == 1] for spec in self.brain_specs]  # 得到所有脑 观测值为向量的维度
+        self.visual_idxs = [[i for i, b in enumerate(spec.observation_shapes) if len(b) == 3] for spec in self.brain_specs]   # 得到所有脑 观测值为图像的下标
         self.brain_num = len(self.brain_names)
 
         self.visual_sources = [len(v) for v in self.visual_idxs]
@@ -81,7 +83,7 @@ class InfoWrapper(BasicWrapper):
             for b in spec.observation_shapes:
                 if len(b) == 3:
                     self.visual_resolutions.append(
-                        list(self.resize)+[list(b)[-1] * stack_visual_nums])
+                        list(self.resize) + [list(b)[-1] * stack_visual_nums])
                     break
             else:
                 self.visual_resolutions.append([])
@@ -103,7 +105,7 @@ class InfoWrapper(BasicWrapper):
         actions = []
         for i in range(self.brain_num):
             if self.is_continuous[i]:
-                actions.append(np.random.random((self.brain_agents[i], self.a_dim[i])) * 2 - 1) # [-1, 1]
+                actions.append(np.random.random((self.brain_agents[i], self.a_dim[i])) * 2 - 1)  # [-1, 1]
             else:
                 actions.append(np.random.randint(self.a_dim[i], size=(self.brain_agents[i], 1), dtype=np.int32))
         return actions
@@ -156,7 +158,7 @@ class UnityReturnWrapper(BasicWrapper):
             self._env.step()
             d, t = self._env.get_steps(bn)
             ps.append(t)
-        
+
         obs, reward = d.obs, d.reward
         done = np.full(n, False)
         info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
@@ -175,7 +177,6 @@ class UnityReturnWrapper(BasicWrapper):
                 np.asarray(reward),
                 np.asarray(done),
                 info)
-        
 
     def deal_vector(self, n, vecs):
         '''
@@ -185,7 +186,7 @@ class UnityReturnWrapper(BasicWrapper):
             return np.hstack(vecs)
         else:
             return np.array([]).reshape(n, -1)
-        
+
     def deal_visual(self, n, viss):
         '''
         viss : [camera1, camera2, camera3, ...]
@@ -197,16 +198,16 @@ class UnityReturnWrapper(BasicWrapper):
             for v in viss:
                 s.append(self.resize_image(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss, dtype=np.uint8) # [B, N, (H, W, C)]
+        return np.array(ss, dtype=np.uint8)  # [B, N, (H, W, C)]
 
     def resize_image(self, image):
-        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize)+[-1])
+        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
         image *= 255
         return image
 
 
 class SamplerWrapper(BasicWrapper):
-    
+
     def __init__(self, env, env_args):
         super().__init__(env)
         self.reset_config = env_args['reset_config']
@@ -220,8 +221,9 @@ class SamplerWrapper(BasicWrapper):
         obs = self._env.reset(config=self.reset_config)
         return obs
 
+
 class ActionWrapper(BasicWrapper):
-    
+
     def __init__(self, env):
         super().__init__(env)
 

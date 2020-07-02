@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class GymCollector(object):
 
     def __init__(self):
@@ -12,7 +13,7 @@ class GymCollector(object):
         state = [np.array([[]] * n), np.array([[]] * n)]
         new_state = [np.array([[]] * n), np.array([[]] * n)]
         trajectories = [[] * n]
-        
+
         model.reset()
         s = env.reset()
         dones_flag = np.full(n, False)
@@ -42,5 +43,3 @@ class UnityCollector(object):
     @staticmethod
     def run_batch_trajectory(env, model, steps):
         pass
-
-    

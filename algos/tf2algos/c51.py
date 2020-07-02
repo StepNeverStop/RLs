@@ -51,7 +51,7 @@ class C51(make_off_policy_class(mode='share')):
                                                           max_episode=self.max_episode)
         self.assign_interval = assign_interval
 
-        _net = lambda: rls.c51_distributional(self.feat_dim, self.a_dim, self.atoms, hidden_units)
+        def _net(): return rls.c51_distributional(self.feat_dim, self.a_dim, self.atoms, hidden_units)
 
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
@@ -64,7 +64,7 @@ class C51(make_off_policy_class(mode='share')):
             model=self.q_dist_net,
             optimizer=self.optimizer
         ))
-    
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
@@ -96,6 +96,7 @@ class C51(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)

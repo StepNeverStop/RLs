@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
+
 def get_device():
     '''
     TODO: Annotation
@@ -13,6 +14,7 @@ def get_device():
     else:
         device = "/cpu:0"
     return device
+
 
 def show_graph(name='my_func_trace'):
     '''
@@ -205,6 +207,7 @@ def cast2float64(*args):
     cast data to tf.float32
     '''
     return [tf.cast(i, tf.float64) for i in args]
+
 
 def huber_loss(td_error, delta=1.):
     '''

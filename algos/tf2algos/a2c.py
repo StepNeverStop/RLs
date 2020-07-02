@@ -85,7 +85,7 @@ class A2C(make_on_policy_class(mode='share')):
                 norm_dist = tfp.distributions.Categorical(logits)
                 sample_op = norm_dist.sample()
         return sample_op, cell_state
-    
+
     @tf.function
     def _get_value(self, feat):
         with tf.device(self.device):
@@ -112,14 +112,14 @@ class A2C(make_on_policy_class(mode='share')):
             return summaries
 
         self._learn(function_dict={
-                        'calculate_statistics': self.calculate_statistics,
-                        'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
-                        'summary_dict': dict([
-                            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                            ])
-                    })
+            'calculate_statistics': self.calculate_statistics,
+            'train_function': _train,
+            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
+            'summary_dict': dict([
+                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+            ])
+        })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, crsty_loss, cell_state):

@@ -14,6 +14,7 @@ from tensorflow.keras.layers import Dense, Flatten, LayerNormalization
 from rls.networks import NatureCNN
 from skimage.util.shape import view_as_windows
 
+
 class VisualEncoder(M):
 
     def __init__(self, img_dim, fc_dim):
@@ -28,6 +29,7 @@ class VisualEncoder(M):
 
     def call(self, vis):
         return self.net(vis)
+
 
 def random_crop(imgs, output_size):
     """
@@ -46,20 +48,22 @@ def random_crop(imgs, output_size):
     h1 = np.random.randint(0, crop_max, n)
     # creates all sliding windows combinations of size (output_size)
     windows = view_as_windows(
-        imgs, (1, output_size, output_size, 1))[..., 0,:,:, 0]
+        imgs, (1, output_size, output_size, 1))[..., 0, :, :, 0]
     # selects a random window for each batch element
     cropped_imgs = windows[np.arange(n), w1, h1]
     return cropped_imgs
+
 
 def center_crop_image(image, output_size):
     h, w = image.shape[1:3]
     new_h, new_w = output_size, output_size
 
-    top = (h - new_h)//2
-    left = (w - new_w)//2
+    top = (h - new_h) // 2
+    left = (w - new_w) // 2
 
     image = image[:, top:top + new_h, left:left + new_w]
     return image
+
 
 class CURL(make_off_policy_class(mode='no_share')):
     """
@@ -121,16 +125,16 @@ class CURL(make_off_policy_class(mode='no_share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
         if self.is_continuous:
-            self.actor_net = rls.actor_continuous(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = rls.actor_continuous(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
         else:
-            self.actor_net = rls.actor_discrete(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)            
+            self.actor_net = rls.actor_discrete(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
-        
-        _q_net = lambda : rls.critic_q_one(self.s_dim+self.vis_feat_size, self.a_dim, hidden_units['q'])
+
+        def _q_net(): return rls.critic_q_one(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
 
@@ -140,14 +144,14 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
 
         self.critic_tv = self.critic_net.trainable_variables + self.encoder.trainable_variables
-        
+
         self.update_target_net_weights(
             self.critic_target_net.weights + self.encoder_target.trainable_variables,
             self.critic_net.weights + self.encoder.trainable_variables
         )
         self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr, curl_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha, self.optimizer_curl = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr])
-        
+
         self.model_recorder(dict(
             actor=self.actor_net,
             critic_net=self.critic_net,
@@ -156,8 +160,8 @@ class CURL(make_off_policy_class(mode='no_share')):
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha,
             optimizer_curl=self.optimizer_curl,
-            ))
-    
+        ))
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　
@@ -195,6 +199,7 @@ class CURL(make_off_policy_class(mode='no_share')):
 
     def learn(self, **kwargs):
         self.episode = kwargs['episode']
+
         def _train(memories, isw, crsty_loss, cell_state):
             td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
             if self.annealing and not self.auto_adaption:
@@ -206,27 +211,27 @@ class CURL(make_off_policy_class(mode='no_share')):
             data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
             data['pos'] = self.data_convert(
                 np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-                )
+            )
             data['visual_s'] = self.data_convert(
                 np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-                )
+            )
             data['visual_s_'] = self.data_convert(
                 np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
-                )
+            )
             return (data,)
 
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': _train,
-                'update_function': lambda : self.update_target_net_weights(
-                                            self.critic_target_net.weights + self.encoder_target.trainable_variables,
-                                            self.critic_net.weights + self.encoder.trainable_variables,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(
+                    self.critic_target_net.weights + self.encoder_target.trainable_variables,
+                    self.critic_net.weights + self.encoder.trainable_variables,
+                    self.ployak),
                 'summary_dict': dict([
-                                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
-                                ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
-                                ]),
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
+                ]),
                 'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'pos'],
                 'pre_process_function': _pre_process
             })
@@ -310,7 +315,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                         mu, log_std = self.actor_net(feat)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
-                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()),axis=-1)
+                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
                         logits = self.actor_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits)

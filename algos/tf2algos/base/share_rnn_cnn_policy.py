@@ -4,6 +4,7 @@ from .policy import Policy
 from rls.networks import VisualNet, ObsRNN
 from typing import List
 
+
 def _split_with_time(state, cell_state=(None,), record_cs=False, s_and_s_=False):
     '''
     TODO: Annotation
@@ -22,6 +23,7 @@ def _split_with_time(state, cell_state=(None,), record_cs=False, s_and_s_=False)
             return state, cell_state
         else:
             return state
+
 
 def _split_without_time(state, record_cs=False, s_and_s_=False):
     '''
@@ -60,7 +62,7 @@ class SharedPolicy(Policy):
             self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
             self.other_tv += self.visual_net.trainable_variables
             self.feat_dim = self.visual_net.hdim
-        
+
         if self.use_rnn:
             self.rnn_units = int(kwargs.get('rnn_units', 16))
             self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 20))
@@ -144,7 +146,7 @@ class SharedPolicy(Policy):
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [batch_size, -1, tf.shape(s)[-1]])    # [A, N] => [A, 1, N]
-            state, cell_state = self.rnn_net(s, *cell_state) # [B, T, N] => [B, T, N']
+            state, cell_state = self.rnn_net(s, *cell_state)  # [B, T, N] => [B, T, N']
             return _split_with_time(state, cell_state, record_cs, s_and_s_)
 
     def _cnn_rnn_get_feature(self, s, visual_s, *, cell_state=None, record_cs=False, s_and_s_=False):

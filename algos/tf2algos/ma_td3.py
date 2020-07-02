@@ -37,10 +37,10 @@ class MATD3(Policy):
         # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
         self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
 
-        _actor_net = lambda: rls.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
+        def _actor_net(): return rls.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
-        _q_net = lambda: rls.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
+        def _q_net(): return rls.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.update_target_net_weights(

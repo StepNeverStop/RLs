@@ -11,6 +11,7 @@ class PPO(make_on_policy_class(mode='share')):
     Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
     Emergence of Locomotion Behaviours in Rich Environments, http://arxiv.org/abs/1707.02286, DPPO
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -92,13 +93,13 @@ class PPO(make_on_policy_class(mode='share')):
             self.model_recorder(dict(
                 model=self.net,
                 optimizer=self.optimizer
-                ))
+            ))
         else:
             # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
             # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
                 self.actor_net = rls.actor_mu(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-                self.actor_net_tv = self.actor_net.trainable_variables+ [self.log_std]
+                self.actor_net_tv = self.actor_net.trainable_variables + [self.log_std]
             else:
                 self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
                 self.actor_net_tv = self.actor_net.trainable_variables
@@ -111,8 +112,8 @@ class PPO(make_on_policy_class(mode='share')):
                 critic=self.critic_net,
                 optimizer_actor=self.optimizer_actor,
                 optimizer_critic=self.optimizer_critic
-                ))
-            
+            ))
+
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob'])
 
@@ -195,7 +196,7 @@ class PPO(make_on_policy_class(mode='share')):
                         self.kl_coef,
                         crsty_loss,
                         cell_state
-                        )
+                    )
                     if kl > self.kl_stop:
                         early_step = i
                         break
@@ -210,8 +211,8 @@ class PPO(make_on_policy_class(mode='share')):
                     if kl > self.kl_stop:
                         early_step = i
                         break
-                    
-                for _ in range(self.value_epoch):  
+
+                for _ in range(self.value_epoch):
                     critic_loss = self.train_critic(
                         (s, visual_s, dc_r, old_value),
                         crsty_loss,
@@ -237,17 +238,17 @@ class PPO(make_on_policy_class(mode='share')):
         if self.share_net:
             summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
         else:
-            summary_dict =dict([
+            summary_dict = dict([
                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
             ])
 
         self._learn(function_dict={
-                        'calculate_statistics': self.calculate_statistics,
-                        'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value'],
-                        'summary_dict': summary_dict
-                    })
+            'calculate_statistics': self.calculate_statistics,
+            'train_function': _train,
+            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value'],
+            'summary_dict': summary_dict
+        })
 
     @tf.function(experimental_relax_shapes=True)
     def train_share(self, memories, kl_coef, crsty_loss, cell_state):
@@ -272,7 +273,7 @@ class PPO(make_on_policy_class(mode='share')):
                 else:
                     kl = tf.reduce_mean(old_log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
                 surrogate = ratio * advantage
-                
+
                 # https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
                 value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
@@ -336,7 +337,7 @@ class PPO(make_on_policy_class(mode='share')):
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
 
-                value_clip = old_value + tf.clip_by_value(value-old_value, -self.value_epsilon, self.value_epsilon)
+                value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
                 td_error_clip = dc_r - value_clip
                 td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))

@@ -9,6 +9,7 @@ class DDPG(make_off_policy_class(mode='share')):
     '''
     Deep Deterministic Policy Gradient, https://arxiv.org/abs/1509.02971
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -37,18 +38,18 @@ class DDPG(make_off_policy_class(mode='share')):
         self.discrete_tau = discrete_tau
 
         if self.is_continuous:
-            _actor_net = lambda: rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            def _actor_net(): return rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
             # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
         else:
-            _actor_net = lambda: rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         self.actor_tv = self.actor_net.trainable_variables
-        
-        _q_net = lambda : rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
+
+        def _q_net(): return rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.q_net = _q_net()
         self.q_target_net = _q_net()
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
@@ -104,14 +105,14 @@ class DDPG(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : self.update_target_net_weights(
-                                            self.actor_target_net.weights + self.q_target_net.weights,
-                                            self.actor_net.weights + self.q_net.weights,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(
+                    self.actor_target_net.weights + self.q_target_net.weights,
+                    self.actor_net.weights + self.q_net.weights,
+                    self.ployak),
                 'summary_dict': dict([
-                                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
-                                ])
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)

@@ -2,10 +2,12 @@ import numpy as np
 from utils.expl_expt import ExplorationExploitationClass
 from utils.plot import ion, ioff, plot_heatmap
 
+
 class QS:
     '''
     Q-learning/Sarsa/Expected Sarsa.
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -82,10 +84,10 @@ class QS:
                 value = np.mean(self.table[s_, :], axis=-1)
             else:
                 value = self.table[s_, self.next_a]
-        self.table[s, a] = (1 - self.lr) * self.table[s, a] + self.lr * (r + self.gamma * (1 - done) * value) 
+        self.table[s, a] = (1 - self.lr) * self.table[s, a] + self.lr * (r + self.gamma * (1 - done) * value)
         if self.step % 1000 == 0:
             plot_heatmap(self.s_dim, self.a_dim, self.table)
-    
+
     def close(self):
         ioff()
 

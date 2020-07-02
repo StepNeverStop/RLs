@@ -43,10 +43,10 @@ class PG(make_on_policy_class(mode='share')):
         self.model_recorder(dict(
             model=self.net,
             optimizer=self.optimizer
-            ))
-            
+        ))
+
         self.initialize_data_buffer()
-    
+
     def show_logo(self):
         self.recorder.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
@@ -99,11 +99,11 @@ class PG(make_on_policy_class(mode='share')):
             return summaries
 
         self._learn(function_dict={
-                        'calculate_statistics': self.calculate_statistics,
-                        'train_function': _train,
-                        'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
-                        'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
-                    })
+            'calculate_statistics': self.calculate_statistics,
+            'train_function': _train,
+            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
+            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+        })
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, crsty_loss, cell_state):

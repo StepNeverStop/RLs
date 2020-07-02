@@ -10,6 +10,7 @@ class SQL(make_off_policy_class(mode='share')):
         Soft Q-Learning.
         Reinforcement Learning with Deep Energy-Based Policies: https://arxiv.org/abs/1702.08165
     '''
+
     def __init__(self,
                  s_dim,
                  visual_sources,
@@ -33,7 +34,7 @@ class SQL(make_off_policy_class(mode='share')):
         self.alpha = alpha
         self.ployak = ployak
 
-        _q_net = lambda : rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return rls.critic_q_all(self.feat_dim, self.a_dim, hidden_units)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -79,7 +80,7 @@ class SQL(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q_values = self.q_net(feat)
-            logits = tf.math.exp((q_values-self.get_v(q_values))/self.alpha)
+            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)
             cate_dist = tfp.distributions.Categorical(logits)
             pi = cate_dist.sample()
         return pi, cell_state
@@ -87,7 +88,7 @@ class SQL(make_off_policy_class(mode='share')):
     @tf.function
     def get_v(self, q):
         with tf.device(self.device):
-            v = self.alpha*tf.math.log(tf.reduce_mean(tf.math.exp(q/self.alpha), axis=1, keepdims=True))
+            v = self.alpha * tf.math.log(tf.reduce_mean(tf.math.exp(q / self.alpha), axis=1, keepdims=True))
         return v
 
     def learn(self, **kwargs):
@@ -95,10 +96,10 @@ class SQL(make_off_policy_class(mode='share')):
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda : self.update_target_net_weights(
-                                            self.q_target_net.weights,
-                                            self.q_net.weights,
-                                            self.ployak),
+                'update_function': lambda: self.update_target_net_weights(
+                    self.q_target_net.weights,
+                    self.q_net.weights,
+                    self.ployak),
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
             })
 

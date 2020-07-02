@@ -19,12 +19,13 @@ from utils.time import get_time_hhmmss
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.agent")
 
+
 def ShowConfig(config):
     for key in config:
         logger.info('-' * 60)
         logger.info(
             ''.join(['|', str(key).ljust(28), str(config[key]).rjust(28), '|'])
-            )
+        )
     logger.info('-' * 60)
 
 
@@ -97,7 +98,6 @@ class Agent:
         self.env = make_env(self.env_args.to_dict)
         logger.info('Initialize environment successful.')
 
-
         # ALGORITHM CONFIG
         Model, algorithm_config, _policy_mode = get_model_info(self.model_args['algo'])
         self.model_args['policy_mode'] = _policy_mode
@@ -137,7 +137,7 @@ class Agent:
                     self.buffer_args['type'] = 'ER'
         else:
             self.buffer_args['type'] = 'None'
-            self.train_args['pre_fill_steps'] = 0 # if on-policy, prefill experience replay is no longer needed.
+            self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
 
         # MODEL
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
@@ -185,7 +185,7 @@ class Agent:
                 }
                 save_config(os.path.join(base_dir, 'config'), records_dict)
                 if self.train_args['use_wandb']:
-                    wandb.config.update(records_dict) 
+                    wandb.config.update(records_dict)
         else:
             # buffer -----------------------------------
             self.buffer_args_s = []
@@ -258,7 +258,7 @@ class Agent:
             model_info += f"Pass time(h:m:s) {get_time_hhmmss(self.start_time)} |"
         logger.info(
             ''.join([model_info, *args])
-            )
+        )
 
     def __call__(self):
         self.train()
@@ -292,9 +292,9 @@ class Agent:
                     add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                     add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                     add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
-                    total_step_control=bool(self.train_args['total_step_control']),
                     eval_interval=int(self.train_args['eval_interval']),
-                    max_total_step=int(self.train_args['max_total_step'])
+                    max_learn_step=int(self.train_args['max_learn_step']),
+                    max_frame_step=int(self.train_args['max_frame_step'])
                 )
             finally:
                 self.model.close()
@@ -344,7 +344,8 @@ class Agent:
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                         add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
                         total_step_control=bool(self.train_args['total_step_control']),
-                        max_total_step=int(self.train_args['max_total_step']),
+                        max_learn_step=int(self.train_args['max_learn_step']),
+                        max_frame_step=int(self.train_args['max_frame_step']),
                         real_done=bool(self.train_args['real_done'])
                     )
             finally:
@@ -378,4 +379,3 @@ class Agent:
             ApexBuffer()()
         else:
             raise Exception('unknown mode')
-

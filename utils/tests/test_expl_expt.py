@@ -2,6 +2,7 @@ import sys
 sys.path.append('../..')
 from utils.expl_expt import ExplorationExploitationClass
 
+
 def test_exploration_exploitation_class():
     my_expl = ExplorationExploitationClass(eps_init=1, eps_mid=0.2, eps_final=0.01, eps_eval=0,
                                            init2mid_annealing_episode=50, start_episode=0, max_episode=100)

@@ -19,7 +19,6 @@ class sth(object):
             init_value = z[i]
         return y
 
-
     @staticmethod
     def int2action_index(x, action_dim_list):
         """

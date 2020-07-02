@@ -129,7 +129,7 @@ class Sum_Tree(object):
             return tree_index
         # index = np.where(self.tree[left] >= seg_p_total, left, 0) + np.where(self.tree[left] < seg_p_total, right, 0)
         # seg_p_total = np.where(self.tree[left] >= seg_p_total, seg_p_total, 0) + np.where(self.tree[left] < seg_p_total, seg_p_total - self.tree[left], 0)
-        index = np.where(seg_p_total < self.tree[left] , left, right)
+        index = np.where(seg_p_total < self.tree[left], left, right)
         seg_p_total = np.where(seg_p_total < self.tree[left], seg_p_total, seg_p_total - self.tree[left])
         return self._retrieve_batch(index, seg_p_total)
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     # print(x / t)
 
     tree = Sum_Tree(20)
-    tree.add_batch(p=np.arange(10)+1, data=np.ones(10))
+    tree.add_batch(p=np.arange(10) + 1, data=np.ones(10))
     tree.pp()
     tree._updatetree_batch(np.array([32, 32, 34]), np.array([10, 11, 12]))
     # [tree._updatetree(i, p) for i, p  in zip(np.array([32, 32, 34]), np.array([10, 11, 12]))]

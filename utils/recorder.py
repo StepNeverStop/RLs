@@ -13,7 +13,7 @@ class Recorder(object):
         self.writer = tf.summary.create_file_writer(log_dir)
         # self.writer.set_as_default()
         self.checkpoint = tf.train.Checkpoint(**kwargs)
-        self.saver = tf.train.CheckpointManager(self.checkpoint, directory=cp_dir, max_to_keep=5, checkpoint_name='rb')
+        self.saver = tf.train.CheckpointManager(self.checkpoint, directory=cp_dir, max_to_keep=5, checkpoint_name='ckpt')
         self.excel_writer = pd.ExcelWriter(excel_dir + '/data.xlsx')
         self.logger = self.create_logger(
             name='logger',

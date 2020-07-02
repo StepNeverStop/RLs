@@ -5,6 +5,7 @@ from typing import Dict
 from .wrappers import *
 from collections import defaultdict
 
+
 def get_env_type(env_id):
 
     _game_envs = defaultdict(set)
@@ -28,6 +29,7 @@ def get_env_type(env_id):
 
     return env_type
 
+
 def make_atari(env, config: Dict):
     max_episode_steps = config.get('max_episode_steps', None)
     env = NoopResetEnv(env, noop_max=int(config.get('noop_max', 30)))
@@ -38,6 +40,7 @@ def make_atari(env, config: Dict):
     env = wrap_deepmind(env, config)
     return env
 
+
 def wrap_deepmind(env, config: Dict):
     """Configure environment for DeepMind-style Atari.
     """
@@ -46,7 +49,7 @@ def wrap_deepmind(env, config: Dict):
     if 'FIRE' in env.unwrapped.get_action_meanings():
         env = FireResetEnv(env)
     env = GrayResizeEnv(env, resize=bool(config.get('resize', True)), grayscale=bool(config.get('grayscale', True)),
-        width=int(config.get('width', 84)), height=int(config.get('height', 84)))
+                        width=int(config.get('width', 84)), height=int(config.get('height', 84)))
     if bool(config.get('scale', False)):
         env = ScaleEnv(env)
     if bool(config.get('clip_rewards', True)):
@@ -83,8 +86,8 @@ def build_env(config: Dict):
         env = make_atari(env, default_config)
     else:
         if gym_env_name.split('-')[0] == 'MiniGrid':
-            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env) # Get pixel observations, or RGBImgObsWrapper
-            env = gym_minigrid.wrappers.ImgObsWrapper(env) # Get rid of the 'mission' field
+            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env)  # Get pixel observations, or RGBImgObsWrapper
+            env = gym_minigrid.wrappers.ImgObsWrapper(env)  # Get rid of the 'mission' field
         if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
             env = NoopResetEnv(env, noop_max=noop_max)
         if action_skip:
