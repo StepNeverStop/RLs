@@ -77,6 +77,15 @@ class Agent:
         self.model_args = model_args
         self.buffer_args = buffer_args
         self.train_args = train_args
+        
+        # training control: max_train_step > max_frame_step > max_train_episode
+        if self.train_args['max_train_step'] > 0:
+            self.train_args['max_frame_step'] = sys.maxsize
+            self.train_args['max_train_episode'] = sys.maxsize
+        elif self.train_args['max_frame_step'] > 0:
+            self.train_args['max_train_episode'] = sys.maxsize
+        elif self.train_args['max_train_episode'] <= 0:
+            raise ValueError('max_train_step/max_frame_step/max_train_episode must be specified at least one with value larger than 0.')
 
         self.model_index = str(self.train_args.get('index'))
         self.start_time = time.time()
@@ -123,12 +132,12 @@ class Agent:
                 _n_step = algorithm_config.get('n_step', False)
                 if _use_priority and _n_step:
                     self.buffer_args['type'] = 'NstepPER'
-                    self.buffer_args['NstepPER']['max_episode'] = self.train_args['max_episode']
+                    self.buffer_args['NstepPER']['max_train_step'] = self.train_args['max_train_step']
                     self.buffer_args['NstepPER']['gamma'] = algorithm_config['gamma']
                     algorithm_config['gamma'] = pow(algorithm_config['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
                 elif _use_priority:
                     self.buffer_args['type'] = 'PER'
-                    self.buffer_args['PER']['max_episode'] = self.train_args['max_episode']
+                    self.buffer_args['PER']['max_train_step'] = self.train_args['max_train_step']
                 elif _n_step:
                     self.buffer_args['type'] = 'NstepER'
                     self.buffer_args['NstepER']['gamma'] = algorithm_config['gamma']
@@ -163,7 +172,7 @@ class Agent:
                 'visual_resolution': self.env.visual_resolution,
                 'a_dim': self.env.a_dim,
                 'is_continuous': self.env.is_continuous,
-                'max_episode': self.train_args.max_episode,
+                'max_train_step': self.train_args.max_train_step,
                 'base_dir': base_dir,
                 'logger2file': self.model_args.logger2file,
                 'seed': self.model_args.seed,
@@ -174,7 +183,7 @@ class Agent:
             self.model.init_or_restore(self.train_args['load_model_path'])
             # model -------------------------------
 
-            self.train_args['begin_episode'] = self.model.get_init_episode()
+            self.train_args['begin_train_step'] = self.model.get_init_train_step()
             if not self.train_args['inference']:
                 records_dict = {
                     'env': self.env_args.to_dict,
@@ -209,7 +218,7 @@ class Agent:
                 'visual_sources': self.env.visual_sources[i],
                 'visual_resolution': self.env.visual_resolutions[i],
                 'is_continuous': self.env.is_continuous[i],
-                'max_episode': self.train_args.max_episode,
+                'max_train_step': self.train_args.max_train_step,
                 'base_dir': os.path.join(base_dir, b),
                 'logger2file': self.model_args_s[i].logger2file,
                 'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
@@ -236,7 +245,7 @@ class Agent:
                 os.path.join(self.train_args['load_model_path'], b))
              for i, b in enumerate(self.env.fixed_brain_names)]
             # model ------------------------------------
-            self.train_args['begin_episode'] = self.models[0].get_init_episode()
+            self.train_args['begin_train_step'] = self.models[0].get_init_train_step()
             if not self.train_args['inference']:
                 for i, b in enumerate(self.env.fixed_brain_names):
                     records_dict = {
@@ -277,12 +286,12 @@ class Agent:
                     env=self.env,
                     model=self.model,
                     print_func=self.pwi,
-                    begin_episode=int(self.train_args['begin_episode']),
+                    begin_train_step=int(self.train_args['begin_train_step']),
                     render=bool(self.train_args['render']),
                     render_episode=int(self.train_args.get('render_episode', 50000)),
                     save_frequency=int(self.train_args['save_frequency']),
-                    max_step=int(self.train_args['max_step']),
-                    max_episode=int(self.train_args['max_episode']),
+                    max_step_per_episode=int(self.train_args['max_step_per_episode']),
+                    max_train_episode=int(self.train_args['max_train_episode']),
                     eval_while_train=bool(self.train_args['eval_while_train']),
                     max_eval_episode=int(self.train_args.get('max_eval_episode')),
                     off_policy_step_eval=bool(self.train_args['off_policy_step_eval']),
@@ -293,7 +302,7 @@ class Agent:
                     add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                     add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
                     eval_interval=int(self.train_args['eval_interval']),
-                    max_learn_step=int(self.train_args['max_learn_step']),
+                    max_train_step=int(self.train_args['max_train_step']),
                     max_frame_step=int(self.train_args['max_frame_step'])
                 )
             finally:
@@ -315,10 +324,10 @@ class Agent:
                         models=self.models,
                         buffer=self.ma_data,
                         print_func=self.pwi,
-                        begin_episode=int(self.train_args['begin_episode']),
+                        begin_train_step=int(self.train_args['begin_train_step']),
                         save_frequency=int(self.train_args['save_frequency']),
-                        max_step=int(self.train_args['max_step']),
-                        max_episode=int(self.train_args['max_episode']),
+                        max_step_per_episode=int(self.train_args['max_step_per_episode']),
+                        max_train_episode=int(self.train_args['max_train_episode']),
                         policy_mode=str(self.model_args['policy_mode'])
                     )
                 else:
@@ -334,17 +343,17 @@ class Agent:
                         env=self.env,
                         models=self.models,
                         print_func=self.pwi,
-                        begin_episode=int(self.train_args['begin_episode']),
+                        begin_train_step=int(self.train_args['begin_train_step']),
                         save_frequency=int(self.train_args['save_frequency']),
-                        max_step=int(self.train_args['max_step']),
-                        max_episode=int(self.train_args['max_episode']),
+                        max_step_per_episode=int(self.train_args['max_step_per_episode']),
+                        max_train_episode=int(self.train_args['max_train_episode']),
                         policy_mode=str(self.model_args['policy_mode']),
                         moving_average_episode=int(self.train_args['moving_average_episode']),
                         add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                         add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
                         total_step_control=bool(self.train_args['total_step_control']),
-                        max_learn_step=int(self.train_args['max_learn_step']),
+                        max_train_step=int(self.train_args['max_train_step']),
                         max_frame_step=int(self.train_args['max_frame_step']),
                         real_done=bool(self.train_args['real_done'])
                     )

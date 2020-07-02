@@ -24,11 +24,11 @@ def init_variables(env):
 
 
 def gym_train(env, model, print_func,
-              begin_episode, render, render_episode,
-              save_frequency, max_step, max_episode, eval_while_train, max_eval_episode,
+              begin_train_step, render, render_episode,
+              save_frequency, max_step_per_episode, max_train_episode, eval_while_train, max_eval_episode,
               off_policy_step_eval, off_policy_step_eval_num,
               policy_mode, moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-              eval_interval, max_learn_step, max_frame_step):
+              eval_interval, max_train_step, max_frame_step):
     """
     TODO: Annotation
     """
@@ -36,9 +36,9 @@ def gym_train(env, model, print_func,
     i, state, new_state = init_variables(env)
     sma = SMA(moving_average_episode)
     frame_step = 0
-    learn_step = 0
+    train_step = begin_train_step
 
-    for episode in range(begin_episode, max_episode):
+    for episode in range(max_train_episode):
         model.reset()
         state[i] = env.reset()
         dones_flag = np.full(env.n, False)
@@ -69,16 +69,17 @@ def gym_train(env, model, print_func,
             state[i] = correct_new_state
 
             if policy_mode == 'off-policy':
-                model.learn(episode=episode, step=1)
-                learn_step += 1
-                if off_policy_step_eval and learn_step % eval_interval == 0:
-                    gym_step_eval(env.eval_env, learn_step, model, off_policy_step_eval_num, max_step)
+                model.learn(episode=episode, train_step=train_step, step=1)
+                train_step += 1
+                if train_step % save_frequency == 0:
+                    model.save_checkpoint(train_step)
+                if off_policy_step_eval and train_step % eval_interval == 0:
+                    gym_step_eval(env.eval_env, train_step, model, off_policy_step_eval_num, max_step_per_episode)
 
             frame_step += env.n
-
-            if 0 < max_learn_step <= learn_step or 0 < max_frame_step <= frame_step:
-                model.save_checkpoint(episode)
-                logger.info(f'End Training, learn step: {learn_step}, frame_step: {frame_step}')
+            if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
+                model.save_checkpoint(train_step)
+                logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
             if all(dones_flag):
@@ -87,13 +88,15 @@ def gym_train(env, model, print_func,
                 if policy_mode == 'off-policy':
                     break
 
-            if step >= max_step:
+            if step >= max_step_per_episode:
                 break
 
         sma.update(r)
         if policy_mode == 'on-policy':
-            model.learn(episode=episode, step=step)
-            learn_step += 1
+            model.learn(episode=episode, train_step=train_step)
+            train_step += 1
+            if train_step % save_frequency == 0:
+                model.save_checkpoint(train_step)
         model.writer_summary(
             episode,
             reward_mean=r.mean(),
@@ -104,8 +107,6 @@ def gym_train(env, model, print_func,
         )
         print_func('-' * 40, out_time=True)
         print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 3)}')
-        if episode % save_frequency == 0:
-            model.save_checkpoint(episode)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             gym_random_sample(env, model, steps=add_noise2buffer_steps, print_func=print_func)
@@ -113,10 +114,10 @@ def gym_train(env, model, print_func,
         if eval_while_train and env.reward_threshold is not None:
             if r.max() >= env.reward_threshold:
                 print_func(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
-                gym_evaluate(env, model, max_step, max_eval_episode, print_func)
+                gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
 
 
-def gym_step_eval(env, step, model, episodes_num, max_step):
+def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     '''
     1个环境的推断模式
     '''
@@ -139,7 +140,7 @@ def gym_step_eval(env, step, model, episodes_num, max_step):
             done = done[0]
             r += reward
             step += 1
-            if done or step > max_step:
+            if done or step > max_step_per_episode:
                 ret += r
                 ave_steps += step
                 break
@@ -174,7 +175,7 @@ def gym_random_sample(env, model, steps, print_func):
     print_func('Noise added complete.')
 
 
-def gym_evaluate(env, model, max_step, max_eval_episode, print_func):
+def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func):
     i, state, _ = init_variables(env)
     total_r = np.zeros(env.n)
     total_steps = np.zeros(env.n)
@@ -197,7 +198,7 @@ def gym_evaluate(env, model, max_step, max_eval_episode, print_func):
             r_tem[unfinished_index] = reward[unfinished_index]
             steps[unfinished_index] += 1
             r += r_tem
-            if all(dones_flag) or any(steps >= max_step):
+            if all(dones_flag) or any(steps >= max_step_per_episode):
                 break
         total_r += r
         total_steps += steps

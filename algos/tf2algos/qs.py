@@ -20,7 +20,7 @@ class QS:
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
-                 init2mid_annealing_episode=100,
+                 init2mid_annealing_step=1000,
                  **kwargs):
         assert not hasattr(s_dim, '__len__')
         assert not is_continuous
@@ -28,17 +28,17 @@ class QS:
         self.s_dim = s_dim
         self.a_dim = a_dim
         self.gamma = float(kwargs.get('gamma', 0.999))
-        self.max_episode = int(kwargs.get('max_episode', 1000))
+        self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.step = 0
-        self.episode = 0    # episode of now
+        self.train_step = 0
         self.n_agents = int(kwargs.get('n_agents', 0))
         if self.n_agents <= 0:
             raise ValueError('agents num must larger than zero.')
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
-                                                          init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=self.max_episode)
+                                                          init2mid_annealing_step=init2mid_annealing_step,
+                                                          max_step=self.max_train_step)
         self.table = np.zeros(shape=(self.s_dim, self.a_dim))
         self.lr = lr
         self.next_a = np.zeros(self.n_agents, dtype=np.int32)
@@ -64,12 +64,12 @@ class QS:
     def _get_action(self, s, evaluation=False, _max=False):
         a = np.array([np.argmax(self.table[i, :]) for i in s])
         if not _max:
-            if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
+            if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
                 a = np.random.randint(0, self.a_dim, self.n_agents)
         return a
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
     def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
         self.step += 1

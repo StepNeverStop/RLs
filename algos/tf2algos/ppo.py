@@ -185,7 +185,7 @@ class PPO(make_on_policy_class(mode='share')):
 
     # @show_graph(name='ppo_net')
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _train(data, crsty_loss, cell_state):
             early_step = 0
@@ -236,11 +236,11 @@ class PPO(make_on_policy_class(mode='share')):
             return summaries
 
         if self.share_net:
-            summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+            summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
         else:
             summary_dict = dict([
-                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
             ])
 
         self._learn(function_dict={

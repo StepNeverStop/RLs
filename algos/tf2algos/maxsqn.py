@@ -25,7 +25,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
-                 init2mid_annealing_episode=100,
+                 init2mid_annealing_step=1000,
                  use_epsilon=False,
                  q_lr=5.0e-4,
                  alpha_lr=5.0e-4,
@@ -43,8 +43,8 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
-                                                          init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=self.max_episode)
+                                                          init2mid_annealing_step=init2mid_annealing_step,
+                                                          max_step=self.max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.log_alpha = alpha if not auto_adaption else tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -84,7 +84,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         return tf.exp(self.log_alpha)
 
     def choose_action(self, s, visual_s, evaluation=False):
-        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
+        if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -101,15 +101,15 @@ class MAXSQN(make_off_policy_class(mode='share')):
         return tf.argmax(q, axis=1), pi, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
                                                                           self.ployak),
                 'summary_dict': dict([
-                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
-                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
+                    ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ])
             })
 

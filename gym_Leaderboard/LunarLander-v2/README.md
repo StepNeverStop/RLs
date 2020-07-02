@@ -21,7 +21,7 @@ Parameters:
 'ployak': 0.995,
 'lr': 2.0e-3,
 'discrete_tau': 1.0,
-'max_episode': 50000,
+'max_train_episode': 50000,
 'batch_size': 8192,
 'buffer_size': 200000,
 'use_priority': False,

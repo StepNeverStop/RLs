@@ -19,7 +19,7 @@ class DDQN(DQN):
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
-                 init2mid_annealing_episode=100,
+                 init2mid_annealing_step=1000,
                  assign_interval=2,
                  hidden_units=[32, 32],
                  **kwargs):
@@ -34,7 +34,7 @@ class DDQN(DQN):
             eps_init=eps_init,
             eps_mid=eps_mid,
             eps_final=eps_final,
-            init2mid_annealing_episode=init2mid_annealing_episode,
+            init2mid_annealing_step=init2mid_annealing_step,
             assign_interval=assign_interval,
             hidden_units=hidden_units,
             **kwargs)

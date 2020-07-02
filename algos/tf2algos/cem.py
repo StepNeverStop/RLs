@@ -105,7 +105,7 @@ class CEM(make_on_policy_class(mode='share')):
         pass
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         rets = self.returns.reshape(-1, self.envs_per_popu).mean(axis=-1)
         elites_idxs = rets.argsort()[-self.n_elite:]
         elites_weights = np.array(self.models_weights)[elites_idxs, :]
@@ -113,7 +113,7 @@ class CEM(make_on_policy_class(mode='share')):
         self.sigma = np.var(elites_weights, axis=0)
         self._update_models_weights()
         self._reset_variables()
-        self.write_training_summaries(self.episode, dict([
+        self.write_training_summaries(self.train_step, dict([
             ['Statistics/mu', self.mu.mean()],
             ['Statistics/sigma', self.sigma.mean()],
             ['Statistics/sample_std', self.sample_std.mean()]
@@ -151,7 +151,7 @@ class CEM(make_on_policy_class(mode='share')):
         '''
         重新给模型赋参数
         '''
-        extra_var_multiplier = max((1.0 - self.episode / self.extra_decay_eps), self.extra_var_last_multiplier)
+        extra_var_multiplier = max((1.0 - self.train_step / self.extra_decay_eps), self.extra_var_last_multiplier)
         self.sample_std = np.sqrt(self.sigma + np.square(self.extra_std) * extra_var_multiplier)
         self.models_weights = [self.mu + self.sample_std * np.random.randn(self.mu.shape[0]) for i in range(self.populations)]
         [m.set_wb(wb) for m, wb in zip(self.cem_models, self.models_weights)]

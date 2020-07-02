@@ -34,7 +34,7 @@ class MADPG(Policy):
         self.ployak = ployak
 
         # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-        self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+        self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         self.actor_net = rls.actor_dpg(self.s_dim, 0, self.a_dim, hidden_units['actor'])
         self.q_net = rls.critic_q_one((self.s_dim) * self.n, 0, (self.a_dim) * self.n, hidden_units['q'])
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
@@ -79,20 +79,13 @@ class MADPG(Policy):
                 return tf.clip_by_value(mu + self.action_noise(), -1, 1)
 
     def learn(self, episode, ap, al, ss, ss_, aa, aa_, s, r):
-        self.episode = episode
         ap, al, ss, ss_, aa, aa_, s, r = map(self.data_convert, (ap, al, ss, ss_, aa, aa_, s, r))
         summaries = self.train(ap, al, ss, ss_, aa, aa_, s, r)
         summaries.update(dict([
-            ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-            ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+            ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+            ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
         ]))
         self.write_training_summaries(self.global_step, summaries)
-
-    def get_max_episode(self):
-        """
-        get the max episode of this training model.
-        """
-        return self.max_episode
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, q_actor_a_previous, q_actor_a_later, ss, ss_, aa, aa_, s, r):

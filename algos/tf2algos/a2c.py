@@ -98,7 +98,7 @@ class A2C(make_on_policy_class(mode='share')):
         self.data.cal_dc_r(self.gamma, init_value)
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _train(data, crsty_loss, cell_state):
             for _ in range(self.epoch):
@@ -116,8 +116,8 @@ class A2C(make_on_policy_class(mode='share')):
             'train_function': _train,
             'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
             'summary_dict': dict([
-                ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
             ])
         })
 

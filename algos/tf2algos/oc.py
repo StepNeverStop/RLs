@@ -26,7 +26,7 @@ class OC(make_off_policy_class(mode='share')):
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
-                 init2mid_annealing_episode=100,
+                 init2mid_annealing_step=1000,
                  boltzmann_temperature=1.0,
                  options_num=4,
                  ent_coff=0.01,
@@ -51,8 +51,8 @@ class OC(make_off_policy_class(mode='share')):
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
-                                                          init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=self.max_episode)
+                                                          init2mid_annealing_step=init2mid_annealing_step,
+                                                          max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer
@@ -114,7 +114,7 @@ class OC(make_off_policy_class(mode='share')):
 
         a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         if self.use_eps_greedy:
-            if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):   # epsilon greedy
+            if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
                 self.options = self._generate_random_options()
         a = a.numpy()
         return a
@@ -147,7 +147,7 @@ class OC(make_off_policy_class(mode='share')):
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _update():
             if self.global_step % self.assign_interval == 0:
@@ -159,9 +159,9 @@ class OC(make_off_policy_class(mode='share')):
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
-                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
-                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.episode)],
-                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.episode)],
+                    ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
+                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.train_step)],
+                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.train_step)],
                     ['Statistics/option', self.options[0]]
                 ])
             })

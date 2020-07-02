@@ -95,7 +95,7 @@ def make_on_policy_class(mode='share'):
             self.summaries.update(summaries)
             self.summaries.update(_summary)
 
-            self.write_training_summaries(self.episode, self.summaries)
+            self.write_training_summaries(self.train_step, self.summaries)
 
             self.clear()
 

@@ -16,7 +16,7 @@ Parameters:
 'gamma': 0.999,
 'ployak': 0.995,
 'lr': 5.0e-3,
-'max_episode': 50000,
+'max_train_episode': 50000,
 'discrete_tau': 1.0, # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
 'batch_size': 8192,
 'buffer_size': 200000,

@@ -92,7 +92,7 @@ class SQL(make_off_policy_class(mode='share')):
         return v
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -100,7 +100,7 @@ class SQL(make_off_policy_class(mode='share')):
                     self.q_target_net.weights,
                     self.q_net.weights,
                     self.ployak),
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)

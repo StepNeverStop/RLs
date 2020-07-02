@@ -50,7 +50,7 @@ class TD3(make_off_policy_class(mode='share')):
             if noise_type == 'gaussian':
                 self.action_noise = rls.ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
-                self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+                self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         else:
             def _actor_net(): return rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
@@ -111,7 +111,7 @@ class TD3(make_off_policy_class(mode='share')):
             return mu, pi, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
@@ -120,8 +120,8 @@ class TD3(make_off_policy_class(mode='share')):
                     self.actor_net.weights + self.critic_net.weights,
                     self.ployak),
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
                 ])
             })
 

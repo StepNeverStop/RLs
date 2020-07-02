@@ -5,12 +5,12 @@ general:
     train_time_step: 5
     rnn_units: 8
     tf_dtype: float32 # float32 or float64
-    visual_feature: 128
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
     curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
-    curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
     curiosity_loss_weight: 5 # weight that scale the gradient loss and ICM loss
+    curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
+    visual_feature: 128
     normalize_vector_obs: False
 
 on_policy:
@@ -86,7 +86,7 @@ qs:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 20
+    init2mid_annealing_step: 100
 
 dqn: &dqn
     lr: 5.0e-4
@@ -94,7 +94,7 @@ dqn: &dqn
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
@@ -130,7 +130,7 @@ oc:
     terminal_mask: true
     double_q: false
     termination_regularizer: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     options_num: 4
     batch_size: 256
     buffer_size: 100000
@@ -239,7 +239,7 @@ c51:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
@@ -256,7 +256,7 @@ rainbow:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
@@ -275,7 +275,7 @@ qrdqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
@@ -294,7 +294,7 @@ iqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
@@ -545,7 +545,7 @@ maxsqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_episode: 10
+    init2mid_annealing_step: 100
     auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4

@@ -83,7 +83,7 @@ class PG(make_on_policy_class(mode='share')):
         self.data.cal_dc_r(self.gamma, 0., normalize=True)
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _train(data, crsty_loss, cell_state):
             for _ in range(self.epoch):
@@ -102,7 +102,7 @@ class PG(make_on_policy_class(mode='share')):
             'calculate_statistics': self.calculate_statistics,
             'train_function': _train,
             'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
-            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
         })
 
     @tf.function(experimental_relax_shapes=True)

@@ -28,7 +28,7 @@ class IQN(make_off_policy_class(mode='share')):
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
-                 init2mid_annealing_episode=100,
+                 init2mid_annealing_step=1000,
                  assign_interval=2,
                  hidden_units={
                      'q_net': [128, 64],
@@ -54,8 +54,8 @@ class IQN(make_off_policy_class(mode='share')):
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
-                                                          init2mid_annealing_episode=init2mid_annealing_episode,
-                                                          max_episode=self.max_episode)
+                                                          init2mid_annealing_step=init2mid_annealing_step,
+                                                          max_step=self.max_train_step)
 
         def _net(): return rls.iqn_net(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
 
@@ -89,7 +89,7 @@ class IQN(make_off_policy_class(mode='share')):
         ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.episode, evaluation=evaluation):
+        if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
             a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -120,7 +120,7 @@ class IQN(make_off_policy_class(mode='share')):
             return _quantiles, _quantiles_tiled
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _update():
             if self.global_step % self.assign_interval == 0:
@@ -129,7 +129,7 @@ class IQN(make_off_policy_class(mode='share')):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': _update,
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)

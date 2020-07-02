@@ -55,7 +55,7 @@ class Base:
         '''
         return tf.convert_to_tensor(data, dtype=self._data_type)
 
-    def get_init_episode(self):
+    def get_init_train_step(self):
         """
         get the initial training step. use for continue train from last training step.
         """
@@ -102,7 +102,7 @@ class Base:
         """
         save the training model 
         """
-        self.recorder.logger.info(f'Save checkpoint success. Episode: {global_step}')
+        self.recorder.logger.info(f'Save checkpoint success. Training step: {global_step}')
         self.recorder.saver.save(checkpoint_number=global_step)
 
     def writer_summary(self, global_step, **kargs):
@@ -157,7 +157,7 @@ class Base:
 
     def get_global_step(self):
         """
-        get the current trianing step.
+        get the current training step.
         """
         return self.global_step
 

@@ -17,7 +17,7 @@ Parameters:
 'use_epsilon': False,
 'auto_adaption': True,
 'lr': 1.0e-1,
-'max_episode': 50000,
+'max_train_episode': 50000,
 'gamma': 0.999,
 'ployak': 0.995,
 'batch_size': 8192,

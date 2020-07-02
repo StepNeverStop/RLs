@@ -141,7 +141,7 @@ class SAC_V(make_off_policy_class(mode='share')):
             return mu, pi, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _train(memories, isw, crsty_loss, cell_state):
             if self.is_continuous or self.use_gumbel:
@@ -157,9 +157,9 @@ class SAC_V(make_off_policy_class(mode='share')):
                 'train_function': _train,
                 'update_function': lambda: self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak),
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)],
-                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.episode)]
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ])
             })
 

@@ -225,7 +225,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
         return new_subgoal
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             if self.data_low.is_lg_batch_size and self.data_high.is_lg_batch_size:
                 self.intermediate_variable_reset()
@@ -250,10 +250,10 @@ class HIRO(make_off_policy_class(mode='no_share')):
                                                    self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
-                    ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.episode)],
-                    ['LEARNING_RATE/low_critic_lr', self.low_critic_lr(self.episode)],
-                    ['LEARNING_RATE/high_actor_lr', self.high_actor_lr(self.episode)],
-                    ['LEARNING_RATE/high_critic_lr', self.high_critic_lr(self.episode)]
+                    ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.train_step)],
+                    ['LEARNING_RATE/low_critic_lr', self.low_critic_lr(self.train_step)],
+                    ['LEARNING_RATE/high_actor_lr', self.high_actor_lr(self.train_step)],
+                    ['LEARNING_RATE/high_critic_lr', self.high_critic_lr(self.train_step)]
                 ]))
                 self.write_training_summaries(self.global_step, self.summaries)
 

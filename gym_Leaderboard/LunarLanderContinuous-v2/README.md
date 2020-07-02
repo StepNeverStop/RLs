@@ -21,7 +21,7 @@ Parameters:
 'gamma': 0.999,
 'ployak': 0.995,
 'lr': 5.0e-3,
-'max_episode': 50000,
+'max_train_episode': 50000,
 'batch_size': 8192,
 'buffer_size': 200000,
 'use_priority': False,

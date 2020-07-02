@@ -180,7 +180,7 @@ class AOC(make_on_policy_class(mode='share')):
         self.data.cal_gae_adv(self.lambda_, self.gamma)
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _train(data, crsty_loss, cell_state):
             early_step = 0
@@ -212,7 +212,7 @@ class AOC(make_on_policy_class(mode='share')):
             ])
             return summaries
 
-        summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.episode)]])
+        summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
 
         self._learn(function_dict={
             'calculate_statistics': self.calculate_statistics,

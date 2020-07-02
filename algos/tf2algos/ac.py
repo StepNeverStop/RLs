@@ -101,14 +101,14 @@ class AC(make_off_policy_class(mode='share')):
         self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob[:, np.newaxis])
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: None,
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
                 ]),
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'old_log_prob'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'old_log_prob']

@@ -134,7 +134,7 @@ class IOC(make_off_policy_class(mode='share')):
         return a, new_options, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
 
         def _update():
             if self.global_step % self.assign_interval == 0:
@@ -146,9 +146,9 @@ class IOC(make_off_policy_class(mode='share')):
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
-                    ['LEARNING_RATE/q_lr', self.q_lr(self.episode)],
-                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.episode)],
-                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.episode)],
+                    ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
+                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.train_step)],
+                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.train_step)],
                     ['Statistics/option', self.options[0]]
                 ])
             })

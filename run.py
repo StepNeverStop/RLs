@@ -6,24 +6,27 @@ Usage:
 
 Options:
     -h,--help                   显示帮助
-    -i,--inference              推断 [default: False]
     -a,--algorithm=<name>       算法 [default: ppo]
-    -c,--config-file=<file>     指定模型的超参数config文件 [default: None]
+    -c,--copys=<n>              指定并行训练的数量 [default: 1]
     -e,--env=<file>             指定环境名称 [default: None]
-    -p,--port=<n>               端口 [default: 5005]
-    -u,--unity                  是否使用unity客户端 [default: False]
     -g,--graphic                是否显示图形界面 [default: False]
-    -n,--name=<name>            训练的名字 [default: None]
-    -s,--save-frequency=<n>     保存频率 [default: None]
+    -i,--inference              推断 [default: False]
     -m,--models=<n>             同时训练多少个模型 [default: 1]
+    -n,--name=<name>            训练的名字 [default: None]
+    -p,--port=<n>               端口 [default: 5005]
     -r,--rnn                    是否使用RNN模型 [default: False]
-    --copys=<n>                 指定并行训练的数量 [default: 1]
+    -s,--save-frequency=<n>     保存频率 [default: None]
+    -t,--train-step=<n>         总的训练次数 [default: None]
+    -u,--unity                  是否使用unity客户端 [default: False]
+    
     --unity-env=<name>          指定unity环境的名字 [default: None]
+    --config-file=<file>        指定模型的超参数config文件 [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径 [default: None]
     --seed=<n>                  指定模型的随机种子 [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子 [default: 0]
     --max-step=<n>              每回合最大步长 [default: None]
-    --max-episode=<n>           总的训练回合数 [default: None]
+    --train-episode=<n>         总的训练回合数 [default: None]
+    --train-frame=<n>           总的训练采样次数 [default: None]
     --sampler=<file>            指定随机采样器的文件路径 [default: None]
     --load=<name>               指定载入model的训练名称 [default: None]
     --prefill-steps=<n>         指定预填充的经验数量 [default: None]
@@ -35,11 +38,11 @@ Options:
     --info=<str>                抒写该训练的描述，用双引号包裹 [default: None]
     --use-wandb                 是否上传数据到W&B [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test -c config.yaml --max-step 1000 --max-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
+    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test --config-file config.yaml --max-step 1000 --train-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
     python run.py -a ppo -u -n train_in_unity --load last_train_name
     python run.py -ui -a td3 -n inference_in_unity
     python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 --copys 4
+    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 -c 4
     python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
 """
 
@@ -65,34 +68,36 @@ def get_options(options: Dict):
     f = lambda k, t: None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
-        ['inference',       bool(options['--inference'])],
-        ['algo',            str(options['--algorithm'])],
-        ['use_rnn',         bool(options['--rnn'])],
-        ['algo_config',     f('--config-file', str)],
-        ['env',             f('--env', str)],
-        ['port',            int(options['--port'])],
-        ['unity',           bool(options['--unity'])],
-        ['graphic',         bool(options['--graphic'])],
-        ['name',            f('--name', str)],
-        ['save_frequency',  f('--save-frequency', int)],
-        ['models',          int(options['--models'])],
-        ['store_dir',       f('--store-dir', str)],
-        ['seed',            int(options['--seed'])],
-        ['unity_env_seed',  int(options['--unity-env-seed'])],
-        ['max_step',        f('--max-step', int)],
-        ['max_episode',     f('--max-episode', int)],
-        ['sampler',         f('--sampler', str)],
-        ['load',            f('--load', str)],
-        ['prefill_steps',   f('--prefill-steps', int)],
-        ['prefill_choose',  bool(options['--prefill-choose'])],
-        ['gym',             bool(options['--gym'])],
-        ['n_copys',      int(options['--copys'])],
-        ['gym_env',         str(options['--gym-env'])],
-        ['gym_env_seed',    int(options['--gym-env-seed'])],
-        ['render_episode',  f('--render-episode', int)],
-        ['info',            f('--info', str)],
-        ['use_wandb',       bool(options['--use-wandb'])],
-        ['unity_env',       f('--unity-env', str)]
+        ['inference',           bool(options['--inference'])],
+        ['algo',                str(options['--algorithm'])],
+        ['use_rnn',             bool(options['--rnn'])],
+        ['algo_config',         f('--config-file', str)],
+        ['env',                 f('--env', str)],
+        ['port',                int(options['--port'])],
+        ['unity',               bool(options['--unity'])],
+        ['graphic',             bool(options['--graphic'])],
+        ['name',                f('--name', str)],
+        ['save_frequency',      f('--save-frequency', int)],
+        ['models',              int(options['--models'])],
+        ['store_dir',           f('--store-dir', str)],
+        ['seed',                int(options['--seed'])],
+        ['unity_env_seed',      int(options['--unity-env-seed'])],
+        ['max_step_per_episode',f('--max-step', int)],
+        ['max_train_step',      f('--train-step', int)],
+        ['max_train_frame',     f('--train-frame', int)],
+        ['max_train_episode',   f('--train-episode', int)],
+        ['sampler',             f('--sampler', str)],
+        ['load',                f('--load', str)],
+        ['prefill_steps',       f('--prefill-steps', int)],
+        ['prefill_choose',      bool(options['--prefill-choose'])],
+        ['gym',                 bool(options['--gym'])],
+        ['n_copys',             int(options['--copys'])],
+        ['gym_env',             str(options['--gym-env'])],
+        ['gym_env_seed',        int(options['--gym-env-seed'])],
+        ['render_episode',      f('--render-episode', int)],
+        ['info',                f('--info', str)],
+        ['use_wandb',           bool(options['--use-wandb'])],
+        ['unity_env',           f('--unity-env', str)]
     ]))
     return op
 
@@ -177,8 +182,10 @@ def run():
     train_args.update(
         dict([
             ['name', options.name],
-            ['max_step', options.max_step],
-            ['max_episode', options.max_episode],
+            ['max_step_per_episode', options.max_step_per_episode],
+            ['max_train_step', options.max_train_step],
+            ['max_train_frame', options.max_train_frame],
+            ['max_train_episode', options.max_train_episode],
             ['save_frequency', options.save_frequency],
             ['pre_fill_steps', options.prefill_steps],
             ['info', options.info]

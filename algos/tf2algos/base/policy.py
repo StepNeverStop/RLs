@@ -41,8 +41,8 @@ class Policy(Base):
         self.is_continuous = is_continuous
         self.a_dim = a_dim
         self.gamma = float(kwargs.get('gamma', 0.999))
-        self.max_episode = int(kwargs.get('max_episode', 1000))
-        self.episode = 0    # episode of now
+        self.train_step = 0
+        self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
         self.use_curiosity = bool(kwargs.get('use_curiosity', False))
@@ -56,7 +56,7 @@ class Policy(Base):
 
     def init_lr(self, lr):
         if self.delay_lr:
-            return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_episode, 1e-10, power=1.0)
+            return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_train_step, 1e-10, power=1.0)
         else:
             return ConsistentLearningRate(lr)
 
@@ -64,7 +64,7 @@ class Policy(Base):
         return self._running_average.normalize(x)
 
     def init_optimizer(self, lr, *args, **kwargs):
-        return tf.keras.optimizers.Adam(learning_rate=lr(self.episode), *args, **kwargs)
+        return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
 
     def reset(self):
         self.cell_state = (None,)
@@ -90,12 +90,6 @@ class Policy(Base):
         TODO: Annotation
         '''
         self.summaries = {}
-
-    def get_max_episode(self):
-        """
-        get the max episode of this training model.
-        """
-        return self.max_episode
 
     @abstractmethod
     def choose_action(self, s, visual_s, evaluation=False):

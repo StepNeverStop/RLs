@@ -38,7 +38,7 @@ class DPG(make_off_policy_class(mode='share')):
 
         if self.is_continuous:
             # self.action_noise = rls.NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-            self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.exp(-self.episode / 10) * np.ones(self.a_dim))
+            self.action_noise = rls.OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
             self.actor_net = rls.actor_dpg(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
         else:
             self.actor_net = rls.actor_discrete(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
@@ -91,14 +91,14 @@ class DPG(make_off_policy_class(mode='share')):
             return mu, pi, cell_state
 
     def learn(self, **kwargs):
-        self.episode = kwargs['episode']
+        self.train_step = kwargs.get('train_step')
         for i in range(kwargs['step']):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: None,
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.episode)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.episode)]
+                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
+                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
                 ])
             })
 
