@@ -126,9 +126,7 @@ def unity_random_sample(env, models, print_func, steps, real_done):
         state[i] = _v
         visual_state[i] = _vs
 
-    tqdm_bar = trange(steps, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('adding noise')
+    for _ in trange(steps, ncols=80, desc='adding noise', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
         ObsRewDone = env.step(actions)
@@ -161,10 +159,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
         state[i] = _v
         visual_state[i] = _vs
 
-    tqdm_bar = trange(0, pre_fill_steps, min(env.brain_agents) + 1, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('Pre-filling')
-
+    for _ in trange(0, pre_fill_steps, min(env.brain_agents) + 1, unit_scale=min(env.brain_agents) + 1, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         if prefill_choose:
             for i in range(env.brain_num):
                 action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
@@ -222,9 +217,7 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
             action[i] = np.zeros((env.brain_agents[i], 1), dtype=np.int32)
 
     a = [np.asarray(e) for e in zip(*action)]
-    tqdm_bar = trange(pre_fill_steps, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('Pre-filling')
+    for _ in trange(pre_fill_steps, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         for i in range(env.brain_num):
             if prefill_choose:
                 action[i] = models[i].choose_action(s=state[i])

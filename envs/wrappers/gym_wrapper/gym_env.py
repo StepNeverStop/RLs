@@ -75,7 +75,7 @@ class gym_envs(object):
             assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self.action_type = 'continuous'
             self._is_continuous = True
-            self.a_dim = ActSpace.shape
+            self.a_dim = ActSpace.shape[0]
         elif isinstance(ActSpace, Tuple):
             assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self.action_type = 'Tuple(Discrete)'

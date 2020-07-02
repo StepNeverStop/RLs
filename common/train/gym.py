@@ -126,9 +126,7 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     i, state, _ = init_variables(env)
     ret = 0.
     ave_steps = 0.
-    tqdm_bar = trange(episodes_num, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('evaluating')
+    for _ in trange(episodes_num, ncols=80, desc='evaluating', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         model.reset()
         state[i] = env.reset()
         r = 0.
@@ -157,9 +155,7 @@ def gym_random_sample(env, model, steps, print_func):
     i, state, new_state = init_variables(env)
     state[i] = env.reset()
 
-    tqdm_bar = trange(steps, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('adding noise')
+    for _ in trange(steps, ncols=80, desc='adding noise', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         action = env.sample_actions()
         new_state[i], reward, done, info, correct_new_state = env.step(action)
         model.no_op_store(
@@ -180,9 +176,7 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
     total_r = np.zeros(env.n)
     total_steps = np.zeros(env.n)
 
-    tqdm_bar = trange(0, max_eval_episode, env.n, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('evaluating')
+    for _ in trange(0, max_eval_episode, env.n, unit_scale=env.n, ncols=80, desc='evaluating', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         model.reset()
         state[i] = env.reset()
         dones_flag = np.full(env.n, False)
@@ -216,10 +210,7 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
     model.reset()
     state[i] = env.reset()
 
-    tqdm_bar = trange(0, pre_fill_steps, env.n, ncols=80)
-    for _ in tqdm_bar:
-        tqdm_bar.set_description('Pre-filling')
-
+    for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
         if prefill_choose:
             action = model.choose_action(s=state[0], visual_s=state[1])
         else:
