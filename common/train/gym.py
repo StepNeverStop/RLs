@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 
+from tqdm import trange
 from utils.np_utils import SMA, arrprint
 
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +74,7 @@ def gym_train(env, model, print_func,
                     gym_step_eval(env.eval_env, total_step, model, off_policy_step_eval_num, max_step)
             total_step += 1
             if total_step_control and total_step > max_total_step:
+                model.save_checkpoint(episode)
                 return
 
             if all(dones_flag):
@@ -201,8 +203,10 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
     state[i] = env.reset()
     steps = pre_fill_steps // env.n
 
-    for step in range(steps):
-        print_func(f'no op step {step}')
+    tqdm_bar = trange(0, pre_fill_steps, env.n)
+    for step in tqdm_bar:
+        tqdm_bar.set_description('Pre-filling')
+        
         if prefill_choose:
             action = model.choose_action(s=state[0], visual_s=state[1])
         else:

@@ -95,6 +95,7 @@ class SAC_V(make_off_policy_class(mode='share')):
             actor=self.actor_net,
             q_net=self.q_net,
             v_net=self.v_net,
+            log_alpha=self.log_alpha,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha,

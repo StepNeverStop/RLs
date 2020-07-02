@@ -91,6 +91,7 @@ class SAC(make_off_policy_class(mode='share')):
         self.model_recorder(dict(
             actor=self.actor_net,
             critic_net=self.critic_net,
+            log_alpha=self.log_alpha,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha,

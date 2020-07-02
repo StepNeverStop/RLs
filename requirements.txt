@@ -10,3 +10,4 @@ tensorflow
 tensorflow_probability
 pandas
 openpyxl
+tqdm

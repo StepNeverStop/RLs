@@ -187,6 +187,7 @@ def run():
 
     if options.inference:
         Agent(env_args, model_args, buffer_args, train_args).evaluate()
+        return
 
     trails = options.models
     if trails == 1:

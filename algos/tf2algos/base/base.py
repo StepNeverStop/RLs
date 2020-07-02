@@ -86,14 +86,14 @@ class Base:
         cp_dir = os.path.join(base_dir, 'model')
         if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
             try:
-                self.recorder.checkpoint.restore(tf.train.latest_checkpoint(cp_dir))    # 从指定路径导入模型
+                self.recorder.checkpoint.restore(tf.train.latest_checkpoint(cp_dir)).expect_partial()    # 从指定路径导入模型
             except:
                 self.recorder.logger.error(f'restore model from {cp_dir} FAILED.')
                 raise Exception(f'restore model from {cp_dir} FAILED.')
             else:
                 self.recorder.logger.info(f'restore model from {cp_dir} SUCCUESS.')
         else:
-            self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint)  # 从本模型目录载入模型，断点续训
+            self.recorder.checkpoint.restore(self.recorder.saver.latest_checkpoint).expect_partial()  # 从本模型目录载入模型，断点续训
             self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
             self.recorder.logger.info('initialize model SUCCUESS.')
 

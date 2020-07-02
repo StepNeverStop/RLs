@@ -35,7 +35,7 @@ class UnityWrapper(object):
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel],
                                          additional_args=[
-                                             '--scene', str(unity_env_dict[env_args.get('env_name', 'Roller')]),
+                                             '--scene', str(unity_env_dict.get(env_args.get('env_name', 'Roller'), 'None')),
                                              '--n_agents', str(env_args.get('env_num', 1))
                                          ])
 

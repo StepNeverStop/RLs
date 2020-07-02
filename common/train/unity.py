@@ -2,6 +2,7 @@
 
 import numpy as np
 
+from tqdm import trange
 from utils.np_utils import SMA, arrprint
 from utils.list_utils import zeros_initializer
 
@@ -74,6 +75,8 @@ def unity_train(env, models, print_func,
 
             total_step += 1
             if total_step_control and total_step > max_total_step:
+                for i in range(env.brain_num):
+                    models[i].save_checkpoint(episode)
                 return
 
             if all([all(dones_flag[i]) for i in range(env.brain_num)]):
@@ -148,10 +151,10 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
         state[i] = _v
         visual_state[i] = _vs
 
-    steps = pre_fill_steps // min(env.brain_agents) + 1
+    tqdm_bar = trange(0, pre_fill_steps, min(env.brain_agents) + 1)
+    for step in tqdm_bar:
+        tqdm_bar.set_description('Pre-filling')
 
-    for step in range(steps):
-        print_func(f'no op step {step}')
         if prefill_choose:
             for i in range(env.brain_num):
                 action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
