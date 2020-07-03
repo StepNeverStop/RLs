@@ -6,7 +6,7 @@ from utils.np_utils import SMA, arrprint
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.train.gym")
-
+bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 def init_variables(env):
     """
@@ -47,15 +47,13 @@ def gym_train(env, model, print_func,
         last_done_step = -1
         while True:
             step += 1
-            r_tem = np.zeros(env.n)
             if render or episode > render_episode:
                 env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             unfinished_index = np.where(dones_flag == False)[0]
             dones_flag += done
-            r_tem[unfinished_index] = reward[unfinished_index]
-            r += r_tem
+            r[unfinished_index] += reward[unfinished_index]
             model.store_data(
                 s=state[0],
                 visual_s=state[1],
@@ -106,10 +104,10 @@ def gym_train(env, model, print_func,
             **sma.rs
         )
         print_func('-' * 40, out_time=True)
-        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 3)}')
+        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 2)}')
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            gym_random_sample(env, model, steps=add_noise2buffer_steps, print_func=print_func)
+            gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, print_func=print_func, prefill_choose=False, desc='adding noise')
 
         if eval_while_train and env.reward_threshold is not None:
             if r.max() >= env.reward_threshold:
@@ -126,7 +124,7 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     i, state, _ = init_variables(env)
     ret = 0.
     ave_steps = 0.
-    for _ in trange(episodes_num, ncols=80, desc='evaluating', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+    for _ in trange(episodes_num, ncols=80, desc='evaluating', bar_format=bar_format):
         model.reset()
         state[i] = env.reset()
         r = 0.
@@ -151,47 +149,25 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     model.set_cell_state(cs)
 
 
-def gym_random_sample(env, model, steps, print_func):
-    i, state, new_state = init_variables(env)
-    state[i] = env.reset()
-
-    for _ in trange(steps, ncols=80, desc='adding noise', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
-        action = env.sample_actions()
-        new_state[i], reward, done, info, correct_new_state = env.step(action)
-        model.no_op_store(
-            s=state[0],
-            visual_s=state[1],
-            a=action,
-            r=reward,
-            s_=new_state[0],
-            visual_s_=new_state[1],
-            done=done
-        )
-        state[i] = correct_new_state
-    print_func('Noise added complete.')
-
-
 def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func):
     i, state, _ = init_variables(env)
     total_r = np.zeros(env.n)
     total_steps = np.zeros(env.n)
 
-    for _ in trange(0, max_eval_episode, env.n, unit_scale=env.n, ncols=80, desc='evaluating', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+    for _ in trange(max_eval_episode, ncols=80, desc='evaluating', bar_format=bar_format):
         model.reset()
         state[i] = env.reset()
         dones_flag = np.full(env.n, False)
         steps = np.zeros(env.n)
         r = np.zeros(env.n)
         while True:
-            r_tem = np.zeros(env.n)
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
             state[i], reward, done, info = env.step(action)
             model.partial_reset(done)
             unfinished_index = np.where(dones_flag == False)
             dones_flag += done
-            r_tem[unfinished_index] = reward[unfinished_index]
+            r[unfinished_index] += reward[unfinished_index]
             steps[unfinished_index] += 1
-            r += r_tem
             if all(dones_flag) or any(steps >= max_step_per_episode):
                 break
         total_r += r
@@ -203,14 +179,14 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
     print_func('----------------------------------------------------------------------------------------------------------------------------')
 
 
-def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
+def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose, desc='Pre-filling'):
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
     i, state, new_state = init_variables(env)
     model.reset()
     state[i] = env.reset()
 
-    for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+    for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
             action = model.choose_action(s=state[0], visual_s=state[1])
         else:
@@ -229,20 +205,26 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose):
         state[i] = correct_new_state
 
 
-def gym_inference(env, model):
+def gym_inference(env, model, episodes):
     i, state, _ = init_variables(env)
-    model.reset()
-    while True:
+    for episode in range(episodes):
         step = 0
+        model.reset()
         state[i] = env.reset()
+        dones = np.full(shape=(env.n,), fill_value=False, dtype=np.bool)
+        returns = np.zeros(shape=(env.n), dtype=np.float32)
         while True:
-            logger.info(f'step: {step}')
             env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
             step += 1
-            state[i], reward, done, info, correct_new_state = env.step(action)
+            _, reward, done, info, state[i] = env.step(action)
+            unfinished_index = np.where(dones == False)[0]
+            returns[unfinished_index] += reward[unfinished_index]
+            dones += done
             model.partial_reset(done)
-            if done[0]:
-                logger.info(f'done: {done[0]}, reward: {reward[0]}')
-                step = 0
-            state[i] = correct_new_state
+            if dones.all():
+                logger.info(f'episode: {episode:4d}, returns: min {returns.min():6.2f}, mean {returns.mean():6.2f}, max {returns.max():6.2f}')
+                break
+
+            if step % 1000 == 0:
+                logger.info(f'step: {step}')

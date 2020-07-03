@@ -87,6 +87,8 @@ class Agent:
         elif self.train_args['max_train_episode'] <= 0:
             raise ValueError('max_train_step/max_frame_step/max_train_episode must be specified at least one with value larger than 0.')
 
+        self.train_args['inference_episode'] = self.train_args['inference_episode'] if self.train_args['inference_episode'] > 0 else sys.maxsize
+
         self.model_index = str(self.train_args.get('index'))
         self.start_time = time.time()
         self.all_learner_print = bool(self.train_args.get('all_learner_print', False))
@@ -378,18 +380,21 @@ class Agent:
         if self.env_args['type'] == 'gym':
             gym_inference(
                 env=self.env,
-                model=self.model
+                model=self.model,
+                episodes=self.train_args['inference_episode']
             )
         else:
             if self.ma:
                 ma_unity_inference(
                     env=self.env,
-                    models=self.models
+                    models=self.models,
+                    episodes=self.train_args['inference_episode']
                 )
             else:
                 unity_inference(
                     env=self.env,
-                    models=self.models
+                    models=self.models,
+                    episodes=self.train_args['inference_episode']
                 )
 
     def run(self, mode='worker'):

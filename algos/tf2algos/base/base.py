@@ -110,7 +110,7 @@ class Base:
         """
         train_step = int(kwargs.get('train_step', 0))
         self.recorder.saver.save(checkpoint_number=train_step)
-        self.recorder.logger.info(f'Save checkpoint success. Training step: {train_step}')
+        logger.info(f'Save checkpoint success. Training step: {train_step}')
         self.recorder.write_training_info(kwargs)
 
     def writer_summary(self, global_step, **kargs):

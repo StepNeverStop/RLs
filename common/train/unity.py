@@ -7,6 +7,7 @@ from utils.list_utils import zeros_initializer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.train.unity")
+bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
 def unity_train(env, models, print_func,
@@ -112,40 +113,14 @@ def unity_train(env, models, print_func,
         print_func('-' * 40, out_time=True)
         print_func(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
         for i, bn in enumerate(env.brain_names):
-            print_func(f'{bn} reward: {arrprint(rewards[i], 3)}')
+            print_func(f'{bn} reward: {arrprint(rewards[i], 2)}')
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            unity_random_sample(env, models, print_func, steps=add_noise2buffer_steps, real_done=real_done)
+            unity_no_op(env, models, print_func=print_func, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
+            desc='adding noise')
 
 
-def unity_random_sample(env, models, print_func, steps, real_done):
-    state, visual_state = zeros_initializer(env.brain_num, 2)
-
-    ObsRewDone = env.reset()
-    for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
-        state[i] = _v
-        visual_state[i] = _vs
-
-    for _ in trange(steps, ncols=80, desc='adding noise', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
-        action = env.random_action()
-        actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.brain_names)}
-        ObsRewDone = env.step(actions)
-        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
-            models[i].store_data(
-                s=state[i],
-                visual_s=visual_state[i],
-                a=action[i],
-                r=_r,
-                s_=_v,
-                visual_s_=_vs,
-                done=_info['real_done'] if real_done else _d
-            )
-            state[i] = _v
-            visual_state[i] = _vs
-    print_func('Noise added complete.')
-
-
-def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done):
+def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done, desc='Pre-filling'):
     '''
     Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
@@ -159,7 +134,7 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
         state[i] = _v
         visual_state[i] = _vs
 
-    for _ in trange(0, pre_fill_steps, min(env.brain_agents) + 1, unit_scale=min(env.brain_agents) + 1, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+    for _ in trange(0, pre_fill_steps, min(env.brain_agents) + 1, unit_scale=min(env.brain_agents) + 1, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
             for i in range(env.brain_num):
                 action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])
@@ -182,13 +157,13 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
             visual_state[i] = _vs
 
 
-def unity_inference(env, models):
+def unity_inference(env, models, episodes):
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
     """
     action = zeros_initializer(env.brain_num, 1)
 
-    while True:
+    for episode in range(episodes):
         [model.reset() for model in models]
         ObsRewDone = env.reset()
         while True:
@@ -217,7 +192,7 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
             action[i] = np.zeros((env.brain_agents[i], 1), dtype=np.int32)
 
     a = [np.asarray(e) for e in zip(*action)]
-    for _ in trange(pre_fill_steps, ncols=80, desc='Pre-filling', bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'):
+    for _ in trange(pre_fill_steps, ncols=80, desc='Pre-filling', bar_format=bar_format):
         for i in range(env.brain_num):
             if prefill_choose:
                 action[i] = models[i].choose_action(s=state[i])
@@ -314,12 +289,12 @@ def ma_unity_train(env, models, buffer, print_func,
                 models[i].save_checkpoint(episode=episode, train_step=episode)
 
 
-def ma_unity_inference(env, models):
+def ma_unity_inference(env, models, episodes):
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
     """
     action = zeros_initializer(env.brain_num, 1)
-    while True:
+    for episode in range(episodes):
         ObsRewDone = env.reset()
         while True:
             for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):

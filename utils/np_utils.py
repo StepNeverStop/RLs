@@ -24,7 +24,7 @@ def is_inf_inside(x):
 
 def arrprint(x, n):
     assert isinstance(x, np.ndarray)
-    return ', '.join([str(round(i, n)) for i in sorted(x)])
+    return ', '.join([str(f'%{4+n}.{n}f' % i) for i in sorted(x)])
 
 
 def normalization(data):
