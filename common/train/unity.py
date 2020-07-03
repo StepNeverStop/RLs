@@ -10,7 +10,7 @@ logger = logging.getLogger("common.train.unity")
 
 
 def unity_train(env, models, print_func,
-                begin_train_step, save_frequency, max_step_per_episode, max_train_episode, policy_mode,
+                begin_train_step, begin_frame_step, begin_episode, save_frequency, max_step_per_episode, max_train_episode, policy_mode,
                 moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
                 max_train_step, max_frame_step, real_done):
     """
@@ -35,11 +35,11 @@ def unity_train(env, models, print_func,
 
     state, visual_state, action, dones_flag, rewards = zeros_initializer(env.brain_num, 5)
     sma = [SMA(moving_average_episode) for i in range(env.brain_num)]
-    frame_step = 0
+    frame_step = begin_frame_step
     min_of_all_agents = min(env.brain_agents)
     train_step = [begin_train_step for _ in range(env.brain_num)]
 
-    for episode in range(max_train_episode):
+    for episode in range(begin_episode, max_train_episode):
         [model.reset() for model in models]
         ObsRewDone = env.reset()
         for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
@@ -76,12 +76,12 @@ def unity_train(env, models, print_func,
                     models[i].learn(episode=episode, train_step=train_step, step=1)
                     train_step[i] += 1
                     if train_step[i] % save_frequency == 0:
-                        models[i].save_checkpoint(train_step[i])
+                        models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)
 
             frame_step += min_of_all_agents
             if 0 < max_train_step < min(train_step) or 0 < max_frame_step < frame_step:
                 for i in range(env.brain_num):
-                    models[i].save_checkpoint(train_step[i])
+                    models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
@@ -100,7 +100,7 @@ def unity_train(env, models, print_func,
                 models[i].learn(episode=episode, train_step=train_step)
                 train_step[i] += 1
                 if train_step[i] % save_frequency == 0:
-                    models[i].save_checkpoint(train_step[i])
+                    models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)
             models[i].writer_summary(
                 episode,
                 reward_mean=rewards[i].mean(),
@@ -236,13 +236,13 @@ def ma_unity_no_op(env, models, buffer, print_func, pre_fill_steps, prefill_choo
 
 
 def ma_unity_train(env, models, buffer, print_func,
-                   begin_train_step, save_frequency, max_step_per_episode, max_train_episode, policy_mode):
+                   begin_train_step, begin_frame_step, begin_episode, save_frequency, max_step_per_episode, max_train_episode, policy_mode):
     assert policy_mode == 'off-policy', "multi-agents algorithms now support off-policy only."
 
     batch_size = buffer.batch_size
     state, action, new_action, next_action, reward, next_state, dones, dones_flag, rewards = zeros_initializer(env.brain_num, 9)
 
-    for episode in range(max_train_episode):
+    for episode in range(begin_episode, max_train_episode):
         ObsRewDone = env.reset()
         for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
             dones_flag[i] = np.zeros(env.brain_agents[i])
@@ -311,7 +311,7 @@ def ma_unity_train(env, models, buffer, print_func,
         print_func(f'episode {episode:3d} | step {step:4d} last_done_step | {last_done_step:4d}')
         if episode % save_frequency == 0:
             for i in range(env.brain_num):
-                models[i].save_checkpoint(episode)
+                models[i].save_checkpoint(episode=episode, train_step=episode)
 
 
 def ma_unity_inference(env, models):

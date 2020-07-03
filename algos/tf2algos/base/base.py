@@ -64,6 +64,12 @@ class Base:
         else:
             return 0
 
+    def get_init_training_info(self):
+        '''
+        TODO: Annotation
+        '''
+        return self.recorder.get_training_info()
+
     def generate_recorder(self, kwargs):
         """
         create model/log/data dictionary and define writer to record training data.
@@ -98,12 +104,14 @@ class Base:
             self.recorder.logger.info(f'restore model from {self.recorder.saver.latest_checkpoint} SUCCUESS.')
             self.recorder.logger.info('initialize model SUCCUESS.')
 
-    def save_checkpoint(self, global_step):
+    def save_checkpoint(self, **kwargs):
         """
         save the training model 
         """
-        self.recorder.logger.info(f'Save checkpoint success. Training step: {global_step}')
-        self.recorder.saver.save(checkpoint_number=global_step)
+        train_step = int(kwargs.get('train_step', 0))
+        self.recorder.saver.save(checkpoint_number=train_step)
+        self.recorder.logger.info(f'Save checkpoint success. Training step: {train_step}')
+        self.recorder.write_training_info(kwargs)
 
     def writer_summary(self, global_step, **kargs):
         """

@@ -183,7 +183,10 @@ class Agent:
             self.model.init_or_restore(self.train_args['load_model_path'])
             # model -------------------------------
 
-            self.train_args['begin_train_step'] = self.model.get_init_train_step()
+            _train_info = self.model.get_init_training_info()
+            self.train_args['begin_train_step'] = _train_info['train_step']
+            self.train_args['begin_frame_step'] = _train_info['frame_step']
+            self.train_args['begin_episode'] = _train_info['episode']
             if not self.train_args['inference']:
                 records_dict = {
                     'env': self.env_args.to_dict,
@@ -245,7 +248,11 @@ class Agent:
                 os.path.join(self.train_args['load_model_path'], b))
              for i, b in enumerate(self.env.fixed_brain_names)]
             # model ------------------------------------
-            self.train_args['begin_train_step'] = self.models[0].get_init_train_step()
+
+            _train_info = self.models[0].get_init_training_info()
+            self.train_args['begin_train_step'] = _train_info['train_step']
+            self.train_args['begin_frame_step'] = _train_info['frame_step']
+            self.train_args['begin_episode'] = _train_info['episode']
             if not self.train_args['inference']:
                 for i, b in enumerate(self.env.fixed_brain_names):
                     records_dict = {
@@ -287,6 +294,8 @@ class Agent:
                     model=self.model,
                     print_func=self.pwi,
                     begin_train_step=int(self.train_args['begin_train_step']),
+                    begin_frame_step=int(self.train_args['begin_frame_step']),
+                    begin_episode=int(self.train_args['begin_episode']),
                     render=bool(self.train_args['render']),
                     render_episode=int(self.train_args.get('render_episode', 50000)),
                     save_frequency=int(self.train_args['save_frequency']),
@@ -325,6 +334,8 @@ class Agent:
                         buffer=self.ma_data,
                         print_func=self.pwi,
                         begin_train_step=int(self.train_args['begin_train_step']),
+                        begin_frame_step=int(self.train_args['begin_frame_step']),
+                        begin_episode=int(self.train_args['begin_episode']),
                         save_frequency=int(self.train_args['save_frequency']),
                         max_step_per_episode=int(self.train_args['max_step_per_episode']),
                         max_train_episode=int(self.train_args['max_train_episode']),
@@ -344,6 +355,8 @@ class Agent:
                         models=self.models,
                         print_func=self.pwi,
                         begin_train_step=int(self.train_args['begin_train_step']),
+                        begin_frame_step=int(self.train_args['begin_frame_step']),
+                        begin_episode=int(self.train_args['begin_episode']),
                         save_frequency=int(self.train_args['save_frequency']),
                         max_step_per_episode=int(self.train_args['max_step_per_episode']),
                         max_train_episode=int(self.train_args['max_train_episode']),

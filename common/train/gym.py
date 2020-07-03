@@ -24,7 +24,7 @@ def init_variables(env):
 
 
 def gym_train(env, model, print_func,
-              begin_train_step, render, render_episode,
+              begin_train_step, begin_frame_step, begin_episode, render, render_episode,
               save_frequency, max_step_per_episode, max_train_episode, eval_while_train, max_eval_episode,
               off_policy_step_eval, off_policy_step_eval_num,
               policy_mode, moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
@@ -35,10 +35,10 @@ def gym_train(env, model, print_func,
 
     i, state, new_state = init_variables(env)
     sma = SMA(moving_average_episode)
-    frame_step = 0
+    frame_step = begin_frame_step
     train_step = begin_train_step
 
-    for episode in range(max_train_episode):
+    for episode in range(begin_episode, max_train_episode):
         model.reset()
         state[i] = env.reset()
         dones_flag = np.full(env.n, False)
@@ -72,13 +72,13 @@ def gym_train(env, model, print_func,
                 model.learn(episode=episode, train_step=train_step, step=1)
                 train_step += 1
                 if train_step % save_frequency == 0:
-                    model.save_checkpoint(train_step)
+                    model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
                 if off_policy_step_eval and train_step % eval_interval == 0:
                     gym_step_eval(env.eval_env, train_step, model, off_policy_step_eval_num, max_step_per_episode)
 
             frame_step += env.n
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
-                model.save_checkpoint(train_step)
+                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
@@ -96,7 +96,7 @@ def gym_train(env, model, print_func,
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
-                model.save_checkpoint(train_step)
+                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
         model.writer_summary(
             episode,
             reward_mean=r.mean(),

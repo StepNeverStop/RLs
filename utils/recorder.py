@@ -1,7 +1,11 @@
+import os
 import sys
+import json
 import logging
-import tensorflow as tf
 import pandas as pd
+import tensorflow as tf
+
+from typing import Dict
 
 
 class Recorder(object):
@@ -10,6 +14,7 @@ class Recorder(object):
     '''
 
     def __init__(self, kwargs, *, cp_dir, log_dir, excel_dir, logger2file):
+        self.log_dir = log_dir
         self.writer = tf.summary.create_file_writer(log_dir)
         # self.writer.set_as_default()
         self.checkpoint = tf.train.Checkpoint(**kwargs)
@@ -37,3 +42,20 @@ class Recorder(object):
             logfile_handle.setFormatter(logging.Formatter(file_format))
             logger.addHandler(logfile_handle)
         return logger
+
+    def write_training_info(self, data: Dict) -> None:
+        with open(f'{self.log_dir}/step.json', 'w') as f:
+            json.dump(data, f)
+
+    def get_training_info(self) -> Dict:
+        path = f'{self.log_dir}/step.json'
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                data = json.load(f)
+        else:
+            data = {}
+        return dict(
+            train_step=int(data.get('train_step', 0)),
+            frame_step=int(data.get('frame_step', 0)),
+            episode=int(data.get('episode', 0))
+        )
