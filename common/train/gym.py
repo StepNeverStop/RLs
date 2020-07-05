@@ -2,11 +2,13 @@ import logging
 import numpy as np
 
 from tqdm import trange
+from copy import deepcopy
 from utils.np_utils import SMA, arrprint
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.train.gym")
-bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+
 
 def init_variables(env):
     """
@@ -26,9 +28,9 @@ def init_variables(env):
 def gym_train(env, model, print_func,
               begin_train_step, begin_frame_step, begin_episode, render, render_episode,
               save_frequency, max_step_per_episode, max_train_episode, eval_while_train, max_eval_episode,
-              off_policy_step_eval, off_policy_step_eval_num,
+              off_policy_step_eval_episodes,
               policy_mode, moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-              eval_interval, max_train_step, max_frame_step):
+              off_policy_eval_interval, max_train_step, max_frame_step):
     """
     TODO: Annotation
     """
@@ -71,8 +73,8 @@ def gym_train(env, model, print_func,
                 train_step += 1
                 if train_step % save_frequency == 0:
                     model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-                if off_policy_step_eval and train_step % eval_interval == 0:
-                    gym_step_eval(env.eval_env, train_step, model, off_policy_step_eval_num, max_step_per_episode)
+                if off_policy_eval_interval > 0 and train_step % off_policy_eval_interval == 0:
+                    gym_step_eval(deepcopy(env), train_step, model, off_policy_step_eval_episodes, max_step_per_episode)
 
             frame_step += env.n
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
@@ -131,7 +133,8 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
         step = 0
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
-            state[i], reward, done, info = env.step(action)
+            _, reward, done, info, state[i] = env.step(action)
+            model.partial_reset(done)
             reward = reward[0]
             done = done[0]
             r += reward
@@ -147,6 +150,7 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
         eval_ave_step=ave_steps // episodes_num,
     )
     model.set_cell_state(cs)
+    del env
 
 
 def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func):
@@ -162,7 +166,7 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
         r = np.zeros(env.n)
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
-            state[i], reward, done, info = env.step(action)
+            _, reward, done, info, state[i] = env.step(action)
             model.partial_reset(done)
             unfinished_index = np.where(dones_flag == False)
             dones_flag += done
@@ -172,8 +176,8 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
                 break
         total_r += r
         total_steps += steps
-    average_r = total_r.mean() / tqdm_bar.total
-    average_step = int(total_steps.mean() / tqdm_bar.total)
+    average_r = total_r.mean() / max_eval_episode
+    average_step = int(total_steps.mean() / max_eval_episode)
     solved = True if average_r >= env.reward_threshold else False
     print_func(f'evaluate number: {max_eval_episode:3d} | average step: {average_step} | average reward: {average_r} | SOLVED: {solved}')
     print_func('----------------------------------------------------------------------------------------------------------------------------')

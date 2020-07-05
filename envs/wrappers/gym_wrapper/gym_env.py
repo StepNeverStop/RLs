@@ -44,8 +44,10 @@ class gym_envs(object):
         self.n = config['env_num']  # environments number
         render_mode = config.get('render_mode', 'first')
 
-        self.eval_env = build_env(config)
-        self._initialize(env=self.eval_env)
+        self.info_env = build_env(config)
+        self._initialize(env=self.info_env)
+        self.info_env.close()
+        del self.info_env
 
         self.envs = Asyn.init_envs(build_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
@@ -131,7 +133,6 @@ class gym_envs(object):
         close all environments.
         '''
         Asyn.op_func(self.envs, Asyn.OP.CLOSE)
-        self.eval_env.close()
 
     def sample_actions(self):
         '''

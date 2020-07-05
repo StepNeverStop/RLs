@@ -305,14 +305,13 @@ class Agent:
                     max_train_episode=int(self.train_args['max_train_episode']),
                     eval_while_train=bool(self.train_args['eval_while_train']),
                     max_eval_episode=int(self.train_args.get('max_eval_episode')),
-                    off_policy_step_eval=bool(self.train_args['off_policy_step_eval']),
-                    off_policy_step_eval_num=int(self.train_args.get('off_policy_step_eval_num')),
+                    off_policy_step_eval_episodes=int(self.train_args.get('off_policy_step_eval_episodes')),
                     policy_mode=str(self.model_args['policy_mode']),
                     moving_average_episode=int(self.train_args['moving_average_episode']),
                     add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                     add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                     add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
-                    eval_interval=int(self.train_args['eval_interval']),
+                    off_policy_eval_interval=int(self.train_args['off_policy_eval_interval']),
                     max_train_step=int(self.train_args['max_train_step']),
                     max_frame_step=int(self.train_args['max_frame_step'])
                 )

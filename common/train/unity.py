@@ -7,7 +7,7 @@ from utils.list_utils import zeros_initializer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.train.unity")
-bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
 def unity_train(env, models, print_func,
@@ -117,7 +117,7 @@ def unity_train(env, models, print_func,
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             unity_no_op(env, models, print_func=print_func, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
-            desc='adding noise')
+                        desc='adding noise')
 
 
 def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done, desc='Pre-filling'):

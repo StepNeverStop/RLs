@@ -38,9 +38,8 @@ unity:
 gym:
     train:
         pre_fill_steps: 10000
-        off_policy_step_eval: false
-        eval_interval: 1000
-        off_policy_step_eval_num: 100
+        off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
+        off_policy_step_eval_episodes: 100
         render: false
         render_episode: 50000
         eval_while_train: false
