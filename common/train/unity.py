@@ -13,7 +13,7 @@ bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 def unity_train(env, models, print_func,
                 begin_train_step, begin_frame_step, begin_episode, save_frequency, max_step_per_episode, max_train_episode, policy_mode,
                 moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-                max_train_step, max_frame_step, real_done):
+                max_train_step, max_frame_step, real_done, off_policy_train_interval):
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -74,7 +74,8 @@ def unity_train(env, models, print_func,
                 state[i] = _v
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':
-                    models[i].learn(episode=episode, train_step=train_step, step=1)
+                    if train_step[i] % off_policy_train_interval == 0:
+                        models[i].learn(episode=episode, train_step=train_step)
                     train_step[i] += 1
                     if train_step[i] % save_frequency == 0:
                         models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)

@@ -19,6 +19,7 @@ class ExplorationExploitationClass(object):
                 which the agent only explores
             max_steps: Integer, Total number of steps
         """
+        assert init2mid_annealing_step < max_step, 'init2mid_annealing_step must less than max_step.'
         self.eps_init = eps_init
         self.eps_mid = eps_mid
         self.eps_final = eps_final

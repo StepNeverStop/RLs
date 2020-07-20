@@ -102,7 +102,7 @@ class AC(make_off_policy_class(mode='share')):
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-        for i in range(kwargs['step']):
+        for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: None,

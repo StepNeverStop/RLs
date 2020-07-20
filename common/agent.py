@@ -304,8 +304,9 @@ class Agent:
                     max_step_per_episode=int(self.train_args['max_step_per_episode']),
                     max_train_episode=int(self.train_args['max_train_episode']),
                     eval_while_train=bool(self.train_args['eval_while_train']),
-                    max_eval_episode=int(self.train_args.get('max_eval_episode')),
-                    off_policy_step_eval_episodes=int(self.train_args.get('off_policy_step_eval_episodes')),
+                    max_eval_episode=int(self.train_args['max_eval_episode']),
+                    off_policy_step_eval_episodes=int(self.train_args['off_policy_step_eval_episodes']),
+                    off_policy_train_interval=int(self.train_args['off_policy_train_interval']),
                     policy_mode=str(self.model_args['policy_mode']),
                     moving_average_episode=int(self.train_args['moving_average_episode']),
                     add_noise2buffer=bool(self.train_args['add_noise2buffer']),
@@ -369,7 +370,8 @@ class Agent:
                         total_step_control=bool(self.train_args['total_step_control']),
                         max_train_step=int(self.train_args['max_train_step']),
                         max_frame_step=int(self.train_args['max_frame_step']),
-                        real_done=bool(self.train_args['real_done'])
+                        real_done=bool(self.train_args['real_done']),
+                        off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
                     )
             finally:
                 [model.close() for model in self.models]

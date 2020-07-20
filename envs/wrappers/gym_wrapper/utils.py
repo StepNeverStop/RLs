@@ -107,5 +107,6 @@ def build_env(config: Dict):
     if isinstance(env.action_space, Box) and len(env.action_space.shape) == 1:
         env = BoxActEnv(env)
 
-    env = DtypeEnv(env)
+    if not (isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3):
+        env = DtypeEnv(env)
     return env

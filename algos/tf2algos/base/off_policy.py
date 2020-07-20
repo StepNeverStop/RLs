@@ -29,6 +29,7 @@ def make_off_policy_class(mode='share'):
             self.use_priority = kwargs.get('use_priority', False)
             self.n_step = kwargs.get('n_step', False)
             self.use_isw = bool(kwargs.get('use_isw', False))
+            self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
 
         def set_buffer(self, buffer):
             '''

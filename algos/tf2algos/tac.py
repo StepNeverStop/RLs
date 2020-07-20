@@ -68,7 +68,7 @@ class TAC(make_off_policy_class(mode='share')):
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
-        self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
+        self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
         def _q_net(): return rls.critic_q_one(self.feat_dim, self.a_dim, hidden_units['q'])
         self.critic_net = DoubleQ(_q_net)
@@ -135,7 +135,7 @@ class TAC(make_off_policy_class(mode='share')):
                 self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
             return td_error, summaries
 
-        for i in range(kwargs['step']):
+        for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: self.update_target_net_weights(
@@ -213,7 +213,7 @@ class TAC(make_off_policy_class(mode='share')):
                         logits = self.actor_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits)
                         log_pi = cate_dist.log_prob(cate_dist.sample())
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
@@ -280,7 +280,7 @@ class TAC(make_off_policy_class(mode='share')):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
                 actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
                 if self.auto_adaption:
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

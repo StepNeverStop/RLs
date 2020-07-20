@@ -91,7 +91,6 @@ class gym_envs(object):
             self.discrete_action_dim_list = [env.action_space.n]
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
-        env.close()
 
     @property
     def is_continuous(self):

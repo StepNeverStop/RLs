@@ -226,7 +226,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-        for i in range(kwargs['step']):
+        for i in range(self.train_times_per_step):
             if self.data_low.is_lg_batch_size and self.data_high.is_lg_batch_size:
                 self.intermediate_variable_reset()
                 low_data = self.get_transitions(self.data_low, data_name_list=['s', 'a', 'r', 's_', 'done', 'g', 'g_'])

@@ -72,7 +72,7 @@ class SAC(make_off_policy_class(mode='share')):
 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
-        self.target_entropy = 0.98 * (self.a_dim if self.is_continuous else np.log(self.a_dim))
+        self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
         if self.is_continuous or self.use_gumbel:
             critic_net = rls.critic_q_one
@@ -143,7 +143,7 @@ class SAC(make_off_policy_class(mode='share')):
                 self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
             return td_error, summaries
 
-        for i in range(kwargs['step']):
+        for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': _train,
                 'update_function': lambda: self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
@@ -226,7 +226,7 @@ class SAC(make_off_policy_class(mode='share')):
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     # $J(\alpha)=\mathbb{E}_{\mathbf{a}_{t} \sim \pi_{t}}\left[-\alpha \log \pi_{t}\left(\mathbf{a}_{t} | \mathbf{s}_{t}\right)-\alpha \overline{\mathcal{H}}\right.$
                     # \overline{\mathcal{H}} is negative
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
                     [(alpha_grad, self.log_alpha)]
@@ -293,7 +293,7 @@ class SAC(make_off_policy_class(mode='share')):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
                 actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
                 if self.auto_adaption:
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi - self.target_entropy))
+                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -376,7 +376,7 @@ class SAC(make_off_policy_class(mode='share')):
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
-                    corr = tf.stop_gradient(-entropy - self.target_entropy)
+                    corr = tf.stop_gradient(self.target_entropy - entropy)
                     # corr = tf.stop_gradient(tf.reduce_sum((logp_all - self.a_dim) * tf.exp(logp_all), axis=-1))    #[B, A] => [B,]
                     # J(\alpha)=\pi_{t}\left(s_{t}\right)^{T}\left[-\alpha\left(\log \left(\pi_{t}\left(s_{t}\right)\right)+\bar{H}\right)\right]
                     # \bar{H} is negative

@@ -20,6 +20,7 @@ off_policy:
     use_isw: false
     episode_batch_size: 32 # rnn
     episode_buffer_size: 10000
+    train_times_per_step: 1 # train multiple times per agent step
 
 hiro:
     gamma: 0.99

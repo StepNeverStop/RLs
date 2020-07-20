@@ -100,7 +100,7 @@ class C51(make_off_policy_class(mode='share')):
         def _update():
             if self.global_step % self.assign_interval == 0:
                 self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
-        for i in range(kwargs['step']):
+        for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': _update,

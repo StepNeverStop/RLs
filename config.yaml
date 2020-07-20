@@ -15,6 +15,8 @@ train:
     add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
     info: None
     wandb_project: RLs
+    # off-policy
+    off_policy_train_interval: 1    # train policy every interval times
 
 model:
     logger2file: false
@@ -38,12 +40,13 @@ unity:
 gym:
     train:
         pre_fill_steps: 10000
-        off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
-        off_policy_step_eval_episodes: 100
         render: false
         render_episode: 50000
         eval_while_train: false
         max_eval_episode: 100
+        # off-policy
+        off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
+        off_policy_step_eval_episodes: 100
     env:
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false
