@@ -6,7 +6,25 @@ LABEL maintainer="StepNeverStop(Keavnn)"\
       email="keavnn.wjs@gmail.com"
 
 # change sources and install apt packages
-RUN apt-get update --fix-missing && \
+RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak && echo "\
+deb-src http://archive.ubuntu.com/ubuntu xenial main restricted #Added by software-properties\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial main restricted\n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial main restricted multiverse universe #Added by software-properties\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-updates main restricted\n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-updates main restricted multiverse universe #Added by software-properties\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial universe\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-updates universe\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial multiverse\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-updates multiverse\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-backports main restricted universe multiverse\n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-backports main restricted universe multiverse #Added by software-properties\n\
+deb http://archive.canonical.com/ubuntu xenial partner\n\
+deb-src http://archive.canonical.com/ubuntu xenial partner\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted\n\
+deb-src http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted multiverse universe #Added by software-properties\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-security universe\n\
+deb http://mirrors.aliyun.com/ubuntu/ xenial-security multiverse" >  /etc/apt/sources.list && \
+    apt-get update --fix-missing && \
     apt-get clean && \
     apt-get install -y apt-file nano --no-install-recommends wget bzip2 ca-certificates curl git openssh-server \
     libglib2.0-dev libsm6 libxrender1 libxext6 libnvinfer6=6.0.1-1+cuda10.1 libnvinfer-dev=6.0.1-1+cuda10.1 libnvinfer-plugin6=6.0.1-1+cuda10.1 && \
@@ -29,9 +47,21 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     echo "conda activate base" >> ~/.bashrc && \
     . /opt/conda/etc/profile.d/conda.sh && \
     conda init bash && \
+    echo "\
+channels:\n\
+- https://mirrors.ustc.edu.cn/anaconda/pkgs/main/\n\
+- https://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge/\n\
+- https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/\n\
+- defaults" > ~/.condarc && \
     conda update conda && \
     conda install -y conda-build && \
-    /opt/conda/bin/conda build purge-all
+    /opt/conda/bin/conda build purge-all && \
+    mkdir -p ~/.pip && \
+    echo "\
+[global]\n\
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple\n\
+[install]\n\
+trusted-host = https://pypi.tuna.tsinghua.edu.cn" > ~/.pip/pip.conf
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \
