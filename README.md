@@ -2,7 +2,7 @@
 
 :evergreen_tree::evergreen_tree::evergreen_tree:
 
-Reinforcement Learning Algorithm Based On TensorFlow2.0.
+Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
 This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_3) Release 3 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
@@ -35,7 +35,7 @@ This project supports:
 - MultiAgent training. One brain controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input(only for ml-agents). Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
-- Four types of ReplayBuffer, Default is ER: 
+- Four types of Replay Buffer, Default is ER: 
     - ER
     - n-step ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
@@ -179,19 +179,19 @@ Example:
 """
 ```
 
-If you specify **gym**, **unity**, and **envrionment executable file path** simultaneously, the following priorities will be followed: gym > unity > unity_env.
+If you specify **gym**, **unity**, and **environment executable file path** simultaneously, the following priorities will be followed: gym > unity > unity_env.
 
 ## Notes
 
 1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `$HOME/RLdata` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
 3. record directory format is `RLdata/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
-4. make sure brains' number > 1 if specifing `ma*` algorithms like maddpg
+4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
     1. write `.py` in `algos/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
     2. write default configuration in `algos/tf2algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the classname matches the name of the algorithm class
+    3. register new algorithm at dictionary *algos* in `algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
 7. set algorithms' hyper-parameters in [algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
 9. change neural network structure in [rls/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/rls/tf2nn.py)
@@ -207,27 +207,16 @@ If you specify **gym**, **unity**, and **envrionment executable file path** simu
 
 ## Installation
 
-### Dependencies
-
-- python>3.6, <=3.8
-- tensorflow>=2.1.0
-- numpy
-- pywin32==224
-- docopt
-- pyyaml
-- pillow
-- openpyxl
-- gym
-- opencv-python
-- ray, ray[debug] for OS based on Linux
-
-### Install
-
 ```bash
 $ git clone https://github.com/StepNeverStop/RLs.git
+$ cd RLs
+$ conda create -n rls python=3.6
+$ conda activate rls
+# Windows
+$ pip install -e .[windows]
+# Linux or Mac OS
+$ pip install -e .
 ```
-pip package coming soon.
-
 ## Giving credit
 
 If using this repository for your research, please cite:
@@ -244,7 +233,7 @@ If using this repository for your research, please cite:
 
 ## Issues
 
-Any questions about this project or errors about my bad grammer, plz let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
+Any questions about this project or errors about my bad grammar, please let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
 
 
 
