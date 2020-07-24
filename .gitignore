@@ -105,8 +105,5 @@ venv.bak/
 
 test/
 test.py
-server.py
 .vscode/
-s.py
-c.py
 videos/

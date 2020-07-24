@@ -5,7 +5,7 @@ LABEL maintainer="StepNeverStop(Keavnn)"\
       description="Docker image for runing RLs."\
       email="keavnn.wjs@gmail.com"
 
-# change sources
+# change sources and install apt packages
 RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak && echo "\
 deb-src http://archive.ubuntu.com/ubuntu xenial main restricted #Added by software-properties\n\
 deb http://mirrors.aliyun.com/ubuntu/ xenial main restricted\n\
@@ -23,10 +23,8 @@ deb-src http://archive.canonical.com/ubuntu xenial partner\n\
 deb http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted\n\
 deb-src http://mirrors.aliyun.com/ubuntu/ xenial-security main restricted multiverse universe #Added by software-properties\n\
 deb http://mirrors.aliyun.com/ubuntu/ xenial-security universe\n\
-deb http://mirrors.aliyun.com/ubuntu/ xenial-security multiverse" >  /etc/apt/sources.list
-
-# install apt packages
-RUN apt-get update --fix-missing && \
+deb http://mirrors.aliyun.com/ubuntu/ xenial-security multiverse" >  /etc/apt/sources.list && \
+    apt-get update --fix-missing && \
     apt-get clean && \
     apt-get install -y apt-file nano --no-install-recommends wget bzip2 ca-certificates curl git openssh-server \
     libglib2.0-dev libsm6 libxrender1 libxext6 libnvinfer6=6.0.1-1+cuda10.1 libnvinfer-dev=6.0.1-1+cuda10.1 libnvinfer-plugin6=6.0.1-1+cuda10.1 && \
@@ -75,12 +73,11 @@ RUN . /opt/conda/etc/profile.d/conda.sh && \
     rm -rf ~/.cache/pip/* && \
     # download RLs
     cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \
-    # . /opt/conda/etc/profile.d/conda.sh && \
-    # conda activate rls && \
     python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --store-dir '/root/test_rls' && \
     echo -e "\033[4;41;32m run rls successed. \033[0m" && \
     rm -rf /root/test_rls
 
+# 22:ssh 6006:tensorboard 8888:jupyter lab
 EXPOSE 22 6006 8888
 
 ENTRYPOINT ["/usr/sbin/sshd","-D"]
