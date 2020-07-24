@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
+from tensorflow.python.keras import activations
 from tensorflow.keras.layers import Dense, GaussianNoise
 from tensorflow.keras.layers import Conv2D, Flatten
 from rls.activations import default_activation
@@ -48,13 +49,14 @@ class Noisy(Dense):
     '''
 
     def __init__(self, units, activation=None, **kwargs):
-        super().__init__(units, activation=activation, **kwargs)
+        super().__init__(units, activation=None, **kwargs)
         self.noise_sigma = float(kwargs.get('noise_sigma', .4))
         self.mode = str(kwargs.get('noisy_distribution', 'independent'))  # independent or factorised
+        self.noisy_activation = activations.get(activation)
 
     def build(self, input_shape):
         super().build(input_shape)
-        self.build = False
+        self.built = False
         self.last_dim = tensor_shape.dimension_value(input_shape[-1])
         self.noisy_w = self.add_weight(
             'noise_kernel',
@@ -75,7 +77,7 @@ class Noisy(Dense):
                 trainable=True)
         else:
             self.bias = None
-        self.build = True
+        self.built = True
 
     def funcForFactor(self, x):
         return tf.sign(x) * tf.pow(tf.abs(x), 0.5)
@@ -99,9 +101,14 @@ class Noisy(Dense):
         y = super().call(inputs)
         if need_noise:
             noise = self.noisy_layer(inputs)
-            return y + noise
+            outputs = y + noise
         else:
-            return y
+            outputs = y
+
+        if self.noisy_activation is not None:
+            return self.noisy_activation(outputs)
+        else:
+            return outputs
 
 
 def ConvLayer(conv_function=Conv2D,
