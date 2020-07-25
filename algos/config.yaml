@@ -558,28 +558,13 @@ maxsqn:
     n_step: true
     hidden_units: [64, 64]
 
-ma_dpg:
-    gamma: 0.99
-    actor_lr: 5.0e-4
-    critic_lr: 1.0e-3
-    hidden_units:
-        actor: [64, 64]
-        q: [64, 64]
-
 ma_ddpg:
     gamma: 0.99
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    batch_size: 32
+    buffer_size: 100000
     hidden_units:
-        actor: [64, 64]
-        q: [64, 64]
-
-ma_td3:
-    gamma: 0.99
-    ployak: 0.995
-    actor_lr: 5.0e-4
-    critic_lr: 1.0e-3
-    hidden_units:
-        actor: [64, 64]
-        q: [64, 64]
+        actor: [32, 32]
+        q: [32, 32]

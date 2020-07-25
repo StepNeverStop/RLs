@@ -50,6 +50,19 @@ This project supports:
 - Just need to write a single file for other algorithms' implementation(Similar algorithm structure).
 - Many controllable factors and adjustable parameters
 
+## Installation
+
+```bash
+$ git clone https://github.com/StepNeverStop/RLs.git
+$ cd RLs
+$ conda create -n rls python=3.6
+$ conda activate rls
+# Windows
+$ pip install -e .[windows]
+# Linux or Mac OS
+$ pip install -e .
+```
+
 ## Implemented Algorithms
 
 For now, these algorithms are available:
@@ -85,10 +98,8 @@ For now, these algorithms are available:
     - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
     - [Interest-Option-Critic, IOC](http://arxiv.org/abs/2001.00271)
     - [HIerarchical Reinforcement learning with Off-policy correction, HIRO](http://arxiv.org/abs/1805.08296)
-- Multi-Agent training algorithms(*not support visual input yet*):
+- Multi-Agent training algorithms(*only Unity3D, not support visual input yet*):
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
-    - Multi-Agent Deterministic Policy Gradient, MADPG
-    - Multi-Agent Twin Delayed Deep Deterministic Policy Gradient, MATD3
 - Safe Reinforcement Learning algorithms(*not stable yet*):
     - [Primal-Dual Deep Deterministic Policy Gradient, PD-DDPG](http://arxiv.org/abs/1802.06480)
 
@@ -119,9 +130,7 @@ For now, these algorithms are available:
 |               SAC               |    √     |     √      |   √   |  √   |        sac        |
 |               TAC               |   sac    |     √      |   √   |  √   |        tac        |
 |             MaxSQN              |    √     |            |   √   |  √   |      maxsqn       |
-|              MADPG              |          |     √      |       |  √   |      ma_dpg       |
 |             MADDPG              |          |     √      |       |  √   |      ma_ddpg      |
-|              MATD3              |          |     √      |       |  √   |      ma_td3       |
 |               OC                |    √     |     √      |   √   |  √   |        oc         |
 |               AOC               |    √     |     √      |   √   |  √   |        aoc        |
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
@@ -195,28 +204,16 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 7. set algorithms' hyper-parameters in [algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/config.yaml)
 8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
 9. change neural network structure in [rls/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/rls/tf2nn.py)
+10. MADDPG is only suitable for Unity3D ML-Agents for now. Brain name in training scene should be set like `{agents control nums of this brain per environment copy}#{others}`, i.e. `2#Agents` means one brain controls two same agents in one environment copy.
 
 ## Ongoing things
 
-- Fix multi-agent algorithms
 - DARQN
 - ACER
 - Ape-X
 - R2D2
 - ~~ACKTR~~
 
-## Installation
-
-```bash
-$ git clone https://github.com/StepNeverStop/RLs.git
-$ cd RLs
-$ conda create -n rls python=3.6
-$ conda activate rls
-# Windows
-$ pip install -e .[windows]
-# Linux or Mac OS
-$ pip install -e .
-```
 ## Giving credit
 
 If using this repository for your research, please cite:

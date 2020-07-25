@@ -94,7 +94,14 @@ class InfoWrapper(BasicWrapper):
         self.a_size = [spec.action_size for spec in self.brain_specs]
         self.is_continuous = [spec.is_action_continuous() for spec in self.brain_specs]
 
-        self.brain_agents = [len(d) for d in [self._env.get_steps(bn)[0] for bn in self.brain_names]]    # 得到每个环境控制几个智能体
+        self.brain_agents_id = [d.agent_id for d in [self._env.get_steps(bn)[0] for bn in self.brain_names]]
+        self.brain_agents_id_dict = [{_id:i for _id, i in zip(_id_array, range(len(_id_array)))} for _id_array in self.brain_agents_id]
+        self.brain_agents = [len(d) for d in self.brain_agents_id]    # 得到每个环境控制几个智能体
+
+        if all('#' in name for name in self.brain_names):
+            # use for multi-agents
+            self.brain_controls = list(map(lambda x: int(x.split('#')[0]), self.brain_names))
+            self.env_copys = self.brain_agents[0] // self.brain_controls[0]
 
     def random_action(self):
         '''
@@ -141,13 +148,14 @@ class UnityReturnWrapper(BasicWrapper):
             reward.append(r)
             done.append(d)
             info.append(ifo)
-        return zip(vector, visual, reward, done, info)
+        return (vector, visual, reward, done, info)
 
     def coordinate_information(self, i, bn):
         '''
         TODO: Annotation
         '''
         n = self.brain_agents[i]
+        ids_dict = self.brain_agents_id_dict[i]
         d, t = self._env.get_steps(bn)
         ps = [t]
 
@@ -165,12 +173,13 @@ class UnityReturnWrapper(BasicWrapper):
 
         for t in ps:    # TODO: 有待优化
             if len(t) != 0:
-                info['max_step'][t.agent_id] = t.interrupted
-                info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-                reward[t.agent_id] = t.reward
-                done[t.agent_id] = True
+                tid = np.asarray([ids_dict[_id] for _id in t.agent_id])
+                info['max_step'][tid] = t.interrupted
+                info['real_done'][tid[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                reward[tid] = t.reward
+                done[tid] = True
                 for _obs, _tobs in zip(obs, t.obs):
-                    _obs[t.agent_id] = _tobs
+                    _obs[tid] = _tobs
 
         return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[i]]),
                 self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[i]]),
