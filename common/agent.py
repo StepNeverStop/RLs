@@ -104,6 +104,11 @@ class Agent:
             else:   # 只写load的训练名称，不用带进程序号，会自动补
                 self.train_args['load_model_path'] = os.path.join(self.train_args['base_dir'], self.model_args['load'] + f'-{self.model_index}')
 
+        if self.model_args['algo'][:3] == 'ma_':
+            self.multi_agents_training = True
+        else:
+            self.multi_agents_training = False
+
         # ENV
         logger.info('Initialize environment begin...')
         self.env = make_env(self.env_args.to_dict)
@@ -164,7 +169,7 @@ class Agent:
             # buffer ------------------------------
             if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
                 self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
-            self.buffer = get_buffer(self.buffer_args)
+            buffer = get_buffer(self.buffer_args)
             # buffer ------------------------------
 
             # model -------------------------------
@@ -181,7 +186,7 @@ class Agent:
                 'n_agents': self.env.n
             }
             self.model = Model(**model_params, **algorithm_config)
-            self.model.set_buffer(self.buffer)
+            self.model.set_buffer(buffer)
             self.model.init_or_restore(self.train_args['load_model_path'])
             # model -------------------------------
 
@@ -201,70 +206,103 @@ class Agent:
                 if self.train_args['use_wandb']:
                     wandb.config.update(records_dict)
         else:
-            # buffer -----------------------------------
-            self.buffer_args_s = []
-            for i in range(self.env.brain_num):
-                _bargs = deepcopy(self.buffer_args)
-                if 'Nstep' in _bargs['type']or 'Episode' in _bargs['type']:
-                    _bargs[_bargs['type']]['agents_num'] = self.env.brain_agents[i]
-                self.buffer_args_s.append(_bargs)
-            buffers = [get_buffer(self.buffer_args_s[i]) for i in range(self.env.brain_num)]
-            # buffer -----------------------------------
-
-            # model ------------------------------------
-            self.model_args_s = []
-            for i in range(self.env.brain_num):
-                _margs = deepcopy(self.model_args)
-                _margs['seed'] = self.model_args['seed'] + i * 10
-                self.model_args_s.append(_margs)
-            model_params = [{
-                's_dim': self.env.s_dim[i],
-                'a_dim': self.env.a_dim[i],
-                'visual_sources': self.env.visual_sources[i],
-                'visual_resolution': self.env.visual_resolutions[i],
-                'is_continuous': self.env.is_continuous[i],
-                'max_train_step': self.train_args.max_train_step,
-                'base_dir': os.path.join(base_dir, b),
-                'logger2file': self.model_args_s[i].logger2file,
-                'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
-                'n_agents': self.env.brain_agents[i],
-            } for i, b in enumerate(self.env.fixed_brain_names)]
-
-            # multi agent training------------------------------------
-            if self.model_args['algo'][:3] == 'ma_':
-                self.ma = True
+            if self.multi_agents_training:
                 assert self.env.brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
-                self.ma_data = ExperienceReplay(batch_size=10, capacity=1000)
-                [mp.update({'n': self.env.brain_num, 'i': i}) for i, mp in enumerate(model_params)]
-            else:
-                self.ma = False
-            # multi agent training------------------------------------
 
-            self.models = [Model(
-                **model_params[i],
-                **algorithm_config
-            ) for i in range(self.env.brain_num)]
+                if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
+                    self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
+                buffer = get_buffer(self.buffer_args)
 
-            [model.set_buffer(buffer) for model, buffer in zip(self.models, buffers)]
-            [self.models[i].init_or_restore(
-                os.path.join(self.train_args['load_model_path'], b))
-             for i, b in enumerate(self.env.fixed_brain_names)]
-            # model ------------------------------------
 
-            _train_info = self.models[0].get_init_training_info()
-            self.train_args['begin_train_step'] = _train_info['train_step']
-            self.train_args['begin_frame_step'] = _train_info['frame_step']
-            self.train_args['begin_episode'] = _train_info['episode']
-            if not self.train_args['inference']:
-                for i, b in enumerate(self.env.fixed_brain_names):
+                model_params = {
+                    's_dim': self.env.s_dim,
+                    'a_dim': self.env.a_dim,
+                    'visual_sources': self.env.visual_sources,
+                    'visual_resolution': self.env.visual_resolutions,
+                    'is_continuous': self.env.is_continuous,
+                    'max_train_step': self.train_args.max_train_step,
+                    'base_dir': base_dir,
+                    'logger2file': self.model_args.logger2file,
+                    'seed': self.model_args.seed,
+                    'n_agents': self.env.brain_agents,
+                    'brain_controls': self.env.brain_controls
+                }
+
+                self.model = Model(**model_params, **algorithm_config) 
+
+                self.model.set_buffer(buffer)
+                self.model.init_or_restore(self.train_args['load_model_path'])
+
+                _train_info = self.model.get_init_training_info()
+                self.train_args['begin_train_step'] = _train_info['train_step']
+                self.train_args['begin_frame_step'] = _train_info['frame_step']
+                self.train_args['begin_episode'] = _train_info['episode']
+                if not self.train_args['inference']:
                     records_dict = {
                         'env': self.env_args.to_dict,
-                        'model': self.model_args_s[i].to_dict,
-                        'buffer': self.buffer_args_s[i].to_dict,
+                        'model': self.model_args.to_dict,
+                        'buffer': self.buffer_args.to_dict,
                         'train': self.train_args.to_dict,
                         'algo': algorithm_config
                     }
-                    save_config(os.path.join(base_dir, b, 'config'), records_dict)
+                    save_config(os.path.join(base_dir, 'config'), records_dict)
+
+            else:
+                # buffer -----------------------------------
+                self.buffer_args_s = []
+                for i in range(self.env.brain_num):
+                    _bargs = deepcopy(self.buffer_args)
+                    if 'Nstep' in _bargs['type']or 'Episode' in _bargs['type']:
+                        _bargs[_bargs['type']]['agents_num'] = self.env.brain_agents[i]
+                    self.buffer_args_s.append(_bargs)
+                buffers = [get_buffer(self.buffer_args_s[i]) for i in range(self.env.brain_num)]
+                # buffer -----------------------------------
+
+                # model ------------------------------------
+                self.model_args_s = []
+                for i in range(self.env.brain_num):
+                    _margs = deepcopy(self.model_args)
+                    _margs['seed'] = self.model_args['seed'] + i * 10
+                    self.model_args_s.append(_margs)
+
+                model_params = [{
+                    's_dim': self.env.s_dim[i],
+                    'a_dim': self.env.a_dim[i],
+                    'visual_sources': self.env.visual_sources[i],
+                    'visual_resolution': self.env.visual_resolutions[i],
+                    'is_continuous': self.env.is_continuous[i],
+                    'max_train_step': self.train_args.max_train_step,
+                    'base_dir': os.path.join(base_dir, b),
+                    'logger2file': self.model_args_s[i].logger2file,
+                    'seed': self.model_args_s[i].seed,    # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+                    'n_agents': self.env.brain_agents[i],
+                } for i, b in enumerate(self.env.fixed_brain_names)]
+
+                self.models = [Model(
+                    **model_params[i],
+                    **algorithm_config
+                ) for i in range(self.env.brain_num)]
+
+                [model.set_buffer(buffer) for model, buffer in zip(self.models, buffers)]
+                [self.models[i].init_or_restore(
+                    os.path.join(self.train_args['load_model_path'], b))
+                for i, b in enumerate(self.env.fixed_brain_names)]
+                # model ------------------------------------
+
+                _train_info = self.models[0].get_init_training_info()
+                self.train_args['begin_train_step'] = _train_info['train_step']
+                self.train_args['begin_frame_step'] = _train_info['frame_step']
+                self.train_args['begin_episode'] = _train_info['episode']
+                if not self.train_args['inference']:
+                    for i, b in enumerate(self.env.fixed_brain_names):
+                        records_dict = {
+                            'env': self.env_args.to_dict,
+                            'model': self.model_args_s[i].to_dict,
+                            'buffer': self.buffer_args_s[i].to_dict,
+                            'train': self.train_args.to_dict,
+                            'algo': algorithm_config
+                        }
+                        save_config(os.path.join(base_dir, b, 'config'), records_dict)
         pass
 
     def pwi(self, *args, out_time=False):
@@ -320,30 +358,38 @@ class Agent:
                 self.model.close()
                 self.env.close()
         else:
-            try:
-                if self.ma:
+            if self.multi_agents_training:
+                try:
                     ma_unity_no_op(
                         env=self.env,
-                        models=self.models,
-                        buffer=self.ma_data,
+                        model=self.model,
                         print_func=self.pwi,
                         pre_fill_steps=int(self.train_args['pre_fill_steps']),
-                        prefill_choose=bool(self.train_args['prefill_choose'])
+                        prefill_choose=bool(self.train_args['prefill_choose']),
+                        real_done=bool(self.train_args['real_done'])
                     )
                     ma_unity_train(
                         env=self.env,
-                        models=self.models,
-                        buffer=self.ma_data,
+                        model=self.model,
                         print_func=self.pwi,
                         begin_train_step=int(self.train_args['begin_train_step']),
                         begin_frame_step=int(self.train_args['begin_frame_step']),
                         begin_episode=int(self.train_args['begin_episode']),
                         save_frequency=int(self.train_args['save_frequency']),
                         max_step_per_episode=int(self.train_args['max_step_per_episode']),
+                        max_train_step=int(self.train_args['max_train_step']),
+                        max_frame_step=int(self.train_args['max_frame_step']),
                         max_train_episode=int(self.train_args['max_train_episode']),
-                        policy_mode=str(self.model_args['policy_mode'])
+                        policy_mode=str(self.model_args['policy_mode']),
+                        moving_average_episode=int(self.train_args['moving_average_episode']),
+                        real_done=bool(self.train_args['real_done']),
+                        off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
                     )
-                else:
+                finally:
+                    self.model.close()
+                    self.env.close()
+            else:
+                try:
                     unity_no_op(
                         env=self.env,
                         models=self.models,
@@ -367,15 +413,14 @@ class Agent:
                         add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
                         add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
-                        total_step_control=bool(self.train_args['total_step_control']),
                         max_train_step=int(self.train_args['max_train_step']),
                         max_frame_step=int(self.train_args['max_frame_step']),
                         real_done=bool(self.train_args['real_done']),
                         off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
                     )
-            finally:
-                [model.close() for model in self.models]
-                self.env.close()
+                finally:
+                    [model.close() for model in self.models]
+                    self.env.close()
 
     def evaluate(self):
         if self.env_args['type'] == 'gym':
@@ -385,10 +430,10 @@ class Agent:
                 episodes=self.train_args['inference_episode']
             )
         else:
-            if self.ma:
+            if self.multi_agents_training:
                 ma_unity_inference(
                     env=self.env,
-                    models=self.models,
+                    model=self.model,
                     episodes=self.train_args['inference_episode']
                 )
             else:

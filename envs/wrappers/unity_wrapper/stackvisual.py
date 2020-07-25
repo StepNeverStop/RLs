@@ -78,7 +78,7 @@ class StackVisualWrapper(UnityReturnWrapper):
             reward.append(r)
             done.append(d)
             info.append(ifo)
-        return zip(vector, visual, reward, done, info)
+        return (vector, visual, reward, done, info)
 
     def coordinate_reset_information(self, i, bn):
         vector, visual, reward, done, info = super().coordinate_information(i, bn)
