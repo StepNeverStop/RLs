@@ -59,8 +59,6 @@ def unity_train(env, models, print_func,
             ObsRewDone = zip(*env.step(actions))
 
             for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
-                unfinished_index = np.where(dones_flag[i] == False)[0]
-                dones_flag[i] += _d
                 models[i].store_data(
                     s=state[i],
                     visual_s=visual_state[i],
@@ -71,7 +69,8 @@ def unity_train(env, models, print_func,
                     done=_info['real_done'] if real_done else _d
                 )
                 models[i].partial_reset(_d)
-                rewards[i][unfinished_index] += _r[unfinished_index]
+                rewards[i] += (1 - dones_flag[i]) * _r
+                dones_flag[i] = np.sign(dones_flag[i]+_d)
                 state[i] = _v
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':

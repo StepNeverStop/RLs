@@ -39,7 +39,7 @@ setup(
     install_requires=[
         'gym>=0.15.0',
         'cloudpickle==1.2.2',
-        'tensorflow-gpu>=2.0.0, <=2.2.0',
+        'tensorflow-gpu>=2.0.0, <=2.1.0',
         'tensorflow_probability==0.7.0',
         'docopt',
         'numpy',

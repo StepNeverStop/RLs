@@ -2,7 +2,7 @@
 
 - Convergence episode: 11
 - max step per episode: 999
-- algorithm: sac[[code]( https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/sac.py )]
+- algorithm: sac[[code](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/sac.py)]
 - Actor
 - - 64(share) -> 64(share) -> 32 -> 32 -> mu(tanh)
 - - 64(share) -> 64(share) -> 32 -> 32 -> sigma(sigmoid)

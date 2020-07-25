@@ -44,9 +44,9 @@ def gym_train(env, model, print_func,
     for episode in range(begin_episode, max_train_episode):
         model.reset()
         state[i] = env.reset()
-        dones_flag = np.full(env.n, False)
+        dones_flag = np.zeros(env.n)
         step = 0
-        r = np.zeros(env.n)
+        rets = np.zeros(env.n)
         last_done_step = -1
         while True:
             step += 1
@@ -54,9 +54,8 @@ def gym_train(env, model, print_func,
                 env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
-            unfinished_index = np.where(dones_flag == False)[0]
-            dones_flag += done
-            r[unfinished_index] += reward[unfinished_index]
+            rets += (1 - dones_flag) * reward
+            dones_flag = np.sign(dones_flag+done)
             model.store_data(
                 s=state[0],
                 visual_s=state[1],
@@ -94,7 +93,7 @@ def gym_train(env, model, print_func,
             if step >= max_step_per_episode:
                 break
 
-        sma.update(r)
+        sma.update(rets)
         if policy_mode == 'on-policy':
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
@@ -102,20 +101,20 @@ def gym_train(env, model, print_func,
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
         model.writer_summary(
             episode,
-            reward_mean=r.mean(),
-            reward_min=r.min(),
-            reward_max=r.max(),
+            reward_mean=rets.mean(),
+            reward_min=rets.min(),
+            reward_max=rets.max(),
             step=last_done_step,
             **sma.rs
         )
         print_func('-' * 40, out_time=True)
-        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(r, 2)}')
+        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(rets, 2)}')
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, print_func=print_func, prefill_choose=False, desc='adding noise')
 
         if eval_while_train and env.reward_threshold is not None:
-            if r.max() >= env.reward_threshold:
+            if rets.max() >= env.reward_threshold:
                 print_func(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                 gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
 
@@ -127,12 +126,12 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     cs = model.get_cell_state()  # 暂存训练时候的RNN隐状态
 
     i, state, _ = init_variables(env)
-    ret = 0.
+    sum_ret = 0.
     ave_steps = 0.
     for _ in trange(episodes_num, ncols=80, desc='evaluating', bar_format=bar_format):
         model.reset()
         state[i] = env.reset()
-        r = 0.
+        ret = 0.
         step = 0
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
@@ -140,16 +139,16 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
             model.partial_reset(done)
             reward = reward[0]
             done = done[0]
-            r += reward
+            ret += reward
             step += 1
             if done or step > max_step_per_episode:
-                ret += r
+                sum_ret += ret
                 ave_steps += step
                 break
 
     model.writer_summary(
         step,
-        eval_return=ret / episodes_num,
+        eval_return=sum_ret / episodes_num,
         eval_ave_step=ave_steps // episodes_num,
     )
     model.set_cell_state(cs)
@@ -164,20 +163,19 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
     for _ in trange(max_eval_episode, ncols=80, desc='evaluating', bar_format=bar_format):
         model.reset()
         state[i] = env.reset()
-        dones_flag = np.full(env.n, False)
+        dones_flag = np.zeros(env.n)
         steps = np.zeros(env.n)
-        r = np.zeros(env.n)
+        ret = np.zeros(env.n)
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)  # In the future, this method can be combined with choose_action
             _, reward, done, info, state[i] = env.step(action)
             model.partial_reset(done)
-            unfinished_index = np.where(dones_flag == False)
-            dones_flag += done
-            r[unfinished_index] += reward[unfinished_index]
-            steps[unfinished_index] += 1
+            ret += (1 - dones_flag) * reward
+            steps += (1 - dones_flag)
+            dones_flag = np.sign(dones_flag+done)
             if all(dones_flag) or any(steps >= max_step_per_episode):
                 break
-        total_r += r
+        total_r += ret
         total_steps += steps
     average_r = total_r.mean() / max_eval_episode
     average_step = int(total_steps.mean() / max_eval_episode)
@@ -218,19 +216,18 @@ def gym_inference(env, model, episodes):
         step = 0
         model.reset()
         state[i] = env.reset()
-        dones = np.full(shape=(env.n,), fill_value=False, dtype=np.bool)
-        returns = np.zeros(shape=(env.n), dtype=np.float32)
+        dones_flag = np.zeros(env.n)
+        rets = np.zeros(env.n)
         while True:
             env.render(record=False)
             action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
             step += 1
             _, reward, done, info, state[i] = env.step(action)
-            unfinished_index = np.where(dones == False)[0]
-            returns[unfinished_index] += reward[unfinished_index]
-            dones += done
+            rets += (1 - dones_flag) * reward
+            dones_flag = np.sign(dones_flag+done)
             model.partial_reset(done)
-            if dones.all():
-                logger.info(f'episode: {episode:4d}, returns: min {returns.min():6.2f}, mean {returns.mean():6.2f}, max {returns.max():6.2f}')
+            if dones_flag.all():
+                logger.info(f'episode: {episode:4d}, returns: min {rets.min():6.2f}, mean {rets.mean():6.2f}, max {rets.max():6.2f}')
                 break
 
             if step % 1000 == 0:

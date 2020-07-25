@@ -2,7 +2,7 @@
 
 - Convergence episode: 16
 - max step per episode: 1000
-- algorithm: sac+gumbel[[code]( https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/sac.py )]
+- algorithm: sac+gumbel[[code](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/sac.py)]
 - Actor
 - - 64 -> 32 -> logits
 - Critic_Q
