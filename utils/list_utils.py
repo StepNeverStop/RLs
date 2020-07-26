@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 def zero_initializer(n):
     assert isinstance(n, int) and n > 0
     return [0] * n

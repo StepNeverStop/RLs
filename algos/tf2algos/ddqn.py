@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import tensorflow as tf
 from algos.tf2algos.dqn import DQN
 

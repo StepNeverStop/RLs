@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import rls
 import numpy as np
 import tensorflow as tf

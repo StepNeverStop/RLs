@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import yaml
 from mlagents.trainers.sampler_class import SamplerManager
 from mlagents.trainers.exception import SamplerException

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import importlib
 import tensorflow as tf
 from common.yaml_ops import load_yaml

@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 class ExplorationExploitationClass(object):
     """Exploration and exploitation compromise
        calculates epsilon value depending on parameters and current step number"""

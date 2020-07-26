@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import numpy as np
 import tensorflow as tf
-from algos.tf2algos.base.on_policy import make_on_policy_class
 from rls.layers import mlp
+from algos.tf2algos.base.on_policy import make_on_policy_class
 
 
 class Model(tf.keras.Model):

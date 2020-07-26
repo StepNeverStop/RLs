@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 import time
 NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
