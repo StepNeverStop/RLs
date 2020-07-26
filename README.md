@@ -179,12 +179,11 @@ Options:
     --info=<str>                抒写该训练的描述，用双引号包裹, write another information that describe this training task [default: None]
     --use-wandb                 是否上传数据到W&B, whether upload training log to WandB [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test --config-file config.yaml --max-step 1000 --train-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
-    python run.py -a ppo -u -n train_in_unity --load last_train_name
-    python run.py -ui -a td3 -n inference_in_unity
-    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 -c 4
-    python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
+    gym:
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+    unity:
+        python run.py -u -a ppo -n run_with_unity
+        python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
 """
 ```
 

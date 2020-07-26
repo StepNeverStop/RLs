@@ -12,15 +12,21 @@ from common.train.gym import gym_train, gym_no_op, gym_inference
 from common.train.unity import unity_train, unity_no_op, unity_inference
 from common.train.unity import ma_unity_no_op, ma_unity_train, ma_unity_inference
 from algos.register import get_model_info
-from utils.replay_buffer import ExperienceReplay
+from utils.replay_buffer import ReplayBuffer
 from utils.time import get_time_hhmmss
+from typing import Dict, Any
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.agent")
 
 
-def ShowConfig(config):
+def ShowConfig(config: Dict) -> None:
+    '''
+    print the dictionary of configurations
+    params:
+        config: configurations of each variable
+    '''
     for key in config:
         logger.info('-' * 60)
         logger.info(
@@ -29,7 +35,16 @@ def ShowConfig(config):
     logger.info('-' * 60)
 
 
-def UpdateConfig(config, file_path, key_name='algo'):
+def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
+    '''
+    update configurations from a readable file.
+    params:
+        config: current configurations
+        file_path: path of configuration file that needs to be loaded
+        key_name: a specified key in configuration file that needs to update current configurations
+    return:
+        config: updated configurations
+    '''
     _config = load_config(file_path)
     key_values = _config[key_name]
     try:
@@ -41,7 +56,15 @@ def UpdateConfig(config, file_path, key_name='algo'):
     return config
 
 
-def get_buffer(buffer_args: Config):
+def get_buffer(buffer_args: Config) -> ReplayBuffer or None:
+    '''
+    parsing arguments of replay buffer
+    params:
+        buffer_args: configurations of replay buffer
+    return:
+        Correct experience replay mechanism.
+        For On-Policy algorithms, they don't have to specify a replay buffer out of model class, so return None
+    '''
 
     if buffer_args.get('buffer_size', 0) <= 0:
         logger.info('This algorithm does not need sepecify a data buffer oustside the model.')
@@ -73,20 +96,22 @@ def get_buffer(buffer_args: Config):
 
 class Agent:
     def __init__(self, env_args: Config, model_args: Config, buffer_args: Config, train_args: Config):
+        '''
+        Initilize an agent that consists of training environments, algorithm model, replay buffer.
+        params:
+            env_args: configurations of training environments
+            model_args: configurations of algorithm model
+            buffer_args: configurations of replay buffer
+            train_args: configurations of training
+        '''
         self.env_args = env_args
         self.model_args = model_args
         self.buffer_args = buffer_args
         self.train_args = train_args
         
-        # training control: max_train_step > max_frame_step > max_train_episode
-        if self.train_args['max_train_step'] > 0:
-            self.train_args['max_frame_step'] = sys.maxsize
-            self.train_args['max_train_episode'] = sys.maxsize
-        elif self.train_args['max_frame_step'] > 0:
-            self.train_args['max_train_episode'] = sys.maxsize
-        elif self.train_args['max_train_episode'] <= 0:
-            raise ValueError('max_train_step/max_frame_step/max_train_episode must be specified at least one with value larger than 0.')
-
+        self.train_args['max_train_step'] = self.train_args['max_train_step'] if self.train_args['max_train_step'] > 0 else sys.maxsize
+        self.train_args['max_frame_step'] = self.train_args['max_frame_step'] if self.train_args['max_frame_step'] > 0 else sys.maxsize
+        self.train_args['max_train_episode'] = self.train_args['max_train_episode'] if self.train_args['max_train_episode'] > 0 else sys.maxsize
         self.train_args['inference_episode'] = self.train_args['inference_episode'] if self.train_args['inference_episode'] > 0 else sys.maxsize
 
         self.model_index = str(self.train_args.get('index'))
@@ -159,6 +184,7 @@ class Agent:
         base_dir = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
 
         if self.env_args['type'] == 'gym':
+            # gym
             if self.train_args['use_wandb']:
                 import wandb
                 wandb_path = os.path.join(base_dir, 'wandb')
@@ -206,13 +232,14 @@ class Agent:
                 if self.train_args['use_wandb']:
                     wandb.config.update(records_dict)
         else:
+            # unity
             if self.multi_agents_training:
+                # multi agents with unity
                 assert self.env.brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
 
                 if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
                     self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
                 buffer = get_buffer(self.buffer_args)
-
 
                 model_params = {
                     's_dim': self.env.s_dim,
@@ -229,7 +256,6 @@ class Agent:
                 }
 
                 self.model = Model(**model_params, **algorithm_config) 
-
                 self.model.set_buffer(buffer)
                 self.model.init_or_restore(self.train_args['load_model_path'])
 
@@ -246,8 +272,8 @@ class Agent:
                         'algo': algorithm_config
                     }
                     save_config(os.path.join(base_dir, 'config'), records_dict)
-
             else:
+                # single agent with unity
                 # buffer -----------------------------------
                 self.buffer_args_s = []
                 for i in range(self.env.brain_num):

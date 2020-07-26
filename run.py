@@ -38,12 +38,11 @@ Options:
     --info=<str>                抒写该训练的描述，用双引号包裹, write another information that describe this training task [default: None]
     --use-wandb                 是否上传数据到W&B, whether upload training log to WandB [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test --config-file config.yaml --max-step 1000 --train-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
-    python run.py -a ppo -u -n train_in_unity --load last_train_name
-    python run.py -ui -a td3 -n inference_in_unity
-    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 -c 4
-    python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
+    gym:
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+    unity:
+        python run.py -u -a ppo -n run_with_unity
+        python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
 """
 
 import os
@@ -64,7 +63,14 @@ from common.yaml_ops import load_yaml
 from common.config import Config
 
 
-def get_options(options: Dict):
+def get_options(options: Dict) -> Config:
+    '''
+    Resolves command-line arguments
+    params:
+        options: dictionary of command-line arguments
+    return:
+        op: an instance of Config class that contains the parameters
+    '''
     f = lambda k, t: None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
@@ -103,6 +109,9 @@ def get_options(options: Dict):
 
 
 def agent_run(*args):
+    '''
+    Start a training task
+    '''
     Agent(*args)()
 
 
@@ -113,6 +122,9 @@ def run():
         import _thread
 
         def _win_handler(event, hook_sigint=_thread.interrupt_main):
+            '''
+            handle the event of 'Ctrl+c' in windows operating system.
+            '''
             if event == 0:
                 hook_sigint()
                 return 1
@@ -137,7 +149,7 @@ def run():
     model_args.seed = options.seed
     model_args.load = options.load
 
-    env_args.env_num = options.n_copys
+    env_args.env_num = options.n_copys  # Environmental copies of vectorized training.
     if options.gym:
         train_args.add_dict(default_config['gym']['train'])
         train_args.update({'render_episode': options.render_episode})
@@ -165,7 +177,7 @@ def run():
                     # if traing with visual input but do not render the environment, all 0 obs will be passed.
                     options.graphic = True
             else:
-                raise Exception('can not find this file.')
+                raise Exception('can not find the executable file.')
         if options.inference:
             env_args.train_mode = False
             env_args.render = True
