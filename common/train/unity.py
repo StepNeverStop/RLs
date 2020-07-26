@@ -70,7 +70,7 @@ def unity_train(env, models, print_func,
                 )
                 models[i].partial_reset(_d)
                 rewards[i] += (1 - dones_flag[i]) * _r
-                dones_flag[i] = np.sign(dones_flag[i]+_d)
+                dones_flag[i] = np.sign(dones_flag[i] + _d)
                 state[i] = _v
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':
@@ -255,10 +255,9 @@ def ma_unity_train(env, model, print_func,
             action, r, done, s_, visual_s_ = map(data_change_func, [action, r, done, s_, visual_s_])
             done = np.sign(np.asarray(done).sum((0, 2)))  # [Copys,]
 
-            rewards += np.asarray([np.squeeze(rw) for rw in r]) * (1 - dones_flag)
+            rewards += np.asarray(r).reshape(-1, env.env_copys) * (1 - dones_flag)
 
             dones_flag = np.sign(dones_flag + done)
-
             model.store_data(
                 *s,
                 *visual_s,
@@ -281,10 +280,9 @@ def ma_unity_train(env, model, print_func,
 
             frame_step += 1
             if 0 < max_train_step < train_step or 0 < max_frame_step < frame_step:
-                models.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
-
             if all(dones_flag):
                 if last_done_step == -1:
                     last_done_step = step
@@ -294,15 +292,17 @@ def ma_unity_train(env, model, print_func,
             if step >= max_step_per_episode:
                 break
 
-        train_summaries = {}
         for i in range(agents_num_per_copy):
             sma[i].update(rewards[i])
-            train_summaries.update({f'agent-{i}_'+k: v for k, v in sma[i].rs.items()})
-        train_summaries.update({f'agent-{i}_reward_mean': rewards[i].mean() for i in range(agents_num_per_copy)})
-        train_summaries.update({f'agent-{i}reward_min': rewards[i].min() for i in range(agents_num_per_copy)})
-        train_summaries.update({f'agent-{i}reward_max': rewards[i].max() for i in range(agents_num_per_copy)})
-
-        model.writer_summary(episode, **train_summaries)
+            model.writer_summary(
+                episode,
+                agent_idx=i,
+                reward_mean=rewards[i].mean(),
+                reward_min=rewards[i].min(),
+                reward_max=rewards[i].max(),
+                # step=last_done_step,
+                **sma[i].rs
+            )
 
         print_func('-' * 40, out_time=True)
         print_func(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')

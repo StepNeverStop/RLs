@@ -31,6 +31,8 @@ class MultiAgentPolicy(Base):
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
+        self.agent_sep_ctls = sum(self.brain_controls)
+        self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.agent_sep_ctls)]
 
     def init_lr(self, lr):
         if self.delay_lr:
@@ -49,7 +51,7 @@ class MultiAgentPolicy(Base):
 
     def model_recorder(self, kwargs):
         kwargs.update(dict(global_step=self.global_step))
-        self.generate_recorder(kwargs)
+        self.generate_recorder(kwargs, use_writer=False)
         self.show_logo()
 
     def intermediate_variable_reset(self):
@@ -91,3 +93,9 @@ class MultiAgentPolicy(Base):
         TODO: Annotation
         '''
         pass
+
+    def writer_summary(self, global_step, agent_idx=0, **kargs):
+        """
+        record the data used to show in the tensorboard
+        """
+        super().writer_summary(global_step, writer=self.writers[agent_idx], **kargs)

@@ -22,7 +22,6 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             **kwargs)
         self.total_s_dim = sum(self.s_dim)
         self.total_a_dim = sum(self.a_dim)
-        self.agent_sep_ctls = sum(self.brain_controls)
 
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
         self.n_step = kwargs.get('n_step', False)

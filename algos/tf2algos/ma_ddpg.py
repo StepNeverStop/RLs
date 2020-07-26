@@ -101,7 +101,7 @@ class MADDPG(MultiAgentOffPolicy):
         action = _get_action_func(vector_input).numpy()
 
         if evaluation:
-            np.clip(action+self.action_noises[model_idx](), -1, 1, out=action)
+            np.clip(action + self.action_noises[model_idx](), -1, 1, out=action)
 
         return action
 
@@ -112,7 +112,7 @@ class MADDPG(MultiAgentOffPolicy):
                 self.intermediate_variable_reset()
                 batch_data = self.data.sample()
                 done = batch_data[-1]
-                s, visual_a, a, r, s_, visual_s_ = [batch_data[i:i+self.agent_sep_ctls] for i in range(0, len(batch_data)-1, self.agent_sep_ctls)]
+                s, visual_a, a, r, s_, visual_s_ = [batch_data[i:i + self.agent_sep_ctls] for i in range(0, len(batch_data) - 1, self.agent_sep_ctls)]
                 target_a = [self._get_actions(i, s_[i], evaluation=True, use_target=True) for i in range(self.agent_sep_ctls)]
 
                 s_all = np.hstack(s)
@@ -120,38 +120,31 @@ class MADDPG(MultiAgentOffPolicy):
                 s_next_all = np.hstack(s_)
                 target_a_all = np.hstack(target_a)
 
-                summaries = []
                 for i in range(self.agent_sep_ctls):
+                    summary = {}
                     if i == 0:
                         al = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
-                        ar = np.hstack(a[i+1:])
+                        ar = np.hstack(a[i + 1:])
                     elif i == self.agent_sep_ctls - 1:
                         al = np.hstack(a[:i])
                         ar = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
                     else:
                         al = np.hstack(a[:i])
-                        ar = np.hstack(a[i+1:])
+                        ar = np.hstack(a[i + 1:])
 
                     # actor: al, ar, s(all), s
                     # critic: r, done, s_(all), target_a(all), s(all), a(all)
-                    summaries.append(self._train(i, s_all, a_all, s_next_all, target_a_all, r[i], done, s[i], al, ar))
-                self.global_step.assign_add(1)
+                    summary.update(self._train(i, s_all, a_all, s_next_all, target_a_all, r[i], done, s[i], al, ar))
+                    summary.update({'LEARNING_RATE/actor_lr': self.actor_lrs[i](self.train_step), 'LEARNING_RATE/critic_lr': self.critic_lrs[i](self.train_step)})
+                    self.write_training_summaries(self.global_step, summary, self.writers[i])
 
-                [self.summaries.update(s) for s in summaries]
+                self.global_step.assign_add(1)
 
                 for i in range(self.agent_sep_ctls):
                     self.update_target_net_weights(
                         self.actor_target_nets[i].weights + self.q_target_nets[i].weights,
                         self.actor_nets[i].weights + self.q_nets[i].weights,
                         self.ployak)
-
-                actor_lr_summaries = {f'LEARNING_RATE/actor-{i}_lr': self.actor_lrs[i](self.train_step) for i in range(self.agent_sep_ctls)}
-                critic_lr_summaries = {f'LEARNING_RATE/critic-{i}_lr': self.critic_lrs[i](self.train_step) for i in range(self.agent_sep_ctls)}
-
-                self.summaries.update(actor_lr_summaries)
-                self.summaries.update(critic_lr_summaries)
-
-                self.write_training_summaries(self.global_step, self.summaries)
 
     def _train(self, model_idx, s, a, s_, a_, r, done, s_i, al, ar):
 
@@ -184,8 +177,8 @@ class MADDPG(MultiAgentOffPolicy):
                     zip(tape.gradient(actor_loss, actor_net.trainable_variables), actor_net.trainable_variables)
                 )
                 return dict([
-                    [f'LOSS/actor-{model_idx}_loss', actor_loss],
-                    [f'LOSS/critic-{model_idx}_loss', q_loss]
+                    ['LOSS/actor_loss', actor_loss],
+                    ['LOSS/critic_loss', q_loss]
                 ])
 
         return train_persistent(s, s_, a, a_, r, done, s_i, al, ar)
