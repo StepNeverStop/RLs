@@ -163,7 +163,7 @@ class CURL(make_off_policy_class(mode='no_share')):
         ))
 
     def show_logo(self):
-        self.recorder.logger.info('''
+        self.logger.info('''
 　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　
 　　　　ｘｘｘ　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
 　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　　　　　　　

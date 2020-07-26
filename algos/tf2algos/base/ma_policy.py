@@ -51,7 +51,7 @@ class MultiAgentPolicy(Base):
 
     def model_recorder(self, kwargs):
         kwargs.update(dict(global_step=self.global_step))
-        self.generate_recorder(kwargs, use_writer=False)
+        self._create_saver(kwargs)
         self.show_logo()
 
     def intermediate_variable_reset(self):

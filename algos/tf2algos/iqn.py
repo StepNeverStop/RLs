@@ -72,7 +72,7 @@ class IQN(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.recorder.logger.info('''
+        self.logger.info('''
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘ　　
 　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　　　　ｘｘｘｘｘ　　ｘｘｘ　　

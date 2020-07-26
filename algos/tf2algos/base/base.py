@@ -1,13 +1,13 @@
 import os
+import json
 import logging
 import numpy as np
 import tensorflow as tf
+
+from typing import Dict
 from utils.tf2_utils import cast2float32, cast2float64
 from utils.tf2_utils import get_device
-from utils.recorder import Recorder
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("algos.base")
+from utils.sundry_utils import create_logger
 
 
 class Base:
@@ -25,9 +25,26 @@ class Base:
         tf.keras.backend.set_floatx(tf_dtype)
         tf.random.set_seed(int(kwargs.get('seed', 0)))
         self.device = get_device()
-        self.logger2file = bool(kwargs.get('logger2file', False))
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
+
+        self.logger = create_logger(
+            name='rls.algo.base',
+            console_level=logging.INFO,
+            console_format='%(levelname)s : %(message)s',
+            logger2file=bool(kwargs.get('logger2file', False)),
+            file_name=self.log_dir + 'log.txt',
+            file_level=logging.WARNING,
+            file_format='%(lineno)d - %(asctime)s - %(module)s - %(funcName)s - %(levelname)s - %(message)s'
+        )
+
+        self.check_or_create(self.cp_dir, 'checkpoints')
+        self.check_or_create(self.log_dir, 'logs(summaries)')
+        if 1 == 0:  # Not used
+            import pandas as pd
+            self.check_or_create(self.excel_dir, 'excel')
+            self.excel_writer = pd.ExcelWriter(self.excel_dir + '/data.xlsx')
+
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.cast = self._cast(dtype=tf_dtype)
 
@@ -64,23 +81,26 @@ class Base:
         else:
             return 0
 
-    def get_init_training_info(self):
+    def get_init_training_info(self) -> Dict:
         '''
         TODO: Annotation
         '''
-        return self.recorder.get_training_info()
+        path = f'{self.log_dir}/step.json'
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                data = json.load(f)
+        else:
+            data = {}
+        return dict(
+            train_step=int(data.get('train_step', 0)),
+            frame_step=int(data.get('frame_step', 0)),
+            episode=int(data.get('episode', 0))
+        )
 
-    def generate_recorder(self, kwargs, use_writer=True):
+    def _create_saver(self, kwargs):
         """
-        create model/log/data dictionary and define writer to record training data.
+        create checkpoint and saver.
         """
-
-        self.check_or_create(self.cp_dir, 'checkpoints')
-        self.check_or_create(self.excel_dir, 'excel')
-        self.check_or_create(self.log_dir, 'logs(summaries)')
-        self.recorder = Recorder(log_dir=self.log_dir, excel_dir=self.excel_dir, logger2file=self.logger2file)
-        if use_writer:
-            self.writer = self._create_writer(self.log_dir)
         self.checkpoint = tf.train.Checkpoint(**kwargs)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
 
@@ -97,14 +117,14 @@ class Base:
             try:
                 self.checkpoint.restore(tf.train.latest_checkpoint(cp_dir)).expect_partial()    # 从指定路径导入模型
             except:
-                self.recorder.logger.error(f'restore model from {cp_dir} FAILED.')
+                self.logger.error(f'restore model from {cp_dir} FAILED.')
                 raise Exception(f'restore model from {cp_dir} FAILED.')
             else:
-                self.recorder.logger.info(f'restore model from {cp_dir} SUCCUESS.')
+                self.logger.info(f'restore model from {cp_dir} SUCCUESS.')
         else:
             self.checkpoint.restore(self.saver.latest_checkpoint).expect_partial()  # 从本模型目录载入模型，断点续训
-            self.recorder.logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
-            self.recorder.logger.info('initialize model SUCCUESS.')
+            self.logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
+            self.logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, **kwargs):
         """
@@ -112,8 +132,12 @@ class Base:
         """
         train_step = int(kwargs.get('train_step', 0))
         self.saver.save(checkpoint_number=train_step)
-        logger.info(f'Save checkpoint success. Training step: {train_step}')
-        self.recorder.write_training_info(kwargs)
+        self.logger.info(f'Save checkpoint success. Training step: {train_step}')
+        self.write_training_info(kwargs)
+
+    def write_training_info(self, data: Dict) -> None:
+        with open(f'{self.log_dir}/step.json', 'w') as f:
+            json.dump(data, f)
 
     def writer_summary(self, global_step, writer=None, **kargs):
         """
@@ -143,7 +167,7 @@ class Base:
         """
         if not os.path.exists(dicpath):
             os.makedirs(dicpath)
-            logger.info(''.join([f'create {name} directionary :', dicpath]))
+            self.logger.info(''.join([f'create {name} directionary :', dicpath]))
 
     def save_weights(self, path):
         """

@@ -123,7 +123,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                     axis=-1), axis=-1)
 
     def show_logo(self):
-        self.recorder.logger.info('''
+        self.logger.info('''
 　　ｘｘｘｘｘ　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
 　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　
 　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　

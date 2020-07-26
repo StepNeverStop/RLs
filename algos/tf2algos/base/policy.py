@@ -53,6 +53,7 @@ class Policy(Base):
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128,
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
+        self.writer = self._create_writer(self.log_dir) # TODO: Annotation
 
     def init_lr(self, lr):
         if self.delay_lr:
@@ -82,7 +83,7 @@ class Policy(Base):
         kwargs.update(dict(global_step=self.global_step))
         if self.use_curiosity:
             kwargs.update(curiosity_model=self.curiosity_model)
-        self.generate_recorder(kwargs)
+        self._create_saver(kwargs)
         self.show_logo()
 
     def intermediate_variable_reset(self):

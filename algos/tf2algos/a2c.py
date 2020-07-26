@@ -56,7 +56,7 @@ class A2C(make_on_policy_class(mode='share')):
         self.initialize_data_buffer()
 
     def show_logo(self):
-        self.recorder.logger.info('''
+        self.logger.info('''
 　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
 　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
 　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
