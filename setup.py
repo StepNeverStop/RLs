@@ -1,11 +1,17 @@
+from importlib import util as import_util
 from setuptools import setup, find_packages
+
+spec = import_util.spec_from_file_location('_metadata', 'rls/_metadata.py')
+_metadata = import_util.module_from_spec(spec)
+spec.loader.exec_module(_metadata)
 
 with open('README.md', 'r', encoding='utf8') as f:
     long_description = f.read()
+long_description += '\n\nFor more information see our [github repository](https://github.com/StepNeverStop/RLs).'
 
 setup(
     name="RLs",
-    version='UnReleased',
+    version=_metadata.__version__,
     description="Reinforcement Learning Algorithm Based On TensorFlow 2.x.",
     keywords='reinforcement learning gym ml-agents tf2',
     long_description=long_description,
@@ -15,7 +21,7 @@ setup(
     author_email='keavnn.wjs@gmail.com',
     maintainer='Keavnn',
     maintainer_email='keavnn.wjs@gmail.com',
-    license="Apache-2.0 License",
+    license="Apache License, Version 2.0",
     packages=find_packages(exclude=['test', 'test.*']),
     python_requires='>=3.6',
     classifiers=[
@@ -24,11 +30,12 @@ setup(
         # 4 - Beta
         # 5 - Production/Stable
         'Development Status :: 3 - Alpha',
+        'Environment :: Console',
         # Indicate who your project is intended for
         'Intended Audience :: Reinforcement Learning Researchers',
         'Topic :: Artificial Intelligence :: Reinforcement Learning',
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: Apache-2.0 License',
+        'License :: OSI Approved :: Apache Software License',
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 3.6',
