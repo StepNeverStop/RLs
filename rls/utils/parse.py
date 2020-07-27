@@ -5,7 +5,7 @@ import os
 import time
 NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
 import platform
-BASE_DIR = f'C:/RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
+BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 from typing import Dict
 

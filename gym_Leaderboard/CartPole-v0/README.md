@@ -2,7 +2,7 @@
 
 - Convergence episode: 0
 - max step per episode: 200
-- algorithm: td3+gumbel[[code](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/td3.py)]
+- algorithm: td3+gumbel[[code](https://github.com/StepNeverStop/RLs/blob/master/algos/single/td3.py)]
 - Actor
 - - 64 -> 32 -> logits
 - Critic

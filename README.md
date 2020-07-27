@@ -26,7 +26,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym{MuJoCo, [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). ~~Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.~~(**Because of GIL, It turned out to be pseudo-multithreading**)
+- Gym{MuJoCo, [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
@@ -197,10 +197,10 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `rls/algos/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
-    2. write default configuration in `rls/algos/tf2algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `rls/algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [rls/algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/tf2algos/config.yaml)
+    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    2. write default configuration in `rls/algos/config.yaml`
+    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
+7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
 10. MADDPG is only suitable for Unity3D ML-Agents for now. Brain name in training scene should be set like `{agents control nums of this brain per environment copy}#{others}`, i.e. `2#Agents` means one brain controls two same agents in one environment copy.
@@ -230,6 +230,3 @@ If using this repository for your research, please cite:
 ## Issues
 
 Any questions about this project or errors about my bad grammar, please let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
-
-
-
