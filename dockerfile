@@ -1,15 +1,20 @@
-FROM nvidia/cuda:10.1-runtime-ubuntu16.04
+FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 
 LABEL maintainer="StepNeverStop(Keavnn)"\
-      source="https://github.com/StepNeverStop/RLs"\
+      github="https://github.com/StepNeverStop/RLs"\
       description="Docker image for runing RLs."\
       email="keavnn.wjs@gmail.com"
 
-# change sources and install apt packages
-RUN apt-get update --fix-missing && \
+ENV LANG C.UTF-8
+
+# install apt packages
+RUN mv /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list /tmp && \
+    apt-get upgrade && \
     apt-get clean && \
-    apt-get install -y apt-file nano --no-install-recommends wget bzip2 ca-certificates curl git openssh-server \
-    libglib2.0-dev libsm6 libxrender1 libxext6 libnvinfer6=6.0.1-1+cuda10.1 libnvinfer-dev=6.0.1-1+cuda10.1 libnvinfer-plugin6=6.0.1-1+cuda10.1 && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update --fix-missing && \
+    apt-get install -y apt-file apt-utils nano --no-install-recommends wget bzip2 ca-certificates curl git openssh-server \
+    libglib2.0-dev libsm6 libxrender1 libxext6 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     mkdir /var/run/sshd && \
@@ -35,14 +40,13 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \
-    conda create -n rls python=3.6 docopt numpy imageio pyyaml protobuf  pandas openpyxl tqdm && \
+    conda create -n rls python=3.7 && \
     conda activate rls && \
     echo -e "\033[4;41;32m conda activate rls successed. \033[0m" && \
-    pip --no-cache-dir install gym grpcio tensorflow-gpu==2.1.0 tensorflow_probability opencv-python && \
+    cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \
+    pip install -e . && \
     /opt/conda/bin/conda build purge-all && \
     rm -rf ~/.cache/pip/* && \
-    # download RLs
-    cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \
     python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --store-dir '/root/test_rls' && \
     echo -e "\033[4;41;32m run rls successed. \033[0m" && \
     rm -rf /root/test_rls

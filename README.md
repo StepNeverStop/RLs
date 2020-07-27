@@ -26,7 +26,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym{MuJoCo, [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). ~~Support parallel training using gym envs, just need to specify `--gym-agents` to how many agents you want to train in parallel.~~(**Because of GIL, It turned out to be pseudo-multithreading**)
+- Gym{MuJoCo, [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
@@ -61,6 +61,16 @@ $ conda activate rls
 $ pip install -e .[windows]
 # Linux or Mac OS
 $ pip install -e .
+```
+
+if using ml-agents:
+```bash
+$ pip install -e .[unity]
+```
+
+if using atari:
+```bash
+$ pip install -e .[atari]
 ```
 
 ## Implemented Algorithms
@@ -168,7 +178,6 @@ Options:
     --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
     --train-frame=<n>           总的训练采样次数, specify the training maximum steps interacting with environment [default: None]
-    --sampler=<file>            指定随机采样器的文件路径, specify the path of UNITY3D sampler [default: None]
     --load=<name>               指定载入model的训练名称, specify the name of pre-trained model that need to load [default: None]
     --prefill-steps=<n>         指定预填充的经验数量, specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0, whether choose action using model or choose randomly [default: False]
@@ -179,12 +188,11 @@ Options:
     --info=<str>                抒写该训练的描述，用双引号包裹, write another information that describe this training task [default: None]
     --use-wandb                 是否上传数据到W&B, whether upload training log to WandB [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test --config-file config.yaml --max-step 1000 --train-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
-    python run.py -a ppo -u -n train_in_unity --load last_train_name
-    python run.py -ui -a td3 -n inference_in_unity
-    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 -c 4
-    python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
+    gym:
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+    unity:
+        python run.py -u -a ppo -n run_with_unity
+        python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
 """
 ```
 
@@ -198,12 +206,12 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `algos/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
-    2. write default configuration in `algos/tf2algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/config.yaml)
-8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [rls/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/rls/tf2nn.py)
+    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    2. write default configuration in `rls/algos/config.yaml`
+    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
+7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
+8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
+9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
 10. MADDPG is only suitable for Unity3D ML-Agents for now. Brain name in training scene should be set like `{agents control nums of this brain per environment copy}#{others}`, i.e. `2#Agents` means one brain controls two same agents in one environment copy.
 
 ## Ongoing things
@@ -231,6 +239,3 @@ If using this repository for your research, please cite:
 ## Issues
 
 Any questions about this project or errors about my bad grammar, please let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
-
-
-

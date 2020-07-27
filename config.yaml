@@ -4,9 +4,9 @@ UnityEnvFile:
 train:
     save_frequency: 100
     max_step_per_episode: 2000 # max_step_per_episode per episode, if gym->env->max_episode_steps > max_step_per_episode, them PEB(Partial Episode Bootstraping), else TimeLimit.
+    max_train_step: 0 # if max_train_step > 0, then training will stop when training steps > max_train_step.
+    max_frame_step: 0    
     max_train_episode: 0
-    max_train_step: 100000 # if max_train_step > 0, then training will stop when training steps > max_train_step.
-    max_frame_step: 0
     moving_average_episode: 100
     all_learner_print: true
     inference_episode: 0

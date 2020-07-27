@@ -1,5 +1,6 @@
 
-# coding: utf-8
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Usage:
     python [options]
@@ -27,7 +28,6 @@ Options:
     --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
     --train-frame=<n>           总的训练采样次数, specify the training maximum steps interacting with environment [default: None]
-    --sampler=<file>            指定随机采样器的文件路径, specify the path of UNITY3D sampler [default: None]
     --load=<name>               指定载入model的训练名称, specify the name of pre-trained model that need to load [default: None]
     --prefill-steps=<n>         指定预填充的经验数量, specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0, whether choose action using model or choose randomly [default: False]
@@ -38,33 +38,36 @@ Options:
     --info=<str>                抒写该训练的描述，用双引号包裹, write another information that describe this training task [default: None]
     --use-wandb                 是否上传数据到W&B, whether upload training log to WandB [default: False]
 Example:
-    python run.py -a sac -g -e C:/test.exe -p 6666 -s 10 -n test --config-file config.yaml --max-step 1000 --train-episode 1000 --sampler C:/test_sampler.yaml --unity-env Roller
-    python run.py -a ppo -u -n train_in_unity --load last_train_name
-    python run.py -ui -a td3 -n inference_in_unity
-    python run.py -gi -a dddqn -n inference_with_build -e my_executable_file.exe
-    python run.py --gym -a ppo -n train_using_gym --gym-env MountainCar-v0 --render-episode 1000 -c 4
-    python run.py -u -a ddpg -n pre_fill --prefill-steps 1000 --prefill-choose
+    gym:
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+    unity:
+        python run.py -u -a ppo -n run_with_unity
+        python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
 """
 
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
-sys.path.append('./mlagents')
-import time
-NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
-import platform
-BASE_DIR = f'C:/RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 from typing import Dict
 from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
-from common.agent import Agent
-from common.yaml_ops import load_yaml
-from common.config import Config
+
+from rls.common.agent import Agent
+from rls.common.config import Config
+from rls.common.yaml_ops import load_yaml
+from rls.utils.parse import parse_options
 
 
-def get_options(options: Dict):
+def get_options(options: Dict) -> Config:
+    '''
+    Resolves command-line arguments
+    params:
+        options: dictionary of command-line arguments
+    return:
+        op: an instance of Config class that contains the parameters
+    '''
     f = lambda k, t: None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
@@ -86,7 +89,6 @@ def get_options(options: Dict):
         ['max_train_step',      f('--train-step', int)],
         ['max_train_frame',     f('--train-frame', int)],
         ['max_train_episode',   f('--train-episode', int)],
-        ['sampler',             f('--sampler', str)],
         ['load',                f('--load', str)],
         ['prefill_steps',       f('--prefill-steps', int)],
         ['prefill_choose',      bool(options['--prefill-choose'])],
@@ -103,6 +105,9 @@ def get_options(options: Dict):
 
 
 def agent_run(*args):
+    '''
+    Start a training task
+    '''
     Agent(*args)()
 
 
@@ -113,6 +118,9 @@ def run():
         import _thread
 
         def _win_handler(event, hook_sigint=_thread.interrupt_main):
+            '''
+            handle the event of 'Ctrl+c' in windows operating system.
+            '''
             if event == 0:
                 hook_sigint()
                 return 1
@@ -124,73 +132,7 @@ def run():
     options = get_options(dict(options))
     print(options)
 
-    default_config = load_yaml(f'config.yaml')
-    # gym > unity > unity_env
-    model_args = Config(**default_config['model'])
-    train_args = Config(**default_config['train'])
-    env_args = Config()
-    buffer_args = Config(**default_config['buffer'])
-
-    model_args.algo = options.algo
-    model_args.use_rnn = options.use_rnn
-    model_args.algo_config = options.algo_config
-    model_args.seed = options.seed
-    model_args.load = options.load
-
-    env_args.env_num = options.n_copys
-    if options.gym:
-        train_args.add_dict(default_config['gym']['train'])
-        train_args.update({'render_episode': options.render_episode})
-        env_args.add_dict(default_config['gym']['env'])
-        env_args.type = 'gym'
-        env_args.env_name = options.gym_env
-        env_args.env_seed = options.gym_env_seed
-    else:
-        train_args.add_dict(default_config['unity']['train'])
-        env_args.add_dict(default_config['unity']['env'])
-        env_args.type = 'unity'
-        env_args.port = options.port
-        env_args.sampler_path = options.sampler
-        env_args.env_seed = options.unity_env_seed
-        if options.unity:
-            env_args.file_path = None
-            env_args.env_name = 'unity'
-        else:
-            env_args.update({'file_path': options.env})
-            if os.path.exists(env_args.file_path):
-                env_args.env_name = options.unity_env or os.path.join(
-                    *os.path.split(env_args.file_path)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
-                )
-                if 'visual' in env_args.env_name.lower():
-                    # if traing with visual input but do not render the environment, all 0 obs will be passed.
-                    options.graphic = True
-            else:
-                raise Exception('can not find this file.')
-        if options.inference:
-            env_args.train_mode = False
-            env_args.render = True
-        else:
-            env_args.train_mode = True
-            env_args.render = options.graphic
-
-    train_args.index = 0
-    train_args.name = NAME
-    train_args.use_wandb = options.use_wandb
-    train_args.inference = options.inference
-    train_args.prefill_choose = options.prefill_choose
-    train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, model_args.algo)
-    train_args.update(
-        dict([
-            ['name', options.name],
-            ['max_step_per_episode', options.max_step_per_episode],
-            ['max_train_step', options.max_train_step],
-            ['max_train_frame', options.max_train_frame],
-            ['max_train_episode', options.max_train_episode],
-            ['save_frequency', options.save_frequency],
-            ['pre_fill_steps', options.prefill_steps],
-            ['info', options.info]
-        ])
-    )
+    env_args, model_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
 
     if options.inference:
         Agent(env_args, model_args, buffer_args, train_args).evaluate()

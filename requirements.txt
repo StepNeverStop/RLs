@@ -1,13 +1,8 @@
 docopt
 numpy
-gym
-opencv-python
-imageio
+gym>=0.15.0
 pyyaml
-protobuf
-grpcio
-tensorflow
-tensorflow_probability
-pandas
-openpyxl
 tqdm
+tensorflow-gpu==2.1.0
+tensorflow_probability==0.9.0
+gast==0.2.2

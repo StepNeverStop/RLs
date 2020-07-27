@@ -2,7 +2,7 @@
 
 - Convergence episode: 47
 - max step per episode: 200
-- algorithm: maxsqn[[code]( https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/maxsqn.py )],  reimplementation from [createamind]( https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py )
+- algorithm: maxsqn[[code](https://github.com/StepNeverStop/RLs/blob/master/algos/single/maxsqn.py)], reimplementation from [createamind](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
 - Q:
 - - 32 -> 32 -> logits
 - n_step: 4
