@@ -5,9 +5,10 @@ opencv-python
 imageio
 pyyaml
 protobuf
-grpcio
-tensorflow
-tensorflow_probability
+grpcio>=1.24.3
+tensorflow-gpu==2.1.0
+tensorflow_probability==0.7.0
 pandas
 openpyxl
 tqdm
+cloudpickle==1.2.2'
