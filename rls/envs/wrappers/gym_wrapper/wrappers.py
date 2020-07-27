@@ -2,9 +2,23 @@
 # -*- coding: utf-8 -*-
 
 import gym
-import cv2
-cv2.ocl.setUseOpenCL(False)
-import imageio
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('envs.wrappers.gym_wrapper.wrappers')
+try:
+    import cv2
+    cv2.ocl.setUseOpenCL(False)
+except:
+    logger.warning('opencv-python is needed to train visual-based model.')
+    pass
+
+try:
+    import imageio
+except:
+    logger.warning('imageio should be installed to record vedio if needed.')
+    pass
+
 import numpy as np
 
 from collections import deque

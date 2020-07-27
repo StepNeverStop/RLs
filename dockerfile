@@ -40,7 +40,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \
-    conda create -n rls python=3.6 && \
+    conda create -n rls python=3.7 && \
     conda activate rls && \
     echo -e "\033[4;41;32m conda activate rls successed. \033[0m" && \
     cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \

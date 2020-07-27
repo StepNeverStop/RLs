@@ -38,7 +38,6 @@ def parse_options(options: Config, default_config: Dict):
         env_args.add_dict(default_config['unity']['env'])
         env_args.type = 'unity'
         env_args.port = options.port
-        env_args.sampler_path = options.sampler
         env_args.env_seed = options.unity_env_seed
         if options.unity:
             env_args.file_path = None

@@ -28,7 +28,6 @@ Options:
     --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
     --train-frame=<n>           总的训练采样次数, specify the training maximum steps interacting with environment [default: None]
-    --sampler=<file>            指定随机采样器的文件路径, specify the path of UNITY3D sampler [default: None]
     --load=<name>               指定载入model的训练名称, specify the name of pre-trained model that need to load [default: None]
     --prefill-steps=<n>         指定预填充的经验数量, specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
     --prefill-choose            指定no_op操作时随机选择动作，或者置0, whether choose action using model or choose randomly [default: False]
@@ -49,7 +48,6 @@ Example:
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
-sys.path.append('./mlagents')
 
 from typing import Dict
 from copy import deepcopy
@@ -91,7 +89,6 @@ def get_options(options: Dict) -> Config:
         ['max_train_step',      f('--train-step', int)],
         ['max_train_frame',     f('--train-frame', int)],
         ['max_train_episode',   f('--train-episode', int)],
-        ['sampler',             f('--sampler', str)],
         ['load',                f('--load', str)],
         ['prefill_steps',       f('--prefill-steps', int)],
         ['prefill_choose',      bool(options['--prefill-choose'])],

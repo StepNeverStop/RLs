@@ -42,24 +42,17 @@ setup(
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'gym>=0.15.0',
-        'cloudpickle==1.2.2',
-        'tensorflow-gpu>=2.0.0, <=2.1.0',
-        'tensorflow_probability==0.7.0',
         'docopt',
         'numpy',
-        'opencv-python',
-        'imageio',
+        'gym>=0.15.0',
         'pyyaml',
-        'protobuf',
-        'grpcio>=1.24.3',
-        'pandas',
-        'openpyxl',
-        'tqdm'
+        'tqdm',
+        'tensorflow-gpu>=2.0.0, <=2.1.0',
+        'tensorflow_probability==0.9.0',
+        'gast==0.2.2'
     ],
     extras_require={
         'windows': [
@@ -69,9 +62,12 @@ setup(
             'ray',
             'ray[debug]',
         ],
+        'unity': [
+            'mlagents-envs==0.17.0'
+        ],
         'atari': [
             'atari_py',
-            'cv2',
+            'opencv-python',
         ],
         'mujoco': [
             'mujoco_py'

@@ -30,9 +30,7 @@ def unity_train(env, models, print_func,
         env:                    Environment for interaction.
         models:                 all models for this training task.
         save_frequency:         how often to save checkpoints.
-        reset_config:           configuration to reset for Unity environment.
         max_step_per_episode:   maximum number of steps for an episode.
-        sampler_manager:        sampler configuration parameters for 'reset_config'.
         resampling_interval:    how often to resample parameters for env reset.
     Variables:
         brain_names:    a list of brain names set in Unity.

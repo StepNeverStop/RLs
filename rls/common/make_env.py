@@ -6,14 +6,6 @@ import logging
 from typing import Dict
 from copy import deepcopy
 
-from rls.envs.wrappers.gym_wrapper import gym_envs
-from rls.envs.wrappers.unity_wrapper import \
-    UnityWrapper, \
-    InfoWrapper, \
-    UnityReturnWrapper, \
-    SamplerWrapper, \
-    ActionWrapper, \
-    StackVisualWrapper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.make_env")
@@ -30,12 +22,21 @@ def make_env(env_args: Dict):
 
 
 def make_gym_env(env_args):
+    from rls.envs.wrappers.gym_wrapper import gym_envs
+
     env_kargs = deepcopy(env_args)
     env = gym_envs(env_kargs)
     return env
 
 
 def make_unity_env(env_args):
+    from rls.envs.wrappers.unity_wrapper import \
+        UnityWrapper, \
+        InfoWrapper, \
+        UnityReturnWrapper, \
+        ActionWrapper, \
+        StackVisualWrapper
+
     env_kargs = deepcopy(env_args)
     env = UnityWrapper(env_kargs)
     logger.debug('Unity UnityWrapper success.')
@@ -49,9 +50,6 @@ def make_unity_env(env_args):
     else:
         env = UnityReturnWrapper(env)
         logger.debug('Unity UnityReturnWrapper success.')
-
-    env = SamplerWrapper(env, env_args)
-    logger.debug('Unity SamplerWrapper success.')
 
     env = ActionWrapper(env)
     logger.debug('Unity ActionWrapper success.')

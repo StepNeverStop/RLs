@@ -2,18 +2,25 @@
 # -*- coding: utf-8 -*-
 
 import os
-import cv2
-cv2.ocl.setUseOpenCL(False)
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('envs.wrappers.unity_wrapper.wrappers')
+try:
+    import cv2
+    cv2.ocl.setUseOpenCL(False)
+except:
+    logger.warning('opencv-python is needed to train visual-based model.')
+    pass
 
 import numpy as np
 from copy import deepcopy
 
 from rls.utils.sth import sth
-from rls.utils.sampler import create_sampler_manager
 from rls.common.yaml_ops import load_yaml
-from mlagents.mlagents_envs.environment import UnityEnvironment
-from mlagents.mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
-from mlagents.mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 
 class UnityWrapper(object):
@@ -218,22 +225,6 @@ class UnityReturnWrapper(BasicWrapper):
         image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
         image *= 255
         return image
-
-
-class SamplerWrapper(BasicWrapper):
-
-    def __init__(self, env, env_args):
-        super().__init__(env)
-        self.reset_config = env_args['reset_config']
-        self.sampler_manager, self.resample_interval = create_sampler_manager(env_args['sampler_path'], 0)
-        self.episode = 0
-
-    def reset(self):
-        self.episode += 1
-        if self.episode % self.resample_interval == 0:
-            self.reset_config.update(self.sampler_manager.sample_all())
-        obs = self._env.reset(config=self.reset_config)
-        return obs
 
 
 class ActionWrapper(BasicWrapper):
