@@ -5,6 +5,8 @@ LABEL maintainer="StepNeverStop(Keavnn)"\
       description="Docker image for runing RLs."\
       email="keavnn.wjs@gmail.com"
 
+ENV LANG C.UTF-8
+
 # change sources and install apt packages
 RUN mv /etc/apt/sources.list /etc/apt/sources.list.bak && echo "\
 deb-src http://archive.ubuntu.com/ubuntu xenial main restricted #Added by software-properties\n\

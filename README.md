@@ -197,12 +197,12 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `algos/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
-    2. write default configuration in `algos/tf2algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/algos/tf2algos/config.yaml)
-8. set training default configuration in [config.py](https://github.com/StepNeverStop/RLs/blob/master/config.py)
-9. change neural network structure in [rls/tf2nn.py](https://github.com/StepNeverStop/RLs/blob/master/rls/tf2nn.py)
+    1. write `.py` in `rls/algos/tf2algos` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    2. write default configuration in `rls/algos/tf2algos/config.yaml`
+    3. register new algorithm at dictionary *algos* in `rls/algos/tf2algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
+7. set algorithms' hyper-parameters in [rls/algos/tf2algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/tf2algos/config.yaml)
+8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
+9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
 10. MADDPG is only suitable for Unity3D ML-Agents for now. Brain name in training scene should be set like `{agents control nums of this brain per environment copy}#{others}`, i.e. `2#Agents` means one brain controls two same agents in one environment copy.
 
 ## Ongoing things

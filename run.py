@@ -55,10 +55,11 @@ from typing import Dict
 from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
-from common.agent import Agent
-from common.config import Config
-from common.yaml_ops import load_yaml
-from utils.parse import parse_options
+
+from rls.common.agent import Agent
+from rls.common.config import Config
+from rls.common.yaml_ops import load_yaml
+from rls.utils.parse import parse_options
 
 
 def get_options(options: Dict) -> Config:

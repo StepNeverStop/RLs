@@ -5,7 +5,9 @@ LABEL maintainer="StepNeverStop(Keavnn)"\
       description="Docker image for runing RLs."\
       email="keavnn.wjs@gmail.com"
 
-# change sources and install apt packages
+ENV LANG C.UTF-8
+
+# install apt packages
 RUN mv /etc/apt/sources.list.d/cuda.list /etc/apt/sources.list.d/nvidia-ml.list /tmp && \
     apt-get upgrade && \
     apt-get clean && \
