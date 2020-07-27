@@ -63,14 +63,19 @@ $ pip install -e .[windows]
 $ pip install -e .
 ```
 
-if using ml-agents:
+If using ml-agents:
 ```bash
 $ pip install -e .[unity]
 ```
 
-if using atari:
+If using atari:
 ```bash
 $ pip install -e .[atari]
+```
+
+You can download builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
+```bash
+$ docker pull keavnn/rls:latest
 ```
 
 ## Implemented Algorithms
@@ -78,7 +83,7 @@ $ pip install -e .[atari]
 For now, these algorithms are available:
 
 - Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
-    - Q-Learning, Sarsa, Expected Sarsa
+    - Q-Learning, Sarsa, Expected Sarsa
     - :bug:Policy Gradient, PG
     - :bug:Actor Critic, AC
     - Advantage Actor Critic, A2C
