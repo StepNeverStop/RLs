@@ -5,6 +5,12 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from typing import \
+    Union, \
+    List, \
+    Dict, \
+    NoReturn
+
 from rls.nn import actor_mu as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_v as Critic
@@ -26,30 +32,30 @@ class PPO(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[int, np.ndarray],
+                 visual_sources: Union[int, np.ndarray],
+                 visual_resolution: Union[List, np.ndarray],
+                 a_dim: Union[int, np.ndarray],
+                 is_continuous: Union[bool, np.ndarray],
 
-                 policy_epoch=4,
-                 value_epoch=4,
-                 beta=1.0e-3,
-                 lr=5.0e-4,
-                 lambda_=0.95,
-                 epsilon=0.2,
-                 value_epsilon=0.2,
-                 share_net=True,
-                 actor_lr=3e-4,
-                 critic_lr=1e-3,
-                 kl_reverse=False,
-                 kl_target=0.02,
-                 kl_target_cutoff=2,
-                 kl_target_earlystop=4,
-                 kl_beta=[0.7, 1.3],
-                 kl_alpha=1.5,
-                 kl_coef=1.0,
-                 hidden_units={
+                 policy_epoch: int = 4,
+                 value_epoch: int = 4,
+                 beta: float = 1.0e-3,
+                 lr: float = 5.0e-4,
+                 lambda_: float = 0.95,
+                 epsilon: float = 0.2,
+                 value_epsilon: float = 0.2,
+                 share_net: bool = True,
+                 actor_lr: float = 3e-4,
+                 critic_lr: float = 1e-3,
+                 kl_reverse: bool = False,
+                 kl_target: float = 0.02,
+                 kl_target_cutoff: float = 2,
+                 kl_target_earlystop: float = 4,
+                 kl_beta: List[float] = [0.7, 1.3],
+                 kl_alpha: float = 1.5,
+                 kl_coef: float = 1.0,
+                 hidden_units: Dict = {
                      'share': {
                          'continuous': {
                              'share': [32, 32],
@@ -130,7 +136,7 @@ class PPO(make_on_policy_class(mode='share')):
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob'])
 
-    def show_logo(self):
+    def show_logo(self) -> NoReturn:
         self.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
 　　　　　ｘｘ　　ｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　
@@ -143,7 +149,10 @@ class PPO(make_on_policy_class(mode='share')):
 　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　　
         ''')
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self,
+                      s: np.ndarray,
+                      visual_s: np.ndarray,
+                      evaluation: bool = False) -> np.ndarray:
         a, value, log_prob, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
@@ -173,7 +182,14 @@ class PPO(make_on_policy_class(mode='share')):
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, value, log_prob, cell_state
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+    def store_data(self,
+                   s: np.ndarray,
+                   visual_s: np.ndarray,
+                   a: np.ndarray,
+                   r: np.ndarray,
+                   s_: np.ndarray,
+                   visual_s_: np.ndarray,
+                   done: np.ndarray) -> NoReturn:
         assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
@@ -189,7 +205,7 @@ class PPO(make_on_policy_class(mode='share')):
                 value = self.critic_net(feat)
             return value
 
-    def calculate_statistics(self):
+    def calculate_statistics(self) -> NoReturn:
         feat, self.cell_state = self.get_feature(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state, record_cs=True)
         init_value = np.squeeze(self._get_value(feat).numpy())
         self.data.cal_dc_r(self.gamma, init_value)
@@ -197,7 +213,7 @@ class PPO(make_on_policy_class(mode='share')):
         self.data.cal_gae_adv(self.lambda_, self.gamma)
 
     # @show_graph(name='ppo_net')
-    def learn(self, **kwargs):
+    def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
 
         def _train(data, crsty_loss, cell_state):
