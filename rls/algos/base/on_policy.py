@@ -4,13 +4,18 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import Dict
+from typing import \
+    Dict, \
+    Union, \
+    List, \
+    NoReturn, \
+    Any
 
 from rls.utils.sth import sth
 from rls.utils.on_policy_buffer import DataBuffer
 
 
-def make_on_policy_class(mode='share'):
+def make_on_policy_class(mode: str = 'share'):
     if mode == 'share':
         from rls.algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
     else:
@@ -18,11 +23,11 @@ def make_on_policy_class(mode='share'):
 
     class On_Policy(BasePolicy):
         def __init__(self,
-                     s_dim,
-                     visual_sources,
-                     visual_resolution,
-                     a_dim,
-                     is_continuous,
+                     s_dim: Union[int, np.ndarray],
+                     visual_sources: Union[int, np.ndarray],
+                     visual_resolution: Union[List, np.ndarray],
+                     a_dim: Union[int, np.ndarray],
+                     is_continuous: Union[bool, np.ndarray],
                      **kwargs):
             super().__init__(
                 s_dim=s_dim,
@@ -33,10 +38,18 @@ def make_on_policy_class(mode='share'):
                 **kwargs)
             self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
-        def initialize_data_buffer(self, data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']):
+        def initialize_data_buffer(self,
+                                   data_name_list: List[str] = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) -> NoReturn:
             self.data = DataBuffer(dict_keys=data_name_list, n_agents=self.n_agents)
 
-        def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        def store_data(self,
+                       s: Union[List, np.ndarray],
+                       visual_s: Union[List, np.ndarray],
+                       a: Union[List, np.ndarray],
+                       r: Union[List, np.ndarray],
+                       s_: Union[List, np.ndarray],
+                       visual_s_: Union[List, np.ndarray],
+                       done: Union[List, np.ndarray]) -> NoReturn:
             """
             for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
             """
@@ -46,16 +59,16 @@ def make_on_policy_class(mode='share'):
             self._running_average(s)
             self.data.add(s, visual_s, a, r, s_, visual_s_, done)
 
-        def no_op_store(self, *args, **kwargs):
+        def no_op_store(self, *args, **kwargs) -> Any:
             pass
 
-        def clear(self):
+        def clear(self) -> NoReturn:
             """
             clear the DataFrame.
             """
             self.data.clear()
 
-        def _learn(self, function_dict: Dict):
+        def _learn(self, function_dict: Dict) -> NoReturn:
             '''
             TODO: Annotation
             '''

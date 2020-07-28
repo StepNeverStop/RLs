@@ -21,7 +21,7 @@ def make_env(env_args: Dict):
     return env
 
 
-def make_gym_env(env_args):
+def make_gym_env(env_args: Dict):
     from rls.envs.wrappers.gym_wrapper import gym_envs
 
     env_kargs = deepcopy(env_args)
@@ -29,7 +29,7 @@ def make_gym_env(env_args):
     return env
 
 
-def make_unity_env(env_args):
+def make_unity_env(env_args: Dict):
     from rls.envs.wrappers.unity_wrapper import \
         UnityWrapper, \
         InfoWrapper, \

@@ -8,7 +8,7 @@ import logging
 import numpy as np
 
 from copy import deepcopy
-from typing import Dict, Any
+from typing import Dict, NoReturn, Optional
 
 from rls.common.config import Config
 from rls.common.make_env import make_env
@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("common.agent")
 
 
-def ShowConfig(config: Dict) -> None:
+def ShowConfig(config: Dict) -> NoReturn:
     '''
     print the dictionary of configurations
     params:
@@ -71,7 +71,7 @@ def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
     return config
 
 
-def get_buffer(buffer_args: Config) -> ReplayBuffer or None:
+def get_buffer(buffer_args: Config) -> Optional[ReplayBuffer]:
     '''
     parsing arguments of replay buffer
     params:
@@ -346,7 +346,7 @@ class Agent:
                         save_config(os.path.join(base_dir, b, 'config'), records_dict)
         pass
 
-    def pwi(self, *args, out_time=False):
+    def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self.all_learner_print:
             model_info = f'| Model-{self.model_index} |'
         elif int(self.model_index) == 0:
@@ -357,7 +357,7 @@ class Agent:
             ''.join([model_info, *args])
         )
 
-    def __call__(self):
+    def __call__(self) -> NoReturn:
         self.train()
 
     def train(self):
@@ -463,7 +463,7 @@ class Agent:
                     [model.close() for model in self.models]
                     self.env.close()
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         if self.env_args['type'] == 'gym':
             gym_inference(
                 env=self.env,
@@ -484,7 +484,7 @@ class Agent:
                     episodes=self.train_args['inference_episode']
                 )
 
-    def run(self, mode='worker'):
+    def run(self, mode: str = 'worker') -> NoReturn:
         if mode == 'worker':
             ApexWorker(self.env, self.models)()
         elif mode == 'learner':

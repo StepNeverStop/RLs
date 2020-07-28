@@ -7,7 +7,14 @@ import logging
 import numpy as np
 import tensorflow as tf
 
-from typing import Dict
+from typing import \
+    Dict, \
+    Callable, \
+    Union, \
+    List, \
+    NoReturn, \
+    Optional, \
+    Any
 
 from rls.utils.tf2_utils import \
     cast2float32, \
@@ -54,7 +61,7 @@ class Base:
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self.cast = self._cast(dtype=tf_dtype)
 
-    def _cast(self, dtype='float32'):
+    def _cast(self, dtype: str = 'float32') -> Callable:
         '''
         TODO: Annotation
         '''
@@ -72,13 +79,13 @@ class Base:
                 return func(*args, **kwargs)
         return inner
 
-    def data_convert(self, data):
+    def data_convert(self, data: Union[np.ndarray, List]) -> tf.Tensor:
         '''
         TODO: Annotation
         '''
         return tf.convert_to_tensor(data, dtype=self._data_type)
 
-    def get_init_train_step(self):
+    def get_init_train_step(self) -> int:
         """
         get the initial training step. use for continue train from last training step.
         """
@@ -103,18 +110,18 @@ class Base:
             episode=int(data.get('episode', 0))
         )
 
-    def _create_saver(self, kwargs):
+    def _create_saver(self, kwargs: Dict) -> NoReturn:
         """
         create checkpoint and saver.
         """
         self.checkpoint = tf.train.Checkpoint(**kwargs)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
 
-    def _create_writer(self, log_dir):
+    def _create_writer(self, log_dir: str) -> tf.summary.SummaryWriter:
         self.check_or_create(log_dir, 'logs(summaries)')
         return tf.summary.create_file_writer(log_dir)
 
-    def init_or_restore(self, base_dir):
+    def init_or_restore(self, base_dir: str) -> NoReturn:
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
@@ -132,7 +139,7 @@ class Base:
             self.logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
             self.logger.info('initialize model SUCCUESS.')
 
-    def save_checkpoint(self, **kwargs):
+    def save_checkpoint(self, **kwargs) -> NoReturn:
         """
         save the training model 
         """
@@ -141,11 +148,14 @@ class Base:
         self.logger.info(f'Save checkpoint success. Training step: {train_step}')
         self.write_training_info(kwargs)
 
-    def write_training_info(self, data: Dict) -> None:
+    def write_training_info(self, data: Dict) -> NoReturn:
         with open(f'{self.log_dir}/step.json', 'w') as f:
             json.dump(data, f)
 
-    def writer_summary(self, global_step, writer=None, **kargs):
+    def writer_summary(self,
+                       global_step: Union[int, tf.Variable],
+                       writer: Optional[tf.summary.SummaryWriter] = None,
+                       **kargs) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """
@@ -156,7 +166,10 @@ class Base:
             tf.summary.scalar(i['tag'], i['value'])
         writer.flush()
 
-    def write_training_summaries(self, global_step, summaries: dict, writer=None):
+    def write_training_summaries(self,
+                                 global_step: Union[int, tf.Variable],
+                                 summaries: Dict,
+                                 writer: Optional[tf.summary.SummaryWriter] = None) -> NoReturn:
         '''
         write tf summaries showing in tensorboard.
         '''
@@ -167,7 +180,7 @@ class Base:
             tf.summary.scalar(key, value)
         writer.flush()
 
-    def check_or_create(self, dicpath, name=''):
+    def check_or_create(self, dicpath: str, name: str = '') -> NoReturn:
         """
         check dictionary whether existing, if not then create it.
         """
@@ -175,7 +188,7 @@ class Base:
             os.makedirs(dicpath)
             self.logger.info(''.join([f'create {name} directionary :', dicpath]))
 
-    def save_weights(self, path):
+    def save_weights(self, path: str) -> Any:
         """
         save trained weights
         :return: None
@@ -183,7 +196,7 @@ class Base:
         # self.net.save_weights(os.path.join(path, 'net.ckpt'))
         pass
 
-    def load_weights(self, path):
+    def load_weights(self, path: str) -> Any:
         """
         load trained weights
         :return: None
@@ -191,23 +204,23 @@ class Base:
         # self.net.load_weights(os.path.join(path, 'net.ckpt'))
         pass
 
-    def close(self):
+    def close(self) -> Any:
         """
         end training, and export the training model
         """
         pass
 
-    def get_global_step(self):
+    def get_global_step(self) -> int:
         """
         get the current training step.
         """
         return self.global_step
 
-    def set_global_step(self, num):
+    def set_global_step(self, num: int) -> NoReturn:
         """
         set the start training step.
         """
         self.global_step.assign(num)
 
-    def show_logo(self):
+    def show_logo(self) -> NoReturn:
         raise NotImplementedError

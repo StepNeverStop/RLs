@@ -6,6 +6,11 @@ import numpy as np
 
 from tqdm import trange
 from copy import deepcopy
+from typing import \
+    Tuple, \
+    List, \
+    Callable, \
+    NoReturn
 
 from rls.utils.np_utils import \
     SMA, \
@@ -16,7 +21,7 @@ logger = logging.getLogger("common.train.gym")
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
-def init_variables(env):
+def init_variables(env) -> Tuple[int, List[np.ndarray], List[np.ndarray]]:
     """
     inputs:
         env: Environment
@@ -31,12 +36,28 @@ def init_variables(env):
             [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)])
 
 
-def gym_train(env, model, print_func,
-              begin_train_step, begin_frame_step, begin_episode, render, render_episode,
-              save_frequency, max_step_per_episode, max_train_episode, eval_while_train, max_eval_episode,
-              off_policy_step_eval_episodes, off_policy_train_interval,
-              policy_mode, moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-              off_policy_eval_interval, max_train_step, max_frame_step):
+def gym_train(env, model,
+              print_func: Callable[[str], None],
+              begin_train_step: int,
+              begin_frame_step: int,
+              begin_episode: int,
+              render: bool,
+              render_episode: int,
+              save_frequency: int,
+              max_step_per_episode: int,
+              max_train_episode: int,
+              eval_while_train: bool,
+              max_eval_episode: int,
+              off_policy_step_eval_episodes: int,
+              off_policy_train_interval: int,
+              policy_mode: str,
+              moving_average_episode: int,
+              add_noise2buffer: bool,
+              add_noise2buffer_episode_interval: int,
+              add_noise2buffer_steps: int,
+              off_policy_eval_interval: int,
+              max_train_step: int,
+              max_frame_step: int) -> NoReturn:
     """
     TODO: Annotation
     """
@@ -81,7 +102,7 @@ def gym_train(env, model, print_func,
                 if train_step % save_frequency == 0:
                     model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
                 if off_policy_eval_interval > 0 and train_step % off_policy_eval_interval == 0:
-                    gym_step_eval(deepcopy(env), train_step, model, off_policy_step_eval_episodes, max_step_per_episode)
+                    gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, max_step_per_episode)
 
             frame_step += env.n
             total_step += 1
@@ -125,7 +146,10 @@ def gym_train(env, model, print_func,
                 gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
 
 
-def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
+def gym_step_eval(env, model,
+                  step: int,
+                  episodes_num: int,
+                  max_step_per_episode: int) -> NoReturn:
     '''
     1个环境的推断模式
     '''
@@ -161,7 +185,10 @@ def gym_step_eval(env, step, model, episodes_num, max_step_per_episode):
     del env
 
 
-def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func):
+def gym_evaluate(env, model,
+                 max_step_per_episode: int,
+                 max_eval_episode: int,
+                 print_func: Callable[[str], None]) -> NoReturn:
     i, state, _ = init_variables(env)
     total_r = np.zeros(env.n)
     total_steps = np.zeros(env.n)
@@ -190,7 +217,11 @@ def gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
     print_func('----------------------------------------------------------------------------------------------------------------------------')
 
 
-def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose, desc='Pre-filling'):
+def gym_no_op(env, model,
+              print_func: Callable[[str], None],
+              pre_fill_steps: int,
+              prefill_choose: bool,
+              desc: str = 'Pre-filling') -> NoReturn:
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
     i, state, new_state = init_variables(env)
@@ -216,7 +247,8 @@ def gym_no_op(env, model, print_func, pre_fill_steps, prefill_choose, desc='Pre-
         state[i] = correct_new_state
 
 
-def gym_inference(env, model, episodes):
+def gym_inference(env, model,
+                  episodes: int) -> NoReturn:
     i, state, _ = init_variables(env)
     for episode in range(episodes):
         step = 0

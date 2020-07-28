@@ -3,7 +3,17 @@
 
 import numpy as np
 import tensorflow as tf
+
 from abc import abstractmethod
+from typing import \
+    Union, \
+    List, \
+    Callable, \
+    Tuple, \
+    Any, \
+    Dict, \
+    NoReturn, \
+    Optional
 
 from rls.algos.base.base import Base
 from rls.nn.networks import CuriosityModel
@@ -15,11 +25,11 @@ from rls.utils.vector_runing_average import \
 
 class Policy(Base):
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[int, np.ndarray],
+                 visual_sources: Union[int, np.ndarray],
+                 visual_resolution: Union[List, np.ndarray],
+                 a_dim: Union[int, np.ndarray],
+                 is_continuous: Union[bool, np.ndarray],
                  **kwargs):
         super().__init__(**kwargs)
         self.s_dim = s_dim
@@ -61,45 +71,45 @@ class Policy(Base):
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
-    def init_lr(self, lr):
+    def init_lr(self, lr: float) -> Callable:
         if self.delay_lr:
             return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_train_step, 1e-10, power=1.0)
         else:
             return ConsistentLearningRate(lr)
 
-    def normalize_vector_obs(self, x):
+    def normalize_vector_obs(self, x: np.ndarray) -> np.ndarray:
         return self._running_average.normalize(x)
 
-    def init_optimizer(self, lr, *args, **kwargs):
+    def init_optimizer(self, lr: Callable, *args, **kwargs) -> tf.keras.optimizers.Optimizer:
         return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
 
-    def reset(self):
+    def reset(self) -> NoReturn:
         self.cell_state = (None,)
 
-    def get_cell_state(self):
+    def get_cell_state(self) -> Tuple:
         return self.cell_state
 
-    def set_cell_state(self, cs):
+    def set_cell_state(self, cs) -> Any:
         pass
 
-    def partial_reset(self, done):
+    def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
 
-    def model_recorder(self, kwargs):
+    def model_recorder(self, kwargs: Dict) -> NoReturn:
         kwargs.update(dict(global_step=self.global_step))
         if self.use_curiosity:
             kwargs.update(curiosity_model=self.curiosity_model)
         self._create_saver(kwargs)
         self.show_logo()
 
-    def intermediate_variable_reset(self):
+    def intermediate_variable_reset(self) -> NoReturn:
         '''
         TODO: Annotation
         '''
         self.summaries = {}
 
     @abstractmethod
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, s, visual_s, evaluation=False) -> Any:
         '''
         choose actions while training.
         Input: 
@@ -110,7 +120,7 @@ class Policy(Base):
         '''
         pass
 
-    def update_target_net_weights(self, tge, src, ployak=None):
+    def update_target_net_weights(self, tge: List[tf.Tensor], src: List[tf.Tensor], ployak: Optional[float] = None) -> NoReturn:
         '''
         update weights of target neural network.
         '''
@@ -120,13 +130,13 @@ class Policy(Base):
             tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])
 
     @tf.function
-    def _get_action(self, s, visual_s, is_training=True):
+    def _get_action(self, s, visual_s, is_training: bool = True) -> Any:
         '''
         TODO: Annotation
         '''
         raise NotImplementedError
 
-    def set_buffer(self, buffer):
+    def set_buffer(self, buffer) -> Any:
         '''
         TODO: Annotation
         '''

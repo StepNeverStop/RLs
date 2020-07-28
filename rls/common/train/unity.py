@@ -5,6 +5,9 @@ import logging
 import numpy as np
 
 from tqdm import trange
+from typing import \
+    Callable, \
+    NoReturn
 
 from rls.utils.np_utils import \
     SMA, \
@@ -19,10 +22,23 @@ logger = logging.getLogger("common.train.unity")
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
-def unity_train(env, models, print_func,
-                begin_train_step, begin_frame_step, begin_episode, save_frequency, max_step_per_episode, max_train_episode, policy_mode,
-                moving_average_episode, add_noise2buffer, add_noise2buffer_episode_interval, add_noise2buffer_steps,
-                max_train_step, max_frame_step, real_done, off_policy_train_interval):
+def unity_train(env, models,
+                print_func: Callable[[str], None],
+                begin_train_step: int,
+                begin_frame_step: int,
+                begin_episode: int,
+                save_frequency: int,
+                max_step_per_episode: int,
+                max_train_episode: int,
+                policy_mode: str,
+                moving_average_episode: int,
+                add_noise2buffer: bool,
+                add_noise2buffer_episode_interval: int,
+                add_noise2buffer_steps: int,
+                max_train_step: int,
+                max_frame_step: int,
+                real_done: bool,
+                off_policy_train_interval: int) -> NoReturn:
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -127,7 +143,12 @@ def unity_train(env, models, print_func,
                         desc='adding noise')
 
 
-def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_done, desc='Pre-filling'):
+def unity_no_op(env, models,
+                print_func: Callable[[str], None],
+                pre_fill_steps: int,
+                prefill_choose: bool,
+                real_done: bool,
+                desc: str = 'Pre-filling') -> NoReturn:
     '''
     Interact with the environment but do not perform actions. Prepopulate the ReplayBuffer.
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
@@ -164,7 +185,8 @@ def unity_no_op(env, models, print_func, pre_fill_steps, prefill_choose, real_do
             visual_state[i] = _vs
 
 
-def unity_inference(env, models, episodes):
+def unity_inference(env, models,
+                    episodes: int) -> NoReturn:
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
     """
@@ -181,7 +203,12 @@ def unity_inference(env, models, episodes):
             ObsRewDone = zip(*env.step(actions))
 
 
-def ma_unity_no_op(env, model, print_func, pre_fill_steps, prefill_choose, desc='Pre-filling', real_done=True):
+def ma_unity_no_op(env, model,
+                   print_func: Callable[[str], None],
+                   pre_fill_steps: int,
+                   prefill_choose: bool,
+                   desc: str = 'Pre-filling',
+                   real_done: bool = True) -> NoReturn:
     assert isinstance(pre_fill_steps, int), 'multi-agent no_op.steps must have type of int'
 
     data_change_func = multi_agents_data_preprocess(env.env_copys, env.brain_controls)
@@ -221,10 +248,20 @@ def ma_unity_no_op(env, model, print_func, pre_fill_steps, prefill_choose, desc=
         visual_s = visual_s_
 
 
-def ma_unity_train(env, model, print_func,
-                   begin_train_step, begin_frame_step, begin_episode, max_train_step, max_frame_step,
-                   off_policy_train_interval, moving_average_episode,
-                   save_frequency, max_step_per_episode, max_train_episode, policy_mode, real_done=True):
+def ma_unity_train(env, model,
+                   print_func: Callable[[str], None],
+                   begin_train_step: int,
+                   begin_frame_step: int,
+                   begin_episode: int,
+                   max_train_step: int,
+                   max_frame_step: int,
+                   off_policy_train_interval: int,
+                   moving_average_episode: int,
+                   save_frequency: int,
+                   max_step_per_episode: int,
+                   max_train_episode: int,
+                   policy_mode: str,
+                   real_done: bool = True) -> NoReturn:
     assert policy_mode == 'off-policy', "multi-agents algorithms now support off-policy only."
 
     frame_step = begin_frame_step
@@ -316,7 +353,8 @@ def ma_unity_train(env, model, print_func,
             print_func(f'agent {i} reward: {arrprint(rewards[i], 2)}')
 
 
-def ma_unity_inference(env, model, episodes):
+def ma_unity_inference(env, model,
+                       episodes: int) -> NoReturn:
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
     """

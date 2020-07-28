@@ -3,10 +3,11 @@
 
 import os
 import yaml
-from typing import Dict
+
+from typing import Dict, NoReturn
 
 
-def load_yaml(rel_filepath, msg=''):
+def load_yaml(rel_filepath: str, msg: str = '') -> Dict:
     '''
     Load YAML file.
     '''
@@ -20,7 +21,7 @@ def load_yaml(rel_filepath, msg=''):
         raise Exception('cannot find this config.')
 
 
-def save_config(dicpath, config: Dict):
+def save_config(dicpath: str, config: Dict) -> NoReturn:
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
     with open(os.path.join(dicpath, 'config.yaml'), 'w', encoding='utf-8') as fw:
@@ -28,7 +29,7 @@ def save_config(dicpath, config: Dict):
     print(f'save config to {dicpath}')
 
 
-def load_config(filename):
+def load_config(filename: str) -> Dict:
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             x = yaml.safe_load(f.read())
