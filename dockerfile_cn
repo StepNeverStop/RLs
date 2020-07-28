@@ -3,6 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 LABEL maintainer="StepNeverStop(Keavnn)"\
       github="https://github.com/StepNeverStop/RLs"\
       description="Docker image for runing RLs."\
+      rls_version="0.0.1"\
       email="keavnn.wjs@gmail.com"
 
 ENV LANG C.UTF-8
@@ -64,9 +65,9 @@ channels:\n\
     mkdir -p ~/.pip && \
     echo "\
 [global]\n\
-index-url = https://pypi.tuna.tsinghua.edu.cn/simple\n\
+index-url = http://mirrors.aliyun.com/pypi/simple/\n\
 [install]\n\
-trusted-host = https://pypi.tuna.tsinghua.edu.cn" > ~/.pip/pip.conf
+trusted-host = mirrors.aliyun.com" > ~/.pip/pip.conf
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \

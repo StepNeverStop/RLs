@@ -205,15 +205,15 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 
 ## Notes
 
-1. log, model, training parameter configuration, and data are stored in `C:/RLdata` for Windows, or `$HOME/RLdata` for Linux/OSX
+1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLdata/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
+3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
     1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
     2. write default configuration in `rls/algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep'}`, make sure the class name matches the name of the algorithm class
+    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep', 'type': 'single'}`, make sure the class name matches the name of the algorithm class
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
@@ -243,4 +243,4 @@ If using this repository for your research, please cite:
 
 ## Issues
 
-Any questions about this project or errors about my bad grammar, please let me know in [this](https://github.com/StepNeverStop/RLs/issues/new).
+Any questions/errors about this project, please let me know in [here](https://github.com/StepNeverStop/RLs/issues/new).
