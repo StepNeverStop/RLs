@@ -13,7 +13,7 @@ from typing import \
     Tuple, \
     Optional
 
-from rls.utils.sum_tree import Sum_Tree
+from rls.memories.sum_tree import Sum_Tree
 
 # [s, visual_s, a, r, s_, visual_s_, done] must be this format.
 

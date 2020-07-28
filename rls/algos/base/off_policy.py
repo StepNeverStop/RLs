@@ -10,8 +10,7 @@ from typing import \
     NoReturn, \
     List
 
-
-from rls.utils.sth import sth
+from rls.utils.np_utils import int2one_hot
 
 
 def make_off_policy_class(mode: str = 'share'):
@@ -102,7 +101,7 @@ def make_off_policy_class(mode: str = 'share'):
             data = self.data.sample()   # 经验池取数据
             if not self.is_continuous and 'a' in data_name_list:
                 a_idx = data_name_list.index('a')
-                data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
+                data[a_idx] = int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
             if 's' in data_name_list:
                 s_idx = data_name_list.index('s')
                 data[s_idx] = self.normalize_vector_obs(data[s_idx])

@@ -43,12 +43,8 @@ class Base:
 
         self.logger = create_logger(
             name='rls.algo.base',
-            console_level=logging.INFO,
-            console_format='%(levelname)s : %(message)s',
             logger2file=bool(kwargs.get('logger2file', False)),
-            file_name=self.log_dir + 'log.txt',
-            file_level=logging.WARNING,
-            file_format='%(lineno)d - %(asctime)s - %(module)s - %(funcName)s - %(levelname)s - %(message)s'
+            file_name=self.log_dir + 'log.txt'
         )
 
         self.check_or_create(self.cp_dir, 'checkpoints')

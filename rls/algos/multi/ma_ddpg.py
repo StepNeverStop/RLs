@@ -4,7 +4,11 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import List
+from typing import \
+    List, \
+    Union, \
+    NoReturn, \
+    Dict
 
 from rls.nn import actor_dpg as ActorCts
 from rls.nn import critic_q_one as Critic
@@ -20,18 +24,21 @@ class MADDPG(MultiAgentOffPolicy):
     '''
 
     def __init__(self,
-                 s_dim,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[List[int], np.ndarray],
+                 a_dim: Union[List[int], np.ndarray],
+                 is_continuous: Union[List[bool], np.ndarray],
 
-                 ployak=0.995,
-                 actor_lr=5.0e-4,
-                 critic_lr=1.0e-3,
-                 hidden_units={
+                 ployak: float = 0.995,
+                 actor_lr: float = 5.0e-4,
+                 critic_lr: float = 1.0e-3,
+                 hidden_units: Dict = {
                      'actor': [32, 32],
                      'q': [32, 32]
                  },
                  **kwargs):
+        '''
+        TODO: Annotation
+        '''
         assert all(is_continuous), 'maddpg only support continuous action space'
         super().__init__(
             s_dim=s_dim,
@@ -70,7 +77,7 @@ class MADDPG(MultiAgentOffPolicy):
 
         self.model_recorder(models_and_optimizers)
 
-    def show_logo(self):
+    def show_logo(self) -> NoReturn:
         self.logger.info('''
 　　ｘｘｘｘ　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　ｘｘｘ　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　
@@ -84,7 +91,10 @@ class MADDPG(MultiAgentOffPolicy):
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
         ''')
 
-    def choose_action(self, s: List[np.ndarray], visual_s: List[np.ndarray], evaluation=False) -> List[np.ndarray]:
+    def choose_action(self,
+                      s: List[np.ndarray],
+                      visual_s: List[np.ndarray],
+                      evaluation: bool = False) -> List[np.ndarray]:
         '''
         params:
             s List[np.ndarray]: [agent_sep_ctls, batch, dim]
@@ -93,7 +103,14 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         return [self._get_actions(i, s[i], evaluation) for i in range(self.agent_sep_ctls)]
 
-    def _get_actions(self, model_idx, vector_input, evaluation, use_target=False):
+    def _get_actions(self,
+                     model_idx: int,
+                     vector_input: np.ndarray,
+                     evaluation: bool,
+                     use_target: bool = False) -> np.ndarray:
+        '''
+        TODO: Annotation
+        '''
 
         if use_target:
             actor_net = self.actor_target_nets[model_idx]
@@ -113,7 +130,10 @@ class MADDPG(MultiAgentOffPolicy):
 
         return action
 
-    def learn(self, **kwargs):
+    def learn(self, **kwargs) -> NoReturn:
+        '''
+        TODO: Annotation
+        '''
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             if self.data.is_lg_batch_size:
@@ -154,7 +174,20 @@ class MADDPG(MultiAgentOffPolicy):
                         self.actor_nets[i].weights + self.q_nets[i].weights,
                         self.ployak)
 
-    def _train(self, model_idx, s, a, s_, a_, r, done, s_i, al, ar):
+    def _train(self,
+               model_idx: int,
+               s: np.ndarray,
+               a: np.ndarray,
+               s_: np.ndarray,
+               a_: np.ndarray,
+               r: np.ndarray,
+               done: np.ndarray,
+               s_i: np.ndarray,
+               al: np.ndarray,
+               ar: np.ndarray) -> Dict:
+        '''
+        TODO: Annotation
+        '''
 
         q_net = self.q_nets[model_idx]
         q_target_net = self.q_target_nets[model_idx]

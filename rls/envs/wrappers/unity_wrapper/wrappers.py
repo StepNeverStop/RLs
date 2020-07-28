@@ -16,7 +16,7 @@ except:
 import numpy as np
 from copy import deepcopy
 
-from rls.utils.sth import sth
+from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
@@ -238,5 +238,5 @@ class ActionWrapper(BasicWrapper):
             if self.is_continuous[i]:
                 pass
             else:
-                actions[k] = sth.int2action_index(actions[k], self.discrete_action_dim_list[i])
+                actions[k] = int2action_index(actions[k], self.discrete_action_dim_list[i])
         return self._env.step(actions)

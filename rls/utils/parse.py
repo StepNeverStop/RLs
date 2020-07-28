@@ -7,12 +7,14 @@ NAME = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
 import platform
 BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
-from typing import Dict
+from typing import \
+    Dict, \
+    Tuple
 
 from rls.common.config import Config
 
 
-def parse_options(options: Config, default_config: Dict):
+def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     # gym > unity > unity_env
     model_args = Config(**default_config['model'])
     train_args = Config(**default_config['train'])

@@ -28,7 +28,7 @@ from rls.common.train.unity import \
     ma_unity_train, \
     ma_unity_inference
 from rls.algos.register import get_model_info
-from rls.utils.replay_buffer import ReplayBuffer
+from rls.memories.replay_buffer import ReplayBuffer
 from rls.utils.time import get_time_hhmmss
 
 
@@ -89,19 +89,19 @@ def get_buffer(buffer_args: Config) -> Optional[ReplayBuffer]:
 
     if _type == 'ER':
         logger.info('ER')
-        from rls.utils.replay_buffer import ExperienceReplay as Buffer
+        from rls.memories.replay_buffer import ExperienceReplay as Buffer
     elif _type == 'PER':
         logger.info('PER')
-        from rls.utils.replay_buffer import PrioritizedExperienceReplay as Buffer
+        from rls.memories.replay_buffer import PrioritizedExperienceReplay as Buffer
     elif _type == 'NstepER':
         logger.info('NstepER')
-        from rls.utils.replay_buffer import NStepExperienceReplay as Buffer
+        from rls.memories.replay_buffer import NStepExperienceReplay as Buffer
     elif _type == 'NstepPER':
         logger.info('NstepPER')
-        from rls.utils.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
+        from rls.memories.replay_buffer import NStepPrioritizedExperienceReplay as Buffer
     elif _type == 'EpisodeER':
         logger.info('EpisodeER')
-        from rls.utils.replay_buffer import EpisodeExperienceReplay as Buffer
+        from rls.memories.replay_buffer import EpisodeExperienceReplay as Buffer
     else:
         logger.info('On-Policy DataBuffer')
         return None

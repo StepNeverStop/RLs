@@ -31,7 +31,7 @@ else:
 from typing import Dict
 from copy import deepcopy
 
-from rls.utils.sth import sth
+from rls.utils.np_utils import int2action_index
 from gym.spaces import \
     Box, \
     Discrete, \
@@ -155,7 +155,7 @@ class gym_envs(object):
     def step(self, actions):
         actions = np.array(actions)
         if not self.is_continuous:
-            actions = sth.int2action_index(actions, self.discrete_action_dim_list)
+            actions = int2action_index(actions, self.discrete_action_dim_list)
             if self.action_type == 'discrete':
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':

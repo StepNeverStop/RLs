@@ -3,8 +3,10 @@
 
 import numpy as np
 
-from rls.utils.sth import sth
 from rls.utils.np_utils import \
+    int2one_hot, \
+    discounted_sum, \
+    discounted_sum_minus, \
     normalization, \
     standardization
 
@@ -36,7 +38,7 @@ class DataBuffer(object):
         param gamma: 折扣因子 gamma \in [0, 1)
         param init_value: 序列最后状态的值
         '''
-        dc_r = sth.discounted_sum(self.buffer['r'], gamma, init_value, self.buffer['done'])
+        dc_r = discounted_sum(self.buffer['r'], gamma, init_value, self.buffer['done'])
         if normalize:
             dc_r -= np.mean(dc_r)
             dc_r /= np.std(dc_r)
@@ -54,7 +56,7 @@ class DataBuffer(object):
         TD = r + gamma * (1- done) * v(s') - v(s)
         '''
         assert 'value' in self.buffer.keys()
-        self.buffer['td_error'] = sth.discounted_sum_minus(
+        self.buffer['td_error'] = discounted_sum_minus(
             self.buffer['r'],
             gamma,
             init_value,
@@ -68,7 +70,7 @@ class DataBuffer(object):
         adv = td(s) + gamma * lambda * (1 - done) * td(s')
         '''
         assert 'td_error' in self.buffer.keys()
-        adv = np.asarray(sth.discounted_sum(
+        adv = np.asarray(discounted_sum(
             self.buffer['td_error'],
             lambda_ * gamma,
             0,
@@ -146,7 +148,7 @@ class DataBuffer(object):
         用于在训练前将buffer中的离散动作的索引转换为one_hot类型
         '''
         if 'a' in self.buffer.keys():
-            self.buffer['a'] = [sth.int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
+            self.buffer['a'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
 
     def clear(self):
         '''

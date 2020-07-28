@@ -2,10 +2,18 @@
 # -*- coding: utf-8 -*-
 import importlib
 import tensorflow as tf
+assert tf.__version__[0] == '2'
+
+# algorithms based on TF 2.x
+
+from typing import \
+    Tuple, \
+    Callable, \
+    Dict
 
 from rls.common.yaml_ops import load_yaml
-assert tf.__version__[0] == '2'
-# algorithms based on TF 2.0
+
+
 algos = {
     # On-Policy
     'pg':       {'class': 'PG',     'policy': 'on-policy',  'update': 'perEpisode', 'type': 'single'},
@@ -44,7 +52,7 @@ algos = {
 }
 
 
-def get_model_info(name: str):
+def get_model_info(name: str) -> Tuple[Callable, Dict, str]:
     '''
     Args:
         name: name of algorithms

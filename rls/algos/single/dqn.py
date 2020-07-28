@@ -4,6 +4,10 @@
 import numpy as np
 import tensorflow as tf
 
+from typing import \
+    Union, \
+    List, \
+    NoReturn
 from rls.nn import critic_q_all as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
@@ -16,19 +20,19 @@ class DQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[int, np.ndarray],
+                 visual_sources: Union[int, np.ndarray],
+                 visual_resolution: Union[List, np.ndarray],
+                 a_dim: Union[int, np.ndarray],
+                 is_continuous: Union[bool, np.ndarray],
 
-                 lr=5.0e-4,
-                 eps_init=1,
-                 eps_mid=0.2,
-                 eps_final=0.01,
-                 init2mid_annealing_step=1000,
-                 assign_interval=1000,
-                 hidden_units=[32, 32],
+                 lr: float = 5.0e-4,
+                 eps_init: float = 1,
+                 eps_mid: float = 0.2,
+                 eps_final: float = 0.01,
+                 init2mid_annealing_step: int = 1000,
+                 assign_interval: int = 1000,
+                 hidden_units: List[int] = [32, 32],
                  **kwargs):
         assert not is_continuous, 'dqn only support discrete action space'
         super().__init__(
@@ -59,7 +63,7 @@ class DQN(make_off_policy_class(mode='share')):
             optimizer=self.optimizer
         ))
 
-    def show_logo(self):
+    def show_logo(self) -> NoReturn:
         self.logger.info('''
     　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
     　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
@@ -75,7 +79,10 @@ class DQN(make_off_policy_class(mode='share')):
     　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
         ''')
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self,
+                      s: np.ndarray,
+                      visual_s: np.ndarray,
+                      evaluation: bool = False) -> np.ndarray:
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
@@ -90,7 +97,7 @@ class DQN(make_off_policy_class(mode='share')):
             q_values = self.q_net(feat)
         return tf.argmax(q_values, axis=1), cell_state
 
-    def learn(self, **kwargs):
+    def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
 
         def _update():

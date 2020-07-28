@@ -11,8 +11,7 @@ from typing import \
     NoReturn, \
     Any
 
-from rls.utils.sth import sth
-from rls.utils.on_policy_buffer import DataBuffer
+from rls.memories.on_policy_buffer import DataBuffer
 
 
 def make_on_policy_class(mode: str = 'share'):

@@ -154,6 +154,10 @@ def unity_no_op(env, models,
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
     '''
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
+
+    if pre_fill_steps == 0:
+        return
+
     state, visual_state, action = zeros_initializer(env.brain_num, 3)
 
     [model.reset() for model in models]
@@ -209,7 +213,10 @@ def ma_unity_no_op(env, model,
                    prefill_choose: bool,
                    desc: str = 'Pre-filling',
                    real_done: bool = True) -> NoReturn:
-    assert isinstance(pre_fill_steps, int), 'multi-agent no_op.steps must have type of int'
+    assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'multi-agent no_op.steps must have type of int'
+
+    if pre_fill_steps == 0:
+        return
 
     data_change_func = multi_agents_data_preprocess(env.env_copys, env.brain_controls)
     action_reshape_func = multi_agents_action_reshape(env.env_copys, env.brain_controls)

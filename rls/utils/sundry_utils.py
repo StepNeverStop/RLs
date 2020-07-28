@@ -4,8 +4,18 @@
 import sys
 import logging
 
+from typing import List
 
-def create_logger(name, console_level, console_format, logger2file, file_name, file_level, file_format):
+
+def create_logger(
+    name: str,
+    console_level: int = logging.INFO,
+    console_format: str = '%(levelname)s : %(message)s',
+    logger2file: bool = False,
+    file_name: str = './log.txt',
+    file_level: int = logging.WARNING,
+    file_format: str = '%(lineno)d - %(asctime)s - %(module)s - %(funcName)s - %(levelname)s - %(message)s',
+) -> logging.Logger:
     logger = logging.Logger(name)
     logger.setLevel(level=console_level)
     stdout_handle = logging.StreamHandler(stream=sys.stdout)
@@ -20,7 +30,8 @@ def create_logger(name, console_level, console_format, logger2file, file_name, f
 
 
 class LinearAnnealing:
-    def __init__(self, x, x_, end):
+
+    def __init__(self, x: float, x_: float, end: int):
         '''
         Params: 
             x: start value
@@ -32,5 +43,8 @@ class LinearAnnealing:
         self.x_ = x_
         self.interval = (x_ - x) / end
 
-    def __call__(self, current):
+    def __call__(self, current: int) -> float:
+        '''
+        TODO: Annotation
+        '''
         return max(self.x + self.interval * current, self.x_)

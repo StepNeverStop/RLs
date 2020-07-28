@@ -11,9 +11,9 @@ from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
 from rls.nn.modules import DoubleQ
 from rls.nn.noise import ClippedNormalActionNoise
-from rls.utils.sth import sth
+from rls.utils.np_utila import int2one_hot
 from rls.algos.base.off_policy import make_off_policy_class
-from rls.utils.replay_buffer import ExperienceReplay
+from rls.memories.replay_buffer import ExperienceReplay
 
 
 class HIRO(make_off_policy_class(mode='no_share')):
@@ -460,7 +460,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             a = data[a_idx].astype(np.int32)
             pre_shape = a.shape
             a = a.reshape(-1)
-            a = sth.int2one_hot(a, self.a_dim)
+            a = int2one_hot(a, self.a_dim)
             a = a.reshape(pre_shape + (-1,))
             data[a_idx] = a
         return dict([

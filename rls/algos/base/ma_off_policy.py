@@ -9,7 +9,6 @@ from typing import \
     Union, \
     NoReturn
 
-from rls.utils.sth import sth
 from rls.algos.base.ma_policy import MultiAgentPolicy
 
 

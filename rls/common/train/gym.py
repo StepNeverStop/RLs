@@ -224,6 +224,9 @@ def gym_no_op(env, model,
               desc: str = 'Pre-filling') -> NoReturn:
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
 
+    if pre_fill_steps == 0:
+        return
+
     i, state, new_state = init_variables(env)
     model.reset()
     state[i] = env.reset()
