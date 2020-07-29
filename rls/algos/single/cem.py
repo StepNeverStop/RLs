@@ -99,7 +99,7 @@ class CEM(make_on_policy_class(mode='share')):
 
     @tf.function
     def _get_action(self, s, visual_s):
-        s, visual_s = self.cast(s, visual_s)
+        s, visual_s = self._tf_data_cast(s, visual_s)
         with tf.device(self.device):
             pass
 

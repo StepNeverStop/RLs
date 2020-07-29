@@ -172,7 +172,7 @@ def make_off_policy_class(mode: str = 'share'):
                     data['r'] += crsty_r
                     self.summaries.update(crsty_summaries)
                 else:
-                    crsty_loss = tf.constant(value=0., dtype=self._data_type)
+                    crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
                 # --------------------------------------
 
                 # --------------------------------------优先经验回放部分，获取重要性比例
@@ -180,7 +180,7 @@ def make_off_policy_class(mode: str = 'share'):
                     _isw = self.data.get_IS_w().reshape(-1, 1)  # [B, ] => [B, 1]
                     _isw = self.data_convert(_isw)
                 else:
-                    _isw = tf.constant(value=1., dtype=self._data_type)
+                    _isw = tf.constant(value=1., dtype=self._tf_data_type)
                 # --------------------------------------
 
                 # --------------------------------------获取需要传给train函数的参数

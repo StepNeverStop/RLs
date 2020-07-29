@@ -145,7 +145,7 @@ For now, these algorithms are available:
 |               SAC               |    √     |     √      |   √   |  √   |        sac        |
 |               TAC               |   sac    |     √      |   √   |  √   |        tac        |
 |             MaxSQN              |    √     |            |   √   |  √   |      maxsqn       |
-|             MADDPG              |          |     √      |       |  √   |      ma_ddpg      |
+|             MADDPG              |          |     √      |       |  √   |      maddpg       |
 |               OC                |    √     |     √      |   √   |  √   |        oc         |
 |               AOC               |    √     |     √      |   √   |  √   |        aoc        |
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |

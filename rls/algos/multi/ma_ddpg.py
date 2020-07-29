@@ -16,6 +16,7 @@ from rls.nn.noise import \
     OrnsteinUhlenbeckActionNoise, \
     NormalActionNoise
 from rls.algos.base.ma_off_policy import MultiAgentOffPolicy
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class MADDPG(MultiAgentOffPolicy):
@@ -59,7 +60,7 @@ class MADDPG(MultiAgentOffPolicy):
         self.q_target_nets = {i: _q_net() for i in range(self.agent_sep_ctls)}
 
         for i in range(self.agent_sep_ctls):
-            self.update_target_net_weights(
+            update_target_net_weights(
                 self.actor_target_nets[i].weights + self.q_target_nets[i].weights,
                 self.actor_nets[i].weights + self.q_nets[i].weights
             )
@@ -119,7 +120,7 @@ class MADDPG(MultiAgentOffPolicy):
 
         @tf.function
         def _get_action_func(vector_input):
-            vector_input = self.cast(vector_input)[0]
+            vector_input = self._tf_data_cast(vector_input)[0]
             with tf.device(self.device):
                 return actor_net(vector_input)
 
@@ -169,7 +170,7 @@ class MADDPG(MultiAgentOffPolicy):
                 self.global_step.assign_add(1)
 
                 for i in range(self.agent_sep_ctls):
-                    self.update_target_net_weights(
+                    update_target_net_weights(
                         self.actor_target_nets[i].weights + self.q_target_nets[i].weights,
                         self.actor_nets[i].weights + self.q_nets[i].weights,
                         self.ployak)

@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("rls.utils.sundry_utils")
 
-from typing import List
+from typing import \
+    List, \
+    NoReturn
 
 
 def create_logger(
@@ -27,6 +32,14 @@ def create_logger(
         logfile_handle.setFormatter(logging.Formatter(file_format))
         logger.addHandler(logfile_handle)
     return logger
+
+def check_or_create(dicpath: str, name: str = '') -> NoReturn:
+    """
+    check dictionary whether existing, if not then create it.
+    """
+    if not os.path.exists(dicpath):
+        os.makedirs(dicpath)
+        logger.info(''.join([f'create {name} directionary :', dicpath]))
 
 
 class LinearAnnealing:

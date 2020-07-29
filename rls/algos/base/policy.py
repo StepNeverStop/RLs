@@ -120,15 +120,6 @@ class Policy(Base):
         '''
         pass
 
-    def update_target_net_weights(self, tge: List[tf.Tensor], src: List[tf.Tensor], ployak: Optional[float] = None) -> NoReturn:
-        '''
-        update weights of target neural network.
-        '''
-        if ployak is None:
-            tf.group([t.assign(s) for t, s in zip(tge, src)])
-        else:
-            tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])
-
     @tf.function
     def _get_action(self, s, visual_s, is_training: bool = True) -> Any:
         '''

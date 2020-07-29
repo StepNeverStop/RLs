@@ -19,7 +19,8 @@ from rls.nn import critic_q_one as Critic
 from rls.utils.tf2_utils import \
     clip_nn_log_std, \
     squash_rsample, \
-    gaussian_entropy
+    gaussian_entropy, \
+    update_target_net_weights
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.modules import DoubleQ
@@ -156,7 +157,7 @@ class CURL(make_off_policy_class(mode='no_share')):
 
         self.critic_tv = self.critic_net.trainable_variables + self.encoder.trainable_variables
 
-        self.update_target_net_weights(
+        update_target_net_weights(
             self.critic_target_net.weights + self.encoder_target.trainable_variables,
             self.critic_net.weights + self.encoder.trainable_variables
         )
@@ -234,7 +235,7 @@ class CURL(make_off_policy_class(mode='no_share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': _train,
-                'update_function': lambda: self.update_target_net_weights(
+                'update_function': lambda: update_target_net_weights(
                     self.critic_target_net.weights + self.encoder_target.trainable_variables,
                     self.critic_net.weights + self.encoder.trainable_variables,
                     self.ployak),

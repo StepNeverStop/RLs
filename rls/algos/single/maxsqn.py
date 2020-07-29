@@ -9,6 +9,7 @@ from rls.nn import critic_q_all as Critic
 from rls.nn.modules import DoubleQ
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class MAXSQN(make_off_policy_class(mode='share')):
@@ -59,7 +60,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights)
+        update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights)
         self.q_lr, self.alpha_lr = map(self.init_lr, [q_lr, alpha_lr])
         self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.q_lr, self.alpha_lr])
 
@@ -109,7 +110,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda: self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
+                'update_function': lambda: update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
                                                                           self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],

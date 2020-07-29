@@ -8,6 +8,7 @@ import tensorflow_probability as tfp
 from rls.nn import critic_q_bootstrap as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class BootstrappedDQN(make_off_policy_class(mode='share')):
@@ -54,7 +55,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self.q_net = _q_net()
         self.q_target_net = _q_net()
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+        update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
@@ -104,7 +105,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
 
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,

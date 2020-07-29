@@ -5,7 +5,7 @@ import gym
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('envs.wrappers.gym_wrapper.wrappers')
+logger = logging.getLogger('rls.envs.gym_wrapper.wrappers')
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)
@@ -27,7 +27,7 @@ from gym.spaces import \
     Discrete, \
     Tuple
 
-from rls.envs.wrappers.LazyFrames import LazyFrames
+from rls.utils.LazyFrames import LazyFrames
 
 
 class BaseEnv(gym.Wrapper):

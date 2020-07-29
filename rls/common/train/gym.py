@@ -17,7 +17,7 @@ from rls.utils.np_utils import \
     arrprint
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("common.train.gym")
+logger = logging.getLogger("rls.common.train.gym")
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 

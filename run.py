@@ -49,6 +49,24 @@ import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 
+if sys.platform.startswith('win'):
+    import win32api
+    import win32con
+    import _thread
+
+    def _win_handler(event, hook_sigint=_thread.interrupt_main):
+        '''
+        handle the event of 'Ctrl+c' in windows operating system.
+        '''
+        if event == 0:
+            hook_sigint()
+            return 1
+        return 0
+    # Add the _win_handler function to the windows console's handler function list
+    win32api.SetConsoleCtrlHandler(_win_handler, 1)
+
+import time
+
 from typing import Dict
 from copy import deepcopy
 from docopt import docopt
@@ -57,7 +75,7 @@ from multiprocessing import Process
 from rls.common.agent import Agent
 from rls.common.config import Config
 from rls.common.yaml_ops import load_yaml
-from rls.utils.parse import parse_options
+from rls.parse.parse_op import parse_options
 
 
 def get_options(options: Dict) -> Config:
@@ -111,26 +129,13 @@ def agent_run(*args):
     Agent(*args)()
 
 
-def run():
-    if sys.platform.startswith('win'):
-        import win32api
-        import win32con
-        import _thread
-
-        def _win_handler(event, hook_sigint=_thread.interrupt_main):
-            '''
-            handle the event of 'Ctrl+c' in windows operating system.
-            '''
-            if event == 0:
-                hook_sigint()
-                return 1
-            return 0
-        # Add the _win_handler function to the windows console's handler function list
-        win32api.SetConsoleCtrlHandler(_win_handler, 1)
-
+def main():
     options = docopt(__doc__)
     options = get_options(dict(options))
     print(options)
+
+    trails = options.models
+    assert trails > 0, '--models must greater than 0.'
 
     env_args, model_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
 
@@ -138,18 +143,15 @@ def run():
         Agent(env_args, model_args, buffer_args, train_args).evaluate()
         return
 
-    trails = options.models
     if trails == 1:
         agent_run(env_args, model_args, buffer_args, train_args)
     elif trails > 1:
         processes = []
         for i in range(trails):
-            _env_args = deepcopy(env_args)
-            _model_args = deepcopy(model_args)
+            _env_args, _model_args, _buffer_args, _train_args = map(deepcopy, [env_args, model_args, buffer_args, train_args])
             _model_args.seed += i * 10
-            _buffer_args = deepcopy(buffer_args)
-            _train_args = deepcopy(train_args)
-            _train_args.index = i
+            _train_args.name += f'/{i}'
+            _train_args.allow_print = True  # NOTE: set this could block other processes' print function
             if _env_args.type == 'unity':
                 _env_args.port = env_args.port + i
             p = Process(target=agent_run, args=(_env_args, _model_args, _buffer_args, _train_args))
@@ -157,8 +159,6 @@ def run():
             time.sleep(10)
             processes.append(p)
         [p.join() for p in processes]
-    else:
-        raise Exception('trials must be greater than 0.')
 
 
 if __name__ == "__main__":
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     except ImportError:
         pass
     try:
-        run()
+        main()
     except Exception as e:
         print(e)
         sys.exit()

@@ -12,7 +12,8 @@ from rls.nn.modules import DoubleQ
 from rls.utils.tf2_utils import \
     clip_nn_log_std, \
     tsallis_squash_rsample, \
-    gaussian_entropy
+    gaussian_entropy, \
+    update_target_net_weights
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 
@@ -84,7 +85,7 @@ class TAC(make_off_policy_class(mode='share')):
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
 
-        self.update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights)
+        update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights)
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
@@ -147,7 +148,7 @@ class TAC(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda: self.update_target_net_weights(
+                'update_function': lambda: update_target_net_weights(
                     self.critic_target_net.weights,
                     self.critic_net.weights,
                     self.ployak),

@@ -89,7 +89,7 @@ def make_on_policy_class(mode: str = 'share'):
                 self.data.r = r.reshape([self.data.eps_len, -1])
                 self.summaries.update(crsty_summaries)
             else:
-                crsty_loss = tf.constant(value=0., dtype=self._data_type)
+                crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
 
             _cal_stics()
 

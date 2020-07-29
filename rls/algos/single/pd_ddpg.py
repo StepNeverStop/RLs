@@ -12,6 +12,7 @@ from rls.nn.noise import \
     OrnsteinUhlenbeckActionNoise, \
     NormalActionNoise
 from rls.algos.base.off_policy import make_off_policy_class
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class PD_DDPG(make_off_policy_class(mode='share')):
@@ -72,7 +73,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.cost_critic_target_net = _critic_net(hidden_units['cost'])
 
         self.reward_critic_tv = self.reward_critic_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(
+        update_target_net_weights(
             self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
             self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights
         )
@@ -127,7 +128,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda: self.update_target_net_weights(
+                'update_function': lambda: update_target_net_weights(
                     self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
                     self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
                     self.ployak),

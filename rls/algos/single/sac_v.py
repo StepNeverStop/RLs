@@ -14,7 +14,8 @@ from rls.nn.modules import DoubleQ
 from rls.utils.tf2_utils import \
     clip_nn_log_std, \
     squash_rsample, \
-    gaussian_entropy
+    gaussian_entropy, \
+    update_target_net_weights
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 
@@ -98,7 +99,7 @@ class SAC_V(make_off_policy_class(mode='share')):
         self.v_target_net = _v_net()
         self.critic_tv = self.q_net.trainable_variables + self.v_net.trainable_variables + self.other_tv
 
-        self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights)
+        update_target_net_weights(self.v_target_net.weights, self.v_net.weights)
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
@@ -166,7 +167,7 @@ class SAC_V(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': _train,
-                'update_function': lambda: self.update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak),
+                'update_function': lambda: update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],

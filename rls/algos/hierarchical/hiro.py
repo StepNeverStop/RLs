@@ -14,6 +14,7 @@ from rls.nn.noise import ClippedNormalActionNoise
 from rls.utils.np_utila import int2one_hot
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.memories.replay_buffer import ExperienceReplay
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class HIRO(make_off_policy_class(mode='no_share')):
@@ -94,7 +95,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_critic = DoubleQ(_low_critic_net)
         self.low_critic_target = DoubleQ(_low_critic_net)
 
-        self.update_target_net_weights(
+        update_target_net_weights(
             self.low_actor_target.weights + self.low_critic_target.weights + self.high_actor_target.weights + self.high_critic_target.weights,
             self.low_actor.weights + self.low_critic.weights + self.high_actor.weights + self.high_critic.weights
         )
@@ -246,14 +247,14 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 summaries = self.train_low(_low_training_data)
 
                 self.summaries.update(summaries)
-                self.update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
+                update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
                                                self.low_actor.weights + self.low_critic.weights,
                                                self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(_high_training_data)
                     self.summaries.update(high_summaries)
-                    self.update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
+                    update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
                                                    self.high_actor.weights + self.high_critic.weights,
                                                    self.ployak)
                 self.counts += 1

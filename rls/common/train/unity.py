@@ -18,7 +18,7 @@ from rls.utils.mlagents_utils import \
     multi_agents_action_reshape
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("common.train.unity")
+logger = logging.getLogger("rls.common.train.unity")
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 

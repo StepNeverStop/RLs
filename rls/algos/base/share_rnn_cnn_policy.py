@@ -157,7 +157,7 @@ class SharedPolicy(Policy):
         '''
         CNN + DNN， 无RNN的 特征提取方法
         '''
-        s, visual_s = self.cast(s, visual_s)
+        s, visual_s = self._tf_data_cast(s, visual_s)
         with tf.device(self.device):
             feature = self.visual_net(s, visual_s)
             return _split_without_time(feature, record_cs, s_and_s_)
@@ -169,7 +169,7 @@ class SharedPolicy(Policy):
         '''
         RNN + DNN， 无CNN的 特征提取方法
         '''
-        s = self.cast(s)[0]    # [A, N] or [B, T+1, N]
+        s = self._tf_data_cast(s)[0]    # [A, N] or [B, T+1, N]
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [batch_size, -1, tf.shape(s)[-1]])    # [A, N] => [A, 1, N]
@@ -183,7 +183,7 @@ class SharedPolicy(Policy):
         '''
         CNN + RNN + DNN, 既有CNN也有RNN的 特征提取方法
         '''
-        s, visual_s = self.cast(s, visual_s)    # [A, N] or [B, T+1, N]
+        s, visual_s = self._tf_data_cast(s, visual_s)    # [A, N] or [B, T+1, N]
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [-1, tf.shape(s)[-1]])    # [B, T+1, N] => [B*(T+1), N], [A, N] => [A, N]
@@ -201,13 +201,13 @@ class SharedPolicy(Policy):
 
     def _rnn_get_burn_in_feature(self, s, visual_s,
                                  cell_state: Tuple[Optional[tf.Tensor]]) -> Tuple[tf.Tensor]:
-        s = self.cast(s)[0]
+        s = self._tf_data_cast(s)[0]
         with tf.device(self.device):
             _, cell_state = self.rnn_net(s, *cell_state)
             return cell_state
 
     def _cnn_rnn_get_burn_in_feature(self, s, visual_s) -> Tuple[tf.Tensor]:
-        s, visual_s = self.cast(s, visual_s)    # [B, T, N]
+        s, visual_s = self._tf_data_cast(s, visual_s)    # [B, T, N]
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
             s = tf.reshape(s, [-1, tf.shape(s)[-1]])    # [B*T, N]
