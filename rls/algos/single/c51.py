@@ -8,6 +8,7 @@ from rls.nn import c51_distributional as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.common.decorator import lazy_property
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class C51(make_off_policy_class(mode='share')):
@@ -60,7 +61,7 @@ class C51(make_off_policy_class(mode='share')):
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
+        update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
@@ -103,7 +104,7 @@ class C51(make_off_policy_class(mode='share')):
 
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
+                update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,

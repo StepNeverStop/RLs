@@ -12,6 +12,7 @@ general:
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
     visual_feature: 128
     normalize_vector_obs: False
+    logger2file: false
 
 on_policy:
     rnn_time_step: 8
@@ -558,7 +559,7 @@ maxsqn:
     n_step: true
     hidden_units: [64, 64]
 
-ma_ddpg:
+maddpg:
     gamma: 0.99
     ployak: 0.995
     actor_lr: 5.0e-4

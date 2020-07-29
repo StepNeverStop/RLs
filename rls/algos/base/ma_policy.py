@@ -5,6 +5,14 @@ import numpy as np
 import tensorflow as tf
 
 from abc import abstractmethod
+from typing import \
+    List, \
+    Dict, \
+    Union, \
+    Callable, \
+    Any, \
+    Optional, \
+    NoReturn
 
 from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
@@ -13,11 +21,11 @@ from rls.utils.list_utils import count_repeats
 
 class MultiAgentPolicy(Base):
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[List[int], np.ndarray],
+                 visual_sources: Union[List[int], np.ndarray],
+                 visual_resolution: Union[List, np.ndarray],
+                 a_dim: Union[List[int], np.ndarray],
+                 is_continuous: Union[List[bool], np.ndarray], ,
                  **kwargs):
         super().__init__(**kwargs)
         self.brain_controls = kwargs.get('brain_controls')
@@ -39,34 +47,34 @@ class MultiAgentPolicy(Base):
         self.agent_sep_ctls = sum(self.brain_controls)
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.agent_sep_ctls)]
 
-    def init_lr(self, lr):
+    def init_lr(self, lr: float) -> Callable:
         if self.delay_lr:
             return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_train_step, 1e-10, power=1.0)
         else:
             return ConsistentLearningRate(lr)
 
-    def init_optimizer(self, lr, *args, **kwargs):
+    def init_optimizer(self, lr: Callable, *args, **kwargs) -> tf.keras.optimizers.Optimizer:
         return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
 
-    def reset(self):
+    def reset(self) -> Any:
         pass
 
-    def partial_reset(self, done):
+    def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
 
-    def model_recorder(self, kwargs):
+    def model_recorder(self, kwargs: Dict) -> NoReturn:
         kwargs.update(dict(global_step=self.global_step))
         self._create_saver(kwargs)
         self.show_logo()
 
-    def intermediate_variable_reset(self):
+    def intermediate_variable_reset(self) -> NoReturn:
         '''
         TODO: Annotation
         '''
         self.summaries = {}
 
     @abstractmethod
-    def choose_actions(self, s, visual_s, evaluation=False):
+    def choose_actions(self, s, visual_s, evaluation: bool = False) -> Any:
         '''
         choose actions while training.
         Input: 
@@ -77,29 +85,20 @@ class MultiAgentPolicy(Base):
         '''
         pass
 
-    def update_target_net_weights(self, tge, src, ployak=None):
-        '''
-        update weights of target neural network.
-        '''
-        if ployak is None:
-            tf.group([t.assign(s) for t, s in zip(tge, src)])
-        else:
-            tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])
-
     @tf.function
-    def _get_actions(self, s, visual_s, is_training=True):
+    def _get_actions(self, s, visual_s, is_training: bool = True) -> Any:
         '''
         TODO: Annotation
         '''
         raise NotImplementedError
 
-    def set_buffer(self, buffer):
+    def set_buffer(self, buffer) -> Any:
         '''
         TODO: Annotation
         '''
         pass
 
-    def writer_summary(self, global_step, agent_idx=0, **kargs):
+    def writer_summary(self, global_step: Union[int, tf.Variable], agent_idx: int = 0, **kargs) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """

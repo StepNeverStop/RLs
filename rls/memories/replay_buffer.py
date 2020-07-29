@@ -5,14 +5,23 @@ import numpy as np
 import tensorflow as tf
 
 from abc import ABC, abstractmethod
+from typing import \
+    Any, \
+    NoReturn, \
+    Union, \
+    List, \
+    Tuple, \
+    Optional
 
-from rls.utils.sum_tree import Sum_Tree
+from rls.memories.sum_tree import Sum_Tree
 
 # [s, visual_s, a, r, s_, visual_s_, done] must be this format.
 
 
 class ReplayBuffer(ABC):
-    def __init__(self, batch_size, capacity):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int):
         assert isinstance(batch_size, int) and batch_size >= 0, 'batch_size must be int and larger than 0'
         assert isinstance(capacity, int) and capacity >= 0, 'capacity must be int and larger than 0'
         self.batch_size = batch_size
@@ -20,37 +29,39 @@ class ReplayBuffer(ABC):
         self._size = 0
 
     @abstractmethod
-    def sample(self) -> list:
+    def sample(self) -> Any:
         pass
 
     @abstractmethod
-    def add(self, *args) -> None:
+    def add(self, *args) -> Any:
         pass
 
-    def is_empty(self):
+    def is_empty(self) -> bool:
         return self._size == 0
 
-    def update(self, *args) -> None:
+    def update(self, *args) -> Any:
         pass
 
 
 class ExperienceReplay(ReplayBuffer):
-    def __init__(self, batch_size, capacity):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int):
         super().__init__(batch_size, capacity)
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
 
-    def add(self, *args):
+    def add(self, *args) -> NoReturn:
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         [self._store_op(data) for data in zip(*args)]
 
-    def _store_op(self, data):
+    def _store_op(self, data: Union[List, np.ndarray]) -> NoReturn:
         self._buffer[self._data_pointer] = data
         self.update_rb_after_add()
 
-    def sample(self):
+    def sample(self) -> List[np.ndarray]:
         '''
         change [[s, a, r],[s, a, r]] to [[s, s],[a, a],[r, r]]
         '''
@@ -58,10 +69,10 @@ class ExperienceReplay(ReplayBuffer):
         t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
         return [np.asarray(e) for e in zip(*t)]
 
-    def get_all(self):
+    def get_all(self) -> List[np.ndarray]:
         return [np.asarray(e) for e in zip(*self._buffer[:self._size])]
 
-    def update_rb_after_add(self):
+    def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1
         if self._data_pointer >= self.capacity:  # replace when exceed the capacity
             self._data_pointer = 0
@@ -69,19 +80,19 @@ class ExperienceReplay(ReplayBuffer):
             self._size += 1
 
     @property
-    def is_full(self):
+    def is_full(self) -> bool:
         return self._size == self.capacity
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._size
 
     @property
-    def is_lg_batch_size(self):
+    def is_lg_batch_size(self) -> bool:
         return self._size > self.batch_size
 
     @property
-    def show_rb(self):
+    def show_rb(self) -> NoReturn:
         print('RB size: ', self._size)
         print('RB capacity: ', self.capacity)
         print(self._buffer[:, np.newaxis])
@@ -92,7 +103,14 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     This PER will introduce some bias, 'cause when the experience with the minimum probability has been collected, the min_p that be updated may become inaccuracy.
     '''
 
-    def __init__(self, batch_size, capacity, max_train_step, alpha, beta, epsilon, global_v):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int,
+                 max_train_step: int,
+                 alpha: float,
+                 beta: float,
+                 epsilon: float,
+                 global_v: bool):
         '''
         inputs:
             max_train_step: use for calculating the decay interval of beta
@@ -113,25 +131,25 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.max_p = epsilon
         self.global_v = global_v
 
-    def add(self, *args):
+    def add(self, *args) -> NoReturn:
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
         self.add_batch(list(zip(*args)))
         # [self._store_op(data) for data in zip(*args)]
 
-    def _store_op(self, data):
+    def _store_op(self, data: Union[List, np.ndarray]) -> NoReturn:
         self.tree.add(self.max_p, data)
         if self._size < self.capacity:
             self._size += 1
 
-    def add_batch(self, data):
+    def add_batch(self, data: List) -> NoReturn:
         data = list(data)
         num = len(data)
         self.tree.add_batch(np.full(num, self.max_p), data)
         self._size = min(self._size + num, self.capacity)
 
-    def sample(self, return_index=False):
+    def sample(self, return_index: bool = False) -> Union[List, Tuple]:
         '''
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
@@ -148,10 +166,13 @@ class PrioritizedExperienceReplay(ReplayBuffer):
             return data
 
     @property
-    def is_lg_batch_size(self):
+    def is_lg_batch_size(self) -> bool:
         return self._size > self.batch_size
 
-    def update(self, priority, episode, index=None):
+    def update(self,
+               priority: Union[List, np.ndarray],
+               episode: int,
+               index: Optional[Union[List, np.ndarray]] = None) -> NoReturn:
         '''
         input: priorities
         '''
@@ -165,12 +186,16 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.tree._updatetree_batch(idxs, priority)
         # [self.tree._updatetree(idx, p) for idx, p in zip(idxs, priority)]
 
-    def get_IS_w(self):
+    def get_IS_w(self) -> np.ndarray:
         return self.IS_w
 
 
 class NStepWrapper:
-    def __init__(self, buffer, gamma, n, agents_num):
+    def __init__(self,
+                 buffer: ReplayBuffer,
+                 gamma: float,
+                 n: int,
+                 agents_num: int):
         '''
         gamma: discount factor
         n: n step
@@ -182,13 +207,13 @@ class NStepWrapper:
         self.agents_num = agents_num
         self.queue = [[] for _ in range(agents_num)]
 
-    def add(self, *args):
+    def add(self, *args) -> NoReturn:
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
-    def _per_store(self, i, data):
+    def _per_store(self, i: int, data: List) -> NoReturn:
         '''
         data:
             0   s           -7
@@ -232,7 +257,12 @@ class NStepExperienceReplay(NStepWrapper):
     [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
-    def __init__(self, batch_size, capacity, gamma, n, agents_num):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int,
+                 gamma: float,
+                 n: int,
+                 agents_num: int):
         super().__init__(
             buffer=ExperienceReplay(batch_size, capacity),
             gamma=gamma, n=n, agents_num=agents_num
@@ -245,7 +275,17 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
     [s, visual_s, a, r, s_, visual_s_, done] must be this format.
     '''
 
-    def __init__(self, batch_size, capacity, max_train_step, alpha, beta, epsilon, global_v, gamma, n, agents_num):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int,
+                 max_train_step: int,
+                 alpha: float,
+                 beta: float,
+                 epsilon: float,
+                 global_v: bool,
+                 gamma: float,
+                 n: int,
+                 agents_num: int):
         super().__init__(
             buffer=PrioritizedExperienceReplay(batch_size, capacity, max_train_step, alpha, beta, epsilon, global_v),
             gamma=gamma, n=n, agents_num=agents_num
@@ -254,7 +294,12 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
 
 class EpisodeExperienceReplay(ReplayBuffer):
 
-    def __init__(self, batch_size, capacity, agents_num, burn_in_time_step, train_time_step):
+    def __init__(self,
+                 batch_size: int,
+                 capacity: int,
+                 agents_num: int,
+                 burn_in_time_step: int,
+                 train_time_step: int):
         super().__init__(batch_size, capacity)
         self.agents_num = agents_num
         self.burn_in_time_step = burn_in_time_step
@@ -264,13 +309,13 @@ class EpisodeExperienceReplay(ReplayBuffer):
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
 
-    def add(self, *args):
+    def add(self, *args) -> NoReturn:
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
         [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
 
-    def _per_store(self, i, data):
+    def _per_store(self, i: int, data: List) -> NoReturn:
         '''
         data:
             0   s           -7
@@ -298,18 +343,18 @@ class EpisodeExperienceReplay(ReplayBuffer):
             return
         q.append(data)
 
-    def _store_op(self, data):
+    def _store_op(self, data: List) -> NoReturn:
         self._buffer[self._data_pointer] = data
         self.update_rb_after_add()
 
-    def update_rb_after_add(self):
+    def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1
         if self._data_pointer >= self.capacity:  # replace when exceed the capacity
             self._data_pointer = 0
         if self._size < self.capacity:
             self._size += 1
 
-    def sample(self):
+    def sample(self) -> List[List[Union[np.ndarray, tf.Tensor]]]:
         '''
         data:
             0   s           -7
@@ -352,24 +397,24 @@ class EpisodeExperienceReplay(ReplayBuffer):
         data_list[6:] = map(lambda x: x.reshape(-1, x.shape[-1]), data_list[6:])
         return data_list
 
-    def get_burn_in_states(self):
+    def get_burn_in_states(self) -> Tuple:
         s, visual_s = self.burn_in_states
         return s, visual_s
 
     @property
-    def is_full(self):
+    def is_full(self) -> bool:
         return self._size == self.capacity
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self._size
 
     @property
-    def is_lg_batch_size(self):
+    def is_lg_batch_size(self) -> bool:
         return self._size > self.batch_size
 
     @property
-    def show_rb(self):
+    def show_rb(self) -> NoReturn:
         print('RB size: ', self._size)
         print('RB capacity: ', self.capacity)
         print(self._buffer)

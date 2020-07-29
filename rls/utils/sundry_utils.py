@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import sys
 import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("rls.utils.sundry_utils")
+
+from typing import \
+    List, \
+    NoReturn
 
 
-def create_logger(name, console_level, console_format, logger2file, file_name, file_level, file_format):
+def create_logger(
+    name: str,
+    console_level: int = logging.INFO,
+    console_format: str = '%(levelname)s : %(message)s',
+    logger2file: bool = False,
+    file_name: str = './log.txt',
+    file_level: int = logging.WARNING,
+    file_format: str = '%(lineno)d - %(asctime)s - %(module)s - %(funcName)s - %(levelname)s - %(message)s',
+) -> logging.Logger:
     logger = logging.Logger(name)
     logger.setLevel(level=console_level)
     stdout_handle = logging.StreamHandler(stream=sys.stdout)
@@ -18,9 +33,18 @@ def create_logger(name, console_level, console_format, logger2file, file_name, f
         logger.addHandler(logfile_handle)
     return logger
 
+def check_or_create(dicpath: str, name: str = '') -> NoReturn:
+    """
+    check dictionary whether existing, if not then create it.
+    """
+    if not os.path.exists(dicpath):
+        os.makedirs(dicpath)
+        logger.info(''.join([f'create {name} directionary :', dicpath]))
+
 
 class LinearAnnealing:
-    def __init__(self, x, x_, end):
+
+    def __init__(self, x: float, x_: float, end: int):
         '''
         Params: 
             x: start value
@@ -32,5 +56,8 @@ class LinearAnnealing:
         self.x_ = x_
         self.interval = (x_ - x) / end
 
-    def __call__(self, current):
+    def __call__(self, current: int) -> float:
+        '''
+        TODO: Annotation
+        '''
         return max(self.x + self.interval * current, self.x_)

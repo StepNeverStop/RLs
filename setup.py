@@ -50,7 +50,7 @@ setup(
         'gym>=0.15.0',
         'pyyaml',
         'tqdm',
-        'tensorflow-gpu>=2.0.0, <=2.1.0',
+        'tensorflow>=2.0.0, <=2.1.0',
         'tensorflow_probability==0.9.0',
         'gast==0.2.2'
     ],

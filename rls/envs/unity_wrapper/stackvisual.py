@@ -5,8 +5,8 @@ import numpy as np
 
 from collections import deque
 
-from rls.envs.wrappers.unity_wrapper.wrappers import UnityReturnWrapper
-from rls.envs.wrappers.LazyFrames import LazyFrames
+from rls.envs.unity_wrapper.wrappers import UnityReturnWrapper
+from rls.utils.LazyFrames import LazyFrames
 
 # obs: [
 #     brain1: [

@@ -3,6 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 LABEL maintainer="StepNeverStop(Keavnn)"\
       github="https://github.com/StepNeverStop/RLs"\
       description="Docker image for runing RLs."\
+      rls_version="0.0.1"\
       email="keavnn.wjs@gmail.com"
 
 ENV LANG C.UTF-8

@@ -5,18 +5,18 @@ import gym
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('envs.wrappers.gym_wrapper.gym_env')
+logger = logging.getLogger('rls.envs.gym_wrapper.gym_env')
 
 try:
     import gym_minigrid
-except:
+except ImportError:
     logger.warning("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.")
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
-except:
+except ImportError:
     logger.warning("import pybullet_envs failed, using 'pip3 install PyBullet' install it.")
     pass
 
@@ -31,12 +31,12 @@ else:
 from typing import Dict
 from copy import deepcopy
 
-from rls.utils.sth import sth
+from rls.utils.np_utils import int2action_index
 from gym.spaces import \
     Box, \
     Discrete, \
     Tuple
-from rls.envs.wrappers.gym_wrapper.utils import build_env
+from rls.envs.gym_wrapper.utils import build_env
 
 
 class gym_envs(object):
@@ -155,7 +155,7 @@ class gym_envs(object):
     def step(self, actions):
         actions = np.array(actions)
         if not self.is_continuous:
-            actions = sth.int2action_index(actions, self.discrete_action_dim_list)
+            actions = int2action_index(actions, self.discrete_action_dim_list)
             if self.action_type == 'discrete':
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':

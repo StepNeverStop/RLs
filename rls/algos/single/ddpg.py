@@ -12,6 +12,7 @@ from rls.nn.noise import \
     OrnsteinUhlenbeckActionNoise, \
     NormalActionNoise
 from rls.algos.base.off_policy import make_off_policy_class
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class DDPG(make_off_policy_class(mode='share')):
@@ -62,7 +63,7 @@ class DDPG(make_off_policy_class(mode='share')):
         self.q_net = _q_net()
         self.q_target_net = _q_net()
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(
+        update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,
             self.actor_net.weights + self.q_net.weights
         )
@@ -114,7 +115,7 @@ class DDPG(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda: self.update_target_net_weights(
+                'update_function': lambda: update_target_net_weights(
                     self.actor_target_net.weights + self.q_target_net.weights,
                     self.actor_net.weights + self.q_net.weights,
                     self.ployak),

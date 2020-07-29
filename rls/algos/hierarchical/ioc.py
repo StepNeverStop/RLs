@@ -8,7 +8,11 @@ import tensorflow_probability as tfp
 from rls.nn import oc_intra_option as OptionNet
 from rls.nn import critic_q_all as Critic
 from rls.algos.base.off_policy import make_off_policy_class
-from rls.utils.tf2_utils import gaussian_clip_rsample, gaussian_likelihood_sum, gaussian_entropy
+from rls.utils.tf2_utils import \
+    gaussian_clip_rsample, \
+    gaussian_likelihood_sum, \
+    gaussian_entropy, \
+    update_target_net_weights
 
 
 class IOC(make_off_policy_class(mode='share')):
@@ -71,7 +75,7 @@ class IOC(make_off_policy_class(mode='share')):
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.actor_tv += [self.log_std]
-        self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+        update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 
         self.q_lr, self.intra_option_lr, self.termination_lr, self.interest_lr = map(self.init_lr, [q_lr, intra_option_lr, termination_lr, interest_lr])
         self.q_optimizer = self.init_optimizer(self.q_lr, clipvalue=5.)
@@ -143,7 +147,7 @@ class IOC(make_off_policy_class(mode='share')):
 
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,

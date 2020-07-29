@@ -2,6 +2,12 @@
 # -*- coding: utf-8 -*-
 
 import tensorflow as tf
+
+from typing import \
+    Union, \
+    List, \
+    NoReturn
+
 from rls.algos.single.dqn import DQN
 
 
@@ -12,19 +18,19 @@ class DDQN(DQN):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 s_dim: Union[int, np.ndarray],
+                 visual_sources: Union[int, np.ndarray],
+                 visual_resolution: Union[List, np.ndarray],
+                 a_dim: Union[int, np.ndarray],
+                 is_continuous: Union[bool, np.ndarray],
 
-                 lr=5.0e-4,
-                 eps_init=1,
-                 eps_mid=0.2,
-                 eps_final=0.01,
-                 init2mid_annealing_step=1000,
-                 assign_interval=2,
-                 hidden_units=[32, 32],
+                 lr: float = 5.0e-4,
+                 eps_init: float = 1,
+                 eps_mid: float = 0.2,
+                 eps_final: float = 0.01,
+                 init2mid_annealing_step: int = 1000,
+                 assign_interval: int = 2,
+                 hidden_units: List = [32, 32],
                  **kwargs):
         assert not is_continuous, 'double dqn only support discrete action space'
         super().__init__(
@@ -42,7 +48,7 @@ class DDQN(DQN):
             hidden_units=hidden_units,
             **kwargs)
 
-    def show_logo(self):
+    def show_logo(self) -> NoReturn:
         self.logger.info('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
