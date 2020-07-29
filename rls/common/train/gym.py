@@ -132,10 +132,10 @@ def gym_train(env, model,
             step=last_done_step,
             **sma.rs
         )
-        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(rets, 2)}', out_time=True)
+        print_func(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}', out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, print_func=print_func, prefill_choose=False, desc='adding noise')
+            gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, desc='adding noise')
 
         if eval_while_train and env.reward_threshold is not None:
             if rets.max() >= env.reward_threshold:
@@ -215,7 +215,6 @@ def gym_evaluate(env, model,
 
 
 def gym_no_op(env, model,
-              print_func: Callable[[str], None],
               pre_fill_steps: int,
               prefill_choose: bool,
               desc: str = 'Pre-filling') -> NoReturn:

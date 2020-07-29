@@ -47,3 +47,14 @@ def set_log_level(log_level: int) -> None:
 
     for logger in _loggers:
         logger.setLevel(log_level)
+
+
+def set_log_file(log_file: str = None) -> None:
+    if log_file:
+        for logger in _loggers:
+            logfile_handle = logging.FileHandler(log_file)
+            logfile_handle.setLevel(_log_level)
+            logfile_handle.setFormatter(logging.Formatter(LOG_FORMAT))
+            logger.addHandler(logfile_handle)
+    else:
+        pass

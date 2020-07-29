@@ -270,9 +270,9 @@ class Trainer:
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self._allow_print:
-            model_info = f'Name: {self._name} '
+            model_info = f'{self._name} '
             if out_time:
-                model_info += f'Pass time: {get_time_hhmmss(self.start_time)} '
+                model_info += f'T: {get_time_hhmmss(self.start_time)} '
             logger.info(''.join([model_info, *args]))
         else:
             pass
@@ -286,7 +286,6 @@ class Trainer:
                 gym_no_op(
                     env=self.env,
                     model=self.model,
-                    print_func=self.pwi,
                     pre_fill_steps=int(self.train_args['pre_fill_steps']),
                     prefill_choose=bool(self.train_args['prefill_choose'])
                 )
@@ -324,7 +323,6 @@ class Trainer:
                     ma_unity_no_op(
                         env=self.env,
                         model=self.model,
-                        print_func=self.pwi,
                         pre_fill_steps=int(self.train_args['pre_fill_steps']),
                         prefill_choose=bool(self.train_args['prefill_choose']),
                         real_done=bool(self.train_args['real_done'])
@@ -354,7 +352,6 @@ class Trainer:
                     unity_no_op(
                         env=self.env,
                         models=self.models,
-                        print_func=self.pwi,
                         pre_fill_steps=int(self.train_args['pre_fill_steps']),
                         prefill_choose=bool(self.train_args['prefill_choose']),
                         real_done=bool(self.train_args['real_done'])

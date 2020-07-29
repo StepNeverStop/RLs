@@ -18,7 +18,9 @@ from typing import \
 from rls.utils.tf2_utils import get_device
 from rls.utils.sundry_utils import \
     check_or_create
-from rls.utils.logging_utils import get_logger
+from rls.utils.logging_utils import \
+    get_logger, \
+    set_log_file
 logger = get_logger(__name__)
 
 
@@ -42,10 +44,11 @@ class Base:
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
-        # logger2file=bool(kwargs.get('logger2file', False))
-
         check_or_create(self.cp_dir, 'checkpoints')
         check_or_create(self.log_dir, 'logs(summaries)')
+        if bool(kwargs.get('logger2file', False)):
+            set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
+
         if 1 == 0:  # Not used
             import pandas as pd
             check_or_create(self.excel_dir, 'excel')
