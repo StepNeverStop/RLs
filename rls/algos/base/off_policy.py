@@ -4,12 +4,16 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import Dict
+from typing import \
+    Dict, \
+    Union, \
+    NoReturn, \
+    List
 
-from rls.utils.sth import sth
+from rls.utils.np_utils import int2one_hot
 
 
-def make_off_policy_class(mode='share'):
+def make_off_policy_class(mode: str = 'share'):
     if mode == 'share':
         from rls.algos.base.share_rnn_cnn_policy import SharedPolicy as BasePolicy
     else:
@@ -17,11 +21,11 @@ def make_off_policy_class(mode='share'):
 
     class Off_Policy(BasePolicy):
         def __init__(self,
-                     s_dim,
-                     visual_sources,
-                     visual_resolution,
-                     a_dim,
-                     is_continuous,
+                     s_dim: Union[int, np.ndarray],
+                     visual_sources: Union[int, np.ndarray],
+                     visual_resolution: Union[List, np.ndarray],
+                     a_dim: Union[int, np.ndarray],
+                     is_continuous: Union[int, np.ndarray],
                      **kwargs):
             super().__init__(
                 s_dim=s_dim,
@@ -36,13 +40,20 @@ def make_off_policy_class(mode='share'):
             self.use_isw = bool(kwargs.get('use_isw', False))
             self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
 
-        def set_buffer(self, buffer):
+        def set_buffer(self, buffer) -> NoReturn:
             '''
             TODO: Annotation
             '''
             self.data = buffer
 
-        def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+        def store_data(self,
+                       s: Union[List, np.ndarray],
+                       visual_s: Union[List, np.ndarray],
+                       a: Union[List, np.ndarray],
+                       r: Union[List, np.ndarray],
+                       s_: Union[List, np.ndarray],
+                       visual_s_: Union[List, np.ndarray],
+                       done: Union[List, np.ndarray]) -> NoReturn:
             """
             for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
             """
@@ -60,7 +71,14 @@ def make_off_policy_class(mode='share'):
                 done[:, np.newaxis]  # 升维
             )
 
-        def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
+        def no_op_store(self,
+                        s: Union[List, np.ndarray],
+                        visual_s: Union[List, np.ndarray],
+                        a: Union[List, np.ndarray],
+                        r: Union[List, np.ndarray],
+                        s_: Union[List, np.ndarray],
+                        visual_s_: Union[List, np.ndarray],
+                        done: Union[List, np.ndarray]) -> NoReturn:
             assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
             assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
             assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
@@ -75,14 +93,15 @@ def make_off_policy_class(mode='share'):
                 done[:, np.newaxis]
             )
 
-        def get_transitions(self, data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']):
+        def get_transitions(self,
+                            data_name_list: List[str] = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) -> Dict:
             '''
             TODO: Annotation
             '''
             data = self.data.sample()   # 经验池取数据
             if not self.is_continuous and 'a' in data_name_list:
                 a_idx = data_name_list.index('a')
-                data[a_idx] = sth.int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
+                data[a_idx] = int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
             if 's' in data_name_list:
                 s_idx = data_name_list.index('s')
                 data[s_idx] = self.normalize_vector_obs(data[s_idx])
@@ -94,13 +113,13 @@ def make_off_policy_class(mode='share'):
                 [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))
             ])
 
-        def get_value_from_dict(self, data_name_list, data_dict):
+        def get_value_from_dict(self, data_name_list: List[str], data_dict: Dict) -> List:
             '''
             TODO: Annotation
             '''
             return [data_dict.get(n) for n in data_name_list]
 
-        def _learn(self, function_dict: Dict):
+        def _learn(self, function_dict: Dict) -> NoReturn:
             '''
             TODO: Annotation
             '''
@@ -153,7 +172,7 @@ def make_off_policy_class(mode='share'):
                     data['r'] += crsty_r
                     self.summaries.update(crsty_summaries)
                 else:
-                    crsty_loss = tf.constant(value=0., dtype=self._data_type)
+                    crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
                 # --------------------------------------
 
                 # --------------------------------------优先经验回放部分，获取重要性比例
@@ -161,7 +180,7 @@ def make_off_policy_class(mode='share'):
                     _isw = self.data.get_IS_w().reshape(-1, 1)  # [B, ] => [B, 1]
                     _isw = self.data_convert(_isw)
                 else:
-                    _isw = tf.constant(value=1., dtype=self._data_type)
+                    _isw = tf.constant(value=1., dtype=self._tf_data_type)
                 # --------------------------------------
 
                 # --------------------------------------获取需要传给train函数的参数

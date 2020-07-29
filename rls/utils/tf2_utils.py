@@ -4,6 +4,11 @@
 import numpy as np
 import tensorflow as tf
 
+from typing import \
+    List, \
+    Optional, \
+    NoReturn
+
 
 def get_device():
     '''
@@ -198,22 +203,19 @@ def tsallis_entropy_log_q(log_pi, q):
         return tf.reduce_sum(log_q_pi, axis=-1, keepdims=True)
 
 
-def cast2float32(*args):
-    '''
-    cast data to tf.float32
-    '''
-    return [tf.cast(i, tf.float32) for i in args]
-
-
-def cast2float64(*args):
-    '''
-    cast data to tf.float32
-    '''
-    return [tf.cast(i, tf.float64) for i in args]
-
-
 def huber_loss(td_error, delta=1.):
     '''
     TODO: Annotation
     '''
     return tf.where(tf.abs(td_error) <= delta, 0.5 * tf.square(td_error), delta * (tf.abs(td_error) - 0.5 * delta))
+
+
+def update_target_net_weights(tge: List[tf.Tensor], src: List[tf.Tensor], ployak: Optional[float] = None) -> NoReturn:
+    '''
+    update weights of target neural network.
+    ployak = 1 - tau
+    '''
+    if ployak is None:
+        tf.group([t.assign(s) for t, s in zip(tge, src)])
+    else:
+        tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])

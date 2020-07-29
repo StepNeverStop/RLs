@@ -12,6 +12,7 @@ from rls.nn.noise import \
     OrnsteinUhlenbeckActionNoise, \
     NormalActionNoise
 from rls.algos.base.off_policy import make_off_policy_class
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class DDPG(make_off_policy_class(mode='share')):
@@ -51,7 +52,7 @@ class DDPG(make_off_policy_class(mode='share')):
             # self.action_noise = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         else:
-            def _actor_net(): return ActorDcse(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
@@ -62,7 +63,7 @@ class DDPG(make_off_policy_class(mode='share')):
         self.q_net = _q_net()
         self.q_target_net = _q_net()
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(
+        update_target_net_weights(
             self.actor_target_net.weights + self.q_target_net.weights,
             self.actor_net.weights + self.q_net.weights
         )
@@ -114,7 +115,7 @@ class DDPG(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,
-                'update_function': lambda: self.update_target_net_weights(
+                'update_function': lambda: update_target_net_weights(
                     self.actor_target_net.weights + self.q_target_net.weights,
                     self.actor_net.weights + self.q_net.weights,
                     self.ployak),

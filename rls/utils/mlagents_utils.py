@@ -2,10 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-from typing import List
+
+from typing import \
+    List, \
+    Callable
 
 
-def multi_agents_data_preprocess(copy_nums: int, brain_controls: List):
+def multi_agents_data_preprocess(copy_nums: int, brain_controls: List) -> Callable[..., List]:
     '''
     处理多个环境副本下的多智能体训练数据, 将数据格式从
     [脑1:[脑1控制的智能体数量, 脑1的维度], 脑2:[脑2控制的智能体数量, 脑2的维度], ...]
@@ -29,7 +32,7 @@ def multi_agents_data_preprocess(copy_nums: int, brain_controls: List):
     return data_change_func
 
 
-def multi_agents_action_reshape(copy_nums: int, brain_controls: List):
+def multi_agents_action_reshape(copy_nums: int, brain_controls: List) -> Callable[..., List]:
 
     def action_reshape_func(actions):
         '''
@@ -39,9 +42,9 @@ def multi_agents_action_reshape(copy_nums: int, brain_controls: List):
         l = []
         start = 0
         for i in brain_controls:
-            l.append(actions[start:start+i])
+            l.append(actions[start:start + i])
             start += i
         # l: [Brains, Agents_perCopy_perBrain, Copys, Dims] => [Brains, Agents, Dims]
-        return [np.asarray(x).reshape(brain_controls[i]*copy_nums, -1) for i, x in enumerate(l)]
+        return [np.asarray(x).reshape(brain_controls[i] * copy_nums, -1) for i, x in enumerate(l)]
 
     return action_reshape_func

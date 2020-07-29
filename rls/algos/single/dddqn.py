@@ -7,6 +7,7 @@ import tensorflow as tf
 from rls.nn import critic_dueling as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.tf2_utils import update_target_net_weights
 
 
 class DDDQN(make_off_policy_class(mode='share')):
@@ -53,7 +54,7 @@ class DDDQN(make_off_policy_class(mode='share')):
         self.dueling_net = _net()
         self.dueling_target_net = _net()
         self.critic_tv = self.dueling_net.trainable_variables + self.other_tv
-        self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
+        update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
@@ -98,7 +99,7 @@ class DDDQN(make_off_policy_class(mode='share')):
 
         def _update():
             if self.global_step % self.assign_interval == 0:
-                self.update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
+                update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'train_function': self.train,

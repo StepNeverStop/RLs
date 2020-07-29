@@ -3,6 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 LABEL maintainer="StepNeverStop(Keavnn)"\
       github="https://github.com/StepNeverStop/RLs"\
       description="Docker image for runing RLs."\
+      rls_version="0.0.1"\
       email="keavnn.wjs@gmail.com"
 
 ENV LANG C.UTF-8
@@ -40,7 +41,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \
-    conda create -n rls python=3.6 && \
+    conda create -n rls python=3.7 && \
     conda activate rls && \
     echo -e "\033[4;41;32m conda activate rls successed. \033[0m" && \
     cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \
