@@ -114,7 +114,7 @@ class SAC_V(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　ｘｘｘ　　　
 　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　ｘ　　　　
 　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　

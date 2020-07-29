@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import gym
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('rls.envs.gym_wrapper.wrappers')
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
+
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)

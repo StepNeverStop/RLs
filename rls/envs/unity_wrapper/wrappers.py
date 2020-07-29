@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import os
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('envs.wrappers.unity_wrapper.wrappers')
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
+
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)

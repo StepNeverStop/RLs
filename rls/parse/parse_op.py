@@ -51,13 +51,6 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
             else:
                 raise Exception('can not find the executable file.')
 
-    model_args = Config()
-    model_args.algo = options.algo
-    model_args.use_rnn = options.use_rnn
-    model_args.algo_config = options.algo_config
-    model_args.seed = options.seed
-    model_args.load = options.load
-
     train_args = Config(**default_config['train'])
     if options.gym:
         train_args.add_dict(default_config['gym']['train'])
@@ -66,15 +59,21 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         train_args.add_dict(default_config['unity']['train'])
     train_args.index = 0
     train_args.name = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
-    train_args.use_wandb = options.use_wandb
-    train_args.inference = options.inference
-    train_args.prefill_choose = options.prefill_choose
-    train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, model_args.algo)
     train_args.max_train_step = abs(train_args.max_train_step) or sys.maxsize
     train_args.max_frame_step = abs(train_args.max_frame_step) or sys.maxsize
     train_args.max_train_episode = abs(train_args.max_train_episode) or sys.maxsize
     train_args.inference_episode = abs(train_args.inference_episode) or sys.maxsize
-    train_args.load_model_path = model_args.load
+
+
+    train_args.algo = options.algo
+    train_args.use_rnn = options.use_rnn
+    train_args.algo_config = options.algo_config
+    train_args.seed = options.seed
+    train_args.use_wandb = options.use_wandb
+    train_args.inference = options.inference
+    train_args.prefill_choose = options.prefill_choose
+    train_args.load_model_path = options.load
+    train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, train_args.algo)
     if train_args.load_model_path is not None and not os.path.exists(train_args.load_model_path):   # 如果不是绝对路径，就拼接load的训练相对路径
         train_args.load_model_path = os.path.join(train_args.base_dir, train_args.load_model_path)
     train_args.update(dict([
@@ -89,4 +88,4 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     ]))
 
     buffer_args = Config(**default_config['buffer'])
-    return env_args, model_args, buffer_args, train_args
+    return env_args, buffer_args, train_args

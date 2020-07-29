@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
 import numpy as np
 
 from tqdm import trange
@@ -15,9 +14,8 @@ from typing import \
 from rls.utils.np_utils import \
     SMA, \
     arrprint
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rls.common.train.gym")
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
@@ -134,8 +132,7 @@ def gym_train(env, model,
             step=last_done_step,
             **sma.rs
         )
-        print_func('-' * 40, out_time=True)
-        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(rets, 2)}')
+        print_func(f'Episode: {episode:3d} | step: {step:4d} | last_done_step {last_done_step:4d} | rewards: {arrprint(rets, 2)}', out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, print_func=print_func, prefill_choose=False, desc='adding noise')

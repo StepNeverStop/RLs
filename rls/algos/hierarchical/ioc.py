@@ -95,7 +95,7 @@ class IOC(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　
 　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘ　ｘｘｘ　　　
 　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘ　　　

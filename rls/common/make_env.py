@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
-
 from typing import Dict
 from copy import deepcopy
 
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rls.common.make_env")
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
 
 
 def make_env(env_args: Dict):

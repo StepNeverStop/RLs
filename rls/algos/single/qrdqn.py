@@ -69,7 +69,7 @@ class QRDQN(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
 　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘ　　　

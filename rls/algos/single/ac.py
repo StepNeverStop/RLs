@@ -60,7 +60,7 @@ class AC(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
 　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
 　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　

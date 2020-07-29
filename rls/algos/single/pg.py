@@ -57,7 +57,7 @@ class PG(make_on_policy_class(mode='share')):
         self.initialize_data_buffer()
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
 　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　
 　　　　　ｘ　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘ　　　　　

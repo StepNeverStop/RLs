@@ -3,7 +3,6 @@
 
 import os
 import json
-import logging
 import numpy as np
 import tensorflow as tf
 
@@ -18,8 +17,9 @@ from typing import \
 
 from rls.utils.tf2_utils import get_device
 from rls.utils.sundry_utils import \
-    create_logger, \
     check_or_create
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
 
 
 class Base:
@@ -42,11 +42,7 @@ class Base:
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
-        self.logger = create_logger(
-            name='rls.algos.base',
-            logger2file=bool(kwargs.get('logger2file', False)),
-            file_name=self.log_dir + 'log.txt'
-        )
+        # logger2file=bool(kwargs.get('logger2file', False))
 
         check_or_create(self.cp_dir, 'checkpoints')
         check_or_create(self.log_dir, 'logs(summaries)')
@@ -102,15 +98,15 @@ class Base:
                     ckpt = tf.train.latest_checkpoint(cp_dir)
                     self.checkpoint.restore(ckpt).expect_partial()    # 从指定路径导入模型
                 except:
-                    self.logger.error(f'restore model from {cp_dir} FAILED.')
+                    logger.error(f'restore model from {cp_dir} FAILED.')
                     raise Exception(f'restore model from {cp_dir} FAILED.')
                 else:
-                    self.logger.info(f'restore model from {ckpt} SUCCUESS.')
+                    logger.info(f'restore model from {ckpt} SUCCUESS.')
             return
 
         self.checkpoint.restore(self.saver.latest_checkpoint).expect_partial()  # 从本模型目录载入模型，断点续训
-        self.logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
-        self.logger.info('initialize model SUCCUESS.')
+        logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
+        logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, **kwargs) -> NoReturn:
         """
@@ -118,7 +114,7 @@ class Base:
         """
         train_step = int(kwargs.get('train_step', 0))
         self.saver.save(checkpoint_number=train_step)
-        self.logger.info(f'Save checkpoint success. Training step: {train_step}')
+        logger.info(f'Save checkpoint success. Training step: {train_step}')
         self.write_training_info(kwargs)
 
     def get_init_training_info(self) -> Dict:

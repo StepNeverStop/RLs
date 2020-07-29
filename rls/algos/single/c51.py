@@ -71,7 +71,7 @@ class C51(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
 　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘ　　　　　　
 　　　ｘｘｘｘ　　　　ｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rls.parse.parse_buffer")
 import importlib
 
 from typing import \
@@ -11,6 +8,9 @@ from typing import \
 
 from rls.common.config import Config
 from rls.memories.replay_buffer import ReplayBuffer
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
+
 
 BufferDict = {
     'ER': 'ExperienceReplay',

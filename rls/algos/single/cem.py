@@ -75,7 +75,7 @@ class CEM(make_on_policy_class(mode='share')):
         self.extra_var_last_multiplier = extra_var_last_multiplier
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　ｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘｘｘｘ　
 　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
 　　　ｘｘｘｘ　　　　ｘ　　　　　　　ｘｘｘ　　　ｘ　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　

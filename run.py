@@ -66,16 +66,19 @@ if sys.platform.startswith('win'):
     win32api.SetConsoleCtrlHandler(_win_handler, 1)
 
 import time
+import logging
 
 from typing import Dict
 from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
 
-from rls.common.agent import Agent
+from rls.common.trainer import Trainer
 from rls.common.config import Config
 from rls.common.yaml_ops import load_yaml
 from rls.parse.parse_op import parse_options
+from rls.utils.logging_utils import set_log_level
+set_log_level(logging.INFO)
 
 
 def get_options(options: Dict) -> Config:
@@ -126,7 +129,7 @@ def agent_run(*args):
     '''
     Start a training task
     '''
-    Agent(*args)()
+    Trainer(*args)()
 
 
 def main():
@@ -137,18 +140,18 @@ def main():
     trails = options.models
     assert trails > 0, '--models must greater than 0.'
 
-    env_args, model_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
+    env_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
 
     if options.inference:
-        Agent(env_args, model_args, buffer_args, train_args).evaluate()
+        Trainer(env_args, buffer_args, train_args).evaluate()
         return
 
     if trails == 1:
-        agent_run(env_args, model_args, buffer_args, train_args)
+        agent_run(env_args, buffer_args, train_args)
     elif trails > 1:
         processes = []
         for i in range(trails):
-            _env_args, _model_args, _buffer_args, _train_args = map(deepcopy, [env_args, model_args, buffer_args, train_args])
+            _env_args, _model_args, _buffer_args, _train_args = map(deepcopy, [env_args, buffer_args, train_args])
             _model_args.seed += i * 10
             _train_args.name += f'/{i}'
             _train_args.allow_print = True  # NOTE: set this could block other processes' print function

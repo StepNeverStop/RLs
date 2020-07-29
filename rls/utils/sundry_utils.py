@@ -4,12 +4,14 @@
 import os
 import sys
 import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rls.utils.sundry_utils")
 
 from typing import \
     List, \
     NoReturn
+
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
+
 
 
 def create_logger(

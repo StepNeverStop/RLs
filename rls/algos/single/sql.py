@@ -58,7 +58,7 @@ class SQL(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　
 　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　
 　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　

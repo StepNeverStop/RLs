@@ -65,7 +65,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         ))
 
     def show_logo(self):
-        self.logger.info('''
+        print('''
 　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
 　　　　　ｘｘ　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
 　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘ　　　
