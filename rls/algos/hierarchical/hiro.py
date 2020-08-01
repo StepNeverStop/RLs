@@ -105,21 +105,23 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor_optimizer, self.low_critic_optimizer = map(self.init_optimizer, [self.low_actor_lr, self.low_critic_lr])
         self.high_actor_optimizer, self.high_critic_optimizer = map(self.init_optimizer, [self.high_actor_lr, self.high_critic_lr])
 
-        self.model_recorder(dict(
-            high_actor=self.high_actor,
-            high_critic=self.high_critic,
-            low_actor=self.low_actor,
-            low_critic=self.low_critic,
-            low_actor_optimizer=self.low_actor_optimizer,
-            low_critic_optimizer=self.low_critic_optimizer,
-            high_actor_optimizer=self.high_actor_optimizer,
-            high_critic_optimizer=self.high_critic_optimizer
-        ))
-
         self.counts = 0
         self._high_s = [[] for _ in range(self.n_agents)]
         self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
+
+        self._worker_params_dict.update(
+            high_actor=self.high_actor,
+            low_actor=self.low_actor)
+        self._residual_params_dict.update(
+            high_critic=self.high_critic,
+            low_critic=self.low_critic,
+            low_actor_optimizer=self.low_actor_optimizer,
+            low_critic_optimizer=self.low_critic_optimizer,
+            high_actor_optimizer=self.high_actor_optimizer,
+            high_critic_optimizer=self.high_critic_optimizer)
+
+        self._model_post_process()
 
     def generate_ir_func(self, mode='os'):
         if mode == 'os':
@@ -248,15 +250,15 @@ class HIRO(make_off_policy_class(mode='no_share')):
 
                 self.summaries.update(summaries)
                 update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
-                                               self.low_actor.weights + self.low_critic.weights,
-                                               self.ployak)
+                                          self.low_actor.weights + self.low_critic.weights,
+                                          self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(_high_training_data)
                     self.summaries.update(high_summaries)
                     update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
-                                                   self.high_actor.weights + self.high_critic.weights,
-                                                   self.ployak)
+                                              self.high_actor.weights + self.high_critic.weights,
+                                              self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
                     ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.train_step)],

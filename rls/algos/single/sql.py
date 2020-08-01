@@ -52,10 +52,9 @@ class SQL(make_off_policy_class(mode='share')):
             self.q_net.weights
         )
 
-        self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
-        ))
+        self._worker_params_dict.update(model=self.q_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

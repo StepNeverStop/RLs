@@ -83,16 +83,17 @@ class IOC(make_off_policy_class(mode='share')):
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
         self.interest_optimizer = self.init_optimizer(self.interest_lr, clipvalue=5.)
 
-        self.model_recorder(dict(
+        self._worker_params_dict.update(
             q_net=self.q_net,
             intra_option_net=self.intra_option_net,
+            interest_net=self.interest_net)
+        self._residual_params_dict.update(
             termination_net=self.termination_net,
-            interest_net=self.interest_net,
             q_optimizer=self.q_optimizer,
             intra_option_optimizer=self.intra_option_optimizer,
             termination_optimizer=self.termination_optimizer,
-            interest_optimizer=self.interest_optimizer
-        ))
+            interest_optimizer=self.interest_optimizer)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

@@ -59,10 +59,9 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
-        ))
+        self._worker_params_dict.update(model=self.q_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

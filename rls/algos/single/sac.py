@@ -99,14 +99,14 @@ class SAC(make_off_policy_class(mode='share')):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             critic_net=self.critic_net,
-            log_alpha=self.log_alpha,
+            log_alpha=self.log_alpha
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha,
-        ))
+            optimizer_alpha=self.optimizer_alpha)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

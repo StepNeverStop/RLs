@@ -20,6 +20,7 @@ BufferDict = {
     'EpisodeER': 'EpisodeExperienceReplay'
 }
 
+
 def get_buffer(buffer_args: Config) -> Optional[ReplayBuffer]:
     '''
     parsing arguments of replay buffer
@@ -36,12 +37,12 @@ def get_buffer(buffer_args: Config) -> Optional[ReplayBuffer]:
 
     _buffer_type = buffer_args.get('type', 'None')
     logger.info(_buffer_type)
-    
+
     if _buffer_type in BufferDict.keys():
-        Buffer = getattr(importlib.import_module(f'rls.memories.replay_buffer'), 
-                        BufferDict[_buffer_type])
-        return Buffer(batch_size=buffer_args['batch_size'], 
-                    capacity=buffer_args['buffer_size'], 
-                    **buffer_args[_buffer_type].to_dict)
+        Buffer = getattr(importlib.import_module(f'rls.memories.replay_buffer'),
+                         BufferDict[_buffer_type])
+        return Buffer(batch_size=buffer_args['batch_size'],
+                      capacity=buffer_args['buffer_size'],
+                      **buffer_args[_buffer_type].to_dict)
     else:
         return None

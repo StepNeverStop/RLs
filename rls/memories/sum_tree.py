@@ -165,17 +165,17 @@ if __name__ == "__main__":
         b = np.arange(524288) + 1
         start = time()
         tree.add_batch(b, a)
-        init_times.append(time()-start)
+        init_times.append(time() - start)
 
         all_intervals = np.linspace(0, tree.total, 1024 + 1)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         start = time()
         tree.get_batch_parallel(ps)
-        sample_times.append(time()-start)
-        
+        sample_times.append(time() - start)
+
         start = time()
         tree._updatetree_batch(np.random.randint(0, 524288, 1024), np.random.randint(0, 20, 1024))
-        update_times.append(time()-start)
+        update_times.append(time() - start)
 
     # 0.24790284633636475 0.0028038501739501955 0.0010003089904785157
     print(np.asarray(init_times).mean(), np.asarray(sample_times).mean(), np.asarray(update_times).mean())
@@ -192,19 +192,18 @@ if __name__ == "__main__":
         start = time()
         for _a, _b in zip(a, b):
             tree.add(_b, _a)
-        init_times.append(time()-start)
+        init_times.append(time() - start)
 
         all_intervals = np.linspace(0, tree.total, 1024 + 1)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         start = time()
         tree.get_batch(ps)
-        sample_times.append(time()-start)
-        
+        sample_times.append(time() - start)
+
         start = time()
         for _i, _p in zip(np.random.randint(0, 524288, 1024), np.random.randint(0, 20, 1024)):
             tree._updatetree(_i, _p)
-        update_times.append(time()-start)
+        update_times.append(time() - start)
 
     # 5.809855628013611 0.01910092830657959 0.017893266677856446
     print(np.asarray(init_times).mean(), np.asarray(sample_times).mean(), np.asarray(update_times).mean())
-    

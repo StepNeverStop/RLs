@@ -95,18 +95,18 @@ class TRPO(make_on_policy_class(mode='share')):
         self.critic_lr = self.init_lr(critic_lr)
         self.optimizer_critic = self.init_optimizer(self.critic_lr)
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
-            critic=self.critic_net,
-            optimizer_critic=self.optimizer_critic
-        ))
-
         if self.is_continuous:
             data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
         else:
             data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_logp_all']
         self.initialize_data_buffer(
             data_name_list=data_name_list)
+
+        self._worker_params_dict.update(
+            actor=self.actor_net,
+            critic=self.critic_net)
+        self._residual_params_dict.update(optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

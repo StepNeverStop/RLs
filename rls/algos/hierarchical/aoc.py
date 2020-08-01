@@ -85,10 +85,9 @@ class AOC(make_on_policy_class(mode='share')):
             self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
-        self.model_recorder(dict(
-            model=self.net,
-            optimizer=self.optimizer
-        ))
+
+        self._worker_params_dict.update(model=self.net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
 
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'beta_adv', 'last_options', 'options'])

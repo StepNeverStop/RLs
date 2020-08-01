@@ -109,10 +109,8 @@ class PPO(make_on_policy_class(mode='share')):
                 self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
-            self.model_recorder(dict(
-                model=self.net,
-                optimizer=self.optimizer
-            ))
+            self._worker_params_dict.update(model=self.net)
+            self._residual_params_dict.update(optimizer=self.optimizer)
         else:
             # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
             # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
@@ -126,15 +124,16 @@ class PPO(make_on_policy_class(mode='share')):
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
             self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
-            self.model_recorder(dict(
+            self._worker_params_dict.update(
                 actor=self.actor_net,
-                critic=self.critic_net,
+                critic=self.critic_net)
+            self._residual_params_dict.update(
                 optimizer_actor=self.optimizer_actor,
-                optimizer_critic=self.optimizer_critic
-            ))
+                optimizer_critic=self.optimizer_critic)
 
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob'])
+        self._model_post_process()
 
     def show_logo(self) -> NoReturn:
         print('''

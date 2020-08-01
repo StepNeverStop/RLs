@@ -44,7 +44,7 @@ class Base:
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
-        check_or_create(self.cp_dir, 'checkpoints')
+        check_or_create(self.cp_dir, 'checkpoints(models)')
         check_or_create(self.log_dir, 'logs(summaries)')
         if bool(kwargs.get('logger2file', False)):
             set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
@@ -55,6 +55,8 @@ class Base:
             self.excel_writer = pd.ExcelWriter(self.excel_dir + '/data.xlsx')
 
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
+        self._worker_params_dict = {}
+        self._residual_params_dict = dict(global_step=self.global_step)
 
     def _tf_data_cast(self, *args):
         '''
@@ -79,11 +81,11 @@ class Base:
         else:
             return 0
 
-    def _create_saver(self, kwargs: Dict) -> NoReturn:
+    def _create_saver(self) -> NoReturn:
         """
         create checkpoint and saver.
         """
-        self.checkpoint = tf.train.Checkpoint(**kwargs)
+        self.checkpoint = tf.train.Checkpoint(**self._worker_params_dict, **self._residual_params_dict)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
 
     def _create_writer(self, log_dir: str) -> tf.summary.SummaryWriter:
@@ -105,11 +107,11 @@ class Base:
                     raise Exception(f'restore model from {cp_dir} FAILED.')
                 else:
                     logger.info(f'restore model from {ckpt} SUCCUESS.')
-            return
-
-        self.checkpoint.restore(self.saver.latest_checkpoint).expect_partial()  # 从本模型目录载入模型，断点续训
-        logger.info(f'restore model from {self.saver.latest_checkpoint} SUCCUESS.')
-        logger.info('initialize model SUCCUESS.')
+        else:
+            ckpt = self.saver.latest_checkpoint
+            self.checkpoint.restore(ckpt).expect_partial()  # 从本模型目录载入模型，断点续训
+            logger.info(f'restore model from {ckpt} SUCCUESS.')
+            logger.info('initialize model SUCCUESS.')
 
     def save_checkpoint(self, **kwargs) -> NoReturn:
         """
@@ -137,6 +139,9 @@ class Base:
         )
 
     def write_training_info(self, data: Dict) -> NoReturn:
+        '''
+        TODO: Annotation
+        '''
         with open(f'{self.log_dir}/step.json', 'w') as f:
             json.dump(data, f)
 
@@ -167,6 +172,24 @@ class Base:
         for key, value in summaries.items():
             tf.summary.scalar(key, value)
         writer.flush()
+
+    def get_act_related_model_weights(self):
+        weights_list = []
+        for k, v in self._worker_params_dict.items():
+            if isinstance(v, tf.keras.Model):
+                weights_list.extend(list(map(lambda x: x.numpy(), v.weights)))
+            else:
+                weights_list.append(v.numpy())
+        return weights_list
+
+    def set_act_related_model_weights(self, weights_list):
+        weights = []
+        for k, v in self._worker_params_dict.items():
+            if isinstance(v, tf.keras.Model):
+                weights_list.extend(list(map(lambda x: x, v.weights)))
+            else:
+                weights_list.append(v)
+        [src.assign(tgt) for src, tgt in zip(weights, weights_list)]
 
     def save_weights(self, path: str) -> Any:
         """
@@ -201,6 +224,10 @@ class Base:
         set the start training step.
         """
         self.global_step.assign(num)
+
+    def _model_post_process(self) -> NoReturn:
+        self._create_saver()
+        self.show_logo()
 
     def show_logo(self) -> NoReturn:
         raise NotImplementedError

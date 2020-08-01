@@ -64,11 +64,11 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.q_lr, self.alpha_lr = map(self.init_lr, [q_lr, alpha_lr])
         self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.q_lr, self.alpha_lr])
 
-        self.model_recorder(dict(
-            critic_net=self.critic_net,
+        self._worker_params_dict.update(critic_net=self.critic_net)
+        self._residual_params_dict.update(
             optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha
-        ))
+            optimizer_alpha=self.optimizer_alpha)
+        self._model_post_process()
 
     def show_logo(self):
         print('''
@@ -111,7 +111,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             self._learn(function_dict={
                 'train_function': self.train,
                 'update_function': lambda: update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
-                                                                          self.ployak),
+                                                                     self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]

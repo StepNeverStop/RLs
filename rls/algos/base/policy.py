@@ -69,6 +69,7 @@ class Policy(Base):
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128,
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
+            self._worker_params_dict.update(curiosity_model=self.curiosity_model)
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
     def init_lr(self, lr: float) -> Callable:
@@ -94,13 +95,6 @@ class Policy(Base):
 
     def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
-
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        kwargs.update(dict(global_step=self.global_step))
-        if self.use_curiosity:
-            kwargs.update(curiosity_model=self.curiosity_model)
-        self._create_saver(kwargs)
-        self.show_logo()
 
     def intermediate_variable_reset(self) -> NoReturn:
         '''

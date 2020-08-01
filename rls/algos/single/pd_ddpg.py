@@ -81,14 +81,14 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.actor_lr, self.reward_critic_lr, self.cost_critic_lr = map(self.init_lr, [actor_lr, reward_critic_lr, cost_critic_lr])
         self.optimizer_actor, self.optimizer_reward_critic, self.optimizer_cost_critic = map(self.init_optimizer, [self.actor_lr, self.reward_critic_lr, self.cost_critic_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             reward_critic=self.reward_critic_net,
-            cost_critic=self.cost_critic_net,
+            cost_critic=self.cost_critic_net
             optimizer_actor=self.optimizer_actor,
             optimizer_reward_critic=self.optimizer_reward_critic,
-            optimizer_cost_critic=self.optimizer_cost_critic
-        ))
+            optimizer_cost_critic=self.optimizer_cost_critic)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

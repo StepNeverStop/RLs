@@ -83,6 +83,7 @@ class SharedPolicy(Policy):
             self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
             self.other_tv += self.visual_net.trainable_variables
             self.feat_dim = self.visual_net.hdim
+            self._worker_params_dict.update(visual_net=self.visual_net)
 
         if self.use_rnn:
             self.rnn_units = int(kwargs.get('rnn_units', 16))
@@ -92,16 +93,10 @@ class SharedPolicy(Policy):
             self.rnn_net = ObsRNN(self.feat_dim, self.rnn_units)
             self.other_tv += self.rnn_net.trainable_variables
             self.feat_dim = self.rnn_units
+            self._worker_params_dict.update(rnn_net=self.rnn_net)
 
         self.get_feature = tf.function(func=self.generate_get_feature_function(), experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(func=self.generate_get_brun_in_feature_function(), experimental_relax_shapes=True)
-
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        if self.use_visual:
-            kwargs.update(visual_net=self.visual_net)
-        if self.use_rnn:
-            kwargs.update(rnn_net=self.rnn_net)
-        super().model_recorder(kwargs)
 
     def initial_cell_state(self, batch: Optional[int] = None) -> Tuple[tf.Tensor]:
         if batch is None:

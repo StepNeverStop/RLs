@@ -90,14 +90,15 @@ class OC(make_off_policy_class(mode='share')):
         self.intra_option_optimizer = self.init_optimizer(self.intra_option_lr, clipvalue=5.)
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
 
-        self.model_recorder(dict(
+        self._worker_params_dict.update(
             q_net=self.q_net,
             intra_option_net=self.intra_option_net,
-            termination_net=self.termination_net,
+            termination_net=self.termination_net)
+        self._residual_params_dict.update(
             q_optimizer=self.q_optimizer,
             intra_option_optimizer=self.intra_option_optimizer,
-            termination_optimizer=self.termination_optimizer
-        ))
+            termination_optimizer=self.termination_optimizer)
+        self._model_post_process()
 
     def show_logo(self):
         print('''

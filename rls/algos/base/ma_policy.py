@@ -62,11 +62,6 @@ class MultiAgentPolicy(Base):
     def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
 
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        kwargs.update(dict(global_step=self.global_step))
-        self._create_saver(kwargs)
-        self.show_logo()
-
     def intermediate_variable_reset(self) -> NoReturn:
         '''
         TODO: Annotation

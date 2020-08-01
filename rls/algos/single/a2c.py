@@ -56,14 +56,15 @@ class A2C(make_on_policy_class(mode='share')):
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
-        self.model_recorder(dict(
-            actor=self.actor_net,
-            critic=self.critic_net,
-            optimizer_actor=self.optimizer_actor,
-            optimizer_critic=self.optimizer_critic
-        ))
 
         self.initialize_data_buffer()
+
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
+            critic=self.critic_net,
+            optimizer_actor=self.optimizer_actor,
+            optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def show_logo(self):
         print('''
