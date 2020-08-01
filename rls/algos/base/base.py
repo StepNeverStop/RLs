@@ -16,6 +16,7 @@ from typing import \
     Any
 
 from rls.utils.tf2_utils import get_device
+from rls.utils.display import colorize
 from rls.utils.sundry_utils import \
     check_or_create
 from rls.utils.logging_utils import \
@@ -103,15 +104,15 @@ class Base:
                     ckpt = tf.train.latest_checkpoint(cp_dir)
                     self.checkpoint.restore(ckpt).expect_partial()    # 从指定路径导入模型
                 except:
-                    logger.error(f'restore model from {cp_dir} FAILED.')
+                    logger.error(colorize(f'restore model from {cp_dir} FAILED.', color='red'))
                     raise Exception(f'restore model from {cp_dir} FAILED.')
                 else:
-                    logger.info(f'restore model from {ckpt} SUCCUESS.')
+                    logger.info(colorize(f'restore model from {ckpt} SUCCUESS.', color='green'))
         else:
             ckpt = self.saver.latest_checkpoint
             self.checkpoint.restore(ckpt).expect_partial()  # 从本模型目录载入模型，断点续训
-            logger.info(f'restore model from {ckpt} SUCCUESS.')
-            logger.info('initialize model SUCCUESS.')
+            logger.info(colorize(f'restore model from {ckpt} SUCCUESS.', color='green'))
+            logger.info(colorize('initialize model SUCCUESS.', color='green'))
 
     def save_checkpoint(self, **kwargs) -> NoReturn:
         """
@@ -227,7 +228,3 @@ class Base:
 
     def _model_post_process(self) -> NoReturn:
         self._create_saver()
-        self.show_logo()
-
-    def show_logo(self) -> NoReturn:
-        raise NotImplementedError

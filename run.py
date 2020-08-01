@@ -77,6 +77,7 @@ from rls.common.trainer import Trainer
 from rls.common.config import Config
 from rls.common.yaml_ops import load_yaml
 from rls.parse.parse_op import parse_options
+from rls.utils.display import show_dict
 from rls.utils.logging_utils import set_log_level
 set_log_level(logging.INFO)
 
@@ -135,7 +136,7 @@ def agent_run(*args):
 def main():
     options = docopt(__doc__)
     options = get_options(dict(options))
-    print(options)
+    show_dict(options.to_dict)
 
     trails = options.models
     assert trails > 0, '--models must greater than 0.'

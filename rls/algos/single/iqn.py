@@ -76,23 +76,6 @@ class IQN(make_off_policy_class(mode='share')):
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　　　　ｘｘｘｘｘ　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘ　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘｘ　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘｘｘｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　ｘｘｘｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　　　　ｘｘｘ　ｘｘｘｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘｘ　　
-　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)

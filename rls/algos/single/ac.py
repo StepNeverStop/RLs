@@ -59,19 +59,6 @@ class AC(make_off_policy_class(mode='share')):
             optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         a, _lp, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()

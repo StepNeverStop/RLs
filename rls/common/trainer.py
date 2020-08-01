@@ -34,22 +34,11 @@ from rls.common.train.unity import \
     ma_unity_no_op, \
     ma_unity_train, \
     ma_unity_inference
-from rls.algos.register import get_model_info
+from rls.algos import get_model_info
 from rls.utils.time import get_time_hhmmss
 from rls.parse.parse_buffer import get_buffer
 from rls.utils.sundry_utils import check_or_create
-
-
-def ShowConfig(config: Dict) -> NoReturn:
-    '''
-    print the dictionary of configurations
-    params:
-        config: configurations of each variable
-    '''
-    for key in config:
-        logger.info('-' * 60)
-        logger.info(''.join(['|', str(key).ljust(28), str(config[key]).rjust(28), '|']))
-    logger.info('-' * 60)
+from rls.utils.display import show_dict
 
 
 def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
@@ -103,7 +92,7 @@ class Trainer:
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
         self.algo_args['use_rnn'] = self.train_args['use_rnn']
-        ShowConfig(self.algo_args)
+        show_dict(self.algo_args)
 
         # BUFFER
         if _policy_mode == 'off-policy':

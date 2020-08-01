@@ -92,19 +92,6 @@ class AOC(make_on_policy_class(mode='share')):
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'beta_adv', 'last_options', 'options'])
 
-    def show_logo(self):
-        print('''
-　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　
-        ''')
-
     def reset(self):
         super().reset()
         self._done_mask = np.full(self.n_agents, True)

@@ -56,24 +56,6 @@ class SQL(make_off_policy_class(mode='share')):
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　
-　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　
-　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘｘ　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　ｘｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　　　　ｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘ　　　ｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　ｘ　　　　
-　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　
-　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　
-　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()

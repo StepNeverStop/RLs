@@ -95,20 +95,6 @@ class IOC(make_off_policy_class(mode='share')):
             interest_optimizer=self.interest_optimizer)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘ　ｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
-　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　
-　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘ　
-        ''')
-
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 

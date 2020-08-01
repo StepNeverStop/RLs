@@ -3,20 +3,21 @@
 
 import gym
 
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 try:
     import gym_minigrid
 except ImportError:
-    logger.warning("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.")
+    logger.warning(colorize("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
 except ImportError:
-    logger.warning("import pybullet_envs failed, using 'pip3 install PyBullet' install it.")
+    logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
 import numpy as np

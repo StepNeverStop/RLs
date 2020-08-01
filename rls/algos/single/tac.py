@@ -98,19 +98,6 @@ class TAC(make_off_policy_class(mode='share')):
             optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘ　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　
-        ''')
-
     @property
     def alpha(self):
         return tf.exp(self.log_alpha)

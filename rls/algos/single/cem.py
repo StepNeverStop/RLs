@@ -74,20 +74,6 @@ class CEM(make_on_policy_class(mode='share')):
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
 
-    def show_logo(self):
-        print('''
-　　　　　ｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘｘｘｘ　
-　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
-　　　ｘｘｘｘ　　　　ｘ　　　　　　　ｘｘｘ　　　ｘ　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　
-　　　ｘｘｘ　　　　　ｘ　　　　　　　ｘｘｘ　　ｘ　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘ　ｘｘ　ｘｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘ　　ｘ　　　　　　　　ｘ　ｘｘｘｘｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘ　　ｘ　ｘ　　　　　　ｘ　　ｘｘｘ　ｘｘｘ　　
-　　　　ｘｘｘ　　　　ｘ　　　　　　　ｘｘｘ　　　ｘｘ　　　　　　ｘ　　ｘｘｘ　ｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘ　ｘｘｘｘｘ　
-　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         self._check_agents(s)
         a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(s, self.populations, axis=0))]

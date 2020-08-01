@@ -51,7 +51,7 @@ setup(
         'pyyaml',
         'tqdm',
         'tensorflow>=2.0.0, <=2.1.0',
-        'tensorflow_probability==0.9.0',
+        'tensorflow_probability==0.8.0',
         'gast==0.2.2'
     ],
     extras_require={

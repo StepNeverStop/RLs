@@ -8,6 +8,7 @@ from typing import \
     List, \
     NoReturn
 
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -18,7 +19,9 @@ def check_or_create(dicpath: str, name: str = '') -> NoReturn:
     """
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
-        logger.info(''.join([f'create {name} directionary :', dicpath]))
+        logger.info(colorize(
+            ''.join([f'create {name} directionary :', dicpath]
+                    ), color='green'))
 
 
 class LinearAnnealing:

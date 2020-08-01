@@ -174,19 +174,6 @@ class CURL(make_off_policy_class(mode='no_share')):
             optimizer_curl=self.optimizer_curl)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　
-　　　　ｘｘｘ　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　ｘｘ　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         visual_s = center_crop_image(visual_s[:, 0], self.img_size)
         mu, pi = self._get_action(s, visual_s)

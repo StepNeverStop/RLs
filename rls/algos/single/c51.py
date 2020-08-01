@@ -69,20 +69,6 @@ class C51(make_off_policy_class(mode='share')):
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘ　　　　　　
-　　　ｘｘｘｘ　　　　ｘ　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　
-　　　ｘｘｘ　　　　　ｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　
-　　　　ｘｘｘ　　　　ｘ　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　　ｘｘ　　　　　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　
-　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘ　　　　　　　　　　　　　　ｘｘｘｘ　　　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)

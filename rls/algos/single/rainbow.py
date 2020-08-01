@@ -76,21 +76,6 @@ class RAINBOW(make_off_policy_class(mode='share')):
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def show_logo(self):
-        print('''
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　ｘｘ　　　
-　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　ｘｘｘ　ｘｘ　ｘｘ　　　
-　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　ｘｘ　ｘｘ　　　
-　　　　ｘｘ　ｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　ｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　
-　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘ　　　　　
-　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　
-        ''')
-
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
