@@ -61,6 +61,7 @@ def buffer(
 
     learner_channel = grpc.insecure_channel(':'.join([learner_ip, learner_port]))
     learner_stub = apex_learner_pb2_grpc.LearnerStub(learner_channel)
+    train_time = 0
     while True:
         if buffer.is_lg_batch_size:
             exps = buffer.sample()
@@ -70,7 +71,8 @@ def buffer(
                     exps=exps,
                     prios=prios))
             td_error = proto2numpy(td_error)
-            buffer.update(td_error, 0)
+            buffer.update(td_error, train_time)
+            train_time += 1
 
     server.wait_for_termination()
     learner_channel.close()

@@ -87,5 +87,5 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         ['info', options.info]
     ]))
 
-    apex_buffer_args = Config(**default_config['buffer'])
-    return env_args, apex_buffer_args, train_args
+    buffer_args = Config(**default_config['buffer'])
+    return env_args, buffer_args, train_args

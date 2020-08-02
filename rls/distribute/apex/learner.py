@@ -13,6 +13,7 @@ from rls.distribute.utils.apex_utils import \
     batch_numpy2proto, \
     proto2exps_and_prios
 from rls.distribute.utils.check import check_port_in_use
+from rls.common.collector import GymCollector
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -44,7 +45,7 @@ class LearnerServicer(apex_learner_pb2_grpc.LearnerServicer):
         return td_error
 
 
-def learner(ip, port, model):
+def learner(ip, port, model, env):
     for i in range(10):
         if check_port_in_use(port, ip):
             print(f'{i}: port {port} is under used.')
@@ -61,4 +62,5 @@ def learner(ip, port, model):
     server.add_insecure_port(':'.join([ip, port]))
     server.start()
     print('start learner success.')
+    GymCollector.evaluate(env, model)
     server.wait_for_termination()

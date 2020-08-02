@@ -11,6 +11,8 @@ from rls.distribute.utils.apex_utils import \
     batch_numpy2proto, \
     batch_proto2numpy
 from rls.common.collector import GymCollector
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
 
 
 def worker(learner_ip,
@@ -35,7 +37,7 @@ def worker(learner_ip,
         model.set_worker_params(
             batch_proto2numpy(learner_stub.GetParams(apex_datatype_pb2.Nothing())))
         buffer_stub.SendExperiences(GymCollector.run_exps_stream(env, model))
-        buffer_stub.SendTrajectories(GymCollector.run_trajectory(env, model))
+        # buffer_stub.SendTrajectories(GymCollector.run_trajectory(env, model))
 
     learner_channel.close()
     buffer_channel.close()

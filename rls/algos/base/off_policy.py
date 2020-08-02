@@ -267,11 +267,7 @@ def make_off_policy_class(mode: str = 'share'):
             else:
                 crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
 
-            if self.use_isw:
-                _isw = self.data_convert(priorities)
-            else:
-                _isw = tf.constant(value=1., dtype=self._tf_data_type)
-
+            _isw = self.data_convert(priorities)
             _training_data = self.get_value_from_dict(data_name_list=_train_data_list, data_dict=data)
 
             if self.use_rnn:

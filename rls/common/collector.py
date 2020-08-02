@@ -3,12 +3,60 @@
 
 import numpy as np
 
+from rls.utils.np_utils import \
+    SMA, \
+    arrprint
 from rls.distribute.utils.apex_utils import batch_numpy2proto
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
 class GymCollector(object):
+
+    @staticmethod
+    def evaluate(env, model):
+        n = env.n
+        i = 1 if env.obs_type == 'visual' else 0
+        state = [np.array([[]] * n), np.array([[]] * n)]
+        sma = SMA(100)
+        total_step = 0
+        episode = 0
+
+        while True:
+            episode += 1
+            model.reset()
+            state[i] = env.reset()
+            dones_flag = np.zeros(env.n)
+            step = 0
+            rets = np.zeros(env.n)
+            last_done_step = -1
+            while True:
+                step += 1
+                # env.render(record=False)
+                action = model.choose_action(s=state[0], visual_s=state[1])
+                _, reward, done, info, state[i] = env.step(action)
+                rets += (1 - dones_flag) * reward
+                dones_flag = np.sign(dones_flag + done)
+                model.partial_reset(done)
+                total_step += 1
+                if all(dones_flag):
+                    if last_done_step == -1:
+                        last_done_step = step
+                    break
+
+                if step >= 200:
+                    break
+
+            sma.update(rets)
+            model.writer_summary(
+                episode,
+                reward_mean=rets.mean(),
+                reward_min=rets.min(),
+                reward_max=rets.max(),
+                step=last_done_step,
+                **sma.rs
+            )
+            print(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
 
     @staticmethod
     def run_exps_stream(env, model):

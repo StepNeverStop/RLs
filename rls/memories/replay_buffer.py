@@ -119,7 +119,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
             epsilon: a small positive number that prevents td-error of 0 from never being replayed.
             global_v: whether using the global
         '''
-        assert epsilon > 0, 'episode must larger than zero'
+        assert epsilon > 0, 'epsilon must larger than zero'
         super().__init__(batch_size, capacity)
         self.alpha = alpha
         self.beta = beta
@@ -171,7 +171,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
 
     def update(self,
                priority: Union[List, np.ndarray],
-               episode: int,
+               train_step: int,
                index: Optional[Union[List, np.ndarray]] = None) -> NoReturn:
         '''
         input: priorities
@@ -179,7 +179,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         assert hasattr(priority, '__len__'), 'priority must have attribute of len()'
         idxs = index if index is not None else self.last_indexs
         assert len(priority) == len(idxs), 'length between priority and last_indexs must equal'
-        self.beta += self.beta_interval * episode
+        self.beta += self.beta_interval * train_step
         priority = np.power(np.abs(priority) + self.epsilon, self.alpha)
         self.min_p = min(self.min_p, priority.min())
         self.max_p = max(self.max_p, priority.max())
