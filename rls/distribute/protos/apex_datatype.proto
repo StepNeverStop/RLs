@@ -11,3 +11,8 @@ message NDarray{
 message ListNDarray{
     repeated bytes data=1;
 }
+
+message ExpsAndPrios{
+    repeated bytes data=1;
+    bytes prios=2;
+}

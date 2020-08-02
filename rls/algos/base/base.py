@@ -175,13 +175,11 @@ class Base:
         writer.flush()
 
     def get_worker_params(self):
-        weights_list =  list(map(lambda x: x.numpy(), self._worker_params_list))
-        logger.info('get worker params success.')
+        weights_list = list(map(lambda x: x.numpy(), self._worker_params_list))
         return weights_list
 
     def set_worker_params(self, weights_list):
         [src.assign(tgt) for src, tgt in zip(self._worker_params_list, weights_list)]
-        logger.info('set worker params success.')
 
     def save_weights(self, path: str) -> Any:
         """

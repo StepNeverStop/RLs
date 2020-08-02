@@ -6,5 +6,5 @@ service Learner{
     rpc SendNumpyArray(apex_datatype.NDarray) returns(apex_datatype.Nothing) {}
     rpc SendBatchNumpyArray(apex_datatype.ListNDarray) returns(apex_datatype.Nothing) {}
     rpc GetParams(apex_datatype.Nothing) returns(apex_datatype.ListNDarray) {}
-    rpc SendExperienceGetPriorities(apex_datatype.ListNDarray) returns(apex_datatype.ListNDarray) {}
+    rpc SendExperienceGetPriorities(apex_datatype.ExpsAndPrios) returns(apex_datatype.NDarray) {}
 }

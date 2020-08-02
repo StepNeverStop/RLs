@@ -24,7 +24,7 @@ class GymCollector(object):
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
-            yield batch_numpy2proto([*state, action, reward, *new_state, done])
+            yield batch_numpy2proto([*state, action, reward[:, np.newaxis], *new_state, done[:, np.newaxis]])
             model.partial_reset(done)
             state[i] = correct_new_state
             dones_flag = np.sign(dones_flag+done)
@@ -52,7 +52,7 @@ class GymCollector(object):
             unfinished_index = np.where(dones_flag == 0)[0]
             for j in unfinished_index:
                 trajectories[j].append(
-                    (state[0][j], state[1][j], action[j], reward[j], new_state[0][j], new_state[1][j], done[j])
+                    (state[0][j], state[1][j], action[j], reward[:, np.newaxis][j], new_state[0][j], new_state[1][j], done[:, np.newaxis][j])
                 )
             state[i] = correct_new_state
             dones_flag = np.sign(dones_flag+done)

@@ -31,8 +31,8 @@ class LearnerStub(object):
                 )
         self.SendExperienceGetPriorities = channel.unary_unary(
                 '/Learner/SendExperienceGetPriorities',
-                request_serializer=apex__datatype__pb2.ListNDarray.SerializeToString,
-                response_deserializer=apex__datatype__pb2.ListNDarray.FromString,
+                request_serializer=apex__datatype__pb2.ExpsAndPrios.SerializeToString,
+                response_deserializer=apex__datatype__pb2.NDarray.FromString,
                 )
 
 
@@ -83,8 +83,8 @@ def add_LearnerServicer_to_server(servicer, server):
             ),
             'SendExperienceGetPriorities': grpc.unary_unary_rpc_method_handler(
                     servicer.SendExperienceGetPriorities,
-                    request_deserializer=apex__datatype__pb2.ListNDarray.FromString,
-                    response_serializer=apex__datatype__pb2.ListNDarray.SerializeToString,
+                    request_deserializer=apex__datatype__pb2.ExpsAndPrios.FromString,
+                    response_serializer=apex__datatype__pb2.NDarray.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -155,7 +155,7 @@ class Learner(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/Learner/SendExperienceGetPriorities',
-            apex__datatype__pb2.ListNDarray.SerializeToString,
-            apex__datatype__pb2.ListNDarray.FromString,
+            apex__datatype__pb2.ExpsAndPrios.SerializeToString,
+            apex__datatype__pb2.NDarray.FromString,
             options, channel_credentials,
             call_credentials, compression, wait_for_ready, timeout, metadata)

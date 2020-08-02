@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x12\x61pex_learner.proto\x1a\x13\x61pex_datatype.proto2\xb6\x02\n\x07Learner\x12\x42\n\x0eSendNumpyArray\x12\x16.apex_datatype.NDarray\x1a\x16.apex_datatype.Nothing\"\x00\x12K\n\x13SendBatchNumpyArray\x12\x1a.apex_datatype.ListNDarray\x1a\x16.apex_datatype.Nothing\"\x00\x12\x41\n\tGetParams\x12\x16.apex_datatype.Nothing\x1a\x1a.apex_datatype.ListNDarray\"\x00\x12W\n\x1bSendExperienceGetPriorities\x12\x1a.apex_datatype.ListNDarray\x1a\x1a.apex_datatype.ListNDarray\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x12\x61pex_learner.proto\x1a\x13\x61pex_datatype.proto2\xb3\x02\n\x07Learner\x12\x42\n\x0eSendNumpyArray\x12\x16.apex_datatype.NDarray\x1a\x16.apex_datatype.Nothing\"\x00\x12K\n\x13SendBatchNumpyArray\x12\x1a.apex_datatype.ListNDarray\x1a\x16.apex_datatype.Nothing\"\x00\x12\x41\n\tGetParams\x12\x16.apex_datatype.Nothing\x1a\x1a.apex_datatype.ListNDarray\"\x00\x12T\n\x1bSendExperienceGetPriorities\x12\x1b.apex_datatype.ExpsAndPrios\x1a\x16.apex_datatype.NDarray\"\x00\x62\x06proto3'
   ,
   dependencies=[apex__datatype__pb2.DESCRIPTOR,])
 
@@ -38,7 +38,7 @@ _LEARNER = _descriptor.ServiceDescriptor(
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=44,
-  serialized_end=354,
+  serialized_end=351,
   methods=[
   _descriptor.MethodDescriptor(
     name='SendNumpyArray',
@@ -75,8 +75,8 @@ _LEARNER = _descriptor.ServiceDescriptor(
     full_name='Learner.SendExperienceGetPriorities',
     index=3,
     containing_service=None,
-    input_type=apex__datatype__pb2._LISTNDARRAY,
-    output_type=apex__datatype__pb2._LISTNDARRAY,
+    input_type=apex__datatype__pb2._EXPSANDPRIOS,
+    output_type=apex__datatype__pb2._NDARRAY,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),

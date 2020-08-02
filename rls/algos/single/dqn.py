@@ -118,3 +118,14 @@ class DQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
+
+    def apex_learn(self, data, priorities):
+        def _update():
+            if self.global_step % self.assign_interval == 0:
+                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
+        return self._apex_learn(function_dict={
+            'train_function': self.train,
+            'update_function': _update,
+            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+        }, data=data, priorities=priorities)

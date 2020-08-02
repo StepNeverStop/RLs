@@ -189,6 +189,10 @@ class PrioritizedExperienceReplay(ReplayBuffer):
     def get_IS_w(self) -> np.ndarray:
         return self.IS_w
 
+    @property
+    def size(self) -> int:
+        return self._size
+
 
 class NStepWrapper:
     def __init__(self,

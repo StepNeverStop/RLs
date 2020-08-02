@@ -423,6 +423,8 @@ class Trainer:
             buffer(
                 ip=self.train_args['apex_buffer_ip'],
                 port=self.train_args['apex_buffer_port'],
+                learner_ip=self.train_args['apex_learner_ip'],
+                learner_port=self.train_args['apex_learner_port'],
                 buffer_args=self.train_args['apex_buffer_args']
             )
             return

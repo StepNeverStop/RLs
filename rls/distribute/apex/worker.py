@@ -25,14 +25,15 @@ def worker(learner_ip,
     learner_stub = apex_learner_pb2_grpc.LearnerStub(learner_channel)
     buffer_stub = apex_buffer_pb2_grpc.BufferStub(buffer_channel)
 
-    arr = np.arange(8).reshape(2, 2, 2).astype(np.float32)
-    learner_stub.SendNumpyArray(numpy2proto(arr))
+    # arr = np.arange(8).reshape(2, 2, 2).astype(np.float32)
+    # learner_stub.SendNumpyArray(numpy2proto(arr))
 
-    arr_list = [np.arange(4).reshape(2, 2), np.arange(3).astype(np.int32), np.array([])]
-    learner_stub.SendBatchNumpyArray(batch_numpy2proto(arr_list))
+    # arr_list = [np.arange(4).reshape(2, 2), np.arange(3).astype(np.int32), np.array([])]
+    # learner_stub.SendBatchNumpyArray(batch_numpy2proto(arr_list))
 
     while True:
-        model.set_worker_params(batch_proto2numpy(learner_stub.GetParams(apex_datatype_pb2.Nothing())))
+        model.set_worker_params(
+            batch_proto2numpy(learner_stub.GetParams(apex_datatype_pb2.Nothing())))
         buffer_stub.SendExperiences(GymCollector.run_exps_stream(env, model))
         buffer_stub.SendTrajectories(GymCollector.run_trajectory(env, model))
 
