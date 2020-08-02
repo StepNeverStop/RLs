@@ -174,23 +174,14 @@ class Base:
             tf.summary.scalar(key, value)
         writer.flush()
 
-    def get_act_related_model_weights(self):
-        weights_list = []
-        for k, v in self._worker_params_dict.items():
-            if isinstance(v, tf.keras.Model):
-                weights_list.extend(list(map(lambda x: x.numpy(), v.weights)))
-            else:
-                weights_list.append(v.numpy())
+    def get_worker_params(self):
+        weights_list =  list(map(lambda x: x.numpy(), self._worker_params_list))
+        logger.info('get worker params success.')
         return weights_list
 
-    def set_act_related_model_weights(self, weights_list):
-        weights = []
-        for k, v in self._worker_params_dict.items():
-            if isinstance(v, tf.keras.Model):
-                weights_list.extend(list(map(lambda x: x, v.weights)))
-            else:
-                weights_list.append(v)
-        [src.assign(tgt) for src, tgt in zip(weights, weights_list)]
+    def set_worker_params(self, weights_list):
+        [src.assign(tgt) for src, tgt in zip(self._worker_params_list, weights_list)]
+        logger.info('set worker params success.')
 
     def save_weights(self, path: str) -> Any:
         """
@@ -227,4 +218,10 @@ class Base:
         self.global_step.assign(num)
 
     def _model_post_process(self) -> NoReturn:
+        self._worker_params_list = []
+        for k, v in self._worker_params_dict.items():
+            if isinstance(v, tf.keras.Model):
+                self._worker_params_list.extend(list(map(lambda x: x, v.weights)))
+            else:
+                self._worker_params_list.append(v)
         self._create_saver()

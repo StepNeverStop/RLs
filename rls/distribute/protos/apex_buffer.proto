@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+import "apex_datatype.proto";
+
+service Buffer{
+    rpc SendTrajectories(stream apex_datatype.ListNDarray) returns(apex_datatype.Nothing) {}
+    rpc SendExperiences(stream apex_datatype.ListNDarray) returns (apex_datatype.Nothing) {}
+}

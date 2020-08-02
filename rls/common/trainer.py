@@ -1,44 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from rls.utils.display import show_dict
+from rls.utils.sundry_utils import check_or_create
+from rls.parse.parse_buffer import get_buffer
+from rls.utils.time import get_time_hhmmss
+from rls.algos import get_model_info
+from rls.common.train.unity import \
+    unity_train, \
+    unity_no_op, \
+    unity_inference
+from rls.common.train.gym import \
+    gym_train, \
+    gym_no_op, \
+    gym_inference
+from rls.common.yaml_ops import \
+    save_config, \
+    load_config
+from rls.common.make_env import make_env
+from rls.common.config import Config
+from typing import \
+    Dict, \
+    NoReturn, \
+    Optional
+from pathlib import Path
+from copy import deepcopy
+import numpy as np
 import os
 import sys
 import time
 
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
-
-import numpy as np
-
-from copy import deepcopy
-from pathlib import Path
-from typing import \
-    Dict, \
-    NoReturn, \
-    Optional
-
-from rls.common.config import Config
-from rls.common.make_env import make_env
-from rls.common.yaml_ops import \
-    save_config, \
-    load_config
-from rls.common.train.gym import \
-    gym_train, \
-    gym_no_op, \
-    gym_inference
-from rls.common.train.unity import \
-    unity_train, \
-    unity_no_op, \
-    unity_inference
-from rls.common.train.unity import \
-    ma_unity_no_op, \
-    ma_unity_train, \
-    ma_unity_inference
-from rls.algos import get_model_info
-from rls.utils.time import get_time_hhmmss
-from rls.parse.parse_buffer import get_buffer
-from rls.utils.sundry_utils import check_or_create
-from rls.utils.display import show_dict
 
 
 def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
@@ -63,16 +56,16 @@ def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
 
 
 class Trainer:
-    def __init__(self, env_args: Config, buffer_args: Config, train_args: Config):
+    def __init__(self, env_args: Config, apex_buffer_args: Config, train_args: Config):
         '''
         Initilize an agent that consists of training environments, algorithm model, replay buffer.
         params:
             env_args: configurations of training environments
-            buffer_args: configurations of replay buffer
+            apex_buffer_args: configurations of replay buffer
             train_args: configurations of training
         '''
         self.env_args = env_args
-        self.buffer_args = buffer_args
+        self.apex_buffer_args = apex_buffer_args
         self.train_args = train_args
 
         self._name = self.train_args['name']
@@ -85,40 +78,39 @@ class Trainer:
         self.env = make_env(self.env_args.to_dict)
 
         # ALGORITHM CONFIG
-        self.MODEL, self.algo_args, _policy_mode, _policy_type = get_model_info(self.train_args['algo'])
+        self.MODEL, self.algo_args, self.train_args['policy_mode'], _policy_type = get_model_info(self.train_args['algo'])
         self.multi_agents_training = _policy_type == 'multi'
 
-        self.train_args['policy_mode'] = _policy_mode
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
         self.algo_args['use_rnn'] = self.train_args['use_rnn']
         show_dict(self.algo_args)
 
         # BUFFER
-        if _policy_mode == 'off-policy':
+        if self.train_args['policy_mode'] == 'off-policy':
             if self.algo_args['use_rnn'] == True:
-                self.buffer_args['type'] = 'EpisodeER'
-                self.buffer_args['batch_size'] = self.algo_args.get('episode_batch_size', 0)
-                self.buffer_args['buffer_size'] = self.algo_args.get('episode_buffer_size', 0)
+                self.apex_buffer_args['type'] = 'EpisodeER'
+                self.apex_buffer_args['batch_size'] = self.algo_args.get('episode_batch_size', 0)
+                self.apex_buffer_args['buffer_size'] = self.algo_args.get('episode_buffer_size', 0)
 
-                self.buffer_args['EpisodeER']['burn_in_time_step'] = self.algo_args.get('burn_in_time_step', 0)
-                self.buffer_args['EpisodeER']['train_time_step'] = self.algo_args.get('train_time_step', 0)
+                self.apex_buffer_args['EpisodeER']['burn_in_time_step'] = self.algo_args.get('burn_in_time_step', 0)
+                self.apex_buffer_args['EpisodeER']['train_time_step'] = self.algo_args.get('train_time_step', 0)
             else:
-                self.buffer_args['type'] = 'ER'
-                self.buffer_args['batch_size'] = self.algo_args.get('batch_size', 0)
-                self.buffer_args['buffer_size'] = self.algo_args.get('buffer_size', 0)
+                self.apex_buffer_args['type'] = 'ER'
+                self.apex_buffer_args['batch_size'] = self.algo_args.get('batch_size', 0)
+                self.apex_buffer_args['buffer_size'] = self.algo_args.get('buffer_size', 0)
 
-                _buffer_args = {}
+                _apex_buffer_args = {}
                 if self.algo_args.get('use_priority', False):
-                    self.buffer_args['type'] = 'P' + self.buffer_args['type']
-                    _buffer_args.update({'max_train_step': self.train_args['max_train_step']})
+                    self.apex_buffer_args['type'] = 'P' + self.apex_buffer_args['type']
+                    _apex_buffer_args.update({'max_train_step': self.train_args['max_train_step']})
                 if self.algo_args.get('n_step', False):
-                    self.buffer_args['type'] = 'Nstep' + self.buffer_args['type']
-                    self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
-                    _buffer_args.update({'gamma': self.algo_args['gamma']})
-                self.buffer_args[self.buffer_args['type']].update(_buffer_args)
+                    self.apex_buffer_args['type'] = 'Nstep' + self.apex_buffer_args['type']
+                    self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.apex_buffer_args['NstepPER']['n'])  # update gamma for n-step training.
+                    _apex_buffer_args.update({'gamma': self.algo_args['gamma']})
+                self.apex_buffer_args[self.apex_buffer_args['type']].update(_apex_buffer_args)
         else:
-            self.buffer_args['type'] = 'None'
+            self.apex_buffer_args['type'] = 'None'
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
 
         if self.env_args['type'] == 'gym':
@@ -139,9 +131,9 @@ class Trainer:
             wandb.init(sync_tensorboard=True, name=self._name, dir=self.train_args.base_dir, project=self.train_args['wandb_project'])
 
         # buffer ------------------------------
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
-        buffer = get_buffer(self.buffer_args)
+        if 'Nstep' in self.apex_buffer_args['type'] or 'Episode' in self.apex_buffer_args['type']:
+            self.apex_buffer_args[self.apex_buffer_args['type']]['agents_num'] = self.env_args['env_num']
+        buffer = get_buffer(self.apex_buffer_args)
         # buffer ------------------------------
 
         # model -------------------------------
@@ -168,7 +160,7 @@ class Trainer:
         if not self.train_args['inference']:
             records_dict = {
                 'env': self.env_args.to_dict,
-                'buffer': self.buffer_args.to_dict,
+                'buffer': self.apex_buffer_args.to_dict,
                 'train': self.train_args.to_dict,
                 'algo': self.algo_args
             }
@@ -180,9 +172,9 @@ class Trainer:
         # multi agents with unity
         assert self.env.brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
 
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
-        buffer = get_buffer(self.buffer_args)
+        if 'Nstep' in self.apex_buffer_args['type'] or 'Episode' in self.apex_buffer_args['type']:
+            self.apex_buffer_args[self.apex_buffer_args['type']]['agents_num'] = self.env_args['env_num']
+        buffer = get_buffer(self.apex_buffer_args)
 
         self.algo_args.update({
             's_dim': self.env.s_dim,
@@ -208,7 +200,7 @@ class Trainer:
         if not self.train_args['inference']:
             records_dict = {
                 'env': self.env_args.to_dict,
-                'buffer': self.buffer_args.to_dict,
+                'buffer': self.apex_buffer_args.to_dict,
                 'train': self.train_args.to_dict,
                 'algo': self.algo_args
             }
@@ -218,7 +210,7 @@ class Trainer:
         # single agent with unity
         self.models = []
         for i, b in enumerate(self.env.fixed_brain_names):
-            _bargs, _targs, _aargs = map(deepcopy, [self.buffer_args, self.train_args, self.algo_args])
+            _bargs, _targs, _aargs = map(deepcopy, [self.apex_buffer_args, self.train_args, self.algo_args])
             _targs.base_dir = os.path.join(_targs.base_dir, b)
             _targs.seed += i * 10  # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
             if _targs.load_model_path is not None:
@@ -402,12 +394,35 @@ class Trainer:
                     [model.close() for model in self.models]
                     self.env.close()
 
-    def run(self, mode: str = 'worker') -> NoReturn:
-        if mode == 'worker':
-            ApexWorker(self.env, self.models)()
-        elif mode == 'learner':
-            ApexLearner(self.models)()
-        elif mode == 'buffer':
-            ApexBuffer()()
-        else:
-            raise Exception('unknown mode')
+    def apex(self) -> NoReturn:
+        if self.train_args['policy_mode'] != 'off-policy':
+            raise Exception('Ape-X only suitable for off-policy algorithms.')
+
+        if self.train_args['apex'] == 'learner':
+            from rls.distribute.apex.learner import learner
+            learner(
+                ip=self.train_args['apex_learner_ip'],
+                port=self.train_args['apex_learner_port'],
+                model=self.model
+            )
+            return
+
+        if self.train_args['apex'] == 'worker':
+            from rls.distribute.apex.worker import worker
+            worker(
+                learner_ip=self.train_args['apex_learner_ip'],
+                learner_port=self.train_args['apex_learner_port'],
+                buffer_ip=self.train_args['apex_buffer_ip'],
+                buffer_port=self.train_args['apex_buffer_port'],
+                model=self.model,
+                env=self.env)
+            return
+
+        if self.train_args['apex'] == 'buffer':
+            from rls.distribute.apex.buffer import buffer
+            buffer(
+                ip=self.train_args['apex_buffer_ip'],
+                port=self.train_args['apex_buffer_port'],
+                buffer_args=self.train_args['apex_buffer_args']
+            )
+            return
