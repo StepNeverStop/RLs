@@ -118,8 +118,22 @@ class DQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
+    
+    def cal_td(self, s, visual_s, a, r, s_, visual_s_, done):
+        from rls.utils.np_utils import int2one_hot
+        a = int2one_hot(a.astype(np.int32), self.a_dim)
+        with tf.device(self.device):
+            feat = self.get_feature(s, visual_s)
+            feat_ = self.get_feature(s_, visual_s_)
+            q = self.q_net(feat)
+            q_next = self.q_target_net(feat_)
+            q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
+            q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
+            td_error = q_eval - q_target
+        return np.squeeze(td_error.numpy())
 
-    def apex_learn(self, data, priorities):
+    def apex_learn(self, train_step, data, priorities):
+        self.train_step = train_step
         def _update():
             if self.global_step % self.assign_interval == 0:
                 update_target_net_weights(self.q_target_net.weights, self.q_net.weights)

@@ -48,8 +48,23 @@ def exps_and_prios2proto(exps: List[np.ndarray], prios: np.ndarray) -> apex_data
         prios=numpy2bytes(prios)
     )
 
+
 def proto2exps_and_prios(proto: apex_datatype_pb2.ExpsAndPrios):
     return (
         batch_bytes2numpy(proto.data),
         bytes2numpy(proto.prios)
+    )
+
+
+def exps_and_tderror2proto(exps: List[np.ndarray], td_error: np.ndarray) -> apex_datatype_pb2.ExpsAndTDerror:
+    return apex_datatype_pb2.ExpsAndTDerror(
+        data=batch_numpy2bytes(exps),
+        td_error=numpy2bytes(td_error)
+    )
+
+
+def proto2exps_and_tderror(proto: apex_datatype_pb2.ExpsAndTDerror):
+    return (
+        batch_bytes2numpy(proto.data),
+        bytes2numpy(proto.td_error)
     )

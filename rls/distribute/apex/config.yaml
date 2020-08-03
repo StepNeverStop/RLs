@@ -11,3 +11,5 @@ apex_buffer_args:
   beta: 0.4 # importance sampling ratio
   epsilon: 0.01
   global_v: false
+
+# 每个worker探索程度不同 

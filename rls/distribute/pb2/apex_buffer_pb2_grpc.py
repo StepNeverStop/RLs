@@ -21,7 +21,7 @@ class BufferStub(object):
                 )
         self.SendExperiences = channel.stream_unary(
                 '/Buffer/SendExperiences',
-                request_serializer=apex__datatype__pb2.ListNDarray.SerializeToString,
+                request_serializer=apex__datatype__pb2.ExpsAndTDerror.SerializeToString,
                 response_deserializer=apex__datatype__pb2.Nothing.FromString,
                 )
 
@@ -51,7 +51,7 @@ def add_BufferServicer_to_server(servicer, server):
             ),
             'SendExperiences': grpc.stream_unary_rpc_method_handler(
                     servicer.SendExperiences,
-                    request_deserializer=apex__datatype__pb2.ListNDarray.FromString,
+                    request_deserializer=apex__datatype__pb2.ExpsAndTDerror.FromString,
                     response_serializer=apex__datatype__pb2.Nothing.SerializeToString,
             ),
     }
@@ -91,7 +91,7 @@ class Buffer(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.stream_unary(request_iterator, target, '/Buffer/SendExperiences',
-            apex__datatype__pb2.ListNDarray.SerializeToString,
+            apex__datatype__pb2.ExpsAndTDerror.SerializeToString,
             apex__datatype__pb2.Nothing.FromString,
             options, channel_credentials,
             call_credentials, compression, wait_for_ready, timeout, metadata)

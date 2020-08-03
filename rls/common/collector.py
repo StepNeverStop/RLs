@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import time
 import numpy as np
 
 from rls.utils.np_utils import \
     SMA, \
     arrprint
-from rls.distribute.utils.apex_utils import batch_numpy2proto
+from rls.distribute.utils.apex_utils import \
+    batch_numpy2proto, \
+    exps_and_tderror2proto
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -57,6 +60,7 @@ class GymCollector(object):
                 **sma.rs
             )
             print(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
+            time.sleep(5)
 
     @staticmethod
     def run_exps_stream(env, model):
@@ -72,7 +76,11 @@ class GymCollector(object):
         while True:
             action = model.choose_action(s=state[0], visual_s=state[1])
             new_state[i], reward, done, info, correct_new_state = env.step(action)
-            yield batch_numpy2proto([*state, action, reward[:, np.newaxis], *new_state, done[:, np.newaxis]])
+            exps = [*state, action, reward[:, np.newaxis], *new_state, done[:, np.newaxis]]
+            td_error = model.cal_td(*exps)
+            yield exps_and_tderror2proto(
+                exps=exps,
+                td_error=td_error)
             model.partial_reset(done)
             state[i] = correct_new_state
             dones_flag = np.sign(dones_flag+done)

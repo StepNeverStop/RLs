@@ -16,3 +16,8 @@ message ExpsAndPrios{
     repeated bytes data=1;
     bytes prios=2;
 }
+
+message ExpsAndTDerror{
+    repeated bytes data=1;
+    bytes td_error=2;
+}

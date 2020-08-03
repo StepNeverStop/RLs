@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x11\x61pex_buffer.proto\x1a\x13\x61pex_datatype.proto2\x9f\x01\n\x06\x42uffer\x12J\n\x10SendTrajectories\x12\x1a.apex_datatype.ListNDarray\x1a\x16.apex_datatype.Nothing\"\x00(\x01\x12I\n\x0fSendExperiences\x12\x1a.apex_datatype.ListNDarray\x1a\x16.apex_datatype.Nothing\"\x00(\x01\x62\x06proto3'
+  serialized_pb=b'\n\x11\x61pex_buffer.proto\x1a\x13\x61pex_datatype.proto2\xa2\x01\n\x06\x42uffer\x12J\n\x10SendTrajectories\x12\x1a.apex_datatype.ListNDarray\x1a\x16.apex_datatype.Nothing\"\x00(\x01\x12L\n\x0fSendExperiences\x12\x1d.apex_datatype.ExpsAndTDerror\x1a\x16.apex_datatype.Nothing\"\x00(\x01\x62\x06proto3'
   ,
   dependencies=[apex__datatype__pb2.DESCRIPTOR,])
 
@@ -38,7 +38,7 @@ _BUFFER = _descriptor.ServiceDescriptor(
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=43,
-  serialized_end=202,
+  serialized_end=205,
   methods=[
   _descriptor.MethodDescriptor(
     name='SendTrajectories',
@@ -55,7 +55,7 @@ _BUFFER = _descriptor.ServiceDescriptor(
     full_name='Buffer.SendExperiences',
     index=1,
     containing_service=None,
-    input_type=apex__datatype__pb2._LISTNDARRAY,
+    input_type=apex__datatype__pb2._EXPSANDTDERROR,
     output_type=apex__datatype__pb2._NOTHING,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,

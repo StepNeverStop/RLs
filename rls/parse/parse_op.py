@@ -86,6 +86,8 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         ['pre_fill_steps', options.prefill_steps],
         ['info', options.info]
     ]))
+    if options.apex is not None:
+        train_args.name = f'{options.apex}/' + train_args.name
 
     buffer_args = Config(**default_config['buffer'])
     return env_args, buffer_args, train_args

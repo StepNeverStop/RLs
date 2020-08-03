@@ -1,4 +1,5 @@
 import grpc
+import time
 import numpy as np
 
 from rls.distribute.pb2 import \
@@ -36,7 +37,8 @@ def worker(learner_ip,
     while True:
         model.set_worker_params(
             batch_proto2numpy(learner_stub.GetParams(apex_datatype_pb2.Nothing())))
-        buffer_stub.SendExperiences(GymCollector.run_exps_stream(env, model))
+        for _ in range(10):
+            buffer_stub.SendExperiences(GymCollector.run_exps_stream(env, model))
         # buffer_stub.SendTrajectories(GymCollector.run_trajectory(env, model))
 
     learner_channel.close()

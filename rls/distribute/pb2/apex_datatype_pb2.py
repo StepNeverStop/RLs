@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x13\x61pex_datatype.proto\x12\rapex_datatype\"\t\n\x07Nothing\"\x17\n\x07NDarray\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\x1b\n\x0bListNDarray\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\x0c\"+\n\x0c\x45xpsAndPrios\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\x0c\x12\r\n\x05prios\x18\x02 \x01(\x0c\x62\x06proto3'
+  serialized_pb=b'\n\x13\x61pex_datatype.proto\x12\rapex_datatype\"\t\n\x07Nothing\"\x17\n\x07NDarray\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\x0c\"\x1b\n\x0bListNDarray\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\x0c\"+\n\x0c\x45xpsAndPrios\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\x0c\x12\r\n\x05prios\x18\x02 \x01(\x0c\"0\n\x0e\x45xpsAndTDerror\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\x0c\x12\x10\n\x08td_error\x18\x02 \x01(\x0c\x62\x06proto3'
 )
 
 
@@ -152,10 +152,50 @@ _EXPSANDPRIOS = _descriptor.Descriptor(
   serialized_end=146,
 )
 
+
+_EXPSANDTDERROR = _descriptor.Descriptor(
+  name='ExpsAndTDerror',
+  full_name='apex_datatype.ExpsAndTDerror',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='data', full_name='apex_datatype.ExpsAndTDerror.data', index=0,
+      number=1, type=12, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='td_error', full_name='apex_datatype.ExpsAndTDerror.td_error', index=1,
+      number=2, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"",
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=148,
+  serialized_end=196,
+)
+
 DESCRIPTOR.message_types_by_name['Nothing'] = _NOTHING
 DESCRIPTOR.message_types_by_name['NDarray'] = _NDARRAY
 DESCRIPTOR.message_types_by_name['ListNDarray'] = _LISTNDARRAY
 DESCRIPTOR.message_types_by_name['ExpsAndPrios'] = _EXPSANDPRIOS
+DESCRIPTOR.message_types_by_name['ExpsAndTDerror'] = _EXPSANDTDERROR
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Nothing = _reflection.GeneratedProtocolMessageType('Nothing', (_message.Message,), {
@@ -185,6 +225,13 @@ ExpsAndPrios = _reflection.GeneratedProtocolMessageType('ExpsAndPrios', (_messag
   # @@protoc_insertion_point(class_scope:apex_datatype.ExpsAndPrios)
   })
 _sym_db.RegisterMessage(ExpsAndPrios)
+
+ExpsAndTDerror = _reflection.GeneratedProtocolMessageType('ExpsAndTDerror', (_message.Message,), {
+  'DESCRIPTOR' : _EXPSANDTDERROR,
+  '__module__' : 'apex_datatype_pb2'
+  # @@protoc_insertion_point(class_scope:apex_datatype.ExpsAndTDerror)
+  })
+_sym_db.RegisterMessage(ExpsAndTDerror)
 
 
 # @@protoc_insertion_point(module_scope)

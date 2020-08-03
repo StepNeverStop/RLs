@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
 import numpy as np
 import tensorflow as tf
 
@@ -127,8 +128,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.tree = Sum_Tree(capacity)
         self.epsilon = epsilon
         self.IS_w = 1   # weights of variables by using Importance Sampling
-        self.min_p = 1
-        self.max_p = epsilon
+        self.min_p = sys.maxsize
+        self.max_p = np.power(self.epsilon, self.alpha)
         self.global_v = global_v
 
     def add(self, *args) -> NoReturn:
@@ -149,6 +150,13 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.tree.add_batch(np.full(num, self.max_p), data)
         self._size = min(self._size + num, self.capacity)
 
+    def apex_add_batch(self, td_error, *args):
+        data = list(zip(*args))
+        num = len(data)
+        prios = np.power(np.abs(td_error) + self.epsilon, self.alpha)
+        self.tree.add_batch(prios, data)
+        self._size = min(self._size + num, self.capacity)
+
     def sample(self, return_index: bool = False) -> Union[List, Tuple]:
         '''
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
@@ -158,7 +166,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         idxs, data_indx, p, data = self.tree.get_batch_parallel(ps)
         self.last_indexs = idxs
-        _min_p = self.min_p if self.global_v else p.min()
+        _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
         if return_index:
             return data, idxs
