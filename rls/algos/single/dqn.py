@@ -82,21 +82,19 @@ class DQN(make_off_policy_class(mode='share')):
             q_values = self.q_net(feat)
         return tf.argmax(q_values, axis=1), cell_state
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -119,27 +117,23 @@ class DQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
     
-    def cal_td(self, s, visual_s, a, r, s_, visual_s_, done):
-        from rls.utils.np_utils import int2one_hot
-        a = int2one_hot(a.astype(np.int32), self.a_dim)
+    @tf.function(experimental_relax_shapes=True)
+    def _cal_td(self, memories, cell_state):
+        ss, vvss, a, r, done = memories
         with tf.device(self.device):
-            feat = self.get_feature(s, visual_s)
-            feat_ = self.get_feature(s_, visual_s_)
+            feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
             q = self.q_net(feat)
             q_next = self.q_target_net(feat_)
             q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
             q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
             td_error = q_eval - q_target
-        return np.squeeze(td_error.numpy())
+        return td_error
 
     def apex_learn(self, train_step, data, priorities):
         self.train_step = train_step
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-
         return self._apex_learn(function_dict={
-            'train_function': self.train,
-            'update_function': _update,
             'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
         }, data=data, priorities=priorities)
+
+    def apex_cal_td(self, data):
+        return self._apex_cal_td(data=data)

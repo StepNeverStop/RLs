@@ -123,28 +123,29 @@ class TAC(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
+    def _target_params_update(self): 
+        update_target_net_weights(
+            self.critic_target_net.weights,
+            self.critic_net.weights,
+            self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(memories, isw, crsty_loss, cell_state):
-            td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
-            if self.annealing and not self.auto_adaption:
-                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-            return td_error, summaries
-
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(
-                    self.critic_target_net.weights,
-                    self.critic_net.weights,
-                    self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ])
             })
+
+    def _train(self, memories, isw, crsty_loss, cell_state):
+        td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
+        if self.annealing and not self.auto_adaption:
+            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+        return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):

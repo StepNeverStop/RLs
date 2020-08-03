@@ -107,21 +107,19 @@ class IQN(make_off_policy_class(mode='share')):
             _quantiles = tf.reshape(_quantiles, [batch_size, quantiles_num, 1])    # [N*B, 1] => [B, N, 1]
             return _quantiles, _quantiles_tiled
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

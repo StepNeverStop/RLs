@@ -109,15 +109,16 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
+    def _target_params_update(self): 
+        update_target_net_weights(
+            self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
+            self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
+            self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(
-                    self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
-                    self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
-                    self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/reward_critic_lr', self.reward_critic_lr(self.train_step)],
@@ -128,7 +129,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, cost = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

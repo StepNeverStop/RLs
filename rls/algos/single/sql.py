@@ -77,20 +77,21 @@ class SQL(make_off_policy_class(mode='share')):
             v = self.alpha * tf.math.log(tf.reduce_mean(tf.math.exp(q / self.alpha), axis=1, keepdims=True))
         return v
 
+    def _target_params_update(self): 
+        update_target_net_weights(
+            self.q_target_net.weights,
+            self.q_net.weights,
+            self.ployak)
+        
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(
-                    self.q_target_net.weights,
-                    self.q_net.weights,
-                    self.ployak),
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:

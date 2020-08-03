@@ -33,17 +33,16 @@ class LearnThread(threading.Thread):
         train_time = 0
         while True:
             if self.buffer.is_lg_batch_size:
-                self.lock.acquire()
-                exps = self.buffer.sample()
-                prios = self.buffer.get_IS_w().reshape(-1, 1)
-                td_error = self.learner_stub.SendExperienceGetPriorities(
-                    exps_and_prios2proto(
-                        exps=exps,
-                        prios=prios))
-                td_error = proto2numpy(td_error)
-                self.buffer.update(td_error, train_time)
-                self.lock.release()
-                train_time += 1
+                with self.lock:
+                    exps = self.buffer.sample()
+                    prios = self.buffer.get_IS_w().reshape(-1, 1)
+                    td_error = self.learner_stub.SendExperienceGetPriorities(
+                        exps_and_prios2proto(
+                            exps=exps,
+                            prios=prios))
+                    td_error = proto2numpy(td_error)
+                    self.buffer.update(td_error, train_time)
+                    train_time += 1
         self.learner_channel.close()
 
 

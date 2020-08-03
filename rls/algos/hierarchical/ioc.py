@@ -129,16 +129,15 @@ class IOC(make_off_policy_class(mode='share')):
             new_options = tfp.distributions.Categorical(logits=op_logits).sample()
         return a, new_options, cell_state
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
@@ -150,7 +149,7 @@ class IOC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, last_options, options = memories
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)

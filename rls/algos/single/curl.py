@@ -196,48 +196,48 @@ class CURL(make_off_policy_class(mode='no_share')):
                 pi = cate_dist.sample()
             return mu, pi
 
+    def _process_before_train(self, data):
+        data['visual_s'] = np.transpose(data['visual_s'][:, 0].numpy(), (0, 3, 1, 2))
+        data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
+        data['pos'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
+        )
+        data['visual_s'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
+        )
+        data['visual_s_'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
+        )
+        return (data,)
+
+    def _target_params_update(self): 
+        update_target_net_weights(
+        self.critic_target_net.weights + self.encoder_target.trainable_variables,
+        self.critic_net.weights + self.encoder.trainable_variables,
+        self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(memories, isw, crsty_loss, cell_state):
-            td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
-            if self.annealing and not self.auto_adaption:
-                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-            return td_error, summaries
-
-        def _pre_process(data):
-            data['visual_s'] = np.transpose(data['visual_s'][:, 0].numpy(), (0, 3, 1, 2))
-            data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
-            data['pos'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-            )
-            data['visual_s'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-            )
-            data['visual_s_'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
-            )
-            return (data,)
-
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': _train,
-                'update_function': lambda: update_target_net_weights(
-                    self.critic_target_net.weights + self.encoder_target.trainable_variables,
-                    self.critic_net.weights + self.encoder.trainable_variables,
-                    self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ]),
                 'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'pos'],
-                'pre_process_function': _pre_process
             })
 
     @property
     def alpha(self):
         return tf.exp(self.log_alpha)
+
+    def _train(self, memories, isw, crsty_loss, cell_state):
+        td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
+        if self.annealing and not self.auto_adaption:
+            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+    return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):

@@ -4,6 +4,8 @@
 import time
 import numpy as np
 
+from copy import deepcopy
+
 from rls.utils.np_utils import \
     SMA, \
     arrprint
@@ -74,10 +76,10 @@ class GymCollector(object):
         dones_flag = np.zeros(n)
 
         while True:
-            action = model.choose_action(s=state[0], visual_s=state[1])
+            action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             exps = [*state, action, reward[:, np.newaxis], *new_state, done[:, np.newaxis]]
-            td_error = model.cal_td(*exps)
+            td_error = model.apex_cal_td(deepcopy(exps))
             yield exps_and_tderror2proto(
                 exps=exps,
                 td_error=td_error)
@@ -102,7 +104,7 @@ class GymCollector(object):
         dones_flag = np.zeros(n)
 
         while True:
-            action = model.choose_action(s=state[0], visual_s=state[1])
+            action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             model.partial_reset(done)
             unfinished_index = np.where(dones_flag == 0)[0]

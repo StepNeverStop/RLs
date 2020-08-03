@@ -86,8 +86,6 @@ class DPG(make_off_policy_class(mode='share')):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: None,
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
@@ -95,7 +93,7 @@ class DPG(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

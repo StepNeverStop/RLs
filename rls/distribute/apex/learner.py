@@ -26,11 +26,10 @@ logger = get_logger(__name__)
 
 class EvalThread(threading.Thread):
 
-    def __init__(self, env, model, lock):
+    def __init__(self, env, model):
         super().__init__()
         self.env = env
         self.model = model
-        self.lock = lock
 
     def run(self):
         n = self.env.n
@@ -41,7 +40,6 @@ class EvalThread(threading.Thread):
         episode = 0
 
         while True:
-            self.lock.acquire()
             episode += 1
             self.model.reset()
             state[i] = self.env.reset()
@@ -76,16 +74,14 @@ class EvalThread(threading.Thread):
                 **sma.rs
             )
             print(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
-            self.lock.release()
             time.sleep(5)
 
 
 class LearnerServicer(apex_learner_pb2_grpc.LearnerServicer):
 
-    def __init__(self, model, lock):
+    def __init__(self, model):
         self.model = model
         self.train_step = 0
-        self.lock = lock
 
     def SendNumpyArray(self, request: apex_datatype_pb2.NDarray, context) -> apex_datatype_pb2.Nothing:
         arr = proto2numpy(request)
@@ -103,30 +99,26 @@ class LearnerServicer(apex_learner_pb2_grpc.LearnerServicer):
         return params
 
     def SendExperienceGetPriorities(self, request: apex_datatype_pb2.ExpsAndPrios, context) -> apex_datatype_pb2.NDarray:
-        self.lock.acquire()
         data, prios = proto2exps_and_prios(request)
         td_error = numpy2proto(self.model.apex_learn(self.train_step, data, prios))
         self.train_step += 1
         if self.train_step % 100 == 0:
             self.model.save_checkpoint(train_step=self.train_step)
         # logger.info('send new priorities to buffer.')
-        self.lock.release()
         return td_error
 
 
 def learner(ip, port, model, env):
     check_port_in_use(port, ip, try_times=10, server_name='learner')
-    assert hasattr(model, 'apex_learn'), 'this algorithm does not support Ape-X learning for now.'
-
-    thread_lock = threading.Lock()
+    assert hasattr(model, 'apex_learn') and hasattr(model, 'apex_cal_td'), 'this algorithm does not support Ape-X learning for now.'
 
     server = grpc.server(futures.ThreadPoolExecutor())
-    apex_learner_pb2_grpc.add_LearnerServicer_to_server(LearnerServicer(model, thread_lock), server)
+    apex_learner_pb2_grpc.add_LearnerServicer_to_server(LearnerServicer(model), server)
     server.add_insecure_port(':'.join([ip, port]))
     server.start()
     logger.info('start learner success.')
 
-    eval_thread = EvalThread(env, model, thread_lock)
+    eval_thread = EvalThread(env, model)
     eval_thread.start()
 
     # GymCollector.evaluate(env, model)

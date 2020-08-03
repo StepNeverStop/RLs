@@ -77,21 +77,19 @@ class DDDQN(make_off_policy_class(mode='share')):
             q = self.dueling_net(feat)
         return tf.argmax(q, axis=-1), cell_state
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:

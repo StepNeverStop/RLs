@@ -39,6 +39,7 @@ def worker(learner_ip,
             batch_proto2numpy(learner_stub.GetParams(apex_datatype_pb2.Nothing())))
         for _ in range(10):
             buffer_stub.SendExperiences(GymCollector.run_exps_stream(env, model))
+            time.sleep(0.5)
         # buffer_stub.SendTrajectories(GymCollector.run_trajectory(env, model))
 
     learner_channel.close()

@@ -91,13 +91,13 @@ class MAXSQN(make_off_policy_class(mode='share')):
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi, cell_state
 
+    def _target_params_update(self): 
+        update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights, self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
-                                                                     self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
@@ -105,7 +105,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:

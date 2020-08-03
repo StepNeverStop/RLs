@@ -99,9 +99,9 @@ def make_off_policy_class(mode: str = 'share'):
             TODO: Annotation
             '''
             data = self.data.sample()   # 经验池取数据
-            return self._data_precess(data, data_name_list)
+            return self._data_process2dict(data, data_name_list)
 
-        def _data_precess(self, data, data_name_list):
+        def _data_process2dict(self, data, data_name_list):
             if not self.is_continuous and 'a' in data_name_list:
                 a_idx = data_name_list.index('a')
                 data[a_idx] = int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
@@ -122,13 +122,31 @@ def make_off_policy_class(mode: str = 'share'):
             '''
             return [data_dict.get(n) for n in data_name_list]
 
+        def _train(self, *args):
+            '''
+            NOTE: usually need to override this function
+            TODO: Annotation
+            '''
+            return (None, {})
+
+        def _target_params_update(self, *args):
+            '''
+            NOTE: usually need to override this function
+            TODO: Annotation
+            '''
+            return None
+
+        def _process_before_train(self, *args):
+            '''
+            NOTE: usually need to override this function
+            TODO: Annotation
+            '''
+            return args
+
         def _learn(self, function_dict: Dict) -> NoReturn:
             '''
             TODO: Annotation
             '''
-            _pre_process = function_dict.get('pre_process_function', lambda *args: args)    # 预处理过程
-            _train = function_dict.get('train_function', lambda *args: (None, {}))   # 训练过程
-            _update = function_dict.get('update_function', lambda *args: None)  # maybe need update parameters of target networks
             _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
             _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'])  # 需要从经验池提取的经验
             _train_data_list = function_dict.get('train_data_list', ['ss', 'vvss', 'a', 'r', 'done'])  # 需要从经验池提取的经验
@@ -159,7 +177,7 @@ def make_off_policy_class(mode: str = 'share'):
                 # --------------------------------------
 
                 # --------------------------------------预处理过程
-                data = _pre_process(data)[0]
+                data = self._process_before_train(data)[0]
                 # --------------------------------------
 
                 # --------------------------------------好奇心部分
@@ -173,7 +191,7 @@ def make_off_policy_class(mode: str = 'share'):
                     crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(
                         *self.get_value_from_dict(data_name_list=['s', 'visual_s', 'a', 's_', 'visual_s_'], data_dict=data))
                     data['r'] += crsty_r
-                    self.summaries.update(crsty_summaries)
+                    _summary.update(crsty_summaries)
                 else:
                     crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
                 # --------------------------------------
@@ -201,11 +219,11 @@ def make_off_policy_class(mode: str = 'share'):
                 # --------------------------------------
 
                 # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-                td_error, summaries = _train(_training_data, _isw, crsty_loss, cell_state)
+                td_error, summaries = self._train(_training_data, _isw, crsty_loss, cell_state)
                 # --------------------------------------
 
                 # --------------------------------------更新summary
-                self.summaries.update(summaries)
+                _summary.update(summaries)
                 # --------------------------------------
 
                 # --------------------------------------优先经验回放的更新部分
@@ -215,7 +233,7 @@ def make_off_policy_class(mode: str = 'share'):
                 # --------------------------------------
 
                 # --------------------------------------target网络的更新部分
-                _update()
+                self._target_params_update()
                 # --------------------------------------
 
                 # --------------------------------------更新summary
@@ -226,62 +244,58 @@ def make_off_policy_class(mode: str = 'share'):
                 self.write_training_summaries(self.global_step, self.summaries)
                 # --------------------------------------
 
-        def _apex_learn(self, function_dict: Dict, data, priorities) -> NoReturn:
+        def _apex_learn(self, function_dict: Dict, data, priorities) -> np.ndarray:
             '''
             TODO: Annotation
             '''
-            _pre_process = function_dict.get('pre_process_function', lambda *args: args)    # 预处理过程
-            _train = function_dict.get('train_function', lambda *args: (None, {}))   # 训练过程
-            _update = function_dict.get('update_function', lambda *args: None)  # maybe need update parameters of target networks
             _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
             _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'])  # 需要从经验池提取的经验
             _train_data_list = function_dict.get('train_data_list', ['ss', 'vvss', 'a', 'r', 'done'])  # 需要从经验池提取的经验
 
             self.intermediate_variable_reset()
-            data = self._data_precess(data=data, data_name_list=_sample_data_list)  # default: s, visual_s, a, r, s_, visual_s_, done
+            data = self._data_process2dict(data=data, data_name_list=_sample_data_list)  # default: s, visual_s, a, r, s_, visual_s_, done
 
-            if self.use_rnn:
-                data['ss'] = tf.concat([    # [B, T, N], [B, T, N] => [B, T+1, N]
-                    data['s'],
-                    data['s_'][:, -1:]
-                ], axis=1)
-                data['vvss'] = tf.concat([
-                    data['visual_s'],
-                    data['visual_s_'][:, -1:]
-                ], axis=1)
-            else:
-                data['ss'] = tf.concat([data['s'], data['s_']], axis=0)  # [B, N] => [2*B, N]
-                data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
-            data = _pre_process(data)[0]
+            data['ss'] = tf.concat([data['s'], data['s_']], axis=0)  # [B, N] => [2*B, N]
+            data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
+            data = self._process_before_train(data)[0]
             if self.use_curiosity:
-                # -------------------------------------- 如果使用RNN，那么需要将数据维度从三维转换为二维
-                if self.use_rnn:
-                    data['s'] = tf.reshape(data['s'], [-1, data['s'].shape[-1]])    # [B, T, N] => [B*T, N]
-                    data['s_'] = tf.reshape(data['s_'], [-1, data['s_'].shape[-1]])
-                    data['visual_s'] = tf.reshape(data['visual_s'], [-1, data['visual_s'].shape[-1]])
-                    data['visual_s_'] = tf.reshape(data['visual_s_'], [-1, data['visual_s_'].shape[-1]])
                 crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(
                     *self.get_value_from_dict(data_name_list=['s', 'visual_s', 'a', 's_', 'visual_s_'], data_dict=data))
                 data['r'] += crsty_r
-                self.summaries.update(crsty_summaries)
+                _summary.update(crsty_summaries)
             else:
                 crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
 
             _isw = self.data_convert(priorities)
             _training_data = self.get_value_from_dict(data_name_list=_train_data_list, data_dict=data)
 
-            if self.use_rnn:
-                pass
-            else:
-                cell_state = (None,)
+            cell_state = (None,)
 
-            td_error, summaries = _train(_training_data, _isw, crsty_loss, cell_state)
-            self.summaries.update(summaries)
+            td_error, summaries = self._train(_training_data, _isw, crsty_loss, cell_state)
+            _summary.update(summaries)
 
-            _update()
+            self._target_params_update()
             self.summaries.update(_summary)
             self.write_training_summaries(self.global_step, self.summaries)
 
+            return np.squeeze(td_error.numpy())
+
+        def _apex_cal_td(self, data, function_dict: Dict = {}) -> np.ndarray:
+            '''
+            TODO: Annotation
+            '''
+            _sample_data_list = function_dict.get('sample_data_list', ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'])  # 需要从经验池提取的经验
+            _train_data_list = function_dict.get('train_data_list', ['ss', 'vvss', 'a', 'r', 'done'])  # 需要从经验池提取的经验
+
+            data = self._data_process2dict(data=data, data_name_list=_sample_data_list)  # default: s, visual_s, a, r, s_, visual_s_, done
+            data['ss'] = tf.concat([data['s'], data['s_']], axis=0)  # [B, N] => [2*B, N]
+            data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
+            data = self._process_before_train(data)[0]
+
+            _training_data = self.get_value_from_dict(data_name_list=_train_data_list, data_dict=data)
+
+            cell_state = (None,)
+            td_error = self._cal_td(_training_data, cell_state)
             return np.squeeze(td_error.numpy())
 
     return Off_Policy
