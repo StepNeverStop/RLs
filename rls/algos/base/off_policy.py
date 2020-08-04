@@ -229,7 +229,7 @@ def make_off_policy_class(mode: str = 'share'):
                 # --------------------------------------优先经验回放的更新部分
                 if self.use_priority:
                     td_error = np.squeeze(td_error.numpy())
-                    self.data.update(td_error, self.train_step)
+                    self.data.update(td_error)
                 # --------------------------------------
 
                 # --------------------------------------target网络的更新部分
