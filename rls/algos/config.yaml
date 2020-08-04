@@ -100,8 +100,8 @@ dqn: &dqn
     batch_size: 256
     buffer_size: 100000
     assign_interval: 1000
-    use_priority: true
-    n_step: false
+    use_priority: false
+    n_step: true
     hidden_units: [64, 64]
 
 ddqn: *dqn
