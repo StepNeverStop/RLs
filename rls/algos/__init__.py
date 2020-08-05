@@ -302,17 +302,6 @@ register(
     update_mode='perStep',
     policy_type='single',
     logo='''
-    
-    '''
-)
-
-register(
-    name='sac',
-    algo_class='SAC',
-    policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
-    logo='''
 　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　
 　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　
 　　　　　ＯＯＯ　　ＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯ　　　　ＯＯ　　　　
@@ -325,6 +314,28 @@ register(
 　　　　　ＯＯ　　　　ＯＯ　　　　　　　　　ＯＯ　　　　ＯＯＯ　　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯ　　　　　　　
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　　　　　
 　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ
+    '''
+)
+
+register(
+    name='sac',
+    algo_class='SAC',
+    policy_mode='off-policy',
+    update_mode='perStep',
+    policy_type='single',
+    logo='''
+　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ
+　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ
+　　　　　ＯＯＯ　　ＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯ　　　　ＯＯ
+　　　　　ＯＯＯ　　　ＯＯ　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　ＯＯＯ　　　　　　Ｏ
+　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　ＯＯＯ　　　　　　　
+　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　ＯＯ　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　　　　　
+　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　ＯＯ　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　　　　　　　
+　　　　　　　　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　
+　　　　　ＯＯ　　　ＯＯＯＯ　　　　　　　　ＯＯＯ　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　　　ＯＯ
+　　　　　ＯＯ　　　　ＯＯ　　　　　　　　　ＯＯ　　　　ＯＯＯ　　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ
+　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　
+　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　
     '''
 )
 

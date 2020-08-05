@@ -253,7 +253,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                 target_feat_ = tf.concat([target_vis_feat_, s_], axis=-1)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)

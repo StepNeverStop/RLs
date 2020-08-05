@@ -166,7 +166,7 @@ class SAC(make_off_policy_class(mode='share')):
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)
@@ -261,7 +261,7 @@ class SAC(make_off_policy_class(mode='share')):
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     logits = self.actor_net(feat)
