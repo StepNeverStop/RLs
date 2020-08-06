@@ -40,7 +40,6 @@ class Base:
         self._tf_data_type = tf.float32 if tf_dtype == 'float32' else tf.float64
         tf.keras.backend.set_floatx(tf_dtype)
 
-        tf.random.set_seed(int(kwargs.get('seed', 0)))
         self.device = get_device()
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]

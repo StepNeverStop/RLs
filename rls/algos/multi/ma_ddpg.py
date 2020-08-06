@@ -136,11 +136,11 @@ class MADDPG(MultiAgentOffPolicy):
                 for i in range(self.agent_sep_ctls):
                     summary = {}
                     if i == 0:
-                        al = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
+                        al = np.full(shape=(done.shape[0], 0), fill_value=[], dtype=np.float32)
                         ar = np.hstack(a[i + 1:])
                     elif i == self.agent_sep_ctls - 1:
                         al = np.hstack(a[:i])
-                        ar = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
+                        ar = np.full(shape=(done.shape[0], 0), fill_value=[], dtype=np.float32)
                     else:
                         al = np.hstack(a[:i])
                         ar = np.hstack(a[i + 1:])

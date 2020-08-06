@@ -30,8 +30,8 @@ def init_variables(env) -> Tuple[int, List[np.ndarray], List[np.ndarray]]:
     """
     i = 1 if env.obs_type == 'visual' else 0
     return (i,
-            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)],
-            [np.array([[]] * env.n, dtype=np.float32), np.array([[]] * env.n, dtype=np.float32)])
+            [np.full((env.n, 0), [], dtype=np.float32), np.full((env.n, 0), [], dtype=np.float32)],
+            [np.full((env.n, 0), [], dtype=np.float32), np.full((env.n, 0), [], dtype=np.float32)])
 
 
 def gym_train(env, model,

@@ -3,6 +3,9 @@
 
 import os
 import sys
+import random
+import numpy as np
+import tensorflow as tf
 
 from typing import \
     List, \
@@ -22,6 +25,17 @@ def check_or_create(dicpath: str, name: str = '') -> NoReturn:
         logger.info(colorize(
             ''.join([f'create {name} directionary :', dicpath]
                     ), color='green'))
+
+
+def set_global_seeds(seed: int) -> NoReturn:
+    """
+    Set the random seed of tensorflow, numpy and random.
+    params:
+        seed: an integer refers to the random seed
+    """
+    tf.random.set_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 class LinearAnnealing:

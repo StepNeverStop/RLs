@@ -34,7 +34,7 @@ class EvalThread(threading.Thread):
     def run(self):
         n = self.env.n
         i = 1 if self.env.obs_type == 'visual' else 0
-        state = [np.array([[]] * n), np.array([[]] * n)]
+        state = [np.full((n, 0), []), np.full((n, 0), [])]
         sma = SMA(100)
         total_step = 0
         episode = 0

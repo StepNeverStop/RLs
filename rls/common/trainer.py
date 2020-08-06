@@ -13,7 +13,9 @@ from typing import \
     Optional
 
 from rls.utils.display import show_dict
-from rls.utils.sundry_utils import check_or_create
+from rls.utils.sundry_utils import \
+    check_or_create, \
+    set_global_seeds
 from rls.parse.parse_buffer import get_buffer
 from rls.utils.time import get_time_hhmmss
 from rls.algos import get_model_info
@@ -67,6 +69,7 @@ class Trainer:
         self.env_args = env_args
         self.buffer_args = buffer_args
         self.train_args = train_args
+        set_global_seeds(int(self.train_args.seed))
 
         self._name = self.train_args['name']
         self.train_args['base_dir'] = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
@@ -145,7 +148,6 @@ class Trainer:
             'is_continuous': self.env.is_continuous,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir,
-            'seed': self.train_args.seed,
             'n_agents': self.env.n
         })
         self.model = self.MODEL(**self.algo_args)
@@ -184,7 +186,6 @@ class Trainer:
             'is_continuous': self.env.is_continuous,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir,
-            'seed': self.train_args.seed,
             'n_agents': self.env.brain_agents,
             'brain_controls': self.env.brain_controls
         })
@@ -212,7 +213,6 @@ class Trainer:
         for i, b in enumerate(self.env.fixed_brain_names):
             _bargs, _targs, _aargs = map(deepcopy, [self.buffer_args, self.train_args, self.algo_args])
             _targs.base_dir = os.path.join(_targs.base_dir, b)
-            _targs.seed += i * 10  # 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
             if _targs.load_model_path is not None:
                 _targs.load_model_path = os.path.join(_targs.load_model_path, b)
             if 'Nstep' in _bargs['type'] or 'Episode' in _bargs['type']:
@@ -227,7 +227,6 @@ class Trainer:
                 'is_continuous': self.env.is_continuous[i],
                 'max_train_step': _targs.max_train_step,
                 'base_dir': _targs.base_dir,
-                'seed': _targs.seed,
                 'n_agents': self.env.brain_agents[i],
             })
             model = self.MODEL(**_aargs)
