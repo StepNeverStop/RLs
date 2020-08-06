@@ -18,11 +18,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  beta=0.1,
@@ -37,14 +33,8 @@ class MAXSQN(make_off_policy_class(mode='share')):
                  auto_adaption=True,
                  hidden_units=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'maxsqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'maxsqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -116,7 +106,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
 
                 q1_target, q2_target = self.critic_target_net(feat_)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
-                q1_target_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
+                q1_target_log_probs = tf.nn.log_softmax(q1_target / (self.alpha + 1e-8), axis=1)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))
 
                 q2_target_max = tf.reduce_max(q2_target, axis=1, keepdims=True)
@@ -137,7 +127,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     q1 = self.critic_net.Q1(feat)
-                    q1_log_probs = tf.nn.log_softmax(q1 / self.alpha, axis=1) + 1e-8
+                    q1_log_probs = tf.nn.log_softmax(q1 / (self.alpha + 1e-8), axis=1)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(self.target_entropy - q1_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

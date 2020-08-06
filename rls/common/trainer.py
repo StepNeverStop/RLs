@@ -141,14 +141,9 @@ class Trainer:
 
         # model -------------------------------
         self.algo_args.update({
-            's_dim': self.env.s_dim,
-            'visual_sources': self.env.visual_sources,
-            'visual_resolution': self.env.visual_resolution,
-            'a_dim': self.env.a_dim,
-            'is_continuous': self.env.is_continuous,
+            'envspec': self.env.EnvSpec,
             'max_train_step': self.train_args.max_train_step,
-            'base_dir': self.train_args.base_dir,
-            'n_agents': self.env.n
+            'base_dir': self.train_args.base_dir
         })
         self.model = self.MODEL(**self.algo_args)
         self.model.set_buffer(buffer)
@@ -179,15 +174,9 @@ class Trainer:
         buffer = get_buffer(self.buffer_args)
 
         self.algo_args.update({
-            's_dim': self.env.s_dim,
-            'a_dim': self.env.a_dim,
-            'visual_sources': self.env.visual_sources,
-            'visual_resolution': self.env.visual_resolutions,
-            'is_continuous': self.env.is_continuous,
+            'envspec': self.env.EnvSpec,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir,
-            'n_agents': self.env.brain_agents,
-            'brain_controls': self.env.brain_controls
         })
 
         self.model = self.MODEL(**self.algo_args)
@@ -220,14 +209,9 @@ class Trainer:
             buffer = get_buffer(_bargs)
 
             _aargs.update({
-                's_dim': self.env.s_dim[i],
-                'a_dim': self.env.a_dim[i],
-                'visual_sources': self.env.visual_sources[i],
-                'visual_resolution': self.env.visual_resolutions[i],
-                'is_continuous': self.env.is_continuous[i],
+                'envspec': self.env.EnvSpec[i],
                 'max_train_step': _targs.max_train_step,
                 'base_dir': _targs.base_dir,
-                'n_agents': self.env.brain_agents[i],
             })
             model = self.MODEL(**_aargs)
             model.set_buffer(buffer)

@@ -23,11 +23,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  ployak=0.995,
                  high_scale=1.0,
@@ -51,14 +47,8 @@ class HIRO(make_off_policy_class(mode='no_share')):
                      'low_critic': [64, 64]
                  },
                  **kwargs):
-        assert visual_sources == 0, 'HIRO doesn\'t support visual inputs.'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert envspec.visual_sources == 0, 'HIRO doesn\'t support visual inputs.'
+        super().__init__(envspec=envspec, **kwargs)
         self.data_high = ExperienceReplay(high_batch_size, high_buffer_size)
         self.data_low = ExperienceReplay(low_batch_size, low_buffer_size)
 

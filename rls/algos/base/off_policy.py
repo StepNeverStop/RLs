@@ -20,20 +20,8 @@ def make_off_policy_class(mode: str = 'share'):
         from rls.algos.base.policy import Policy as BasePolicy
 
     class Off_Policy(BasePolicy):
-        def __init__(self,
-                     s_dim: Union[int, np.ndarray],
-                     visual_sources: Union[int, np.ndarray],
-                     visual_resolution: Union[List, np.ndarray],
-                     a_dim: Union[int, np.ndarray],
-                     is_continuous: Union[int, np.ndarray],
-                     **kwargs):
-            super().__init__(
-                s_dim=s_dim,
-                visual_sources=visual_sources,
-                visual_resolution=visual_resolution,
-                a_dim=a_dim,
-                is_continuous=is_continuous,
-                **kwargs)
+        def __init__(self, envspec, **kwargs):
+            super().__init__(envspec=envspec, **kwargs)
             self.buffer_size = int(kwargs.get('buffer_size', 10000))
             self.use_priority = kwargs.get('use_priority', False)
             self.n_step = kwargs.get('n_step', False)

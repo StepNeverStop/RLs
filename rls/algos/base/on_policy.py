@@ -21,20 +21,8 @@ def make_on_policy_class(mode: str = 'share'):
         from rls.algos.base.policy import Policy as BasePolicy
 
     class On_Policy(BasePolicy):
-        def __init__(self,
-                     s_dim: Union[int, np.ndarray],
-                     visual_sources: Union[int, np.ndarray],
-                     visual_resolution: Union[List, np.ndarray],
-                     a_dim: Union[int, np.ndarray],
-                     is_continuous: Union[bool, np.ndarray],
-                     **kwargs):
-            super().__init__(
-                s_dim=s_dim,
-                visual_sources=visual_sources,
-                visual_resolution=visual_resolution,
-                a_dim=a_dim,
-                is_continuous=is_continuous,
-                **kwargs)
+        def __init__(self, envspec, **kwargs):
+            super().__init__(envspec=envspec, **kwargs)
             self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
         def initialize_data_buffer(self,

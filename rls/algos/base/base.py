@@ -31,7 +31,6 @@ class Base:
         '''
         inputs:
             a_dim: action spaces
-            is_continuous: action type, refer to whether this control problem is continuous(True) or discrete(False)
             base_dir: the directory that store data, like model, logs, and other data
         '''
         super().__init__()
@@ -71,15 +70,6 @@ class Base:
         '''
         with tf.device(self.device):
             return tf.convert_to_tensor(data, dtype=self._tf_data_type)
-
-    def get_init_train_step(self) -> int:
-        """
-        get the initial training step. use for continue train from last training step.
-        """
-        if os.path.exists(os.path.join(self.cp_dir, 'checkpoint')):
-            return int(tf.train.latest_checkpoint(self.cp_dir).split('-')[-1])
-        else:
-            return 0
 
     def _create_saver(self) -> NoReturn:
         """

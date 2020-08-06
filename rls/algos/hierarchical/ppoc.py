@@ -19,11 +19,7 @@ class PPOC(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  options_num=4,
                  dc=0.01,
@@ -50,13 +46,7 @@ class PPOC(make_on_policy_class(mode='share')):
                      'o': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.pi_beta = pi_beta
         self.epoch = epoch
         self.lambda_ = lambda_

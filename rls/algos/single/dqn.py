@@ -22,11 +22,7 @@ class DQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim: Union[int, np.ndarray],
-                 visual_sources: Union[int, np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[int, np.ndarray],
-                 is_continuous: Union[bool, np.ndarray],
+                 envspec,
 
                  lr: float = 5.0e-4,
                  eps_init: float = 1,
@@ -36,14 +32,8 @@ class DQN(make_off_policy_class(mode='share')):
                  assign_interval: int = 1000,
                  hidden_units: List[int] = [32, 32],
                  **kwargs):
-        assert not is_continuous, 'dqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'dqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,

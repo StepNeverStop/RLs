@@ -13,20 +13,8 @@ from rls.algos.base.ma_policy import MultiAgentPolicy
 
 
 class MultiAgentOffPolicy(MultiAgentPolicy):
-    def __init__(self,
-                 s_dim: Union[List[int], np.ndarray],
-                 visual_sources: Union[List[int], np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[List[int], np.ndarray],
-                 is_continuous: Union[List[bool], np.ndarray],
-                 **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+    def __init__(self, envspec, **kwargs):
+        super().__init__(envspec=envspec, **kwargs)
         self.total_s_dim = sum(self.s_dim)
         self.total_a_dim = sum(self.a_dim)
 

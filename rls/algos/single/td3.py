@@ -22,11 +22,7 @@ class TD3(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  ployak=0.995,
                  delay_num=2,
@@ -42,13 +38,7 @@ class TD3(make_off_policy_class(mode='share')):
                      'q': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.delay_num = delay_num
         self.discrete_tau = discrete_tau

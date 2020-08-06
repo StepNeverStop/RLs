@@ -18,6 +18,9 @@ from copy import deepcopy
 
 from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
+from rls.utils.tuples import \
+    SingleAgentEnvArgs, \
+    MultiAgentEnvArgs
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
@@ -114,6 +117,25 @@ class InfoWrapper(BasicWrapper):
             # use for multi-agents
             self.brain_controls = list(map(lambda x: int(x.split('#')[0]), self.brain_names))
             self.env_copys = self.brain_agents[0] // self.brain_controls[0]
+            self.EnvSpec = MultiAgentEnvArgs(
+                s_dim=self.s_dim,
+                a_dim=self.a_dim,
+                visual_sources=self.visual_sources,
+                visual_resolutions=self.visual_resolutions,
+                is_continuous=self.is_continuous,
+                n_agents=self.brain_agents,
+                brain_controls=self.brain_controls
+            )
+        else:
+            self.EnvSpec = [
+                SingleAgentEnvArgs(
+                    s_dim=self.s_dim[i],
+                    a_dim=self.a_dim[i],
+                    visual_sources=self.visual_sources[i],
+                    visual_resolutions=self.visual_resolutions[i],
+                    is_continuous=self.is_continuous[i],
+                    n_agents=self.brain_agents[i]
+                ) for i in range(self.brain_num)]
 
     def random_action(self):
         '''

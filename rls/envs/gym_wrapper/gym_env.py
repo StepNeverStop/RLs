@@ -2,6 +2,21 @@
 # -*- coding: utf-8 -*-
 
 import gym
+import platform
+import numpy as np
+
+use_ray = False
+if platform.system() != "Windows" and use_ray:
+    from . import ray_wrapper as Asyn
+else:
+    from . import threading_wrapper as Asyn
+
+from gym.spaces import \
+    Box, \
+    Discrete, \
+    Tuple
+from typing import Dict
+from copy import deepcopy
 
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
@@ -20,23 +35,9 @@ except ImportError:
     logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
-import numpy as np
-import platform
-use_ray = False
-if platform.system() != "Windows" and use_ray:
-    from . import ray_wrapper as Asyn
-else:
-    from . import threading_wrapper as Asyn
-
-from typing import Dict
-from copy import deepcopy
-
 from rls.utils.np_utils import int2action_index
-from gym.spaces import \
-    Box, \
-    Discrete, \
-    Tuple
 from rls.envs.gym_wrapper.utils import build_env
+from rls.utils.tuples import SingleAgentEnvArgs
 
 
 class gym_envs(object):
@@ -72,11 +73,11 @@ class gym_envs(object):
         if len(ObsSpace.shape) == 3:
             self.obs_type = 'visual'
             self.visual_sources = 1
-            self.visual_resolution = list(ObsSpace.shape)
+            self.visual_resolutions = list(ObsSpace.shape)
         else:
             self.obs_type = 'vector'
             self.visual_sources = 0
-            self.visual_resolution = []
+            self.visual_resolutions = []
 
         # process action
         ActSpace = env.action_space
@@ -98,6 +99,14 @@ class gym_envs(object):
             self.discrete_action_dim_list = [env.action_space.n]
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
+        self.EnvSpec = SingleAgentEnvArgs(
+            s_dim=self.s_dim,
+            a_dim=self.a_dim,
+            visual_sources=self.visual_sources,
+            visual_resolutions=self.visual_resolutions,
+            is_continuous=self._is_continuous,
+            n_agents=self.n
+        )
 
     @property
     def is_continuous(self):

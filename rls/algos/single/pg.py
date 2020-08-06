@@ -17,11 +17,7 @@ from rls.algos.base.on_policy import make_on_policy_class
 
 class PG(make_on_policy_class(mode='share')):
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  lr=5.0e-4,
                  epoch=5,
@@ -30,13 +26,7 @@ class PG(make_on_policy_class(mode='share')):
                      'actor_discrete': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.epoch = epoch
         # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:

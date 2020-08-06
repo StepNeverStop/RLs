@@ -64,20 +64,8 @@ def _split_without_time(
 
 
 class SharedPolicy(Policy):
-    def __init__(self,
-                 s_dim: Union[int, np.ndarray],
-                 visual_sources: Union[int, np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[int, np.ndarray],
-                 is_continuous: Union[bool, np.ndarray],
-                 **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+    def __init__(self, envspec, **kwargs):
+        super().__init__(envspec=envspec, **kwargs)
         if self.use_visual:
             self.visual_feature = int(kwargs.get('visual_feature', 128))
             self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)

@@ -20,11 +20,7 @@ class QRDQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  nums=20,
                  huber_delta=1.,
@@ -36,15 +32,9 @@ class QRDQN(make_off_policy_class(mode='share')):
                  assign_interval=1000,
                  hidden_units=[128, 128],
                  **kwargs):
-        assert not is_continuous, 'qrdqn only support discrete action space'
+        assert not envspec.is_continuous, 'qrdqn only support discrete action space'
         assert nums > 0
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.nums = nums
         self.huber_delta = huber_delta
         self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums])  # [1, N]

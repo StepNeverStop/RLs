@@ -18,11 +18,7 @@ class C51(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  v_min=-10,
                  v_max=10,
@@ -35,14 +31,8 @@ class C51(make_off_policy_class(mode='share')):
                  assign_interval=1000,
                  hidden_units=[128, 128],
                  **kwargs):
-        assert not is_continuous, 'c51 only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'c51 only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.v_min = v_min
         self.v_max = v_max
         self.atoms = atoms

@@ -19,11 +19,7 @@ class IQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  online_quantiles=8,
                  target_quantiles=8,
@@ -42,14 +38,8 @@ class IQN(make_off_policy_class(mode='share')):
                      'tile': [64]
                  },
                  **kwargs):
-        assert not is_continuous, 'iqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'iqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.pi = tf.constant(np.pi)
         self.online_quantiles = online_quantiles
         self.target_quantiles = target_quantiles

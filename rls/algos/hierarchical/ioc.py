@@ -22,11 +22,7 @@ class IOC(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  q_lr=5.0e-3,
                  intra_option_lr=5.0e-4,
@@ -47,13 +43,7 @@ class IOC(make_off_policy_class(mode='share')):
                      'interest': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.assign_interval = assign_interval
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer

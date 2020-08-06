@@ -16,11 +16,7 @@ class DDDQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  lr=5.0e-4,
                  eps_init=1,
@@ -34,14 +30,8 @@ class DDDQN(make_off_policy_class(mode='share')):
                      'adv': [128]
                  },
                  **kwargs):
-        assert not is_continuous, 'dueling double dqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'dueling double dqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,

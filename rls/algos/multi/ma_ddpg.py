@@ -25,9 +25,7 @@ class MADDPG(MultiAgentOffPolicy):
     '''
 
     def __init__(self,
-                 s_dim: Union[List[int], np.ndarray],
-                 a_dim: Union[List[int], np.ndarray],
-                 is_continuous: Union[List[bool], np.ndarray],
+                 envspec,
 
                  ployak: float = 0.995,
                  actor_lr: float = 5.0e-4,
@@ -40,12 +38,8 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         TODO: Annotation
         '''
-        assert all(is_continuous), 'maddpg only support continuous action space'
-        super().__init__(
-            s_dim=s_dim,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert all(envspec.is_continuous), 'maddpg only support continuous action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
 
         # self.action_noises = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))

@@ -18,11 +18,7 @@ from rls.algos.base.on_policy import make_on_policy_class
 
 class A2C(make_on_policy_class(mode='share')):
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -34,13 +30,7 @@ class A2C(make_on_policy_class(mode='share')):
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.beta = beta
         self.epoch = epoch
 

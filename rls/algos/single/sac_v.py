@@ -27,11 +27,7 @@ class SAC_V(make_off_policy_class(mode='share')):
     """
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  annealing=True,
@@ -55,13 +51,7 @@ class SAC_V(make_off_policy_class(mode='share')):
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau

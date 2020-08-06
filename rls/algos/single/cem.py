@@ -45,11 +45,7 @@ class CEM(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  hidden_units=[32, 32],
                  frac=0.2,
@@ -59,13 +55,7 @@ class CEM(make_on_policy_class(mode='share')):
                  extra_var_last_multiplier=0.2,
                  envs_per_popu=5,   # 环境数/模型数 余数为0
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.frac = frac
         self.hidden_units = hidden_units
         self.init_var = init_var

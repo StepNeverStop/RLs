@@ -17,25 +17,15 @@ class SQL(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  lr=5.0e-4,
                  alpha=2,
                  ployak=0.995,
                  hidden_units=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'sql only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'sql only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.alpha = alpha
         self.ployak = ployak
 
