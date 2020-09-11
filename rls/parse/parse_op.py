@@ -18,6 +18,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     # gym > unity > unity_env
     env_args = Config()
     env_args.env_num = options.n_copys  # Environmental copies of vectorized training.
+    env_args.inference = options.inference  # Environmental copies of vectorized training.
     if options.gym:
         env_args.type = 'gym'
         env_args.add_dict(default_config['gym']['env'])

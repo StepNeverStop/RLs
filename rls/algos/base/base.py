@@ -109,7 +109,7 @@ class Base:
         """
         train_step = int(kwargs.get('train_step', 0))
         self.saver.save(checkpoint_number=train_step)
-        logger.info(f'Save checkpoint success. Training step: {train_step}')
+        logger.info(colorize(f'Save checkpoint success. Training step: {train_step}', color='green'))
         self.write_training_info(kwargs)
 
     def get_init_training_info(self) -> Dict:

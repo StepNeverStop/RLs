@@ -155,6 +155,7 @@ class Trainer:
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
         if not self.train_args['inference']:
+            self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
                 'buffer': self.buffer_args.to_dict,
@@ -188,6 +189,7 @@ class Trainer:
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
         if not self.train_args['inference']:
+            self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
                 'buffer': self.buffer_args.to_dict,
@@ -219,6 +221,7 @@ class Trainer:
             self.models.append(model)
 
             if not _targs['inference']:
+                _aargs['envspec'] = str(_aargs['envspec'])
                 records_dict = {
                     'env': self.env_args.to_dict,
                     'buffer': _bargs.to_dict,
