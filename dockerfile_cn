@@ -55,9 +55,9 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda init bash && \
     echo "\
 channels:\n\
-- https://mirrors.ustc.edu.cn/anaconda/pkgs/main/\n\
-- https://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge/\n\
-- https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/\n\
+- http://mirrors.ustc.edu.cn/anaconda/pkgs/main/\n\
+- http://mirrors.ustc.edu.cn/anaconda/cloud/conda-forge/\n\
+- http://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/\n\
 - defaults" > ~/.condarc && \
     conda update conda && \
     conda install -y conda-build && \

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
+import platform
 from importlib import util as import_util
 from setuptools import setup, find_packages
 
@@ -10,6 +11,43 @@ spec.loader.exec_module(_metadata)
 with open('README.md', 'r', encoding='utf8') as f:
     long_description = f.read()
 long_description += '\n\nFor more information see our [github repository](https://github.com/StepNeverStop/RLs).'
+
+systembased_extras = {
+    'windows': [
+        'pywin32'
+    ],
+    'non-windows': [
+        'ray',
+        'ray[debug]',
+    ]
+}
+extras = {
+    'unity': [
+        'mlagents-envs==0.19.0'
+    ],
+    'atari': [
+        'atari_py~=0.2.0',
+        'Pillow',
+        'opencv-python',
+    ],
+    'mujoco': [
+        'mujoco_py'
+    ],
+    'pybullet': [
+        'PyBullet'
+    ],
+    'gym-minigrid': [
+        'gym-minigrid'
+    ]
+}
+all_deps = []
+for group_name in extras:
+    all_deps += extras[group_name]
+if platform.system() == "Windows":
+    all_deps += systembased_extras['windows']
+else:
+    all_deps += systembased_extras['non-windows']
+extras['all'] = all_deps
 
 setup(
     name="RLs",
@@ -47,36 +85,12 @@ setup(
     install_requires=[
         'docopt',
         'numpy',
-        'gym>=0.15.0',
+        'gym>=0.15.0, <=0.15.3',
         'pyyaml',
         'tqdm',
         'tensorflow>=2.0.0, <=2.1.0',
         'tensorflow_probability==0.8.0',
         'gast==0.2.2'
     ],
-    extras_require={
-        'windows': [
-            'pywin32'
-        ],
-        'non-windows': [
-            'ray',
-            'ray[debug]',
-        ],
-        'unity': [
-            'mlagents-envs==0.19.0'
-        ],
-        'atari': [
-            'atari_py',
-            'opencv-python',
-        ],
-        'mujoco': [
-            'mujoco_py'
-        ],
-        'pybullet': [
-            'PyBullet'
-        ],
-        'gym-minigrid': [
-            'gym-minigrid'
-        ]
-    },
+    extras_require=extras,
 )
