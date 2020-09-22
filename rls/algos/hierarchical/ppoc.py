@@ -6,10 +6,9 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 from rls.nn import ppoc_share as NetWork
-from rls.utils.tf2_utils import \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
 
 

@@ -6,13 +6,12 @@ import numpy as np
 import tensorflow as tf
 
 from abc import ABC, abstractmethod
-from typing import \
-    Any, \
-    NoReturn, \
-    Union, \
-    List, \
-    Tuple, \
-    Optional
+from typing import (Any,
+                    NoReturn,
+                    Union,
+                    List,
+                    Tuple,
+                    Optional)
 
 from rls.memories.sum_tree import Sum_Tree
 

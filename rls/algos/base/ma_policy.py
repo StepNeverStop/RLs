@@ -5,14 +5,13 @@ import numpy as np
 import tensorflow as tf
 
 from abc import abstractmethod
-from typing import \
-    List, \
-    Dict, \
-    Union, \
-    Callable, \
-    Any, \
-    Optional, \
-    NoReturn
+from typing import (List,
+                    Dict,
+                    Union,
+                    Callable,
+                    Any,
+                    Optional,
+                    NoReturn)
 
 from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate

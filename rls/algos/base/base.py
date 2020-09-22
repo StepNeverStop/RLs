@@ -6,22 +6,19 @@ import json
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Dict, \
-    Callable, \
-    Union, \
-    List, \
-    NoReturn, \
-    Optional, \
-    Any
+from typing import (Dict,
+                    Callable,
+                    Union,
+                    List,
+                    NoReturn,
+                    Optional,
+                    Any)
 
 from rls.utils.tf2_utils import get_device
 from rls.utils.display import colorize
-from rls.utils.sundry_utils import \
-    check_or_create
-from rls.utils.logging_utils import \
-    get_logger, \
-    set_log_file
+from rls.utils.sundry_utils import check_or_create
+from rls.utils.logging_utils import (get_logger,
+                                     set_log_file)
 logger = get_logger(__name__)
 
 

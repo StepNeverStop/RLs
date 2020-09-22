@@ -7,12 +7,10 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 
-from .activations import \
-    swish, \
-    mish
-from rls.nn.layers import \
-    Noisy, \
-    mlp
+from .activations import (swish,
+                          mish)
+from rls.nn.layers import (Noisy,
+                           mlp)
 
 
 initKernelAndBias = {

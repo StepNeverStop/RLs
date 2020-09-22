@@ -7,9 +7,8 @@ import random
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    List, \
-    NoReturn
+from typing import (List,
+                    NoReturn)
 
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger

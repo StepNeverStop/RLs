@@ -4,10 +4,9 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Union, \
-    List, \
-    NoReturn
+from typing import (Union,
+                    List,
+                    NoReturn)
 
 from rls.algos.single.dqn import DQN
 

@@ -7,15 +7,15 @@ assert tf.__version__[0] == '2'
 
 # algorithms based on TF 2.x
 
-from typing import \
-    Tuple, \
-    Callable, \
-    Dict
+from typing import (Tuple,
+                    Callable,
+                    Dict)
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
+
 
 class AlgoRegistry(object):
 
@@ -32,10 +32,13 @@ class AlgoRegistry(object):
             return self.algo_specs[name]
         raise Exception(f'Cannot find algorithm: {name}')
 
+
 registry = AlgoRegistry()
+
 
 def register(name, **attrs):
     registry.register(name, **attrs)
+
 
 def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     '''
@@ -54,7 +57,7 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     logger.info(colorize(LOGO, color='green'))
 
     model = getattr(
-        importlib.import_module(f'rls.algos.{policy_type}.{name}'), 
+        importlib.import_module(f'rls.algos.{policy_type}.{name}'),
         class_name)
 
     algo_config = load_yaml(f'rls/algos/config.yaml')[name]

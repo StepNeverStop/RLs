@@ -3,11 +3,10 @@ import numpy as np
 from typing import List
 
 from rls.distribute.pb2 import apex_datatype_pb2
-from rls.distribute.utils.numpy import \
-    bytes2numpy, \
-    numpy2bytes, \
-    batch_bytes2numpy, \
-    batch_numpy2bytes
+from rls.distribute.utils.numpy import (bytes2numpy,
+                                        numpy2bytes,
+                                        batch_bytes2numpy,
+                                        batch_numpy2bytes)
 
 
 def numpy2proto(arr: np.ndarray) -> apex_datatype_pb2.NDarray:

@@ -4,17 +4,15 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    List, \
-    Union, \
-    NoReturn, \
-    Dict
+from typing import (List,
+                    Union,
+                    NoReturn,
+                    Dict)
 
 from rls.nn import actor_dpg as ActorCts
 from rls.nn import critic_q_one as Critic
-from rls.nn.noise import \
-    OrnsteinUhlenbeckActionNoise, \
-    NormalActionNoise
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          NormalActionNoise)
 from rls.algos.base.ma_off_policy import MultiAgentOffPolicy
 from rls.utils.tf2_utils import update_target_net_weights
 

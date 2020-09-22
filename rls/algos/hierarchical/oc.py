@@ -9,11 +9,10 @@ from rls.nn import oc_intra_option as OptionNet
 from rls.nn import critic_q_all as Critic
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy,
+                                 update_target_net_weights)
 
 
 class OC(make_off_policy_class(mode='share')):

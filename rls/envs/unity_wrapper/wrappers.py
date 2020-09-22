@@ -18,9 +18,8 @@ from copy import deepcopy
 
 from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
-from rls.utils.tuples import \
-    SingleAgentEnvArgs, \
-    MultiAgentEnvArgs
+from rls.utils.tuples import (SingleAgentEnvArgs,
+                              MultiAgentEnvArgs)
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel

@@ -5,23 +5,21 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from typing import \
-    Union, \
-    List, \
-    Dict, \
-    NoReturn
+from typing import (Union,
+                    List,
+                    Dict,
+                    NoReturn)
 
 from rls.nn import actor_mu as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_v as Critic
 from rls.nn import a_c_v_continuous as ACCtsShare
 from rls.nn import a_c_v_discrete as ACDcsShare
-from rls.utils.tf2_utils import \
-    show_graph, \
-    get_TensorSpecs, \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (show_graph,
+                                 get_TensorSpecs,
+                                 gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
 
 

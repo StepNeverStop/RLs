@@ -7,9 +7,8 @@ import tensorflow as tf
 from rls.nn import qrdqn_distributional as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import \
-    huber_loss, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (huber_loss,
+                                 update_target_net_weights)
 
 
 class QRDQN(make_off_policy_class(mode='share')):

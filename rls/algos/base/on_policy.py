@@ -4,12 +4,11 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Dict, \
-    Union, \
-    List, \
-    NoReturn, \
-    Any
+from typing import (Dict,
+                    Union,
+                    List,
+                    NoReturn,
+                    Any)
 
 from rls.memories.on_policy_buffer import DataBuffer
 

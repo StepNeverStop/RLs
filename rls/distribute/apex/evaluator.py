@@ -2,14 +2,11 @@ import grpc
 import time
 import numpy as np
 
-from rls.utils.np_utils import \
-    SMA, \
-    arrprint
-from rls.distribute.pb2 import \
-    apex_datatype_pb2, \
-    apex_learner_pb2_grpc
-from rls.distribute.utils.apex_utils import \
-    batch_proto2numpy
+from rls.utils.np_utils import (SMA,
+                                arrprint)
+from rls.distribute.pb2 import (apex_datatype_pb2,
+                                apex_learner_pb2_grpc)
+from rls.distribute.utils.apex_utils import batch_proto2numpy
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 

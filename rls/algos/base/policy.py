@@ -5,22 +5,20 @@ import numpy as np
 import tensorflow as tf
 
 from abc import abstractmethod
-from typing import \
-    Union, \
-    List, \
-    Callable, \
-    Tuple, \
-    Any, \
-    Dict, \
-    NoReturn, \
-    Optional
+from typing import (Union,
+                    List,
+                    Callable,
+                    Tuple,
+                    Any,
+                    Dict,
+                    NoReturn,
+                    Optional)
 
 from rls.algos.base.base import Base
 from rls.nn.networks import CuriosityModel
 from rls.nn.learningrate import ConsistentLearningRate
-from rls.utils.vector_runing_average import \
-    DefaultRunningAverage, \
-    SimpleRunningAverage
+from rls.utils.vector_runing_average import (DefaultRunningAverage,
+                                             SimpleRunningAverage)
 from rls.utils.tuples import SingleAgentEnvArgs
 
 

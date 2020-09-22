@@ -9,18 +9,17 @@ from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
 from skimage.util.shape import view_as_windows
-from tensorflow.keras.layers import Dense, \
-    Flatten, \
-    LayerNormalization
+from tensorflow.keras.layers import (Dense,
+                                     Flatten,
+                                     LayerNormalization)
 
 from rls.nn import actor_continuous as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
-from rls.utils.tf2_utils import \
-    clip_nn_log_std, \
-    squash_rsample, \
-    gaussian_entropy, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (clip_nn_log_std,
+                                 squash_rsample,
+                                 gaussian_entropy,
+                                 update_target_net_weights)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.modules import DoubleQ
@@ -200,11 +199,11 @@ class CURL(make_off_policy_class(mode='no_share')):
         )
         return (data,)
 
-    def _target_params_update(self): 
+    def _target_params_update(self):
         update_target_net_weights(
-        self.critic_target_net.weights + self.encoder_target.trainable_variables,
-        self.critic_net.weights + self.encoder.trainable_variables,
-        self.ployak)
+            self.critic_target_net.weights + self.encoder_target.trainable_variables,
+            self.critic_net.weights + self.encoder.trainable_variables,
+            self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

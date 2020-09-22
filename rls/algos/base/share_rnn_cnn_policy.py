@@ -4,19 +4,17 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Tuple, \
-    List, \
-    Optional, \
-    NoReturn, \
-    Dict, \
-    Union, \
-    Callable
+from typing import (Tuple,
+                    List,
+                    Optional,
+                    NoReturn,
+                    Dict,
+                    Union,
+                    Callable)
 
 from rls.algos.base.policy import Policy
-from rls.nn.networks import \
-    VisualNet, \
-    ObsRNN
+from rls.nn.networks import (VisualNet,
+                             ObsRNN)
 
 
 def _split_with_time(
