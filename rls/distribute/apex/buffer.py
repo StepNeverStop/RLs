@@ -5,15 +5,13 @@ import threading
 from concurrent import futures
 from typing import Iterator
 
-from rls.distribute.pb2 import \
-    apex_datatype_pb2, \
-    apex_buffer_pb2_grpc, \
-    apex_learner_pb2_grpc
-from rls.distribute.utils.apex_utils import \
-    proto2numpy, \
-    batch_proto2numpy, \
-    exps_and_prios2proto, \
-    proto2exps_and_tderror
+from rls.distribute.pb2 import (apex_datatype_pb2,
+                                apex_buffer_pb2_grpc,
+                                apex_learner_pb2_grpc)
+from rls.distribute.utils.apex_utils import (proto2numpy,
+                                             batch_proto2numpy,
+                                             exps_and_prios2proto,
+                                             proto2exps_and_tderror)
 from rls.distribute.utils.check import check_port_in_use
 from rls.memories.replay_buffer import PrioritizedExperienceReplay
 from rls.utils.display import colorize

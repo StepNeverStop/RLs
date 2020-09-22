@@ -29,12 +29,11 @@ def make_gym_env(env_args: Dict):
 
 
 def make_unity_env(env_args: Dict):
-    from rls.envs.unity_wrapper import \
-        UnityWrapper, \
-        InfoWrapper, \
-        UnityReturnWrapper, \
-        ActionWrapper, \
-        StackVisualWrapper
+    from rls.envs.unity_wrapper import (UnityWrapper,
+                                        InfoWrapper,
+                                        UnityReturnWrapper,
+                                        ActionWrapper,
+                                        StackVisualWrapper)
 
     env_kargs = deepcopy(env_args)
     env = UnityWrapper(env_kargs)

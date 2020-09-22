@@ -7,9 +7,8 @@ import time
 import platform
 BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
-from typing import \
-    Dict, \
-    Tuple
+from typing import (Dict,
+                    Tuple)
 
 from rls.common.config import Config
 

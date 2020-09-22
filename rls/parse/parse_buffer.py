@@ -3,8 +3,8 @@
 
 import importlib
 
-from typing import \
-    Optional
+from typing import Optional
+
 
 from rls.common.config import Config
 from rls.memories.replay_buffer import ReplayBuffer

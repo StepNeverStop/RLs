@@ -4,10 +4,9 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Union, \
-    List, \
-    NoReturn
+from typing import (Union,
+                    List,
+                    NoReturn)
 
 from rls.nn import critic_q_all as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
@@ -106,7 +105,7 @@ class DQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
-    
+
     @tf.function(experimental_relax_shapes=True)
     def _cal_td(self, memories, cell_state):
         ss, vvss, a, r, done = memories

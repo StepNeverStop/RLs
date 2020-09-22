@@ -7,29 +7,24 @@ import time
 import numpy as np
 
 from copy import deepcopy
-from typing import \
-    Dict, \
-    NoReturn, \
-    Optional
+from typing import (Dict,
+                    NoReturn,
+                    Optional)
 
 from rls.utils.display import show_dict
-from rls.utils.sundry_utils import \
-    check_or_create, \
-    set_global_seeds
+from rls.utils.sundry_utils import (check_or_create,
+                                    set_global_seeds)
 from rls.parse.parse_buffer import get_buffer
 from rls.utils.time import get_time_hhmmss
 from rls.algos import get_model_info
-from rls.common.train.unity import \
-    unity_train, \
-    unity_no_op, \
-    unity_inference
-from rls.common.train.gym import \
-    gym_train, \
-    gym_no_op, \
-    gym_inference
-from rls.common.yaml_ops import \
-    save_config, \
-    load_config
+from rls.common.train.unity import (unity_train,
+                                    unity_no_op,
+                                    unity_inference)
+from rls.common.train.gym import (gym_train,
+                                  gym_no_op,
+                                  gym_inference)
+from rls.common.yaml_ops import (save_config,
+                                 load_config)
 from rls.common.make_env import make_env
 from rls.common.config import Config
 from rls.utils.logging_utils import get_logger

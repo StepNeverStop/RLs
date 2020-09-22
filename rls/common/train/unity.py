@@ -4,17 +4,14 @@
 import numpy as np
 
 from tqdm import trange
-from typing import \
-    Callable, \
-    NoReturn
+from typing import (Callable,
+                    NoReturn)
 
-from rls.utils.np_utils import \
-    SMA, \
-    arrprint
+from rls.utils.np_utils import (SMA,
+                                arrprint)
 from rls.utils.list_utils import zeros_initializer
-from rls.utils.mlagents_utils import \
-    multi_agents_data_preprocess, \
-    multi_agents_action_reshape
+from rls.utils.mlagents_utils import (multi_agents_data_preprocess,
+                                      multi_agents_action_reshape)
 from rls.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)

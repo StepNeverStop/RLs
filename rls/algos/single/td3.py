@@ -9,9 +9,8 @@ from rls.nn import actor_dpg as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
 from rls.nn.modules import DoubleQ
-from rls.nn.noise import \
-    OrnsteinUhlenbeckActionNoise, \
-    ClippedNormalActionNoise
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          ClippedNormalActionNoise)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.tf2_utils import update_target_net_weights
 
@@ -97,7 +96,7 @@ class TD3(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
-    def _target_params_update(self): 
+    def _target_params_update(self):
         update_target_net_weights(
             self.actor_target_net.weights + self.critic_target_net.weights,
             self.actor_net.weights + self.critic_net.weights,

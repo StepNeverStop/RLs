@@ -22,10 +22,9 @@ except:
 import numpy as np
 
 from collections import deque
-from gym.spaces import \
-    Box, \
-    Discrete, \
-    Tuple
+from gym.spaces import (Box,
+                        Discrete,
+                        Tuple)
 
 from rls.utils.LazyFrames import LazyFrames
 

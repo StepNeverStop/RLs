@@ -7,11 +7,10 @@ import tensorflow_probability as tfp
 
 from rls.nn import actor_mu as ActorCts
 from rls.nn import actor_discrete as ActorDcs
-from rls.utils.tf2_utils import \
-    get_TensorSpecs, \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (get_TensorSpecs,
+                                 gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
 
 

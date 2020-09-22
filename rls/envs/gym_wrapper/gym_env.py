@@ -11,10 +11,9 @@ if platform.system() != "Windows" and use_ray:
 else:
     from . import threading_wrapper as Asyn
 
-from gym.spaces import \
-    Box, \
-    Discrete, \
-    Tuple
+from gym.spaces import (Box,
+                        Discrete,
+                        Tuple)
 from typing import Dict
 from copy import deepcopy
 

@@ -2,15 +2,13 @@ import grpc
 import time
 import numpy as np
 
-from rls.distribute.pb2 import \
-    apex_datatype_pb2, \
-    apex_learner_pb2_grpc, \
-    apex_buffer_pb2, \
-    apex_buffer_pb2_grpc
-from rls.distribute.utils.apex_utils import \
-    numpy2proto, \
-    batch_numpy2proto, \
-    batch_proto2numpy
+from rls.distribute.pb2 import (apex_datatype_pb2,
+                                apex_learner_pb2_grpc,
+                                apex_buffer_pb2,
+                                apex_buffer_pb2_grpc)
+from rls.distribute.utils.apex_utils import (numpy2proto,
+                                             batch_numpy2proto,
+                                             batch_proto2numpy)
 from rls.common.collector import GymCollector
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)

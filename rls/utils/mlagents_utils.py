@@ -3,9 +3,8 @@
 
 import numpy as np
 
-from typing import \
-    List, \
-    Callable
+from typing import (List,
+                    Callable)
 
 
 def multi_agents_data_preprocess(copy_nums: int, brain_controls: List) -> Callable[..., List]:

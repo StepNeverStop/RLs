@@ -5,15 +5,13 @@ import numpy as np
 
 from tqdm import trange
 from copy import deepcopy
-from typing import \
-    Tuple, \
-    List, \
-    Callable, \
-    NoReturn
+from typing import (Tuple,
+                    List,
+                    Callable,
+                    NoReturn)
 
-from rls.utils.np_utils import \
-    SMA, \
-    arrprint
+from rls.utils.np_utils import (SMA,
+                                arrprint)
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'

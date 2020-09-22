@@ -6,12 +6,10 @@ import numpy as np
 
 from copy import deepcopy
 
-from rls.utils.np_utils import \
-    SMA, \
-    arrprint
-from rls.distribute.utils.apex_utils import \
-    batch_numpy2proto, \
-    exps_and_tderror2proto
+from rls.utils.np_utils import (SMA,
+                                arrprint)
+from rls.distribute.utils.apex_utils import (batch_numpy2proto,
+                                             exps_and_tderror2proto)
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -85,7 +83,7 @@ class GymCollector(object):
                 td_error=td_error)
             model.partial_reset(done)
             state[i] = correct_new_state
-            dones_flag = np.sign(dones_flag+done)
+            dones_flag = np.sign(dones_flag + done)
             if all(dones_flag):
                 break
 
@@ -113,7 +111,7 @@ class GymCollector(object):
                     (state[0][j], state[1][j], action[j], reward[:, np.newaxis][j], new_state[0][j], new_state[1][j], done[:, np.newaxis][j])
                 )
             state[i] = correct_new_state
-            dones_flag = np.sign(dones_flag+done)
+            dones_flag = np.sign(dones_flag + done)
             if all(dones_flag):
                 break
 

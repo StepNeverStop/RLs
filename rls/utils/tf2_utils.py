@@ -4,10 +4,9 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    List, \
-    Optional, \
-    NoReturn
+from typing import (List,
+                    Optional,
+                    NoReturn)
 
 
 def get_device():
@@ -223,5 +222,5 @@ def update_target_net_weights(tge: List[tf.Tensor], src: List[tf.Tensor], ployak
 
 def grads_flatten(grads):
     return tf.concat(
-        [tf.keras.backend.flatten(g) for g in grads], 
+        [tf.keras.backend.flatten(g) for g in grads],
         axis=0)

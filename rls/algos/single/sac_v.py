@@ -11,11 +11,10 @@ from rls.nn import critic_q_one as CriticQ1
 from rls.nn import critic_q_all as CriticQn
 from rls.nn import critic_v as CriticV
 from rls.nn.modules import DoubleQ
-from rls.utils.tf2_utils import \
-    clip_nn_log_std, \
-    squash_rsample, \
-    gaussian_entropy, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (clip_nn_log_std,
+                                 squash_rsample,
+                                 gaussian_entropy,
+                                 update_target_net_weights)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 
@@ -128,7 +127,7 @@ class SAC_V(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
-    def _target_params_update(self): 
+    def _target_params_update(self):
         update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
 
     def learn(self, **kwargs):

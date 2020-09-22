@@ -8,9 +8,8 @@ import tensorflow_probability as tfp
 from rls.nn import actor_dpg as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
-from rls.nn.noise import \
-    OrnsteinUhlenbeckActionNoise, \
-    NormalActionNoise
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          NormalActionNoise)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.tf2_utils import update_target_net_weights
 
@@ -99,7 +98,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
-    def _target_params_update(self): 
+    def _target_params_update(self):
         update_target_net_weights(
             self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
             self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,

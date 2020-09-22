@@ -5,18 +5,15 @@ import numpy as np
 
 from concurrent import futures
 
-from rls.utils.np_utils import \
-    SMA, \
-    arrprint
-from rls.distribute.pb2 import \
-    apex_datatype_pb2, \
-    apex_learner_pb2_grpc
-from rls.distribute.utils.apex_utils import \
-    numpy2proto, \
-    proto2numpy, \
-    batch_proto2numpy, \
-    batch_numpy2proto, \
-    proto2exps_and_prios
+from rls.utils.np_utils import (SMA,
+                                arrprint)
+from rls.distribute.pb2 import (apex_datatype_pb2,
+                                apex_learner_pb2_grpc)
+from rls.distribute.utils.apex_utils import (numpy2proto,
+                                             proto2numpy,
+                                             batch_proto2numpy,
+                                             batch_numpy2proto,
+                                             proto2exps_and_prios)
 from rls.distribute.utils.check import check_port_in_use
 from rls.common.collector import GymCollector
 from rls.utils.display import colorize

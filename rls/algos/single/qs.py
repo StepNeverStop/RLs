@@ -4,10 +4,9 @@
 import numpy as np
 
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.plot import \
-    ion, \
-    ioff, \
-    plot_heatmap
+from rls.utils.plot import (ion,
+                            ioff,
+                            plot_heatmap)
 
 
 class QS:

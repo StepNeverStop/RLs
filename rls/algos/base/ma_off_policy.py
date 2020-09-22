@@ -4,10 +4,9 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    List, \
-    Union, \
-    NoReturn
+from typing import (List,
+                    Union,
+                    NoReturn)
 
 from rls.algos.base.ma_policy import MultiAgentPolicy
 

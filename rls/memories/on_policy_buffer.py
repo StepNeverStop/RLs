@@ -3,12 +3,11 @@
 
 import numpy as np
 
-from rls.utils.np_utils import \
-    int2one_hot, \
-    discounted_sum, \
-    discounted_sum_minus, \
-    normalization, \
-    standardization
+from rls.utils.np_utils import (int2one_hot,
+                                discounted_sum,
+                                discounted_sum_minus,
+                                normalization,
+                                standardization)
 
 
 class DataBuffer(object):

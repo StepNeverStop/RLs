@@ -4,11 +4,10 @@
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Dict, \
-    Union, \
-    NoReturn, \
-    List
+from typing import (Dict,
+                    Union,
+                    NoReturn,
+                    List)
 
 from rls.utils.np_utils import int2one_hot
 
