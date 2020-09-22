@@ -1,0 +1,15 @@
+apex_learner_ip: "127.0.0.1"
+apex_learner_port: "50051"
+
+apex_buffer_ip: "127.0.0.1"
+apex_buffer_port: "50052"
+apex_buffer_args:
+  batch_size: 256
+  capacity: 100000
+  max_train_step: 10000
+  alpha: 0.6 # priority
+  beta: 0.4 # importance sampling ratio
+  epsilon: 0.01
+  global_v: false
+
+# 每个worker探索程度不同 

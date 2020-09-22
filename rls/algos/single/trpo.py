@@ -36,11 +36,7 @@ class TRPO(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  beta=1.0e-3,
                  lr=5.0e-4,
@@ -59,13 +55,7 @@ class TRPO(make_on_policy_class(mode='share')):
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.beta = beta
         self.delta = delta
         self.lambda_ = lambda_
@@ -95,12 +85,6 @@ class TRPO(make_on_policy_class(mode='share')):
         self.critic_lr = self.init_lr(critic_lr)
         self.optimizer_critic = self.init_optimizer(self.critic_lr)
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
-            critic=self.critic_net,
-            optimizer_critic=self.optimizer_critic
-        ))
-
         if self.is_continuous:
             data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
         else:
@@ -108,18 +92,11 @@ class TRPO(make_on_policy_class(mode='share')):
         self.initialize_data_buffer(
             data_name_list=data_name_list)
 
-    def show_logo(self):
-        self.logger.info('''
-　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　
-　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　
-        ''')
+        self._worker_params_dict.update(
+            actor=self.actor_net,
+            critic=self.critic_net)
+        self._residual_params_dict.update(optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         a, _v, _lp, _morlpa, self.cell_state = self._get_action(s, visual_s, self.cell_state)

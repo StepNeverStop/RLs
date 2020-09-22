@@ -27,11 +27,7 @@ class SAC_V(make_off_policy_class(mode='share')):
     """
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  annealing=True,
@@ -55,13 +51,7 @@ class SAC_V(make_off_policy_class(mode='share')):
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
@@ -103,29 +93,15 @@ class SAC_V(make_off_policy_class(mode='share')):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             q_net=self.q_net,
             v_net=self.v_net,
             log_alpha=self.log_alpha,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha,
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　ｘｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　ｘ　　　　
-　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　　ｘｘ　ｘｘ　　　　　
-　　　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　
-　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
+            optimizer_alpha=self.optimizer_alpha)
+        self._model_post_process()
 
     @property
     def alpha(self):
@@ -152,28 +128,29 @@ class SAC_V(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
+    def _target_params_update(self): 
+        update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(memories, isw, crsty_loss, cell_state):
-            if self.is_continuous or self.use_gumbel:
-                td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
-            else:
-                td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
-            if self.annealing and not self.auto_adaption:
-                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-            return td_error, summaries
-
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': _train,
-                'update_function': lambda: update_target_net_weights(self.v_target_net.weights, self.v_net.weights, self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ])
             })
+
+    def _train(self, memories, isw, crsty_loss, cell_state):
+        if self.is_continuous or self.use_gumbel:
+            td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
+        else:
+            td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
+        if self.annealing and not self.auto_adaption:
+            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+        return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):

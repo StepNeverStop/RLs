@@ -22,11 +22,7 @@ class DQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim: Union[int, np.ndarray],
-                 visual_sources: Union[int, np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[int, np.ndarray],
-                 is_continuous: Union[bool, np.ndarray],
+                 envspec,
 
                  lr: float = 5.0e-4,
                  eps_init: float = 1,
@@ -36,14 +32,8 @@ class DQN(make_off_policy_class(mode='share')):
                  assign_interval: int = 1000,
                  hidden_units: List[int] = [32, 32],
                  **kwargs):
-        assert not is_continuous, 'dqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'dqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -60,26 +50,9 @@ class DQN(make_off_policy_class(mode='share')):
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
-        ))
-
-    def show_logo(self) -> NoReturn:
-        self.logger.info('''
-    　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘｘ　　
-    　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘｘｘｘｘ　　ｘ　　　
-    　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　　　ｘ　ｘｘｘｘ　ｘ　　　
-    　　　　ｘｘ　　　　　ｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　ｘｘｘｘｘ　　　
-    　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　　ｘ　　　ｘｘｘｘ　　　
-    　　　　ｘｘ　　　ｘｘｘｘ　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘ　　　　ｘｘｘ　　　
-    　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　　　ｘｘ　　　
-    　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
-    　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
-    　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ
-        ''')
+        self._worker_params_dict.update(model=self.q_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def choose_action(self,
                       s: np.ndarray,
@@ -99,21 +72,19 @@ class DQN(make_off_policy_class(mode='share')):
             q_values = self.q_net(feat)
         return tf.argmax(q_values, axis=1), cell_state
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -135,3 +106,24 @@ class DQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
+    
+    @tf.function(experimental_relax_shapes=True)
+    def _cal_td(self, memories, cell_state):
+        ss, vvss, a, r, done = memories
+        with tf.device(self.device):
+            feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
+            q = self.q_net(feat)
+            q_next = self.q_target_net(feat_)
+            q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
+            q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
+            td_error = q_eval - q_target
+        return td_error
+
+    def apex_learn(self, train_step, data, priorities):
+        self.train_step = train_step
+        return self._apex_learn(function_dict={
+            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+        }, data=data, priorities=priorities)
+
+    def apex_cal_td(self, data):
+        return self._apex_cal_td(data=data)

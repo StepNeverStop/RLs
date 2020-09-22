@@ -20,10 +20,11 @@ Options:
     -t,--train-step=<n>         总的训练次数, specify the training step that optimize the policy model [default: None]
     -u,--unity                  是否使用unity客户端, whether training with UNITY3D editor [default: False]
     
+    --apex=<str>                i.e. "learner"/"worker"/"buffer" [default: None]
     --unity-env=<name>          指定unity环境的名字, specify the name of training environment of UNITY3D [default: None]
     --config-file=<file>        指定模型的超参数config文件, specify the path of training configuration file [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径, specify the directory that store model, log and others [default: None]
-    --seed=<n>                  指定模型的随机种子, specify the model random seed [default: 0]
+    --seed=<n>                  指定训练器全局随机种子, specify the random seed of module random, numpy and tensorflow [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子, specify the environment random seed of UNITY3D [default: 0]
     --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
@@ -66,16 +67,20 @@ if sys.platform.startswith('win'):
     win32api.SetConsoleCtrlHandler(_win_handler, 1)
 
 import time
+import logging
 
 from typing import Dict
 from copy import deepcopy
 from docopt import docopt
 from multiprocessing import Process
 
-from rls.common.agent import Agent
+from rls.common.trainer import Trainer
 from rls.common.config import Config
 from rls.common.yaml_ops import load_yaml
 from rls.parse.parse_op import parse_options
+from rls.utils.display import show_dict
+from rls.utils.logging_utils import set_log_level
+set_log_level(logging.INFO)
 
 
 def get_options(options: Dict) -> Config:
@@ -117,7 +122,8 @@ def get_options(options: Dict) -> Config:
         ['render_episode',      f('--render-episode', int)],
         ['info',                f('--info', str)],
         ['use_wandb',           bool(options['--use-wandb'])],
-        ['unity_env',           f('--unity-env', str)]
+        ['unity_env',           f('--unity-env', str)],
+        ['apex',                f('--apex', str)]
     ]))
     return op
 
@@ -126,39 +132,43 @@ def agent_run(*args):
     '''
     Start a training task
     '''
-    Agent(*args)()
+    Trainer(*args)()
 
 
 def main():
     options = docopt(__doc__)
     options = get_options(dict(options))
-    print(options)
+    show_dict(options.to_dict)
 
     trails = options.models
     assert trails > 0, '--models must greater than 0.'
 
-    env_args, model_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
+    env_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
 
     if options.inference:
-        Agent(env_args, model_args, buffer_args, train_args).evaluate()
+        Trainer(env_args, buffer_args, train_args).evaluate()
         return
-
-    if trails == 1:
-        agent_run(env_args, model_args, buffer_args, train_args)
-    elif trails > 1:
-        processes = []
-        for i in range(trails):
-            _env_args, _model_args, _buffer_args, _train_args = map(deepcopy, [env_args, model_args, buffer_args, train_args])
-            _model_args.seed += i * 10
-            _train_args.name += f'/{i}'
-            _train_args.allow_print = True  # NOTE: set this could block other processes' print function
-            if _env_args.type == 'unity':
-                _env_args.port = env_args.port + i
-            p = Process(target=agent_run, args=(_env_args, _model_args, _buffer_args, _train_args))
-            p.start()
-            time.sleep(10)
-            processes.append(p)
-        [p.join() for p in processes]
+    
+    if options.apex is not None:
+        train_args.update(load_yaml(f'./rls/distribute/apex/config.yaml'))
+        Trainer(env_args, buffer_args, train_args).apex()
+    else:
+        if trails == 1:
+            agent_run(env_args, buffer_args, train_args)
+        elif trails > 1:
+            processes = []
+            for i in range(trails):
+                _env_args, _buffer_args, _train_args = map(deepcopy, [env_args, buffer_args, train_args])
+                _train_args.seed += i * 10
+                _train_args.name += f'/{i}'
+                _train_args.allow_print = True  # NOTE: set this could block other processes' print function
+                if _env_args.type == 'unity':
+                    _env_args.port = env_args.port + i
+                p = Process(target=agent_run, args=(_env_args, _buffer_args, _train_args))
+                p.start()
+                time.sleep(10)
+                processes.append(p)
+            [p.join() for p in processes]
 
 
 if __name__ == "__main__":

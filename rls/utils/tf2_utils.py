@@ -105,7 +105,7 @@ def gaussian_likelihood(x, mu, log_std):
         log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
     pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
-    return pre_sum
+    return tf.maximum(pre_sum, tf.math.log(1e-8))
 
 
 def gaussian_likelihood_sum(x, mu, log_std):
@@ -219,3 +219,9 @@ def update_target_net_weights(tge: List[tf.Tensor], src: List[tf.Tensor], ployak
         tf.group([t.assign(s) for t, s in zip(tge, src)])
     else:
         tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])
+
+
+def grads_flatten(grads):
+    return tf.concat(
+        [tf.keras.backend.flatten(g) for g in grads], 
+        axis=0)

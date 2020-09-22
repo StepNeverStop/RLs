@@ -21,23 +21,24 @@ from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import \
     DefaultRunningAverage, \
     SimpleRunningAverage
+from rls.utils.tuples import SingleAgentEnvArgs
 
 
 class Policy(Base):
-    def __init__(self,
-                 s_dim: Union[int, np.ndarray],
-                 visual_sources: Union[int, np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[int, np.ndarray],
-                 is_continuous: Union[bool, np.ndarray],
-                 **kwargs):
+    def __init__(self, envspec: SingleAgentEnvArgs, **kwargs):
         super().__init__(**kwargs)
-        self.s_dim = s_dim
-        self.feat_dim = self.s_dim
-        self.visual_sources = visual_sources
-        if visual_sources >= 1:
+        self.feat_dim = self.s_dim = envspec.s_dim
+        self.visual_sources = envspec.visual_sources
+        self.visual_resolutions = envspec.visual_resolutions
+        self.is_continuous = envspec.is_continuous
+        self.a_dim = envspec.a_dim
+        self.n_agents = envspec.n_agents
+        if self.n_agents <= 0:
+            raise ValueError('agents num must larger than zero.')
+
+        if self.visual_sources >= 1:
             self.use_visual = True
-            self.visual_dim = [visual_sources, *visual_resolution]
+            self.visual_dim = [self.visual_sources, *self.visual_resolutions]
         else:
             self.use_visual = False
             self.visual_dim = [0]
@@ -50,12 +51,6 @@ class Policy(Base):
         self.other_tv = []
 
         self.batch_size = int(kwargs.get('batch_size', 128))
-        self.n_agents = int(kwargs.get('n_agents', 0))
-        if self.n_agents <= 0:
-            raise ValueError('agents num must larger than zero.')
-
-        self.is_continuous = is_continuous
-        self.a_dim = a_dim
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.train_step = 0
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
@@ -69,6 +64,7 @@ class Policy(Base):
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
             self.curiosity_model = CuriosityModel(self.is_continuous, self.s_dim, self.a_dim, self.visual_dim, 128,
                                                   eta=self.curiosity_eta, lr=self.curiosity_lr, beta=self.curiosity_beta, loss_weight=self.curiosity_loss_weight)
+            self._worker_params_dict.update(curiosity_model=self.curiosity_model)
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
     def init_lr(self, lr: float) -> Callable:
@@ -94,13 +90,6 @@ class Policy(Base):
 
     def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
-
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        kwargs.update(dict(global_step=self.global_step))
-        if self.use_curiosity:
-            kwargs.update(curiosity_model=self.curiosity_model)
-        self._create_saver(kwargs)
-        self.show_logo()
 
     def intermediate_variable_reset(self) -> NoReturn:
         '''

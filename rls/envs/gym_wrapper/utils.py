@@ -78,7 +78,12 @@ def build_env(config: Dict):
     max_episode_steps = config.get('max_episode_steps', None)
 
     env_type = get_env_type(gym_env_name)
-    env = gym.make(gym_env_name)
+
+    env_params = {}
+    if env_type == 'bullet':
+        env_params.update({'renders': bool(config.get('inference', False))})
+
+    env = gym.make(gym_env_name, **env_params)
     env = BaseEnv(env)
 
     if env_type == 'atari':

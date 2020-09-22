@@ -4,7 +4,7 @@
 
 Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_3) Release 3 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_6) Release 6 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ![](./pics/framework.jpg)
 
@@ -175,10 +175,11 @@ Options:
     -t,--train-step=<n>         总的训练次数, specify the training step that optimize the policy model [default: None]
     -u,--unity                  是否使用unity客户端, whether training with UNITY3D editor [default: False]
     
+    --apex=<str>                i.e. "learner"/"worker"/"buffer" [default: None]
     --unity-env=<name>          指定unity环境的名字, specify the name of training environment of UNITY3D [default: None]
     --config-file=<file>        指定模型的超参数config文件, specify the path of training configuration file [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径, specify the directory that store model, log and others [default: None]
-    --seed=<n>                  指定模型的随机种子, specify the model random seed [default: 0]
+    --seed=<n>                  指定训练器全局随机种子, specify the random seed of module random, numpy and tensorflow [default: 0]
     --unity-env-seed=<n>        指定unity环境的随机种子, specify the environment random seed of UNITY3D [default: 0]
     --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
@@ -207,13 +208,13 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 
 1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
+3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&log&model`
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy`, `Off_Policy` or other super-class defined in `rls/algos/base`
     2. write default configuration in `rls/algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep', 'type': 'single'}`, make sure the class name matches the name of the algorithm class
+    3. register new algorithm at dictionary *algos* in `rls/algos/__init__.py`, make sure the class name matches the name of the algorithm class
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)

@@ -22,11 +22,7 @@ class IOC(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  q_lr=5.0e-3,
                  intra_option_lr=5.0e-4,
@@ -47,13 +43,7 @@ class IOC(make_off_policy_class(mode='share')):
                      'interest': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.assign_interval = assign_interval
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer
@@ -83,30 +73,17 @@ class IOC(make_off_policy_class(mode='share')):
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
         self.interest_optimizer = self.init_optimizer(self.interest_lr, clipvalue=5.)
 
-        self.model_recorder(dict(
+        self._worker_params_dict.update(
             q_net=self.q_net,
             intra_option_net=self.intra_option_net,
+            interest_net=self.interest_net)
+        self._residual_params_dict.update(
             termination_net=self.termination_net,
-            interest_net=self.interest_net,
             q_optimizer=self.q_optimizer,
             intra_option_optimizer=self.intra_option_optimizer,
             termination_optimizer=self.termination_optimizer,
-            interest_optimizer=self.interest_optimizer
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘ　ｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
-　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　
-　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘ　
-        ''')
+            interest_optimizer=self.interest_optimizer)
+        self._model_post_process()
 
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
@@ -142,16 +119,15 @@ class IOC(make_off_policy_class(mode='share')):
             new_options = tfp.distributions.Categorical(logits=op_logits).sample()
         return a, new_options, cell_state
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
@@ -163,7 +139,7 @@ class IOC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, last_options, options = memories
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
 import numpy as np
 
 from tqdm import trange
@@ -16,9 +15,9 @@ from rls.utils.list_utils import zeros_initializer
 from rls.utils.mlagents_utils import \
     multi_agents_data_preprocess, \
     multi_agents_action_reshape
+from rls.utils.logging_utils import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("rls.common.train.unity")
+logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
 
@@ -133,18 +132,16 @@ def unity_train(env, models,
                 step=last_done_step,
                 **sma[i].rs
             )
-        print_func('-' * 40, out_time=True)
-        print_func(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
+        print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
         for i, bn in enumerate(env.brain_names):
-            print_func(f'{bn} reward: {arrprint(rewards[i], 2)}')
+            print_func(f'{bn} R: {arrprint(rewards[i], 2)}')
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
-            unity_no_op(env, models, print_func=print_func, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
+            unity_no_op(env, models, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
                         desc='adding noise')
 
 
 def unity_no_op(env, models,
-                print_func: Callable[[str], None],
                 pre_fill_steps: int,
                 prefill_choose: bool,
                 real_done: bool,
@@ -208,7 +205,6 @@ def unity_inference(env, models,
 
 
 def ma_unity_no_op(env, model,
-                   print_func: Callable[[str], None],
                    pre_fill_steps: int,
                    prefill_choose: bool,
                    desc: str = 'Pre-filling',
@@ -354,10 +350,9 @@ def ma_unity_train(env, model,
                 **sma[i].rs
             )
 
-        print_func('-' * 40, out_time=True)
-        print_func(f'episode {episode:3d} | step {step:4d} | last_done_step {last_done_step:4d}')
+        print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
         for i in range(agents_num_per_copy):
-            print_func(f'agent {i} reward: {arrprint(rewards[i], 2)}')
+            print_func(f'Agent {i} R: {arrprint(rewards[i], 2)}')
 
 
 def ma_unity_inference(env, model,

@@ -26,11 +26,7 @@ class SAC(make_off_policy_class(mode='share')):
     """
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  annealing=True,
@@ -53,13 +49,7 @@ class SAC(make_off_policy_class(mode='share')):
                  critic_lr=1.0e-3,
                  alpha_lr=5.0e-4,
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
@@ -99,27 +89,14 @@ class SAC(make_off_policy_class(mode='share')):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             critic_net=self.critic_net,
             log_alpha=self.log_alpha,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha,
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　ｘｘ　　　　ｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘｘｘ　　　　　　　　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘ　　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　
-        ''')
+            optimizer_alpha=self.optimizer_alpha)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -142,23 +119,14 @@ class SAC(make_off_policy_class(mode='share')):
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
+    def _target_params_update(self): 
+        update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights, self.ployak)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(memories, isw, crsty_loss, cell_state):
-            if self.is_continuous or self.use_gumbel:
-                td_error, summaries = self.train_persistent(memories, isw, crsty_loss, cell_state)
-            else:
-                td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
-            if self.annealing and not self.auto_adaption:
-                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-            return td_error, summaries
-
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': _train,
-                'update_function': lambda: update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
-                                                                          self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
@@ -170,6 +138,15 @@ class SAC(make_off_policy_class(mode='share')):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
+    def _train(self, memories, isw, crsty_loss, cell_state):
+        if self.is_continuous or self.use_gumbel:
+            td_error, summaries = self.train_persistent(memories, isw, crsty_loss, cell_state)
+        else:
+            td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
+        if self.annealing and not self.auto_adaption:
+            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+        return td_error, summaries
+
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
@@ -179,7 +156,7 @@ class SAC(make_off_policy_class(mode='share')):
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)
@@ -274,7 +251,7 @@ class SAC(make_off_policy_class(mode='share')):
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     logits = self.actor_net(feat)

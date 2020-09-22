@@ -18,11 +18,7 @@ from rls.algos.base.on_policy import make_on_policy_class
 
 class A2C(make_on_policy_class(mode='share')):
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  epoch=5,
                  beta=1.0e-3,
@@ -34,13 +30,7 @@ class A2C(make_on_policy_class(mode='share')):
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.beta = beta
         self.epoch = epoch
 
@@ -56,27 +46,15 @@ class A2C(make_on_policy_class(mode='share')):
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
-        self.model_recorder(dict(
-            actor=self.actor_net,
-            critic=self.critic_net,
-            optimizer_actor=self.optimizer_actor,
-            optimizer_critic=self.optimizer_critic
-        ))
 
         self.initialize_data_buffer()
 
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　ｘ　ｘｘ　　　　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘ　ｘｘ　　　　　　　　　　　　ｘｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-        ''')
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
+            critic=self.critic_net,
+            optimizer_actor=self.optimizer_actor,
+            optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
