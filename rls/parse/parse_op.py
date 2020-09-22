@@ -89,6 +89,9 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     ]))
     if options.apex is not None:
         train_args.name = f'{options.apex}/' + train_args.name
+    if options.hostname:
+        import socket
+        train_args.name += ('-' + str(socket.gethostname()))
 
     buffer_args = Config(**default_config['buffer'])
     return env_args, buffer_args, train_args
