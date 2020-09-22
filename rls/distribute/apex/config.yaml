@@ -12,4 +12,11 @@ apex_buffer_args:
   epsilon: 0.01
   global_v: false
 
-# 每个worker探索程度不同 
+apex_worker_args:
+  rollout_interval: 1 # seconds
+  is_send_traj: False
+
+apex_evaluator_args:
+  pull_interval: 2 # episode
+  episode_sleep: 5 # seconds
+# 每个worker探索程度不同

@@ -3,12 +3,11 @@ import time
 import threading
 import numpy as np
 
+from concurrent import futures
+
 from rls.utils.np_utils import \
     SMA, \
     arrprint
-
-from concurrent import futures
-
 from rls.distribute.pb2 import \
     apex_datatype_pb2, \
     apex_learner_pb2_grpc
@@ -20,6 +19,7 @@ from rls.distribute.utils.apex_utils import \
     proto2exps_and_prios
 from rls.distribute.utils.check import check_port_in_use
 from rls.common.collector import GymCollector
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -73,7 +73,7 @@ class EvalThread(threading.Thread):
                 step=last_done_step,
                 **sma.rs
             )
-            print(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
+            logger.info(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
             time.sleep(5)
 
 
@@ -104,11 +104,11 @@ class LearnerServicer(apex_learner_pb2_grpc.LearnerServicer):
         self.train_step += 1
         if self.train_step % 100 == 0:
             self.model.save_checkpoint(train_step=self.train_step)
-        # logger.info('send new priorities to buffer.')
+        logger.info('send new priorities to buffer...')
         return td_error
 
 
-def learner(ip, port, model, env):
+def learner(env, model, ip, port):
     check_port_in_use(port, ip, try_times=10, server_name='learner')
     assert hasattr(model, 'apex_learn') and hasattr(model, 'apex_cal_td'), 'this algorithm does not support Ape-X learning for now.'
 
@@ -116,10 +116,10 @@ def learner(ip, port, model, env):
     apex_learner_pb2_grpc.add_LearnerServicer_to_server(LearnerServicer(model), server)
     server.add_insecure_port(':'.join([ip, port]))
     server.start()
-    logger.info('start learner success.')
+    logger.info(colorize('start learner success.', color='green'))
 
-    eval_thread = EvalThread(env, model)
-    eval_thread.start()
+    # eval_thread = EvalThread(env, model)
+    # eval_thread.start()
 
     # GymCollector.evaluate(env, model)
     server.wait_for_termination()

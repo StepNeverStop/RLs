@@ -16,6 +16,7 @@ from rls.distribute.utils.apex_utils import \
     proto2exps_and_tderror
 from rls.distribute.utils.check import check_port_in_use
 from rls.memories.replay_buffer import PrioritizedExperienceReplay
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -30,19 +31,17 @@ class LearnThread(threading.Thread):
         self.lock = lock
 
     def run(self):
-        train_time = 0
         while True:
             if self.buffer.is_lg_batch_size:
                 with self.lock:
-                    exps = self.buffer.sample()
+                    exps, idxs = self.buffer.sample(return_index=True)
                     prios = self.buffer.get_IS_w().reshape(-1, 1)
                     td_error = self.learner_stub.SendExperienceGetPriorities(
                         exps_and_prios2proto(
                             exps=exps,
                             prios=prios))
                     td_error = proto2numpy(td_error)
-                    self.buffer.update(td_error, train_time)
-                    train_time += 1
+                    self.buffer.update(td_error, idxs)
         self.learner_channel.close()
 
 
@@ -53,18 +52,23 @@ class BufferServicer(apex_buffer_pb2_grpc.BufferServicer):
         self.lock = lock
 
     def SendTrajectories(self, request_iterator: Iterator[apex_datatype_pb2.ListNDarray], context) -> apex_datatype_pb2.Nothing:
+        '''
+        worker向buffer发送一批trajectory
+        '''
         for traj in request_iterator:
             self.buffer.add(*batch_proto2numpy(traj))
         logger.info('receive Trajectories from worker.')
         return apex_datatype_pb2.Nothing()
 
     def SendExperiences(self, request_iterator: Iterator[apex_datatype_pb2.ExpsAndTDerror], context) -> apex_datatype_pb2.Nothing:
-        self.lock.acquire()
-        for request in request_iterator:
-            data, td_error = proto2exps_and_tderror(request)
-            self.buffer.apex_add_batch(td_error, *data)
-        logger.info('receive Experiences from worker.')
-        self.lock.release()
+        '''
+        worker向buffer发送一批经验
+        '''
+        with self.lock:
+            for request in request_iterator:
+                data, td_error = proto2exps_and_tderror(request)
+                self.buffer.apex_add_batch(td_error, *data)
+            logger.info('receive Experiences from worker.')
         return apex_datatype_pb2.Nothing()
 
 
@@ -84,7 +88,7 @@ def buffer(
     apex_buffer_pb2_grpc.add_BufferServicer_to_server(BufferServicer(buffer=buffer, lock=threadLock), server)
     server.add_insecure_port(':'.join([ip, port]))
     server.start()
-    logger.info('start buffer success.')
+    logger.info(colorize('start buffer success.', color='green'))
 
     learn_thread = LearnThread(learner_ip, learner_port, buffer, threadLock)
     learn_thread.start()

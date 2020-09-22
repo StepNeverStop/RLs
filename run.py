@@ -20,7 +20,7 @@ Options:
     -t,--train-step=<n>         总的训练次数, specify the training step that optimize the policy model [default: None]
     -u,--unity                  是否使用unity客户端, whether training with UNITY3D editor [default: False]
     
-    --apex=<str>                i.e. "learner"/"worker"/"buffer" [default: None]
+    --apex=<str>                i.e. "learner"/"worker"/"buffer"/"evaluator" [default: None]
     --unity-env=<name>          指定unity环境的名字, specify the name of training environment of UNITY3D [default: None]
     --config-file=<file>        指定模型的超参数config文件, specify the path of training configuration file [default: None]
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径, specify the directory that store model, log and others [default: None]

@@ -387,25 +387,23 @@ class Trainer:
         if self.train_args['apex'] == 'learner':
             from rls.distribute.apex.learner import learner
             learner(
-                ip=self.train_args['apex_learner_ip'],
-                port=self.train_args['apex_learner_port'],
+                env=self.env,
                 model=self.model,
-                env=self.env
+                ip=self.train_args['apex_learner_ip'],
+                port=self.train_args['apex_learner_port']
             )
-            return
-
-        if self.train_args['apex'] == 'worker':
+        elif self.train_args['apex'] == 'worker':
             from rls.distribute.apex.worker import worker
             worker(
+                env=self.env,
+                model=self.model,
                 learner_ip=self.train_args['apex_learner_ip'],
                 learner_port=self.train_args['apex_learner_port'],
                 buffer_ip=self.train_args['apex_buffer_ip'],
                 buffer_port=self.train_args['apex_buffer_port'],
-                model=self.model,
-                env=self.env)
-            return
-
-        if self.train_args['apex'] == 'buffer':
+                worker_args=self.train_args['apex_worker_args']
+            )
+        elif self.train_args['apex'] == 'buffer':
             from rls.distribute.apex.buffer import buffer
             buffer(
                 ip=self.train_args['apex_buffer_ip'],
@@ -414,4 +412,14 @@ class Trainer:
                 learner_port=self.train_args['apex_learner_port'],
                 buffer_args=self.train_args['apex_buffer_args']
             )
-            return
+        elif self.train_args['apex'] == 'evaluator':
+            from rls.distribute.apex.evaluator import evaluator
+            evaluator(
+                env=self.env,
+                model=self.model,
+                learner_ip=self.train_args['apex_learner_ip'],
+                learner_port=self.train_args['apex_learner_port'],
+                evaluator_args=self.train_args['apex_evaluator_args']
+            )
+
+        return
