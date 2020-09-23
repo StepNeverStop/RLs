@@ -28,7 +28,7 @@ extras = {
     'atari': [
         'atari_py~=0.2.0',
         'Pillow',
-        'opencv-python',
+        'opencv-python==4.1.2.30',
     ],
     'mujoco': [
         'mujoco_py'
