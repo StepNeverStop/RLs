@@ -53,11 +53,12 @@ class UnityWrapper(object):
                                              '--scene', str(unity_env_dict.get(env_args.get('env_name', 'Roller'), 'None')),
                                              '--n_agents', str(env_args.get('env_num', 1))
             ])
+        self.reset_config = env_args['reset_config']
 
     def reset(self, **kwargs):
-        reset_config = kwargs.get('reset_config', {})
+        reset_config = kwargs.get('reset_config', None) or self.reset_config
         for k, v in reset_config.items():
-            self.float_properties_channel.set_property(k, v)
+            self.float_properties_channel.set_float_parameter(k, v)
         self._env.reset()
 
     def __getattr__(self, name):
@@ -80,6 +81,7 @@ class BasicWrapper:
 class InfoWrapper(BasicWrapper):
     def __init__(self, env, env_args):
         super().__init__(env)
+        self._env.step()    # NOTE: 在一些图像输入的场景，如果初始化时不执行这条指令，那么将不能获取正确的场景智能体数量
         self.resize = env_args['resize']
 
         self.brain_names = list(self._env.behavior_specs.keys())  # 所有脑的名字列表
@@ -147,7 +149,7 @@ class InfoWrapper(BasicWrapper):
             if self.is_continuous[i]:
                 actions.append(np.random.random((self.brain_agents[i], self.a_dim[i])) * 2 - 1)  # [-1, 1]
             else:
-                actions.append(np.random.randint(self.a_dim[i], size=(self.brain_agents[i], 1), dtype=np.int32))
+                actions.append(np.random.randint(self.a_dim[i], size=(self.brain_agents[i],), dtype=np.int32))
         return actions
 
 
@@ -193,7 +195,7 @@ class UnityReturnWrapper(BasicWrapper):
         ps = [t]
 
         if len(d) != 0 and len(d) != n:
-            raise ValueError('agents number error.')
+            raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
 
         while len(d) != n:
             self._env.step()

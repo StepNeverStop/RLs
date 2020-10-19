@@ -259,7 +259,7 @@ class Trainer:
                     begin_frame_step=int(self.train_args['begin_frame_step']),
                     begin_episode=int(self.train_args['begin_episode']),
                     render=bool(self.train_args['render']),
-                    render_episode=int(self.train_args.get('render_episode', 50000)),
+                    render_episode=int(self.train_args.get('render_episode', sys.maxsize)),
                     save_frequency=int(self.train_args['save_frequency']),
                     max_step_per_episode=int(self.train_args['max_step_per_episode']),
                     max_train_episode=int(self.train_args['max_train_episode']),
