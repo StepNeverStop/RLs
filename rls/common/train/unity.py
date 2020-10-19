@@ -93,7 +93,7 @@ def unity_train(env, models,
                 visual_state[i] = _vs
                 if policy_mode == 'off-policy':
                     if train_step[i] % off_policy_train_interval == 0:
-                        models[i].learn(episode=episode, train_step=train_step)
+                        models[i].learn(episode=episode, train_step=train_step[i])
                     train_step[i] += 1
                     if train_step[i] % save_frequency == 0:
                         models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)
@@ -117,7 +117,7 @@ def unity_train(env, models,
         for i in range(env.brain_num):
             sma[i].update(rewards[i])
             if policy_mode == 'on-policy':
-                models[i].learn(episode=episode, train_step=train_step)
+                models[i].learn(episode=episode, train_step=train_step[i])
                 train_step[i] += 1
                 if train_step[i] % save_frequency == 0:
                     models[i].save_checkpoint(train_step=train_step[i], episode=episode, frame_step=frame_step)

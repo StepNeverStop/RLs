@@ -54,6 +54,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     train_args = Config(**default_config['train'])
     if options.gym:
         train_args.add_dict(default_config['gym']['train'])
+        train_args.render_episode = abs(train_args.render_episode) or sys.maxsize
         train_args.update({'render_episode': options.render_episode})
     else:
         train_args.add_dict(default_config['unity']['train'])
