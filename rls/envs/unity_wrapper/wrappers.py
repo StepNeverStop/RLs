@@ -68,7 +68,7 @@ class UnityWrapper(object):
 
 
 class BasicWrapper:
-    def __init__(self, env):
+    def __init__(self, env: UnityWrapper):
         self._env = env
         self._env.reset()
 
