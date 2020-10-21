@@ -28,7 +28,7 @@ class MADDPG(MultiAgentOffPolicy):
                  ployak: float = 0.995,
                  actor_lr: float = 5.0e-4,
                  critic_lr: float = 1.0e-3,
-                 hidden_units: Dict = {
+                 network_settings: Dict = {
                      'actor': [32, 32],
                      'q': [32, 32]
                  },
@@ -43,11 +43,11 @@ class MADDPG(MultiAgentOffPolicy):
         # self.action_noises = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
         self.action_noises = {i: OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim[i]), sigma=0.2 * np.ones(self.a_dim[i])) for i in range(self.agent_sep_ctls)}
 
-        def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], hidden_units['actor'])
+        def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], network_settings['actor'])
         self.actor_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
         self.actor_target_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
 
-        def _q_net(): return Critic(self.total_s_dim, self.total_a_dim, hidden_units['q'])
+        def _q_net(): return Critic(self.total_s_dim, self.total_a_dim, network_settings['q'])
         self.q_nets = {i: _q_net() for i in range(self.agent_sep_ctls)}
         self.q_target_nets = {i: _q_net() for i in range(self.agent_sep_ctls)}
 

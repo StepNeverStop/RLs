@@ -30,7 +30,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                  lambda_lr=5.0e-4,
                  discrete_tau=1.0,
                  cost_constraint=1.0,
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'reward': [32, 32],
@@ -44,11 +44,11 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.cost_constraint = cost_constraint  # long tern cost <= d
 
         if self.is_continuous:
-            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, network_settings['actor_continuous'])
             # self.action_noise = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         else:
-            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
@@ -56,10 +56,10 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.actor_tv = self.actor_net.trainable_variables
 
         def _critic_net(hiddens): return Critic(self.feat_dim, self.a_dim, hiddens)
-        self.reward_critic_net = _critic_net(hidden_units['reward'])
-        self.reward_critic_target_net = _critic_net(hidden_units['reward'])
-        self.cost_critic_net = _critic_net(hidden_units['cost'])
-        self.cost_critic_target_net = _critic_net(hidden_units['cost'])
+        self.reward_critic_net = _critic_net(network_settings['reward'])
+        self.reward_critic_target_net = _critic_net(network_settings['reward'])
+        self.cost_critic_net = _critic_net(network_settings['cost'])
+        self.cost_critic_target_net = _critic_net(network_settings['cost'])
 
         self.reward_critic_tv = self.reward_critic_net.trainable_variables + self.other_tv
         update_target_net_weights(

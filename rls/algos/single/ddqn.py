@@ -26,7 +26,7 @@ class DDQN(DQN):
                  eps_final: float = 0.01,
                  init2mid_annealing_step: int = 1000,
                  assign_interval: int = 2,
-                 hidden_units: List = [32, 32],
+                 network_settings: List = [32, 32],
                  **kwargs):
         assert not envspec.is_continuous, 'double dqn only support discrete action space'
         super().__init__(
@@ -37,7 +37,7 @@ class DDQN(DQN):
             eps_final=eps_final,
             init2mid_annealing_step=init2mid_annealing_step,
             assign_interval=assign_interval,
-            hidden_units=hidden_units,
+            network_settings=network_settings,
             **kwargs)
 
     @tf.function(experimental_relax_shapes=True)

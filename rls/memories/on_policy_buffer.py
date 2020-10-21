@@ -105,7 +105,7 @@ class DataBuffer(object):
         keys_shape = self.calculate_dim_before_sample(keys)
         all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
         for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
-            yield [data[i:i + batch_size] for data in all_data]
+            yield [data[i:i + batch_size * self.n_agents] for data in all_data]
 
     def sample_generater_rnn(self, time_step, keys=None):
         '''

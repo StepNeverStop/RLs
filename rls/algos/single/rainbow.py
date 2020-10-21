@@ -33,7 +33,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
-                 hidden_units={
+                 network_settings={
                      'share': [128],
                      'v': [128],
                      'adv': [128]
@@ -54,7 +54,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.atoms, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, self.atoms, network_settings)
         self.rainbow_net = _net()
         self.rainbow_target_net = _net()
         self.critic_tv = self.rainbow_net.trainable_variables + self.other_tv

@@ -29,7 +29,7 @@ class DQN(make_off_policy_class(mode='share')):
                  eps_final: float = 0.01,
                  init2mid_annealing_step: int = 1000,
                  assign_interval: int = 1000,
-                 hidden_units: List[int] = [32, 32],
+                 network_settings: List[int] = [32, 32],
                  **kwargs):
         assert not envspec.is_continuous, 'dqn only support discrete action space'
         super().__init__(envspec=envspec, **kwargs)
@@ -40,7 +40,7 @@ class DQN(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _q_net(): return NetWork(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return NetWork(self.feat_dim, self.a_dim, network_settings)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()

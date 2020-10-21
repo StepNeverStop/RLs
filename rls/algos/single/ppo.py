@@ -10,13 +10,12 @@ from typing import (Union,
                     Dict,
                     NoReturn)
 
-from rls.nn import actor_mu as ActorCts
+from rls.nn import actor_mu_logstd as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_v as Critic
 from rls.nn import a_c_v_continuous as ACCtsShare
 from rls.nn import a_c_v_discrete as ACDcsShare
 from rls.utils.tf2_utils import (show_graph,
-                                 get_TensorSpecs,
                                  gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
@@ -43,6 +42,7 @@ class PPO(make_on_policy_class(mode='share')):
                  share_net: bool = True,
                  actor_lr: float = 3e-4,
                  critic_lr: float = 1e-3,
+                 condition_sigma: bool = False,
                  kl_reverse: bool = False,
                  kl_target: float = 0.02,
                  kl_target_cutoff: float = 2,
@@ -54,7 +54,7 @@ class PPO(make_on_policy_class(mode='share')):
                  use_kl_loss: bool = False,
                  use_extra_loss: bool = False,
                  use_early_stop: bool = False,
-                 hidden_units: Dict = {
+                 network_settings: Dict = {
                      'share': {
                          'continuous': {
                              'share': [32, 32],
@@ -96,33 +96,27 @@ class PPO(make_on_policy_class(mode='share')):
         self.use_extra_loss = use_extra_loss
         self.use_early_stop = use_early_stop
 
-        if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
         if self.share_net:
-            # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1], [1])
             if self.is_continuous:
-                self.net = ACCtsShare(self.feat_dim, self.a_dim, hidden_units['share']['continuous'])
-                self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
+                self.net = ACCtsShare(self.feat_dim, self.a_dim, condition_sigma, network_settings['share']['continuous'])
             else:
-                self.net = ACDcsShare(self.feat_dim, self.a_dim, hidden_units['share']['discrete'])
-                self.net_tv = self.net.trainable_variables + self.other_tv
+                self.net = ACDcsShare(self.feat_dim, self.a_dim, network_settings['share']['discrete'])
+            self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
             self._worker_params_dict.update(model=self.net)
             self._residual_params_dict.update(optimizer=self.optimizer)
         else:
-            # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
-            # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
-                self.actor_net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-                self.actor_net_tv = self.actor_net.trainable_variables + [self.log_std]
+                self.actor_net = ActorCts(self.feat_dim, self.a_dim, condition_sigma, network_settings['actor_continuous'])
             else:
-                self.actor_net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
-                self.actor_net_tv = self.actor_net.trainable_variables
-            self.critic_net = Critic(self.feat_dim, hidden_units['critic'])
+                self.actor_net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
+            self.actor_net_tv = self.actor_net.trainable_variables
+            self.critic_net = Critic(self.feat_dim, network_settings['critic'])
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
             self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
+            
             self._worker_params_dict.update(
                 actor=self.actor_net,
                 critic=self.critic_net)
@@ -150,12 +144,12 @@ class PPO(make_on_policy_class(mode='share')):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 if self.share_net:
-                    mu, value = self.net(feat)
+                    mu, log_std, value = self.net(feat)
                 else:
-                    mu = self.actor_net(feat)
+                    mu, log_std = self.actor_net(feat)
                     value = self.critic_net(feat)
-                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
+                sample_op, _ = gaussian_clip_rsample(mu, log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 if self.share_net:
                     logits, value = self.net(feat)
@@ -185,7 +179,7 @@ class PPO(make_on_policy_class(mode='share')):
     def _get_value(self, feat):
         with tf.device(self.device):
             if self.share_net:
-                _, value = self.net(feat)
+                _, _, value = self.net(feat)
             else:
                 value = self.critic_net(feat)
             return value
@@ -279,9 +273,9 @@ class PPO(make_on_policy_class(mode='share')):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, value = self.net(feat)
-                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std, value = self.net(feat)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits, value = self.net(feat)
                     logp_all = tf.nn.log_softmax(logits)
@@ -331,9 +325,9 @@ class PPO(make_on_policy_class(mode='share')):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
                 if self.is_continuous:
-                    mu = self.actor_net(feat)
-                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.actor_net(feat)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)

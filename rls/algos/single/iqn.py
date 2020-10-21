@@ -31,7 +31,7 @@ class IQN(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
-                 hidden_units={
+                 network_settings={
                      'q_net': [128, 64],
                      'quantile': [128, 64],
                      'tile': [64]
@@ -52,7 +52,7 @@ class IQN(make_off_policy_class(mode='share')):
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, self.quantiles_idx, network_settings)
 
         self.q_net = _net()
         self.q_target_net = _net()

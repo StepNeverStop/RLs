@@ -90,7 +90,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                  ployak=0.995,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': {
                          'share': [128, 128],
                          'mu': [64],
@@ -116,7 +116,7 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.annealing = annealing
         self.img_size = img_size
         self.img_dim = [img_size, img_size, self.visual_dim[-1]]
-        self.vis_feat_size = hidden_units['encoder']
+        self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
             self.log_alpha = tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -126,21 +126,21 @@ class CURL(make_off_policy_class(mode='no_share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
         if self.is_continuous:
-            self.actor_net = ActorCts(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = ActorCts(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_continuous'])
         else:
-            self.actor_net = ActorDcs(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = ActorDcs(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        def _q_net(): return Critic(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['q'])
+        def _q_net(): return Critic(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
 
-        self.encoder = VisualEncoder(self.img_dim, hidden_units['encoder'])
-        self.encoder_target = VisualEncoder(self.img_dim, hidden_units['encoder'])
+        self.encoder = VisualEncoder(self.img_dim, network_settings['encoder'])
+        self.encoder_target = VisualEncoder(self.img_dim, network_settings['encoder'])
 
         self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
 

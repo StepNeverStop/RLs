@@ -29,7 +29,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=1000,
-                 hidden_units=[128, 128],
+                 network_settings=[128, 128],
                  **kwargs):
         assert not envspec.is_continuous, 'qrdqn only support discrete action space'
         assert nums > 0
@@ -45,7 +45,7 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.nums, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, self.nums, network_settings)
         self.q_dist_net = _net()
         self.q_target_dist_net = _net()
         self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv

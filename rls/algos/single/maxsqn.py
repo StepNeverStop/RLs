@@ -31,7 +31,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                  q_lr=5.0e-4,
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  **kwargs):
         assert not envspec.is_continuous, 'maxsqn only support discrete action space'
         super().__init__(envspec=envspec, **kwargs)
@@ -46,7 +46,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
-        def _q_net(): return Critic(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return Critic(self.feat_dim, self.a_dim, network_settings)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
