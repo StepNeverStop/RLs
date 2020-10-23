@@ -178,10 +178,16 @@ class PPO(make_on_policy_class(mode='share')):
     @tf.function
     def _get_value(self, feat):
         with tf.device(self.device):
-            if self.share_net:
-                _, _, value = self.net(feat)
+            if self.is_continuous:
+                if self.share_net:
+                    _, _, value = self.net(feat)
+                else:
+                    value = self.critic_net(feat)
             else:
-                value = self.critic_net(feat)
+                if self.share_net:
+                    _, value = self.net(feat)
+                else:
+                    value = self.critic_net(feat)
             return value
 
     def calculate_statistics(self) -> NoReturn:
