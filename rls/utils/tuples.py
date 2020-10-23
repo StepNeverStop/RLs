@@ -11,4 +11,4 @@ SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
                                 ])
 
 MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
-                               SingleAgentEnvArgs._fields + ('brain_controls',))
+                               SingleAgentEnvArgs._fields + ('group_controls',))
