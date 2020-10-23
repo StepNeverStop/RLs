@@ -24,7 +24,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
-                 hidden_units={
+                 network_settings={
                      'share': [128],
                      'v': [128],
                      'adv': [128]
@@ -39,7 +39,7 @@ class DDDQN(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, network_settings)
 
         self.dueling_net = _net()
         self.dueling_target_net = _net()

@@ -40,9 +40,9 @@ def show_graph(name='my_func_trace'):
 
 def get_TensorSpecs(*args):
     """
-    get all inputs' shape in order to fix the problem of retracting in TF2.0
+    get all inputs' shape in order to fix the problem of retracing in TF2.0
     """
-    return [tf.TensorSpec(shape=[None] + i, dtype=tf.float32) for i in args]
+    return [tf.TensorSpec(shape=[None] + i if isinstance(i, list) else [i], dtype=tf.float32) for i in args]
 
 
 def clip_nn_log_std(log_std, _min=-20, _max=2):

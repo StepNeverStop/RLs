@@ -40,7 +40,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                  high_critic_lr=1.0e-3,
                  low_actor_lr=1.0e-4,
                  low_critic_lr=1.0e-3,
-                 hidden_units={
+                 network_settings={
                      'high_actor': [64, 64],
                      'high_critic': [64, 64],
                      'low_actor': [64, 64],
@@ -65,11 +65,11 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.high_noise = ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale / 2)
         self.low_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
-        def _high_actor_net(): return ActorCts(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
+        def _high_actor_net(): return ActorCts(self.s_dim, self.sub_goal_dim, network_settings['high_actor'])
         if self.is_continuous:
-            def _low_actor_net(): return ActorCts(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return ActorCts(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
         else:
-            def _low_actor_net(): return ActorDcs(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return ActorDcs(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
         self.high_actor = _high_actor_net()
@@ -77,8 +77,8 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor = _low_actor_net()
         self.low_actor_target = _low_actor_net()
 
-        def _high_critic_net(): return Critic(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
-        def _low_critic_net(): return Critic(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
+        def _high_critic_net(): return Critic(self.s_dim, self.sub_goal_dim, network_settings['high_critic'])
+        def _low_critic_net(): return Critic(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_critic'])
 
         self.high_critic = DoubleQ(_high_critic_net)
         self.high_critic_target = DoubleQ(_high_critic_net)

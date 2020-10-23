@@ -37,7 +37,7 @@ class PPOC(make_on_policy_class(mode='share')):
                  kl_beta=[0.7, 1.3],
                  kl_alpha=1.5,
                  kl_coef=1.0,
-                 hidden_units={
+                 network_settings={
                      'share': [32, 32],
                      'q': [32, 32],
                      'intra_option': [32, 32],
@@ -66,7 +66,7 @@ class PPOC(make_on_policy_class(mode='share')):
         self.terminal_mask = terminal_mask
         self.o_beta = o_beta
 
-        self.net = NetWork(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
+        self.net = NetWork(self.feat_dim, self.a_dim, self.options_num, network_settings, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv

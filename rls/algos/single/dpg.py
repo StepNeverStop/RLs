@@ -23,7 +23,7 @@ class DPG(make_off_policy_class(mode='share')):
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'q': [32, 32]
@@ -35,13 +35,13 @@ class DPG(make_off_policy_class(mode='share')):
         if self.is_continuous:
             # self.action_noise = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
-            self.actor_net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = ActorCts(self.feat_dim, self.a_dim, network_settings['actor_continuous'])
         else:
-            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
         self.actor_tv = self.actor_net.trainable_variables
 
-        self.q_net = Critic(self.feat_dim, self.a_dim, hidden_units['q'])
+        self.q_net = Critic(self.feat_dim, self.a_dim, network_settings['q'])
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])

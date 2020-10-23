@@ -23,7 +23,7 @@ systembased_extras = {
 }
 extras = {
     'unity': [
-        'mlagents-envs==0.19.0'
+        'mlagents-envs==0.21.0'
     ],
     'atari': [
         'atari_py~=0.2.0',

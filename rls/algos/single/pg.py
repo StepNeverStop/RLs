@@ -5,10 +5,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn import actor_mu as ActorCts
+from rls.nn import actor_mu_logstd as ActorCts
 from rls.nn import actor_discrete as ActorDcs
-from rls.utils.tf2_utils import (get_TensorSpecs,
-                                 gaussian_clip_rsample,
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
@@ -20,21 +19,19 @@ class PG(make_on_policy_class(mode='share')):
 
                  lr=5.0e-4,
                  epoch=5,
-                 hidden_units={
+                 condition_sigma: bool = False,
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32]
                  },
                  **kwargs):
         super().__init__(envspec=envspec, **kwargs)
         self.epoch = epoch
-        # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1])
         if self.is_continuous:
-            self.net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
-            self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
+            self.net = ActorCts(self.feat_dim, self.a_dim, condition_sigma, network_settings['actor_continuous'])
         else:
-            self.net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
-            self.net_tv = self.net.trainable_variables + self.other_tv
+            self.net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
+        self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
@@ -54,8 +51,8 @@ class PG(make_on_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
-                mu = self.net(feat)
-                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
+                mu, log_std = self.net(feat)
+                sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 logits = self.net(feat)
                 norm_dist = tfp.distributions.Categorical(logits)
@@ -95,9 +92,9 @@ class PG(make_on_policy_class(mode='share')):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
-                    mu = self.net(feat)
-                    log_act_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.net(feat)
+                    log_act_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.net(feat)
                     logp_all = tf.nn.log_softmax(logits)

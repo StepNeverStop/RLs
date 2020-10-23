@@ -10,13 +10,12 @@ from typing import (Union,
                     Dict,
                     NoReturn)
 
-from rls.nn import actor_mu as ActorCts
+from rls.nn import actor_mu_logstd as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_v as Critic
 from rls.nn import a_c_v_continuous as ACCtsShare
 from rls.nn import a_c_v_discrete as ACDcsShare
 from rls.utils.tf2_utils import (show_graph,
-                                 get_TensorSpecs,
                                  gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
@@ -38,10 +37,12 @@ class PPO(make_on_policy_class(mode='share')):
                  lr: float = 5.0e-4,
                  lambda_: float = 0.95,
                  epsilon: float = 0.2,
+                 use_vclip: bool = False,
                  value_epsilon: float = 0.2,
                  share_net: bool = True,
                  actor_lr: float = 3e-4,
                  critic_lr: float = 1e-3,
+                 condition_sigma: bool = False,
                  kl_reverse: bool = False,
                  kl_target: float = 0.02,
                  kl_target_cutoff: float = 2,
@@ -49,7 +50,11 @@ class PPO(make_on_policy_class(mode='share')):
                  kl_beta: List[float] = [0.7, 1.3],
                  kl_alpha: float = 1.5,
                  kl_coef: float = 1.0,
-                 hidden_units: Dict = {
+                 extra_coef: float = 1000.0,
+                 use_kl_loss: bool = False,
+                 use_extra_loss: bool = False,
+                 use_early_stop: bool = False,
+                 network_settings: Dict = {
                      'share': {
                          'continuous': {
                              'share': [32, 32],
@@ -73,45 +78,45 @@ class PPO(make_on_policy_class(mode='share')):
         self.value_epoch = value_epoch
         self.lambda_ = lambda_
         self.epsilon = epsilon
+        self.use_vclip = use_vclip
         self.value_epsilon = value_epsilon
         self.share_net = share_net
         self.kl_reverse = kl_reverse
         self.kl_target = kl_target
         self.kl_alpha = kl_alpha
         self.kl_coef = tf.constant(kl_coef, dtype=tf.float32)
+        self.extra_coef = extra_coef
 
         self.kl_cutoff = kl_target * kl_target_cutoff
         self.kl_stop = kl_target * kl_target_earlystop
         self.kl_low = kl_target * kl_beta[0]
         self.kl_high = kl_target * kl_beta[-1]
 
-        if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
+        self.use_kl_loss = use_kl_loss
+        self.use_extra_loss = use_extra_loss
+        self.use_early_stop = use_early_stop
+
         if self.share_net:
-            # self.TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1], [1])
             if self.is_continuous:
-                self.net = ACCtsShare(self.feat_dim, self.a_dim, hidden_units['share']['continuous'])
-                self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
+                self.net = ACCtsShare(self.feat_dim, self.a_dim, condition_sigma, network_settings['share']['continuous'])
             else:
-                self.net = ACDcsShare(self.feat_dim, self.a_dim, hidden_units['share']['discrete'])
-                self.net_tv = self.net.trainable_variables + self.other_tv
+                self.net = ACDcsShare(self.feat_dim, self.a_dim, network_settings['share']['discrete'])
+            self.net_tv = self.net.trainable_variables + self.other_tv
             self.lr = self.init_lr(lr)
             self.optimizer = self.init_optimizer(self.lr)
             self._worker_params_dict.update(model=self.net)
             self._residual_params_dict.update(optimizer=self.optimizer)
         else:
-            # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
-            # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
             if self.is_continuous:
-                self.actor_net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-                self.actor_net_tv = self.actor_net.trainable_variables + [self.log_std]
+                self.actor_net = ActorCts(self.feat_dim, self.a_dim, condition_sigma, network_settings['actor_continuous'])
             else:
-                self.actor_net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
-                self.actor_net_tv = self.actor_net.trainable_variables
-            self.critic_net = Critic(self.feat_dim, hidden_units['critic'])
+                self.actor_net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
+            self.actor_net_tv = self.actor_net.trainable_variables
+            self.critic_net = Critic(self.feat_dim, network_settings['critic'])
             self.critic_tv = self.critic_net.trainable_variables + self.other_tv
             self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
             self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
+            
             self._worker_params_dict.update(
                 actor=self.actor_net,
                 critic=self.critic_net)
@@ -139,12 +144,12 @@ class PPO(make_on_policy_class(mode='share')):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
                 if self.share_net:
-                    mu, value = self.net(feat)
+                    mu, log_std, value = self.net(feat)
                 else:
-                    mu = self.actor_net(feat)
+                    mu, log_std = self.actor_net(feat)
                     value = self.critic_net(feat)
-                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
+                sample_op, _ = gaussian_clip_rsample(mu, log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 if self.share_net:
                     logits, value = self.net(feat)
@@ -174,7 +179,7 @@ class PPO(make_on_policy_class(mode='share')):
     def _get_value(self, feat):
         with tf.device(self.device):
             if self.share_net:
-                _, value = self.net(feat)
+                _, _, value = self.net(feat)
             else:
                 value = self.critic_net(feat)
             return value
@@ -200,7 +205,7 @@ class PPO(make_on_policy_class(mode='share')):
                         crsty_loss,
                         cell_state
                     )
-                    if kl > self.kl_stop:
+                    if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
             else:
@@ -211,7 +216,7 @@ class PPO(make_on_policy_class(mode='share')):
                         self.kl_coef,
                         cell_state
                     )
-                    if kl > self.kl_stop:
+                    if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
 
@@ -222,20 +227,28 @@ class PPO(make_on_policy_class(mode='share')):
                         cell_state
                     )
 
-            # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
-            if kl > self.kl_high:
-                self.kl_coef *= self.kl_alpha
-            elif kl < self.kl_low:
-                self.kl_coef /= self.kl_alpha
-
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
                 ['LOSS/critic_loss', critic_loss],
                 ['Statistics/kl', kl],
-                ['Statistics/kl_coef', self.kl_coef],
-                ['Statistics/early_step', early_step],
                 ['Statistics/entropy', entropy]
             ])
+
+            if self.use_early_stop:
+                summaries.update(dict([
+                    ['Statistics/early_step', early_step]
+                ]))
+
+            if self.use_kl_loss:
+                # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
+                if kl > self.kl_high:
+                    self.kl_coef *= self.kl_alpha
+                elif kl < self.kl_low:
+                    self.kl_coef /= self.kl_alpha
+
+                summaries.update(dict([
+                    ['Statistics/kl_coef', self.kl_coef]
+                ]))
             return summaries
 
         if self.share_net:
@@ -260,37 +273,42 @@ class PPO(make_on_policy_class(mode='share')):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, value = self.net(feat)
-                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std, value = self.net(feat)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits, value = self.net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 ratio = tf.exp(new_log_prob - old_log_prob)
+                surrogate = ratio * advantage
+                actor_loss = pi_loss = -tf.reduce_mean(
+                    tf.minimum(
+                        surrogate,
+                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
+                    ))
 
                 # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
                 if self.kl_reverse:
                     kl = tf.reduce_mean(new_log_prob - old_log_prob)
                 else:
                     kl = tf.reduce_mean(old_log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
-                surrogate = ratio * advantage
 
-                # https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
-                value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
-                td_error_clip = dc_r - value_clip
-                td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
-
-                pi_loss = -tf.reduce_mean(
-                    tf.minimum(
-                        surrogate,
-                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
-                    ))
-                kl_loss = kl_coef * kl
-                extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
-                actor_loss = pi_loss + kl_loss + extra_loss
+                if self.use_vclip:
+                    # https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
+                    value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
+                    td_error_clip = dc_r - value_clip
+                    td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+                else:
+                    td_square = tf.square(td_error)
+                if self.use_kl_loss:
+                    kl_loss = kl_coef * kl
+                    actor_loss += kl_loss
+                if self.use_extra_loss:
+                    extra_loss = self.extra_coef * tf.square(tf.maximum(0., kl - self.kl_cutoff))
+                    actor_loss += extra_loss
                 value_loss = 0.5 * tf.reduce_mean(td_square)
                 loss = actor_loss + 1.0 * value_loss - self.beta * entropy + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
@@ -307,9 +325,9 @@ class PPO(make_on_policy_class(mode='share')):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
                 if self.is_continuous:
-                    mu = self.actor_net(feat)
-                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.actor_net(feat)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
@@ -319,11 +337,14 @@ class PPO(make_on_policy_class(mode='share')):
                 kl = tf.reduce_mean(old_log_prob - new_log_prob)
                 surrogate = ratio * advantage
                 min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
-                pi_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
+                actor_loss = pi_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.beta * entropy)
 
-                kl_loss = kl_coef * kl
-                extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
-                actor_loss = pi_loss + kl_loss + extra_loss
+                if self.use_kl_loss:
+                    kl_loss = kl_coef * kl
+                    actor_loss += kl_loss
+                if self.use_extra_loss:
+                    extra_loss = self.extra_coef * tf.square(tf.maximum(0., kl - self.kl_cutoff))
+                    actor_loss += extra_loss
 
             actor_grads = tape.gradient(actor_loss, self.actor_net_tv)
             self.optimizer_actor.apply_gradients(
@@ -340,10 +361,13 @@ class PPO(make_on_policy_class(mode='share')):
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
 
-                value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                 td_error = dc_r - value
-                td_error_clip = dc_r - value_clip
-                td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+                if self.use_vclip:
+                    value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
+                    td_error_clip = dc_r - value_clip
+                    td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+                else:
+                    td_square = tf.square(td_error)
 
                 value_loss = 0.5 * tf.reduce_mean(td_square) + crsty_loss
             critic_grads = tape.gradient(value_loss, self.critic_tv)

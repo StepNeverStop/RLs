@@ -31,7 +31,7 @@ class TD3(make_off_policy_class(mode='share')):
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'q': [32, 32]
@@ -45,20 +45,20 @@ class TD3(make_off_policy_class(mode='share')):
         self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
-            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, network_settings['actor_continuous'])
             if noise_type == 'gaussian':
                 self.action_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
                 self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         else:
-            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
         self.actor_target_net = _actor_net()
         self.actor_tv = self.actor_net.trainable_variables
 
-        def _q_net(): return Critic(self.feat_dim, self.a_dim, hidden_units['q'])
+        def _q_net(): return Critic(self.feat_dim, self.a_dim, network_settings['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv

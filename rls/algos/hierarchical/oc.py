@@ -39,7 +39,7 @@ class OC(make_off_policy_class(mode='share')):
                  terminal_mask=True,
                  termination_regularizer=0.01,
                  assign_interval=1000,
-                 hidden_units={
+                 network_settings={
                      'q': [32, 32],
                      'intra_option': [32, 32],
                      'termination': [32, 32]
@@ -61,12 +61,12 @@ class OC(make_off_policy_class(mode='share')):
         self.boltzmann_temperature = boltzmann_temperature
         self.use_eps_greedy = use_eps_greedy
 
-        def _q_net(): return Critic(self.feat_dim, self.options_num, hidden_units['q'])
+        def _q_net(): return Critic(self.feat_dim, self.options_num, network_settings['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
-        self.intra_option_net = OptionNet(self.feat_dim, self.a_dim, self.options_num, hidden_units['intra_option'])
-        self.termination_net = Critic(self.feat_dim, self.options_num, hidden_units['termination'], 'sigmoid')
+        self.intra_option_net = OptionNet(self.feat_dim, self.a_dim, self.options_num, network_settings['intra_option'])
+        self.termination_net = Critic(self.feat_dim, self.options_num, network_settings['termination'], 'sigmoid')
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:

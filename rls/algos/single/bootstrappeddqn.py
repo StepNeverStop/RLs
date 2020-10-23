@@ -26,7 +26,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
                  init2mid_annealing_step=1000,
                  assign_interval=1000,
                  head_num=4,
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  **kwargs):
         assert not envspec.is_continuous, 'Bootstrapped DQN only support discrete action space'
         super().__init__(envspec=envspec, **kwargs)
@@ -40,7 +40,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
         self._probs = [1. / head_num for _ in range(head_num)]
         self.now_head = 0
 
-        def _q_net(): return NetWork(self.feat_dim, self.a_dim, self.head_num, hidden_units)
+        def _q_net(): return NetWork(self.feat_dim, self.a_dim, self.head_num, network_settings)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()

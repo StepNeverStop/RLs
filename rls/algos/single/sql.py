@@ -22,14 +22,14 @@ class SQL(make_off_policy_class(mode='share')):
                  lr=5.0e-4,
                  alpha=2,
                  ployak=0.995,
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  **kwargs):
         assert not envspec.is_continuous, 'sql only support discrete action space'
         super().__init__(envspec=envspec, **kwargs)
         self.alpha = alpha
         self.ployak = ployak
 
-        def _q_net(): return NetWork(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return NetWork(self.feat_dim, self.a_dim, network_settings)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
