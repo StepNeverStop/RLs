@@ -2,20 +2,12 @@
 # encoding: utf-8
 
 import ray
-from enum import Enum
+
 from typing import Dict
 
 
-class OP(Enum):
-    RESET = 0
-    STEP = 1
-    CLOSE = 2
-    RENDER = 3
-    SAMPLE = 4
-
-
 @ray.remote
-class RayEnv:
+class Env:
     def __init__(self, env_func, config: Dict):
         self.env = env_func(config)
 
@@ -28,8 +20,8 @@ class RayEnv:
     def step(self, action):
         return self.env.step(action)
 
-    def render(self):
-        self.env.render()
+    def render(self, **kwargs):
+        self.env.render(**kwargs)
 
     def close(self):
         self.env.close()
@@ -38,28 +30,32 @@ class RayEnv:
         return self.env.action_sample()
 
 
-def init_envs(func, config, n, seed):
-    ray.init()
-    envs = [RayEnv.remote(func, config) for i in range(n)]
-    seeds = [seed + i for i in range(n)]  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    [env.seed.remote(s) for env, s in zip(envs, seeds)]
-    return envs
+class RayEnv:
 
+    def __init__(self, make_func, config, n, seed):
+        ray.init()
+        self.n = n
+        self.idxs = list(range(n))
+        self.envs = [Env.remote(make_func, config) for i in range(n)]
+        for i in range(n):
+            self.envs[i].seed.remote(seed + i)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-def op_func(envs, op: OP, _args=None):
-    if op == OP.RESET:
-        return ray.get([env.reset.remote() for env in envs])
-    if op == OP.STEP:
-        return ray.get([env.step.remote(action) for env, action in zip(envs, _args)])
-    if op == OP.SAMPLE:
-        return ray.get([env.sample.remote() for env in envs])
-    if op == OP.RENDER:
-        if _args:  # record
-            [env.render.remote(filename=r'videos/{0}-{1}.mp4'.format(env.env.spec.id, i)) for i, env in enumerate(envs)]
-        else:
-            [env.render.remote() for env in envs]
-        return None
-    if op == OP.CLOSE:
-        ray.get([env.close.remote() for env in envs])
+    def reset(self, idxs=[]):
+        return ray.get([self.envs[i].reset.remote() for i in (idxs or self.idxs)])
+
+    def step(self, actions, idxs=[]):
+        return ray.get([self.envs[ray_idx].step.remote(actions[idx]) for idx, ray_idx in enumerate(idxs or self.idxs)])
+
+    def render(self, record=False, idxs=[]):
+        for i in (idxs or self.idxs):
+            if record:
+                self.envs[i].render.remote(filename=r'videos/{0}-{1}.mp4'.format(self.envs[i].env.spec.id, i))
+            else:
+                self.envs[i].render.remote()
+
+    def close(self, idxs=[]):
+        ray.get([self.envs[i].close.remote() for i in (idxs or self.idxs)])
         ray.shutdown()
-        return None
+
+    def sample(self, idxs=[]):
+        return ray.get([self.envs[i].action_sample.remote() for i in (idxs or self.idxs)])

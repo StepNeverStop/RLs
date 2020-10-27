@@ -29,6 +29,7 @@ extras = {
         'atari_py~=0.2.0',
         'Pillow',
         'opencv-python==4.1.2.30',
+        'imageio'
     ],
     'mujoco': [
         'mujoco_py'
@@ -44,8 +45,10 @@ all_deps = []
 for group_name in extras:
     all_deps += extras[group_name]
 if platform.system() == "Windows":
+    extras['windes'] = systembased_extras['windows']
     all_deps += systembased_extras['windows']
 else:
+    extras['non-windows'] = systembased_extras['non-windows']
     all_deps += systembased_extras['non-windows']
 extras['all'] = all_deps
 

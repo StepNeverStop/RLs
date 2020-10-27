@@ -5,8 +5,9 @@ import os
 import gym
 
 from typing import Dict
-from .wrappers import *
 from collections import defaultdict
+
+from rls.envs.gym_wrapper.wrappers import *
 
 
 def get_env_type(env_id):
@@ -19,7 +20,7 @@ def get_env_type(env_id):
 
     if env_id in _game_envs.keys():
         env_type = env_id
-        env_id = [g for g in _game_envs[env_type]][0]
+        env_id = _game_envs[env_type][0]
     else:
         env_type = None
         for g, e in _game_envs.items():
@@ -87,7 +88,7 @@ def build_env(config: Dict):
     env = BaseEnv(env)
 
     if env_type == 'atari':
-        assert 'NoFrameskip' in env.spec.id
+        assert 'NoFrameskip' in env.spec.id, 'env id should contain NoFrameskip.'
         from rls.common.yaml_ops import load_yaml
 
         default_config = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['atari']
