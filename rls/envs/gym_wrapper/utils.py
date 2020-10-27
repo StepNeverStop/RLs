@@ -7,6 +7,7 @@ import gym
 from typing import Dict
 from collections import defaultdict
 
+from rls.common.yaml_ops import load_yaml
 from rls.envs.gym_wrapper.wrappers import *
 
 
@@ -63,7 +64,7 @@ def wrap_deepmind(env, config: Dict):
     return env
 
 
-def build_env(config: Dict):
+def build_env(config: Dict, index: int = 0):
     gym_env_name = config['env_name']
     action_skip = bool(config.get('action_skip', False))
     skip = int(config.get('skip', 4))
@@ -84,12 +85,20 @@ def build_env(config: Dict):
     if env_type == 'bullet':
         env_params.update({'renders': bool(config.get('inference', False))})
 
+    elif env_type == 'donkey_env':
+        _donkey_conf = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['donkey']
+        import uuid
+        # [120, 160, 3]
+        _donkey_conf['port'] += index
+        _donkey_conf['car_name'] += str(index)
+        _donkey_conf['guid'] = str(uuid.uuid4())
+        env_params['conf'] = _donkey_conf
+
     env = gym.make(gym_env_name, **env_params)
     env = BaseEnv(env)
 
     if env_type == 'atari':
         assert 'NoFrameskip' in env.spec.id, 'env id should contain NoFrameskip.'
-        from rls.common.yaml_ops import load_yaml
 
         default_config = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['atari']
         env = make_atari(env, default_config)

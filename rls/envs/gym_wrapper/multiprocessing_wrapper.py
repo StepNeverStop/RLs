@@ -35,7 +35,7 @@ class MultiProcessingEnv:
 
     @staticmethod
     def run(i, make_func, config, conn):
-        env = make_func(config)
+        env = make_func(config, i)
         while True:
             op, data = conn.recv()
             if op == OP.SEED:

@@ -36,7 +36,7 @@ class RayEnv:
         ray.init()
         self.n = n
         self.idxs = list(range(n))
-        self.envs = [Env.remote(make_func, config) for i in range(n)]
+        self.envs = [Env.remote(make_func, (config, idx)) for idx in range(n)]
         for i in range(n):
             self.envs[i].seed.remote(seed + i)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 

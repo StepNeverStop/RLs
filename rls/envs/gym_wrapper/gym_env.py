@@ -28,6 +28,12 @@ except ImportError:
     logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
+try:
+    import gym_donkeycar
+except ImportError:
+    logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
+    pass
+
 from rls.utils.np_utils import int2action_index
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.tuples import SingleAgentEnvArgs
