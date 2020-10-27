@@ -353,12 +353,9 @@ a2c:
 ppo:
     share_net: true
     epsilon: 0.2
-    # value function clip
-    use_vclip: false
-    value_epsilon: 0.2
-
     gamma: 0.99
-    beta: 1.0e-3
+    ent_coef: 1.0e-2
+    vf_coef: 0.5
     lr: 5.0e-4
     lambda_: 0.97
     batch_size: 64
@@ -366,7 +363,12 @@ ppo:
     value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
-    condition_sigma: true
+    max_grad_norm: null
+    condition_sigma: false
+
+    # value function clip
+    use_vclip: false
+    value_epsilon: 0.2
 
     # kl loss
     use_kl_loss: false
@@ -375,10 +377,12 @@ ppo:
     kl_beta: [0.7, 1.3]
     kl_alpha: 1.5
     kl_coef: 1.0
+
     # extra loss
     use_extra_loss: false
     extra_coef: 1000.0
     kl_target_cutoff: 2
+
     # early stopping
     use_early_stop: false
     kl_target_earlystop: 4
