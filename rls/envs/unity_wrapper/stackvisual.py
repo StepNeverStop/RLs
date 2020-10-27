@@ -60,7 +60,7 @@ class StackVisualWrapper(UnityReturnWrapper):
     def __init__(self, env, stack_nums=4):
         super().__init__(env)
         self._stack_nums = stack_nums
-        self._stack_deque = {bn: deque([], maxlen=self._stack_nums) for bn in self.brain_names}
+        self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
 
     def reset(self, **kwargs):
         self._env.reset(**kwargs)
@@ -75,8 +75,8 @@ class StackVisualWrapper(UnityReturnWrapper):
         reward = []
         done = []
         info = []
-        for i, bn in enumerate(self.brain_names):
-            vec, vis, r, d, ifo = self.coordinate_reset_information(i, bn)
+        for i, gn in enumerate(self.group_names):
+            vec, vis, r, d, ifo = self.coordinate_reset_information(i, gn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
@@ -84,13 +84,13 @@ class StackVisualWrapper(UnityReturnWrapper):
             info.append(ifo)
         return (vector, visual, reward, done, info)
 
-    def coordinate_reset_information(self, i, bn):
-        vector, visual, reward, done, info = super().coordinate_information(i, bn)
+    def coordinate_reset_information(self, i, gn):
+        vector, visual, reward, done, info = super().coordinate_information(i, gn)
         for _ in range(self._stack_nums):
-            self._stack_deque[bn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done, info)
+            self._stack_deque[gn].append(visual)
+        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info)
 
-    def coordinate_information(self, i, bn):
-        vector, visual, reward, done, info = super().coordinate_information(i, bn)
-        self._stack_deque[bn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[bn], axis=-1), reward, done, info)
+    def coordinate_information(self, i, gn):
+        vector, visual, reward, done, info = super().coordinate_information(i, gn)
+        self._stack_deque[gn].append(visual)
+        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info)

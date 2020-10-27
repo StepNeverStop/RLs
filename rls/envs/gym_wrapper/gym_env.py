@@ -5,12 +5,6 @@ import gym
 import platform
 import numpy as np
 
-use_ray = False
-if platform.system() != "Windows" and use_ray:
-    from . import ray_wrapper as Asyn
-else:
-    from . import threading_wrapper as Asyn
-
 from gym.spaces import (Box,
                         Discrete,
                         Tuple)
@@ -32,6 +26,12 @@ try:
     import pybullet_envs
 except ImportError:
     logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
+    pass
+
+try:
+    import gym_donkeycar
+except ImportError:
+    logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
     pass
 
 from rls.utils.np_utils import int2action_index
@@ -56,7 +56,21 @@ class gym_envs(object):
         self.info_env.close()
         del self.info_env
 
-        self.envs = Asyn.init_envs(build_env, config, self.n, config['env_seed'])
+        # Import gym env vectorize wrapper class
+        if config['vector_env_type'] == 'multiprocessing':
+            from rls.envs.gym_wrapper.multiprocessing_wrapper import MultiProcessingEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'threading':
+            from rls.envs.gym_wrapper.threading_wrapper import MultiThreadEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'ray':
+            import platform
+            assert platform.system() != "Windows", 'Ray wrapper can be used in non-windows systems.'
+            from rls.envs.gym_wrapper.ray_wrapper import RayEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'vector':
+            from rls.envs.gym_wrapper.vector_wrapper import VectorEnv as AsynVectorEnvClass
+        else:
+            raise Exception('The vector_env_type of gym in config.yaml doesn\'in the list of [multiprocessing, threading, ray, vector]. Please check your configurations.')
+
+        self.envs = AsynVectorEnvClass(build_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
 
     def _initialize(self, env):
@@ -140,22 +154,22 @@ class gym_envs(object):
         '''
         render game windows.
         '''
-        Asyn.op_func([self.envs[i] for i in self.render_index], Asyn.OP.RENDER)
+        self.envs.render(record, self.render_index)
 
     def close(self):
         '''
         close all environments.
         '''
-        Asyn.op_func(self.envs, Asyn.OP.CLOSE)
+        self.envs.close()
 
     def sample_actions(self):
         '''
         generate random actions for all training environment.
         '''
-        return np.asarray(Asyn.op_func(self.envs, Asyn.OP.SAMPLE))
+        return np.asarray(self.envs.sample())
 
     def reset(self):
-        obs = np.asarray(Asyn.op_func(self.envs, Asyn.OP.RESET))
+        obs = np.asarray(self.envs.reset())
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
         return obs
@@ -168,7 +182,9 @@ class gym_envs(object):
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':
                 actions = actions.reshape(self.n, -1).tolist()
-        results = Asyn.op_func(self.envs, Asyn.OP.STEP, actions)
+
+        results = self.envs.step(actions)
+
         obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
         reward = reward.astype('float32')
         dones_index = np.where(done)[0]
@@ -183,6 +199,6 @@ class gym_envs(object):
 
     def partial_reset(self, obs, dones_index):
         correct_new_obs = deepcopy(obs)
-        partial_obs = np.asarray(Asyn.op_func([self.envs[i] for i in dones_index], Asyn.OP.RESET))
+        partial_obs = np.asarray(self.envs.reset(dones_index.tolist()))
         correct_new_obs[dones_index] = partial_obs
         return correct_new_obs

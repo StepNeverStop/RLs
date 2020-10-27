@@ -163,7 +163,7 @@ class Trainer:
 
     def initialize_multi_unity(self):
         # multi agents with unity
-        assert self.env.brain_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
+        assert self.env.group_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
             self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
@@ -196,13 +196,13 @@ class Trainer:
     def initialize_unity(self):
         # single agent with unity
         self.models = []
-        for i, b in enumerate(self.env.fixed_brain_names):
+        for i, fgn in enumerate(self.env.fixed_group_names):
             _bargs, _targs, _aargs = map(deepcopy, [self.buffer_args, self.train_args, self.algo_args])
-            _targs.base_dir = os.path.join(_targs.base_dir, b)
+            _targs.base_dir = os.path.join(_targs.base_dir, fgn)
             if _targs.load_model_path is not None:
-                _targs.load_model_path = os.path.join(_targs.load_model_path, b)
+                _targs.load_model_path = os.path.join(_targs.load_model_path, fgn)
             if 'Nstep' in _bargs['type'] or 'Episode' in _bargs['type']:
-                _bargs[_bargs['type']]['agents_num'] = self.env.brain_agents[i]
+                _bargs[_bargs['type']]['agents_num'] = self.env.group_agents[i]
             buffer = get_buffer(_bargs)
 
             _aargs.update({
