@@ -113,7 +113,7 @@ class TRPO(make_on_policy_class(mode='share')):
             else:
                 logits = self.actor_net(feat)
                 logp_all = tf.nn.log_softmax(logits)
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=logp_all)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
                 return sample_op, value, log_prob, logp_all, cell_state

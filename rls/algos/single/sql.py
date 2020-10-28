@@ -56,8 +56,9 @@ class SQL(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q_values = self.q_net(feat)
-            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)
-            cate_dist = tfp.distributions.Categorical(logits)
+            # NOTE: check whether this is correct or not
+            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
+            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
             pi = cate_dist.sample()
         return pi, cell_state
 

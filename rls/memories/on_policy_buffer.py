@@ -39,8 +39,7 @@ class DataBuffer(object):
         '''
         dc_r = discounted_sum(self.buffer['r'], gamma, init_value, self.buffer['done'])
         if normalize:
-            dc_r -= np.mean(dc_r)
-            dc_r /= np.std(dc_r)
+            dc_r = (dc_r - np.mean(dc_r)) / (np.std(dc_r) + 1e-8)
         self.buffer['discounted_reward'] = list(dc_r)
 
     def cal_tr(self, init_value):
@@ -63,7 +62,7 @@ class DataBuffer(object):
             self.buffer['value']
         )
 
-    def cal_gae_adv(self, lambda_, gamma):
+    def cal_gae_adv(self, lambda_, gamma, normalize=False):
         '''
         计算GAE优势估计
         adv = td(s) + gamma * lambda * (1 - done) * td(s')
@@ -75,6 +74,8 @@ class DataBuffer(object):
             0,
             self.buffer['done']
         ))
+        if normalize:
+            adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
         self.buffer['gae_adv'] = list(standardization(adv))
 
     def last_s(self):
