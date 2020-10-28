@@ -125,7 +125,7 @@ class AOC(make_on_policy_class(mode='share')):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = pi
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
             q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]

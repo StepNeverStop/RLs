@@ -32,7 +32,7 @@ def get_buffer(buffer_args: Config) -> Optional[ReplayBuffer]:
     '''
 
     if buffer_args.get('buffer_size', 0) <= 0:
-        logger.info('This algorithm does not need sepecify a data buffer oustside the model.')
+        logger.info('This algorithm does not need sepecify a data buffer outside the model.')
         return None
 
     _buffer_type = buffer_args.get('type', 'None')

@@ -111,11 +111,11 @@ class IOC(make_off_policy_class(mode='share')):
                 a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
+                dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(pi))  # [B, ]
                 a = dist.sample()
             interests = self.interest_net(feat)  # [B, P]
             op_logits = interests * q  # [B, P] or tf.nn.softmax(q)
-            new_options = tfp.distributions.Categorical(logits=op_logits).sample()
+            new_options = tfp.distributions.Categorical(logits=tf.nn.log_softmax(op_logits)).sample()
         return a, new_options, cell_state
 
     def _target_params_update(self):

@@ -191,7 +191,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             else:
                 logits = self.low_actor(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfd.Categorical(logits)
+                cate_dist = tfd.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi
 

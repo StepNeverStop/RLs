@@ -13,7 +13,7 @@ atari:
   height: 84
 
 donkey:
-  exe_path: C:\data\DonkeySimWin\donkey_sim\donkey_sim.exe
+  exe_path: ...\donkey_sim.exe
   host: 127.0.0.1
   port: 9091
   body_style: donkey

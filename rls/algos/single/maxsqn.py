@@ -77,11 +77,11 @@ class MAXSQN(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.critic_net.Q1(feat)
-            cate_dist = tfp.distributions.Categorical(logits=q / self.alpha)
+            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(q / self.alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi, cell_state
 
-    def _target_params_update(self): 
+    def _target_params_update(self):
         update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights, self.ployak)
 
     def learn(self, **kwargs):
