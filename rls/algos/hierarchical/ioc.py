@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -8,11 +8,10 @@ import tensorflow_probability as tfp
 from rls.nn import oc_intra_option as OptionNet
 from rls.nn import critic_q_all as Critic
 from rls.algos.base.off_policy import make_off_policy_class
-from rls.utils.tf2_utils import \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy,
+                                 update_target_net_weights)
 
 
 class IOC(make_off_policy_class(mode='share')):
@@ -22,11 +21,7 @@ class IOC(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  q_lr=5.0e-3,
                  intra_option_lr=5.0e-4,
@@ -40,20 +35,14 @@ class IOC(make_off_policy_class(mode='share')):
                  terminal_mask=True,
                  termination_regularizer=0.01,
                  assign_interval=1000,
-                 hidden_units={
+                 network_settings={
                      'q': [32, 32],
                      'intra_option': [32, 32],
                      'termination': [32, 32],
                      'interest': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.assign_interval = assign_interval
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer
@@ -63,13 +52,13 @@ class IOC(make_off_policy_class(mode='share')):
         self.double_q = double_q
         self.boltzmann_temperature = boltzmann_temperature
 
-        def _q_net(): return Critic(self.feat_dim, self.options_num, hidden_units['q'])
+        def _q_net(): return Critic(self.feat_dim, self.options_num, network_settings['q'])
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
-        self.intra_option_net = OptionNet(self.feat_dim, self.a_dim, self.options_num, hidden_units['intra_option'])
-        self.termination_net = Critic(self.feat_dim, self.options_num, hidden_units['termination'], 'sigmoid')
-        self.interest_net = Criticl(self.feat_dim, self.options_num, hidden_units['interest'], 'sigmoid')
+        self.intra_option_net = OptionNet(self.feat_dim, self.a_dim, self.options_num, network_settings['intra_option'])
+        self.termination_net = Critic(self.feat_dim, self.options_num, network_settings['termination'], 'sigmoid')
+        self.interest_net = Criticl(self.feat_dim, self.options_num, network_settings['interest'], 'sigmoid')
         self.critic_tv = self.q_net.trainable_variables + self.other_tv
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:
@@ -83,30 +72,17 @@ class IOC(make_off_policy_class(mode='share')):
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
         self.interest_optimizer = self.init_optimizer(self.interest_lr, clipvalue=5.)
 
-        self.model_recorder(dict(
+        self._worker_params_dict.update(
             q_net=self.q_net,
             intra_option_net=self.intra_option_net,
+            interest_net=self.interest_net)
+        self._residual_params_dict.update(
             termination_net=self.termination_net,
-            interest_net=self.interest_net,
             q_optimizer=self.q_optimizer,
             intra_option_optimizer=self.intra_option_optimizer,
             termination_optimizer=self.termination_optimizer,
-            interest_optimizer=self.interest_optimizer
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　ｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘ　ｘｘｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　ｘ　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　
-　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　ｘｘｘ　　　　ｘ　　　
-　　　　　　ｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　
-　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘ　
-        ''')
+            interest_optimizer=self.interest_optimizer)
+        self._model_post_process()
 
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
@@ -135,23 +111,22 @@ class IOC(make_off_policy_class(mode='share')):
                 a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
+                dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(pi))  # [B, ]
                 a = dist.sample()
             interests = self.interest_net(feat)  # [B, P]
             op_logits = interests * q  # [B, P] or tf.nn.softmax(q)
-            new_options = tfp.distributions.Categorical(logits=op_logits).sample()
+            new_options = tfp.distributions.Categorical(logits=tf.nn.log_softmax(op_logits)).sample()
         return a, new_options, cell_state
+
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
@@ -163,7 +138,7 @@ class IOC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, last_options, options = memories
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)

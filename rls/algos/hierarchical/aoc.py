@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
 from rls.nn import aoc_share as NetWork
-from rls.utils.tf2_utils import \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
 
 
@@ -20,11 +19,7 @@ class AOC(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  options_num=4,
                  dc=0.01,
@@ -43,20 +38,14 @@ class AOC(make_on_policy_class(mode='share')):
                  kl_beta=[0.7, 1.3],
                  kl_alpha=1.5,
                  kl_coef=1.0,
-                 hidden_units={
+                 network_settings={
                      'share': [32, 32],
                      'q': [32, 32],
                      'intra_option': [32, 32],
                      'termination': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.pi_beta = pi_beta
         self.epoch = epoch
         self.lambda_ = lambda_
@@ -77,7 +66,7 @@ class AOC(make_on_policy_class(mode='share')):
         self.terminal_mask = terminal_mask
         self.eps = eps
 
-        self.net = NetWork(self.feat_dim, self.a_dim, self.options_num, hidden_units, self.is_continuous)
+        self.net = NetWork(self.feat_dim, self.a_dim, self.options_num, network_settings, self.is_continuous)
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
             self.net_tv = self.net.trainable_variables + [self.log_std] + self.other_tv
@@ -85,26 +74,12 @@ class AOC(make_on_policy_class(mode='share')):
             self.net_tv = self.net.trainable_variables + self.other_tv
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
-        self.model_recorder(dict(
-            model=self.net,
-            optimizer=self.optimizer
-        ))
+
+        self._worker_params_dict.update(model=self.net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
 
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'beta_adv', 'last_options', 'options'])
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘ　　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　
-        ''')
 
     def reset(self):
         super().reset()
@@ -150,7 +125,7 @@ class AOC(make_on_policy_class(mode='share')):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = pi
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
             q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]

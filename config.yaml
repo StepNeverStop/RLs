@@ -2,9 +2,10 @@ UnityEnvFile:
     Empty: &env /
 
 train:
-    save_frequency: 100
-    max_step_per_episode: 2000 # max_step_per_episode per episode, if gym->env->max_episode_steps > max_step_per_episode, them PEB(Partial Episode Bootstraping), else TimeLimit.
-    max_train_step: 0 # if max_train_step > 0, then training will stop when training steps > max_train_step.
+    save_frequency: 100 # save training model every `save_frequency` train steps. Should larger for off-policy algorithms, and smaller for on-policy algorithms
+    # max_step_per_episode, max_train_step, max_frame_step, max_train_episode are set to sys.maxsize if default value is set to zero.
+    max_step_per_episode: 2000 # max_step_per_episode per episode, if gym.env.max_episode_steps > max_step_per_episode, then PEB(Partial Episode Bootstraping), else TimeLimit.
+    max_train_step: 0       # if max_train_step > 0, then training will stop when training steps > max_train_step.
     max_frame_step: 0
     max_train_episode: 0
     moving_average_episode: 100
@@ -38,13 +39,18 @@ gym:
     train:
         pre_fill_steps: 10000
         render: false
-        render_episode: 50000
+        render_episode: 0 # if render_episode equals 0, it will be set to sys.maxsize, otherwise it will be set to render_episode if --render-episode is not specified through cmd line.
         eval_while_train: false
         max_eval_episode: 100
         # off-policy
         off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
         off_policy_step_eval_episodes: 100
     env:
+        # 1. multiprocessing
+        # 2. threading
+        # 3. ray
+        # 4 vector
+        vector_env_type: multiprocessing
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false
         skip: 4

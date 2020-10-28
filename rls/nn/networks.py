@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import tensorflow as tf
 
 from tensorflow.keras import Sequential
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
-from tensorflow.keras.layers import \
-    Conv2D, \
-    Dense, \
-    Flatten
+from tensorflow.keras.layers import (Conv2D,
+                                     Dense,
+                                     Flatten)
 
 from rls.utils.tf2_utils import get_device
 from rls.nn.layers import ConvLayer

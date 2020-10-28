@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 class ExplorationExploitationClass(object):
     """Exploration and exploitation compromise
        calculates epsilon value depending on parameters and current step number"""
 
-    def __init__(self, eps_init=1, eps_mid=0.2, eps_final=0.01, eps_eval=0,
+    def __init__(self, eps_init=1, eps_mid=0.2, eps_final=0.01, eps_eval=0.2,
                  init2mid_annealing_step=500, start_step=0, max_step=5000):
         """
         From eps_init decay to eps_mid within period start_step to start_step+init2mid_annealing_step,

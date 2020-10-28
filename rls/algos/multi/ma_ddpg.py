@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    List, \
-    Union, \
-    NoReturn, \
-    Dict
+from typing import (List,
+                    Union,
+                    NoReturn,
+                    Dict)
 
 from rls.nn import actor_dpg as ActorCts
 from rls.nn import critic_q_one as Critic
-from rls.nn.noise import \
-    OrnsteinUhlenbeckActionNoise, \
-    NormalActionNoise
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          NormalActionNoise)
 from rls.algos.base.ma_off_policy import MultiAgentOffPolicy
 from rls.utils.tf2_utils import update_target_net_weights
 
@@ -25,14 +23,12 @@ class MADDPG(MultiAgentOffPolicy):
     '''
 
     def __init__(self,
-                 s_dim: Union[List[int], np.ndarray],
-                 a_dim: Union[List[int], np.ndarray],
-                 is_continuous: Union[List[bool], np.ndarray],
+                 envspec,
 
                  ployak: float = 0.995,
                  actor_lr: float = 5.0e-4,
                  critic_lr: float = 1.0e-3,
-                 hidden_units: Dict = {
+                 network_settings: Dict = {
                      'actor': [32, 32],
                      'q': [32, 32]
                  },
@@ -40,22 +36,18 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         TODO: Annotation
         '''
-        assert all(is_continuous), 'maddpg only support continuous action space'
-        super().__init__(
-            s_dim=s_dim,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert all(envspec.is_continuous), 'maddpg only support continuous action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
 
         # self.action_noises = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
         self.action_noises = {i: OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim[i]), sigma=0.2 * np.ones(self.a_dim[i])) for i in range(self.agent_sep_ctls)}
 
-        def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], hidden_units['actor'])
+        def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], network_settings['actor'])
         self.actor_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
         self.actor_target_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
 
-        def _q_net(): return Critic(self.total_s_dim, self.total_a_dim, hidden_units['q'])
+        def _q_net(): return Critic(self.total_s_dim, self.total_a_dim, network_settings['q'])
         self.q_nets = {i: _q_net() for i in range(self.agent_sep_ctls)}
         self.q_target_nets = {i: _q_net() for i in range(self.agent_sep_ctls)}
 
@@ -70,27 +62,11 @@ class MADDPG(MultiAgentOffPolicy):
         self.optimizer_actors = {i: self.init_optimizer(self.actor_lrs[i]) for i in range(self.agent_sep_ctls)}
         self.optimizer_critics = {i: self.init_optimizer(self.critic_lrs[i]) for i in range(self.agent_sep_ctls)}
 
-        models_and_optimizers = {}
-        models_and_optimizers.update({f'actor-{i}': self.actor_nets[i] for i in range(self.agent_sep_ctls)})
-        models_and_optimizers.update({f'critic-{i}': self.q_nets[i] for i in range(self.agent_sep_ctls)})
-        models_and_optimizers.update({f'optimizer_actor-{i}': self.optimizer_actors[i] for i in range(self.agent_sep_ctls)})
-        models_and_optimizers.update({f'optimizer_critic-{i}': self.optimizer_critics[i] for i in range(self.agent_sep_ctls)})
-
-        self.model_recorder(models_and_optimizers)
-
-    def show_logo(self) -> NoReturn:
-        self.logger.info('''
-　　ｘｘｘｘ　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
-　　　ｘｘｘ　　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘ　　　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘ　ｘｘ　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　ｘｘ　　　　　　　　　　
-　　　　ｘｘｘｘ　ｘ　ｘ　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘ　　　ｘｘｘｘｘ　　　
-　　　　ｘ　ｘｘｘｘ　ｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　
-　　　　ｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　　　　ｘ　　　　　
-　　　　ｘ　　ｘｘ　　ｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　
-　　ｘｘｘｘ　ｘｘｘｘｘｘ　　　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　
-        ''')
+        self._worker_params_dict.update({f'actor-{i}': self.actor_nets[i] for i in range(self.agent_sep_ctls)})
+        self._residual_params_dict.update({f'critic-{i}': self.q_nets[i] for i in range(self.agent_sep_ctls)})
+        self._residual_params_dict.update({f'optimizer_actor-{i}': self.optimizer_actors[i] for i in range(self.agent_sep_ctls)})
+        self._residual_params_dict.update({f'optimizer_critic-{i}': self.optimizer_critics[i] for i in range(self.agent_sep_ctls)})
+        self._model_post_process()
 
     def choose_action(self,
                       s: List[np.ndarray],
@@ -152,11 +128,11 @@ class MADDPG(MultiAgentOffPolicy):
                 for i in range(self.agent_sep_ctls):
                     summary = {}
                     if i == 0:
-                        al = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
+                        al = np.full(shape=(done.shape[0], 0), fill_value=[], dtype=np.float32)
                         ar = np.hstack(a[i + 1:])
                     elif i == self.agent_sep_ctls - 1:
                         al = np.hstack(a[:i])
-                        ar = np.full(fill_value=[], shape=(done.shape[0], 0), dtype=np.float32)
+                        ar = np.full(shape=(done.shape[0], 0), fill_value=[], dtype=np.float32)
                     else:
                         al = np.hstack(a[:i])
                         ar = np.hstack(a[i + 1:])

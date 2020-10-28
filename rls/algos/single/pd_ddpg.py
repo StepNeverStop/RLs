@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -8,9 +8,8 @@ import tensorflow_probability as tfp
 from rls.nn import actor_dpg as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
-from rls.nn.noise import \
-    OrnsteinUhlenbeckActionNoise, \
-    NormalActionNoise
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          NormalActionNoise)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.tf2_utils import update_target_net_weights
 
@@ -22,11 +21,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  ployak=0.995,
                  actor_lr=5.0e-4,
@@ -35,31 +30,25 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                  lambda_lr=5.0e-4,
                  discrete_tau=1.0,
                  cost_constraint=1.0,
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'reward': [32, 32],
                      'cost': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self._lambda = tf.Variable(0.0, dtype=tf.float32)
         self.cost_constraint = cost_constraint  # long tern cost <= d
 
         if self.is_continuous:
-            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
+            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, network_settings['actor_continuous'])
             # self.action_noise = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
             self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
         else:
-            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
+            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_net = _actor_net()
@@ -67,10 +56,10 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.actor_tv = self.actor_net.trainable_variables
 
         def _critic_net(hiddens): return Critic(self.feat_dim, self.a_dim, hiddens)
-        self.reward_critic_net = _critic_net(hidden_units['reward'])
-        self.reward_critic_target_net = _critic_net(hidden_units['reward'])
-        self.cost_critic_net = _critic_net(hidden_units['cost'])
-        self.cost_critic_target_net = _critic_net(hidden_units['cost'])
+        self.reward_critic_net = _critic_net(network_settings['reward'])
+        self.reward_critic_target_net = _critic_net(network_settings['reward'])
+        self.cost_critic_net = _critic_net(network_settings['cost'])
+        self.cost_critic_target_net = _critic_net(network_settings['cost'])
 
         self.reward_critic_tv = self.reward_critic_net.trainable_variables + self.other_tv
         update_target_net_weights(
@@ -81,28 +70,14 @@ class PD_DDPG(make_off_policy_class(mode='share')):
         self.actor_lr, self.reward_critic_lr, self.cost_critic_lr = map(self.init_lr, [actor_lr, reward_critic_lr, cost_critic_lr])
         self.optimizer_actor, self.optimizer_reward_critic, self.optimizer_cost_critic = map(self.init_optimizer, [self.actor_lr, self.reward_critic_lr, self.cost_critic_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             reward_critic=self.reward_critic_net,
-            cost_critic=self.cost_critic_net,
+            cost_critic=self.cost_critic_net
             optimizer_actor=self.optimizer_actor,
             optimizer_reward_critic=self.optimizer_reward_critic,
-            optimizer_cost_critic=self.optimizer_cost_critic
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　
-　　　　　ｘｘ　　ｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　
-　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　ｘｘ　　　　ｘ　　　　　
-　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘ　　　ｘｘｘｘｘ　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　　　ｘｘｘ　　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　　　　ｘ　　　　　
-　　　　　ｘ　　　　　　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　　
-　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　
-        ''')
+            optimizer_cost_critic=self.optimizer_cost_critic)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -119,19 +94,20 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi, cell_state
+
+    def _target_params_update(self):
+        update_target_net_weights(
+            self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
+            self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
+            self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(
-                    self.actor_target_net.weights + self.reward_critic_target_net.weights + self.cost_critic_target_net.weights,
-                    self.actor_net.weights + self.reward_critic_net.weights + self.cost_critic_net.weights,
-                    self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/reward_critic_lr', self.reward_critic_lr(self.train_step)],
@@ -142,7 +118,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, cost = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

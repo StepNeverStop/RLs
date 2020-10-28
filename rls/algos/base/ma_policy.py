@@ -1,50 +1,45 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 
 from abc import abstractmethod
-from typing import \
-    List, \
-    Dict, \
-    Union, \
-    Callable, \
-    Any, \
-    Optional, \
-    NoReturn
+from typing import (List,
+                    Dict,
+                    Union,
+                    Callable,
+                    Any,
+                    Optional,
+                    NoReturn)
 
 from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.list_utils import count_repeats
+from rls.utils.tuples import MultiAgentEnvArgs
 
 
 class MultiAgentPolicy(Base):
-    def __init__(self,
-                 s_dim: Union[List[int], np.ndarray],
-                 visual_sources: Union[List[int], np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[List[int], np.ndarray],
-                 is_continuous: Union[List[bool], np.ndarray], ,
-                 **kwargs):
+    def __init__(self, envspec: MultiAgentEnvArgs, **kwargs):
         super().__init__(**kwargs)
-        self.brain_controls = kwargs.get('brain_controls')
-        self.s_dim = count_repeats(s_dim, self.brain_controls)
-        self.visual_sources = count_repeats(visual_sources, self.brain_controls)    # not use yet
-
-        self.batch_size = int(kwargs.get('batch_size', 128))
-        self.n_agents = kwargs.get('n_agents', None)
+        self.group_controls = envspec.group_controls
+        self.s_dim = count_repeats(envspec.s_dim, self.group_controls)
+        self.visual_sources = count_repeats(envspec.visual_sources, self.group_controls)    # not use yet
+        # self.visual_resolutions = envspec.visual_resolutions
+        self.a_dim = count_repeats(envspec.a_dim, self.group_controls)
+        self.is_continuous = count_repeats(envspec.is_continuous, self.group_controls)
+        self.n_agents = envspec.n_agents
         if not self.n_agents:
             raise ValueError('agents num is None.')
 
-        self.is_continuous = count_repeats(is_continuous, self.brain_controls)
-        self.a_dim = count_repeats(a_dim, self.brain_controls)
+        self.batch_size = int(kwargs.get('batch_size', 128))
+
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.train_step = 0
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
-        self.agent_sep_ctls = sum(self.brain_controls)
+        self.agent_sep_ctls = sum(self.group_controls)
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.agent_sep_ctls)]
 
     def init_lr(self, lr: float) -> Callable:
@@ -61,11 +56,6 @@ class MultiAgentPolicy(Base):
 
     def partial_reset(self, done: Union[List, np.ndarray]) -> Any:
         pass
-
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        kwargs.update(dict(global_step=self.global_step))
-        self._create_saver(kwargs)
-        self.show_logo()
 
     def intermediate_variable_reset(self) -> NoReturn:
         '''

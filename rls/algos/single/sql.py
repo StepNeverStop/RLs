@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -17,29 +17,19 @@ class SQL(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  lr=5.0e-4,
                  alpha=2,
                  ployak=0.995,
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'sql only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'sql only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.alpha = alpha
         self.ployak = ployak
 
-        def _q_net(): return NetWork(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return NetWork(self.feat_dim, self.a_dim, network_settings)
 
         self.q_net = _q_net()
         self.q_target_net = _q_net()
@@ -52,28 +42,9 @@ class SQL(make_off_policy_class(mode='share')):
             self.q_net.weights
         )
 
-        self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　
-　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　
-　　　　　ｘｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘｘ　　　ｘｘ　　　　　　　　　ｘｘｘ　　　　ｘｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　　　　　ｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　　　　　　
-　　　　　ｘｘ　　　ｘｘｘｘ　　　　　　　　ｘｘｘ　　　　　ｘｘｘ　　　　　　　　　ｘｘ　　　　　ｘ　　　　
-　　　　　ｘｘ　　　　ｘｘ　　　　　　　　　ｘｘｘｘ　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　
-　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　
-　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　
-        ''')
+        self._worker_params_dict.update(model=self.q_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -85,8 +56,9 @@ class SQL(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q_values = self.q_net(feat)
-            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)
-            cate_dist = tfp.distributions.Categorical(logits)
+            # NOTE: check whether this is correct or not
+            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
+            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
             pi = cate_dist.sample()
         return pi, cell_state
 
@@ -96,20 +68,21 @@ class SQL(make_off_policy_class(mode='share')):
             v = self.alpha * tf.math.log(tf.reduce_mean(tf.math.exp(q / self.alpha), axis=1, keepdims=True))
         return v
 
+    def _target_params_update(self): 
+        update_target_net_weights(
+            self.q_target_net.weights,
+            self.q_net.weights,
+            self.ployak)
+        
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(
-                    self.q_target_net.weights,
-                    self.q_net.weights,
-                    self.ployak),
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:

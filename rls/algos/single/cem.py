@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -10,14 +10,14 @@ from rls.algos.base.on_policy import make_on_policy_class
 
 class Model(tf.keras.Model):
 
-    def __init__(self, vector_dim, output_shape, hidden_units, is_continuous):
+    def __init__(self, vector_dim, output_shape, network_settings, is_continuous):
         super().__init__()
         self.is_continuous = is_continuous
         out_activation = 'tanh' if self.is_continuous else None
-        self.net = mlp(hidden_units, act_fn='tanh', output_shape=output_shape, out_activation=out_activation, out_layer=True)
-        self.weights_2dim = [[i, j] for i, j in zip([vector_dim] + hidden_units, hidden_units + [output_shape])]
+        self.net = mlp(network_settings, act_fn='tanh', output_shape=output_shape, out_activation=out_activation, out_layer=True)
+        self.weights_2dim = [[i, j] for i, j in zip([vector_dim] + network_settings, network_settings + [output_shape])]
         self.weights_nums = np.asarray(self.weights_2dim).prod(axis=-1).tolist()
-        self.weights_total_nums = np.asarray(self.weights_2dim).prod(axis=-1).sum() + np.asarray(hidden_units).sum() + output_shape
+        self.weights_total_nums = np.asarray(self.weights_2dim).prod(axis=-1).sum() + np.asarray(network_settings).sum() + output_shape
         self(tf.keras.Input(shape=vector_dim))  # 初始化网络权重
 
     @tf.function
@@ -45,13 +45,9 @@ class CEM(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  frac=0.2,
                  init_var=1,
                  extra_std=1,
@@ -59,34 +55,14 @@ class CEM(make_on_policy_class(mode='share')):
                  extra_var_last_multiplier=0.2,
                  envs_per_popu=5,   # 环境数/模型数 余数为0
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.frac = frac
-        self.hidden_units = hidden_units
+        self.network_settings = network_settings
         self.init_var = init_var
         self.extra_std = extra_std
         self.extra_decay_eps = extra_decay_eps
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　ｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　　ｘｘｘｘ　
-　　　　ｘｘｘｘ　ｘｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
-　　　ｘｘｘｘ　　　　ｘ　　　　　　　ｘｘｘ　　　ｘ　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　
-　　　ｘｘｘ　　　　　ｘ　　　　　　　ｘｘｘ　　ｘ　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘ　ｘｘ　ｘｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘ　　ｘ　　　　　　　　ｘ　ｘｘｘｘｘｘｘｘ　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘｘｘ　　ｘ　ｘ　　　　　　ｘ　　ｘｘｘ　ｘｘｘ　　
-　　　　ｘｘｘ　　　　ｘ　　　　　　　ｘｘｘ　　　ｘｘ　　　　　　ｘ　　ｘｘｘ　ｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘ　ｘｘｘｘｘ　
-　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
 
     def choose_action(self, s, visual_s, evaluation=False):
         self._check_agents(s)
@@ -138,7 +114,7 @@ class CEM(make_on_policy_class(mode='share')):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations * self.frac)), 1)
-        self.cem_models = [Model(self.s_dim, self.a_dim, self.hidden_units, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.s_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums) * self.init_var
         self._update_models_weights()

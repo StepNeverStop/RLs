@@ -4,7 +4,7 @@
 
 Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_3) Release 3 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_8) Release 8 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ![](./pics/framework.jpg)
 
@@ -32,7 +32,7 @@ This project supports:
     - Box -> Discrete
     - Box -> Box
     - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
-- MultiAgent training. One brain controls multiple agents.
+- MultiAgent training. One group controls multiple agents.
 - MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
 - MultiImage input(only for ml-agents). Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
 - Four types of Replay Buffer, Default is ER: 
@@ -162,36 +162,68 @@ Usage:
 
 Options:
     -h,--help                   显示帮助
-    -a,--algorithm=<name>       算法, specify the training algorithm [default: ppo]
-    -c,--copys=<n>              指定并行训练的数量, nums of environment copys that collect data in parallel [default: 1]
-    -e,--env=<file>             指定Unity环境路径, specify the path of builded training environment of UNITY3D [default: None]
-    -g,--graphic                是否显示图形界面, whether show graphic interface when using UNITY3D [default: False]
-    -i,--inference              推断, inference the trained model, not train policies [default: False]
-    -m,--models=<n>             同时训练多少个模型, specify the number of trails that using different random seeds [default: 1]
-    -n,--name=<name>            训练的名字, specify the name of this training task [default: None]
-    -p,--port=<n>               端口, specify the port that communicate with training environment of UNITY3D [default: 5005]
-    -r,--rnn                    是否使用RNN模型, whether use rnn[GRU, LSTM, ...] or not [default: False]
-    -s,--save-frequency=<n>     保存频率, specify the interval that saving model checkpoint [default: None]
-    -t,--train-step=<n>         总的训练次数, specify the training step that optimize the policy model [default: None]
-    -u,--unity                  是否使用unity客户端, whether training with UNITY3D editor [default: False]
+    -a,--algorithm=<name>       算法
+                                specify the training algorithm [default: ppo]
+    -c,--copys=<n>              指定并行训练的数量
+                                nums of environment copys that collect data in parallel [default: 1]
+    -e,--env=<file>             指定Unity环境路径
+                                specify the path of builded training environment of UNITY3D [default: None]
+    -g,--graphic                是否显示图形界面
+                                whether show graphic interface when using UNITY3D [default: False]
+    -i,--inference              推断
+                                inference the trained model, not train policies [default: False]
+    -m,--models=<n>             同时训练多少个模型
+                                specify the number of trails that using different random seeds [default: 1]
+    -n,--name=<name>            训练的名字
+                                specify the name of this training task [default: None]
+    -p,--port=<n>               端口
+                                specify the port that communicate with training environment of UNITY3D [default: 5005]
+    -r,--rnn                    是否使用RNN模型
+                                whether use rnn[GRU, LSTM, ...] or not [default: False]
+    -s,--save-frequency=<n>     保存频率
+                                specify the interval that saving model checkpoint [default: None]
+    -t,--train-step=<n>         总的训练次数
+                                specify the training step that optimize the policy model [default: None]
+    -u,--unity                  是否使用unity客户端
+                                whether training with UNITY3D editor [default: False]
     
-    --unity-env=<name>          指定unity环境的名字, specify the name of training environment of UNITY3D [default: None]
-    --config-file=<file>        指定模型的超参数config文件, specify the path of training configuration file [default: None]
-    --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径, specify the directory that store model, log and others [default: None]
-    --seed=<n>                  指定模型的随机种子, specify the model random seed [default: 0]
-    --unity-env-seed=<n>        指定unity环境的随机种子, specify the environment random seed of UNITY3D [default: 0]
-    --max-step=<n>              每回合最大步长, specify the maximum step per episode [default: None]
-    --train-episode=<n>         总的训练回合数, specify the training maximum episode [default: None]
-    --train-frame=<n>           总的训练采样次数, specify the training maximum steps interacting with environment [default: None]
-    --load=<name>               指定载入model的训练名称, specify the name of pre-trained model that need to load [default: None]
-    --prefill-steps=<n>         指定预填充的经验数量, specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
-    --prefill-choose            指定no_op操作时随机选择动作，或者置0, whether choose action using model or choose randomly [default: False]
-    --gym                       是否使用gym训练环境, whether training with gym [default: False]
-    --gym-env=<name>            指定gym环境的名字, specify the environment name of gym [default: CartPole-v0]
-    --gym-env-seed=<n>          指定gym环境的随机种子, specify the environment random seed of gym [default: 0]
-    --render-episode=<n>        指定gym环境从何时开始渲染, specify when to render the graphic interface of gym environment [default: None]
-    --info=<str>                抒写该训练的描述，用双引号包裹, write another information that describe this training task [default: None]
-    --use-wandb                 是否上传数据到W&B, whether upload training log to WandB [default: False]
+    --apex=<str>                i.e. "learner"/"worker"/"buffer"/"evaluator" [default: None]
+    --unity-env=<name>          指定unity环境的名字
+                                specify the name of training environment of UNITY3D [default: None]
+    --config-file=<file>        指定模型的超参数config文件
+                                specify the path of training configuration file [default: None]
+    --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
+                                specify the directory that store model, log and others [default: None]
+    --seed=<n>                  指定训练器全局随机种子
+                                specify the random seed of module random, numpy and tensorflow [default: 0]
+    --unity-env-seed=<n>        指定unity环境的随机种子
+                                specify the environment random seed of UNITY3D [default: 0]
+    --max-step=<n>              每回合最大步长
+                                specify the maximum step per episode [default: None]
+    --train-episode=<n>         总的训练回合数
+                                specify the training maximum episode [default: None]
+    --train-frame=<n>           总的训练采样次数
+                                specify the training maximum steps interacting with environment [default: None]
+    --load=<name>               指定载入model的训练名称
+                                specify the name of pre-trained model that need to load [default: None]
+    --prefill-steps=<n>         指定预填充的经验数量
+                                specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
+    --prefill-choose            指定no_op操作时随机选择动作，或者置0
+                                whether choose action using model or choose randomly [default: False]
+    --gym                       是否使用gym训练环境
+                                whether training with gym [default: False]
+    --gym-env=<name>            指定gym环境的名字
+                                specify the environment name of gym [default: CartPole-v0]
+    --gym-env-seed=<n>          指定gym环境的随机种子
+                                specify the environment random seed of gym [default: 0]
+    --render-episode=<n>        指定gym环境从何时开始渲染
+                                specify when to render the graphic interface of gym environment [default: None]
+    --info=<str>                抒写该训练的描述，用双引号包裹
+                                write another information that describe this training task [default: None]
+    --use-wandb                 是否上传数据到W&B
+                                whether upload training log to WandB [default: False]
+    --hostname                  是否在训练名称后附加上主机名称
+                                whether concatenate hostname with the training name [default: False]
 Example:
     gym:
         python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
@@ -207,17 +239,17 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 
 1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&excel&log&model`
+3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&log&model`
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy` or `Off_Policy`
+    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy`, `Off_Policy` or other super-class defined in `rls/algos/base`
     2. write default configuration in `rls/algos/config.yaml`
-    3. register new algorithm at dictionary *algos* in `rls/algos/register.py`, i.e. `'dqn':      {'class': 'DQN',    'policy': 'off-policy', 'update': 'perStep', 'type': 'single'}`, make sure the class name matches the name of the algorithm class
+    3. register new algorithm at dictionary *algos* in `rls/algos/__init__.py`, make sure the class name matches the name of the algorithm class
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now. Brain name in training scene should be set like `{agents control nums of this brain per environment copy}#{others}`, i.e. `2#Agents` means one brain controls two same agents in one environment copy.
+10. MADDPG is only suitable for Unity3D ML-Agents for now. group name in training scene should be set like `{agents control nums of this group per environment copy}#{others}`, i.e. `2#Agents` means one group controls two same agents in one environment copy.
 
 ## Ongoing things
 

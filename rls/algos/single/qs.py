@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.plot import \
-    ion, \
-    ioff, \
-    plot_heatmap
+from rls.utils.plot import (ion,
+                            ioff,
+                            plot_heatmap)
 
 
 class QS:
@@ -16,11 +15,7 @@ class QS:
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  mode='q',
                  lr=0.2,
@@ -30,7 +25,7 @@ class QS:
                  init2mid_annealing_step=1000,
                  **kwargs):
         assert not hasattr(s_dim, '__len__')
-        assert not is_continuous
+        assert not envspec.is_continuous
         self.mode = mode
         self.s_dim = s_dim
         self.a_dim = a_dim

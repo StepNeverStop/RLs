@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py

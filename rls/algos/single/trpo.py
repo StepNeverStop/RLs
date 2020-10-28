@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn import actor_mu as ActorCts
+from rls.nn import actor_mu_logstd as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_v as Critic
-from rls.utils.tf2_utils import \
-    get_TensorSpecs, \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.on_policy import make_on_policy_class
 '''
 Stole this from OpenAI SpinningUp. https://github.com/openai/spinningup/blob/master/spinup/algos/trpo/trpo.py
@@ -36,11 +34,7 @@ class TRPO(make_on_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  beta=1.0e-3,
                  lr=5.0e-4,
@@ -53,19 +47,14 @@ class TRPO(make_on_policy_class(mode='share')):
                  backtrack_coeff=0.8,
                  epsilon=0.2,
                  critic_lr=1e-3,
-                 hidden_units={
+                 condition_sigma: bool = False,
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         self.beta = beta
         self.delta = delta
         self.lambda_ = lambda_
@@ -76,30 +65,15 @@ class TRPO(make_on_policy_class(mode='share')):
         self.backtrack_coeff = backtrack_coeff
         self.train_v_iters = train_v_iters
 
-        # self.actor_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [1], [1])
-        # self.critic_TensorSpecs = get_TensorSpecs([self.s_dim], self.visual_dim, [1])
-
         if self.is_continuous:
-            self.actor_net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
-            self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
-            # self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
-            #     + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim], [self.a_dim])
+            self.actor_net = ActorCts(self.feat_dim, self.a_dim, condition_sigma, network_settings['actor_continuous'])
         else:
-            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
-            self.actor_tv = self.actor_net.trainable_variables
-            # self.Hx_TensorSpecs = [tf.TensorSpec(shape=flat_concat(self.actor_tv).shape, dtype=tf.float32)] \
-            #     + get_TensorSpecs([self.s_dim], self.visual_dim, [self.a_dim])
-        self.critic_net = Critic(self.feat_dim, hidden_units['critic'])
+            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
+        self.actor_tv = self.actor_net.trainable_variables
+        self.critic_net = Critic(self.feat_dim, network_settings['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.critic_lr = self.init_lr(critic_lr)
         self.optimizer_critic = self.init_optimizer(self.critic_lr)
-
-        self.model_recorder(dict(
-            actor=self.actor_net,
-            critic=self.critic_net,
-            optimizer_critic=self.optimizer_critic
-        ))
 
         if self.is_continuous:
             data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
@@ -108,18 +82,11 @@ class TRPO(make_on_policy_class(mode='share')):
         self.initialize_data_buffer(
             data_name_list=data_name_list)
 
-    def show_logo(self):
-        self.logger.info('''
-　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘｘ　　ｘｘ　　　　　　　　ｘｘｘ　ｘｘｘ　　　　
-　　　ｘｘ　　ｘ　　ｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘｘ　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　　ｘｘ　　　　
-　　　　　　　ｘ　　　　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　
-　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘｘｘｘ　
-        ''')
+        self._worker_params_dict.update(
+            actor=self.actor_net,
+            critic=self.critic_net)
+        self._residual_params_dict.update(optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         a, _v, _lp, _morlpa, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -127,7 +94,8 @@ class TRPO(make_on_policy_class(mode='share')):
         self._value = np.squeeze(_v.numpy())
         self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
         if self.is_continuous:
-            self._mu = _morlpa.numpy()
+            self._mu = _morlpa[0].numpy()
+            self._log_std = _morlpa[1].numpy()
         else:
             self._logp_all = _morlpa.numpy()
         return a
@@ -138,14 +106,14 @@ class TRPO(make_on_policy_class(mode='share')):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             value = self.critic_net(feat)
             if self.is_continuous:
-                mu = self.actor_net(feat)
-                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
-                return sample_op, value, log_prob, mu, cell_state
+                mu, log_std = self.actor_net(feat)
+                sample_op, _ = gaussian_clip_rsample(mu, log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
+                return sample_op, value, log_prob, (mu, log_std), cell_state
             else:
                 logits = self.actor_net(feat)
                 logp_all = tf.nn.log_softmax(logits)
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=logp_all)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
                 return sample_op, value, log_prob, logp_all, cell_state
@@ -156,7 +124,7 @@ class TRPO(make_on_policy_class(mode='share')):
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self._running_average(s)
         if self.is_continuous:
-            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self.log_std.numpy())
+            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self._log_std)
         else:
             self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._logp_all)
 
@@ -229,9 +197,9 @@ class TRPO(make_on_policy_class(mode='share')):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
                 if self.is_continuous:
-                    mu = self.actor_net(feat)
-                    new_log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.actor_net(feat)
+                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
@@ -254,9 +222,9 @@ class TRPO(make_on_policy_class(mode='share')):
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s)
                 if self.is_continuous:
-                    mu = self.actor_net(feat)
-                    var0, var1 = tf.exp(2 * self.log_std), tf.exp(2 * old_log_std)
-                    pre_sum = 0.5 * (((old_mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + old_log_std - self.log_std
+                    mu, log_std = self.actor_net(feat)
+                    var0, var1 = tf.exp(2 * log_std), tf.exp(2 * old_log_std)
+                    pre_sum = 0.5 * (((old_mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + old_log_std - log_std
                     all_kls = tf.reduce_sum(pre_sum, axis=1)
                     kl = tf.reduce_mean(all_kls)
                 else:

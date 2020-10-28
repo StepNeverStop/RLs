@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -7,9 +7,8 @@ import tensorflow as tf
 from rls.nn import iqn_net as NetWork
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import \
-    huber_loss, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (huber_loss,
+                                 update_target_net_weights)
 
 
 class IQN(make_off_policy_class(mode='share')):
@@ -19,11 +18,7 @@ class IQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  online_quantiles=8,
                  target_quantiles=8,
@@ -36,20 +31,14 @@ class IQN(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
-                 hidden_units={
+                 network_settings={
                      'q_net': [128, 64],
                      'quantile': [128, 64],
                      'tile': [64]
                  },
                  **kwargs):
-        assert not is_continuous, 'iqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'iqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.pi = tf.constant(np.pi)
         self.online_quantiles = online_quantiles
         self.target_quantiles = target_quantiles
@@ -63,7 +52,7 @@ class IQN(make_off_policy_class(mode='share')):
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.quantiles_idx, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, self.quantiles_idx, network_settings)
 
         self.q_net = _net()
         self.q_target_net = _net()
@@ -72,27 +61,9 @@ class IQN(make_off_policy_class(mode='share')):
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self.model_recorder(dict(
-            model=self.q_net,
-            optimizer=self.optimizer
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　ｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　　　　ｘｘｘｘｘ　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘ　　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘｘ　ｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘｘｘｘｘｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　ｘｘｘｘ　　　　ｘｘｘ　　　　　ｘｘｘ　ｘｘｘｘｘｘ　　
-　　　　　　ｘｘｘ　　　　　　　　　ｘｘｘｘ　　ｘｘｘｘ　　　　　ｘｘｘ　ｘｘｘｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　ｘｘｘ　　ｘｘｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘｘ　　
-　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　
-　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
+        self._worker_params_dict.update(model=self.q_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
@@ -125,21 +96,19 @@ class IQN(make_off_policy_class(mode='share')):
             _quantiles = tf.reshape(_quantiles, [batch_size, quantiles_num, 1])    # [N*B, 1] => [B, N, 1]
             return _quantiles, _quantiles_tiled
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

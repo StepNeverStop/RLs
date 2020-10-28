@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -22,11 +22,7 @@ class RAINBOW(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  v_min=-10,
                  v_max=10,
@@ -37,20 +33,14 @@ class RAINBOW(make_off_policy_class(mode='share')):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
-                 hidden_units={
+                 network_settings={
                      'share': [128],
                      'v': [128],
                      'adv': [128]
                  },
                  **kwargs):
-        assert not is_continuous, 'rainbow only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'rainbow only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.v_min = v_min
         self.v_max = v_max
         self.atoms = atoms
@@ -64,32 +54,17 @@ class RAINBOW(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.atoms, hidden_units)
+        def _net(): return NetWork(self.feat_dim, self.a_dim, self.atoms, network_settings)
         self.rainbow_net = _net()
         self.rainbow_target_net = _net()
         self.critic_tv = self.rainbow_net.trainable_variables + self.other_tv
         update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
-        self.model_recorder(dict(
-            model=self.rainbow_net,
-            optimizer=self.optimizer
-        ))
 
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　　　　　　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　ｘｘ　　　
-　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　ｘｘｘ　ｘｘ　ｘｘ　　　
-　　　　ｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　ｘｘ　ｘｘ　　　
-　　　　ｘｘ　ｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　
-　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘ　ｘｘ　ｘ　　　　　　　　　　ｘｘ　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　
-　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘ　　　　　
-　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘ　ｘｘ　　　　　　　　
-        ''')
+        self._worker_params_dict.update(model=self.rainbow_net)
+        self._residual_params_dict.update(optimizer=self.optimizer)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
@@ -106,21 +81,19 @@ class RAINBOW(make_off_policy_class(mode='share')):
             q = self.get_q(feat)  # [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
+    def _target_params_update(self):
+        if self.global_step % self.assign_interval == 0:
+            update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
+
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
-
-        def _update():
-            if self.global_step % self.assign_interval == 0:
-                update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': _update,
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):

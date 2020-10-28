@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import tensorflow as tf
 from tensorflow.keras import Sequential
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.keras import activations
-from tensorflow.keras.layers import \
-    Dense, \
-    GaussianNoise, \
-    Conv2D, \
-    Flatten
+from tensorflow.keras.layers import (Dense,
+                                     GaussianNoise,
+                                     Conv2D,
+                                     Flatten)
 
 from rls.nn.activations import default_activation
 

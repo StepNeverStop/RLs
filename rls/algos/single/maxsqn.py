@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -18,11 +18,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  beta=0.1,
@@ -35,16 +31,10 @@ class MAXSQN(make_off_policy_class(mode='share')):
                  q_lr=5.0e-4,
                  alpha_lr=5.0e-4,
                  auto_adaption=True,
-                 hidden_units=[32, 32],
+                 network_settings=[32, 32],
                  **kwargs):
-        assert not is_continuous, 'maxsqn only support discrete action space'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert not envspec.is_continuous, 'maxsqn only support discrete action space'
+        super().__init__(envspec=envspec, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -56,7 +46,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
-        def _q_net(): return Critic(self.feat_dim, self.a_dim, hidden_units)
+        def _q_net(): return Critic(self.feat_dim, self.a_dim, network_settings)
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
@@ -64,25 +54,11 @@ class MAXSQN(make_off_policy_class(mode='share')):
         self.q_lr, self.alpha_lr = map(self.init_lr, [q_lr, alpha_lr])
         self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.q_lr, self.alpha_lr])
 
-        self.model_recorder(dict(
-            critic_net=self.critic_net,
+        self._worker_params_dict.update(critic_net=self.critic_net)
+        self._residual_params_dict.update(
             optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　ｘｘ　　　　　ｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘｘ　　　ｘｘ　　　
-　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘ　　　ｘｘ　　　
-　　　ｘｘｘ　　　ｘｘｘ　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　ｘｘｘｘｘ　　ｘｘ　　　
-　　　ｘｘｘｘ　　ｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘｘ　　　　ｘｘｘ　　　　　ｘｘ　ｘｘｘ　ｘｘ　　　
-　　　ｘｘｘｘ　ｘｘ　ｘ　　　　　　　　ｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　ｘｘｘｘｘ　　　
-　　　ｘｘｘｘ　ｘｘ　ｘ　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　　　　　　ｘｘｘ　　　　　　ｘｘｘ　　ｘ　ｘｘｘ　　　　　ｘｘ　　　ｘｘｘｘ　　　
-　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘｘ　　ｘｘ　　　　　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘｘ　ｘｘｘｘｘ　　　　　　ｘｘ　　　ｘｘｘｘ　　　
-　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　　　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘｘ　　　　　　ｘｘ　　　　ｘｘｘ　　　
-　　　ｘｘ　ｘｘｘ　　ｘ　　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘ　ｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　ｘｘ　　　　　ｘｘ　　　
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　　　　　　　　　　　　　
-        ''')
+            optimizer_alpha=self.optimizer_alpha)
+        self._model_post_process()
 
     @property
     def alpha(self):
@@ -101,17 +77,17 @@ class MAXSQN(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             q = self.critic_net.Q1(feat)
-            cate_dist = tfp.distributions.Categorical(logits=q / self.alpha)
+            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(q / self.alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi, cell_state
+
+    def _target_params_update(self):
+        update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights,
-                                                                          self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
@@ -119,7 +95,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -130,7 +106,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
 
                 q1_target, q2_target = self.critic_target_net(feat_)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
-                q1_target_log_probs = tf.nn.log_softmax(q1_target / self.alpha, axis=1) + 1e-8
+                q1_target_log_probs = tf.nn.log_softmax(q1_target / (self.alpha + 1e-8), axis=1)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))
 
                 q2_target_max = tf.reduce_max(q2_target, axis=1, keepdims=True)
@@ -151,7 +127,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     q1 = self.critic_net.Q1(feat)
-                    q1_log_probs = tf.nn.log_softmax(q1 / self.alpha, axis=1) + 1e-8
+                    q1_log_probs = tf.nn.log_softmax(q1 / (self.alpha + 1e-8), axis=1)
                     q1_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_log_probs) * q1_log_probs, axis=1, keepdims=True))
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(self.target_entropy - q1_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

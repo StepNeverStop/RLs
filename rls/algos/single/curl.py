@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -9,18 +9,17 @@ from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
 from skimage.util.shape import view_as_windows
-from tensorflow.keras.layers import Dense, \
-    Flatten, \
-    LayerNormalization
+from tensorflow.keras.layers import (Dense,
+                                     Flatten,
+                                     LayerNormalization)
 
 from rls.nn import actor_continuous as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
-from rls.utils.tf2_utils import \
-    clip_nn_log_std, \
-    squash_rsample, \
-    gaussian_entropy, \
-    update_target_net_weights
+from rls.utils.tf2_utils import (clip_nn_log_std,
+                                 squash_rsample,
+                                 gaussian_entropy,
+                                 update_target_net_weights)
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.modules import DoubleQ
@@ -83,11 +82,7 @@ class CURL(make_off_policy_class(mode='no_share')):
     """
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  alpha=0.2,
                  annealing=True,
@@ -95,7 +90,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                  ployak=0.995,
                  discrete_tau=1.0,
                  log_std_bound=[-20, 2],
-                 hidden_units={
+                 network_settings={
                      'actor_continuous': {
                          'share': [128, 128],
                          'mu': [64],
@@ -112,13 +107,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                  curl_lr=5.0e-4,
                  img_size=64,
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
         assert self.visual_sources == 1
         self.ployak = ployak
         self.discrete_tau = discrete_tau
@@ -127,7 +116,7 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.annealing = annealing
         self.img_size = img_size
         self.img_dim = [img_size, img_size, self.visual_dim[-1]]
-        self.vis_feat_size = hidden_units['encoder']
+        self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
             self.log_alpha = tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
@@ -137,21 +126,21 @@ class CURL(make_off_policy_class(mode='no_share')):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
         if self.is_continuous:
-            self.actor_net = ActorCts(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_continuous'])
+            self.actor_net = ActorCts(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_continuous'])
         else:
-            self.actor_net = ActorDcs(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['actor_discrete'])
+            self.actor_net = ActorDcs(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        def _q_net(): return Critic(self.s_dim + self.vis_feat_size, self.a_dim, hidden_units['q'])
+        def _q_net(): return Critic(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['q'])
         self.critic_net = DoubleQ(_q_net)
         self.critic_target_net = DoubleQ(_q_net)
 
-        self.encoder = VisualEncoder(self.img_dim, hidden_units['encoder'])
-        self.encoder_target = VisualEncoder(self.img_dim, hidden_units['encoder'])
+        self.encoder = VisualEncoder(self.img_dim, network_settings['encoder'])
+        self.encoder_target = VisualEncoder(self.img_dim, network_settings['encoder'])
 
         self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
 
@@ -164,28 +153,15 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr, curl_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha, self.optimizer_curl = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             critic_net=self.critic_net,
             curl_w=self.curl_w,
             optimizer_actor=self.optimizer_actor,
             optimizer_critic=self.optimizer_critic,
             optimizer_alpha=self.optimizer_alpha,
-            optimizer_curl=self.optimizer_curl,
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　ｘｘｘｘｘｘ　　　　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　　　　　　　
-　　　　ｘｘｘ　　ｘｘ　　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　ｘｘｘ　　　　　　　　　　　　　ｘ　　　　　ｘ　　　　　　　　　ｘｘ　ｘｘｘ　　　　　　　　　ｘ　　　　　　　　　
-　　　　ｘｘ　　　　ｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘ　　　　　　　　　ｘ　　　　ｘｘ　　　
-　　　　ｘｘｘ　　ｘｘｘ　　　　　　　ｘｘ　　　ｘｘ　　　　　　　　　ｘ　　　ｘｘｘ　　　　　　　　ｘ　　　ｘｘｘ　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　ｘｘｘｘｘ　ｘｘｘ　　　　　　ｘｘｘｘｘｘｘｘ
-        ''')
+            optimizer_curl=self.optimizer_curl)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         visual_s = center_crop_image(visual_s[:, 0], self.img_size)
@@ -205,52 +181,52 @@ class CURL(make_off_policy_class(mode='no_share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi
+
+    def _process_before_train(self, data):
+        data['visual_s'] = np.transpose(data['visual_s'][:, 0].numpy(), (0, 3, 1, 2))
+        data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
+        data['pos'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
+        )
+        data['visual_s'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
+        )
+        data['visual_s_'] = self.data_convert(
+            np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
+        )
+        return (data,)
+
+    def _target_params_update(self):
+        update_target_net_weights(
+            self.critic_target_net.weights + self.encoder_target.trainable_variables,
+            self.critic_net.weights + self.encoder.trainable_variables,
+            self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(memories, isw, crsty_loss, cell_state):
-            td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
-            if self.annealing and not self.auto_adaption:
-                self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-            return td_error, summaries
-
-        def _pre_process(data):
-            data['visual_s'] = np.transpose(data['visual_s'][:, 0].numpy(), (0, 3, 1, 2))
-            data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
-            data['pos'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-            )
-            data['visual_s'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-            )
-            data['visual_s_'] = self.data_convert(
-                np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
-            )
-            return (data,)
-
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': _train,
-                'update_function': lambda: update_target_net_weights(
-                    self.critic_target_net.weights + self.encoder_target.trainable_variables,
-                    self.critic_net.weights + self.encoder.trainable_variables,
-                    self.ployak),
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ]),
                 'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'pos'],
-                'pre_process_function': _pre_process
             })
 
     @property
     def alpha(self):
         return tf.exp(self.log_alpha)
+
+    def _train(self, memories, isw, crsty_loss, cell_state):
+        td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
+        if self.annealing and not self.auto_adaption:
+            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+    return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, crsty_loss, cell_state):
@@ -266,11 +242,11 @@ class CURL(make_off_policy_class(mode='no_share')):
                 target_feat_ = tf.concat([target_vis_feat_, s_], axis=-1)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std)
+                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
@@ -330,7 +306,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
                         logits = self.actor_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits)
+                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

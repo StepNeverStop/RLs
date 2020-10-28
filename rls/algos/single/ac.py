@@ -1,76 +1,51 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn import actor_mu as ActorCts
+from rls.nn import actor_mu_logstd as ActorCts
 from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
-from rls.utils.tf2_utils import \
-    gaussian_clip_rsample, \
-    gaussian_likelihood_sum, \
-    gaussian_entropy
+from rls.utils.tf2_utils import (gaussian_clip_rsample,
+                                 gaussian_likelihood_sum,
+                                 gaussian_entropy)
 from rls.algos.base.off_policy import make_off_policy_class
 
 
 class AC(make_off_policy_class(mode='share')):
     # off-policy actor-critic
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 hidden_units={
+                 condition_sigma: bool = False,
+                 network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        super().__init__(envspec=envspec, **kwargs)
 
         if self.is_continuous:
-            self.actor_net = ActorCts(self.feat_dim, self.a_dim, hidden_units['actor_continuous'])
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones(self.a_dim, dtype=np.float32), trainable=True)
-            self.actor_tv = self.actor_net.trainable_variables + [self.log_std]
+            self.actor_net = ActorCts(self.feat_dim, self.a_dim, condition_sigma, network_settings['actor_continuous'])
         else:
-            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, hidden_units['actor_discrete'])
-            self.actor_tv = self.actor_net.trainable_variables
-        self.critic_net = Critic(self.feat_dim, self.a_dim, hidden_units['critic'])
+            self.actor_net = ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
+        self.actor_tv = self.actor_net.trainable_variables
+        self.critic_net = Critic(self.feat_dim, self.a_dim, network_settings['critic'])
         self.critic_tv = self.critic_net.trainable_variables + self.other_tv
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
-        self.model_recorder(dict(
-            actor=self.actor_net,
+        self._worker_params_dict.update(actor=self.actor_net)
+        self._residual_params_dict.update(
             critic=self.critic_net,
             optimizer_actor=self.optimizer_actor,
-            optimizer_critic=self.optimizer_critic
-        ))
-
-    def show_logo(self):
-        self.logger.info('''
-　　　　　　　ｘｘ　　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘｘ　　ｘｘ　　　　
-　　　　　　ｘｘｘ　　　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　　　ｘ　ｘｘ　　　　　　　　　ｘｘ　　　　　　　　　
-　　　　　ｘｘ　ｘｘ　　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　　ｘｘｘｘｘｘ　　　　　　　ｘｘｘ　　　　　　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘ　　　　ｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　ｘｘｘ　　ｘｘｘ　　　
-　　　ｘｘｘ　　ｘｘｘｘｘ　　　　　　　ｘｘｘｘｘｘ　　　　　
-        ''')
+            optimizer_critic=self.optimizer_critic)
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         a, _lp, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -83,12 +58,12 @@ class AC(make_off_policy_class(mode='share')):
         with tf.device(self.device):
             feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
             if self.is_continuous:
-                mu = self.actor_net(feat)
-                sample_op, _ = gaussian_clip_rsample(mu, self.log_std)
-                log_prob = gaussian_likelihood_sum(sample_op, mu, self.log_std)
+                mu, log_std = self.actor_net(feat)
+                sample_op, _ = gaussian_clip_rsample(mu, log_std)
+                log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = self.actor_net(feat)
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, log_prob, cell_state
@@ -113,8 +88,6 @@ class AC(make_off_policy_class(mode='share')):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'train_function': self.train,
-                'update_function': lambda: None,
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
@@ -124,13 +97,13 @@ class AC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, crsty_loss, cell_state):
         ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
-                    next_mu = self.actor_net(feat_)
+                    next_mu, _ = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
                 else:
                     logits = self.actor_net(feat_)
@@ -146,9 +119,9 @@ class AC(make_off_policy_class(mode='share')):
             )
             with tf.GradientTape() as tape:
                 if self.is_continuous:
-                    mu = self.actor_net(feat)
-                    log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.actor_net(feat)
+                    log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
@@ -180,11 +153,11 @@ class AC(make_off_policy_class(mode='share')):
             with tf.GradientTape(persistent=True) as tape:
                 feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 if self.is_continuous:
-                    next_mu = self.actor_net(feat_)
+                    next_mu, _ = self.actor_net(feat_)
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, next_mu))
-                    mu, sigma = self.actor_net(feat)
-                    log_prob = gaussian_likelihood_sum(a, mu, self.log_std)
-                    entropy = gaussian_entropy(self.log_std)
+                    mu, log_std = self.actor_net(feat)
+                    log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.actor_net(feat_)
                     max_a = tf.argmax(logits, axis=1)

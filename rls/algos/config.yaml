@@ -40,7 +40,7 @@ hiro:
     high_critic_lr: 1.0e-3
     low_actor_lr: 1.0e-4
     low_critic_lr: 1.0e-3
-    hidden_units:
+    network_settings:
         high_actor: [64, 64]
         high_critic: [64, 64]
         low_actor: [64, 64]
@@ -64,7 +64,7 @@ curl:
     img_size: 64
     use_priority: false
     n_step: false
-    hidden_units:
+    network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
@@ -79,7 +79,7 @@ cem:
     extra_std: 1
     envs_per_popu: 5
     extra_var_last_multiplier: 0.2
-    hidden_units: [32, 32]
+    network_settings: [32, 32]
 
 qs:
     mode: "q" # 'q', 'sarsa', 'expected_sarsa'
@@ -102,12 +102,12 @@ dqn: &dqn
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units: [64, 64]
+    network_settings: [64, 64]
 
 ddqn: *dqn
 
 dddqn:
-    hidden_units:
+    network_settings:
         share: [64]
         v: [64]
         adv: [64]
@@ -139,7 +139,7 @@ oc:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         q: [32, 32]
         intra_option: [32, 32]
         termination: [32, 32]
@@ -162,7 +162,7 @@ ioc:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         q: [32, 32]
         intra_option: [32, 32]
         termination: [32, 32]
@@ -188,7 +188,7 @@ aoc:
     kl_beta: [0.7, 1.3]
     kl_alpha: 1.5
     kl_coef: 1.0
-    hidden_units:
+    network_settings:
         share: [32, 32]
         q: [32, 32]
         intra_option: [32, 32]
@@ -214,7 +214,7 @@ ppoc:
     kl_beta: [0.7, 1.3]
     kl_alpha: 1.5
     kl_coef: 1.0
-    hidden_units:
+    network_settings:
         share: [32, 32]
         q: [32, 32]
         intra_option: [32, 32]
@@ -230,7 +230,7 @@ sql:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units: [64, 64]
+    network_settings: [64, 64]
 
 c51:
     v_min: -100
@@ -247,7 +247,7 @@ c51:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units: [256, 256]
+    network_settings: [256, 256]
 
 rainbow:
     v_min: -100
@@ -264,7 +264,7 @@ rainbow:
     assign_interval: 1000
     use_priority: true
     n_step: true
-    hidden_units:
+    network_settings:
         share: [128]
         v: [128, 128]
         adv: [128, 128]
@@ -283,7 +283,7 @@ qrdqn:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units: [256, 256]
+    network_settings: [256, 256]
 
 iqn:
     online_quantiles: 8 # quantile number of online network
@@ -302,7 +302,7 @@ iqn:
     assign_interval: 1000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         q_net: [128, &iqn_hm 64]
         quantile: [128, *iqn_hm]
         tile: [64]
@@ -311,42 +311,51 @@ pg:
     lr: 5.0e-4
     gamma: 0.99
     batch_size: 64
+    condition_sigma: false
     epoch: 1 # very important
-    hidden_units:
-        actor_continuous: [64, 64]
+    network_settings:
+        actor_continuous:
+            hidden_units: [64, 64]
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
 
 ac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    condition_sigma: false
     gamma: 0.99
     batch_size: 256
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
-        actor_continuous: [64, 64]
+    network_settings:
+        actor_continuous:
+            hidden_units: [64, 64]
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
 
 a2c:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
+    condition_sigma: false
     gamma: 0.99
     beta: 1.0e-3
     batch_size: 64
     epoch: 4 # very important
-    hidden_units:
-        actor_continuous: [64, 64]
+    network_settings:
+        actor_continuous:
+            hidden_units: [64, 64]
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
 
 ppo:
     share_net: true
     epsilon: 0.2
-    value_epsilon: 0.2
     gamma: 0.99
-    beta: 1.0e-3
+    ent_coef: 1.0e-2
+    vf_coef: 0.5
     lr: 5.0e-4
     lambda_: 0.97
     batch_size: 64
@@ -354,16 +363,34 @@ ppo:
     value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
+    max_grad_norm: null
+    condition_sigma: false  # not recommended
+
+    # value function clip
+    use_vclip: false
+    value_epsilon: 0.2
+
+    # kl loss
+    use_kl_loss: false
     kl_reverse: false
     kl_target: 0.02
-    kl_target_cutoff: 2
-    kl_target_earlystop: 4
     kl_beta: [0.7, 1.3]
     kl_alpha: 1.5
     kl_coef: 1.0
-    hidden_units:
+
+    # extra loss
+    use_extra_loss: false
+    extra_coef: 1000.0
+    kl_target_cutoff: 2
+
+    # early stopping
+    use_early_stop: false
+    kl_target_earlystop: 4
+
+    network_settings:
         share:
             continuous:
+                log_std_bound: [-20, 2]
                 share: [64, 64]
                 mu: [64, 64]
                 v: [64, 64]
@@ -371,7 +398,9 @@ ppo:
                 share: [64, 64]
                 logits: [64, 64]
                 v: [64, 64]
-        actor_continuous: [64, 64]
+        actor_continuous:
+            hidden_units: [64, 64]
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
 
@@ -389,8 +418,11 @@ trpo:
     train_v_iters: 10
     batch_size: 64
     critic_lr: 1.0e-3
-    hidden_units:
-        actor_continuous: [64, 64]
+    condition_sigma: false
+    network_settings:
+        actor_continuous:
+            hidden_units: [64, 64]
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
 
@@ -403,7 +435,7 @@ dpg:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -418,7 +450,7 @@ ddpg:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -435,7 +467,7 @@ pd_ddpg:
     batch_size: 256
     buffer_size: 100000
     use_priority: false
-    hidden_units:
+    network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         reward: [64, 64]
@@ -455,7 +487,7 @@ td3:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -477,7 +509,7 @@ sac:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
@@ -502,7 +534,7 @@ sac_v:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
@@ -532,7 +564,7 @@ tac:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units:
+    network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
@@ -557,7 +589,7 @@ maxsqn:
     buffer_size: 100000
     use_priority: false
     n_step: true
-    hidden_units: [64, 64]
+    network_settings: [64, 64]
 
 maddpg:
     gamma: 0.99
@@ -566,6 +598,6 @@ maddpg:
     critic_lr: 1.0e-3
     batch_size: 32
     buffer_size: 100000
-    hidden_units:
+    network_settings:
         actor: [32, 32]
         q: [32, 32]

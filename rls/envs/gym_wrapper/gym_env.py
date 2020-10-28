@@ -1,42 +1,42 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import gym
-import logging
+import platform
+import numpy as np
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('rls.envs.gym_wrapper.gym_env')
+from gym.spaces import (Box,
+                        Discrete,
+                        Tuple)
+from typing import Dict
+from copy import deepcopy
+
+from rls.utils.display import colorize
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
 
 try:
     import gym_minigrid
 except ImportError:
-    logger.warning("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.")
+    logger.warning(colorize("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
 except ImportError:
-    logger.warning("import pybullet_envs failed, using 'pip3 install PyBullet' install it.")
+    logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
-import numpy as np
-import platform
-use_ray = False
-if platform.system() != "Windows" and use_ray:
-    from . import ray_wrapper as Asyn
-else:
-    from . import threading_wrapper as Asyn
-
-from typing import Dict
-from copy import deepcopy
+try:
+    import gym_donkeycar
+except ImportError:
+    logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
+    pass
 
 from rls.utils.np_utils import int2action_index
-from gym.spaces import \
-    Box, \
-    Discrete, \
-    Tuple
 from rls.envs.gym_wrapper.utils import build_env
+from rls.utils.tuples import SingleAgentEnvArgs
 
 
 class gym_envs(object):
@@ -56,7 +56,21 @@ class gym_envs(object):
         self.info_env.close()
         del self.info_env
 
-        self.envs = Asyn.init_envs(build_env, config, self.n, config['env_seed'])
+        # Import gym env vectorize wrapper class
+        if config['vector_env_type'] == 'multiprocessing':
+            from rls.envs.gym_wrapper.multiprocessing_wrapper import MultiProcessingEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'threading':
+            from rls.envs.gym_wrapper.threading_wrapper import MultiThreadEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'ray':
+            import platform
+            assert platform.system() != "Windows", 'Ray wrapper can be used in non-windows systems.'
+            from rls.envs.gym_wrapper.ray_wrapper import RayEnv as AsynVectorEnvClass
+        elif config['vector_env_type'] == 'vector':
+            from rls.envs.gym_wrapper.vector_wrapper import VectorEnv as AsynVectorEnvClass
+        else:
+            raise Exception('The vector_env_type of gym in config.yaml doesn\'in the list of [multiprocessing, threading, ray, vector]. Please check your configurations.')
+
+        self.envs = AsynVectorEnvClass(build_env, config, self.n, config['env_seed'])
         self._get_render_index(render_mode)
 
     def _initialize(self, env):
@@ -72,11 +86,11 @@ class gym_envs(object):
         if len(ObsSpace.shape) == 3:
             self.obs_type = 'visual'
             self.visual_sources = 1
-            self.visual_resolution = list(ObsSpace.shape)
+            self.visual_resolutions = list(ObsSpace.shape)
         else:
             self.obs_type = 'vector'
             self.visual_sources = 0
-            self.visual_resolution = []
+            self.visual_resolutions = []
 
         # process action
         ActSpace = env.action_space
@@ -98,6 +112,14 @@ class gym_envs(object):
             self.discrete_action_dim_list = [env.action_space.n]
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
+        self.EnvSpec = SingleAgentEnvArgs(
+            s_dim=self.s_dim,
+            a_dim=self.a_dim,
+            visual_sources=self.visual_sources,
+            visual_resolutions=self.visual_resolutions,
+            is_continuous=self._is_continuous,
+            n_agents=self.n
+        )
 
     @property
     def is_continuous(self):
@@ -132,22 +154,22 @@ class gym_envs(object):
         '''
         render game windows.
         '''
-        Asyn.op_func([self.envs[i] for i in self.render_index], Asyn.OP.RENDER)
+        self.envs.render(record, self.render_index)
 
     def close(self):
         '''
         close all environments.
         '''
-        Asyn.op_func(self.envs, Asyn.OP.CLOSE)
+        self.envs.close()
 
     def sample_actions(self):
         '''
         generate random actions for all training environment.
         '''
-        return np.asarray(Asyn.op_func(self.envs, Asyn.OP.SAMPLE))
+        return np.asarray(self.envs.sample())
 
     def reset(self):
-        obs = np.asarray(Asyn.op_func(self.envs, Asyn.OP.RESET))
+        obs = np.asarray(self.envs.reset())
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
         return obs
@@ -160,7 +182,9 @@ class gym_envs(object):
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':
                 actions = actions.reshape(self.n, -1).tolist()
-        results = Asyn.op_func(self.envs, Asyn.OP.STEP, actions)
+
+        results = self.envs.step(actions)
+
         obs, reward, done, info = [np.asarray(e) for e in zip(*results)]
         reward = reward.astype('float32')
         dones_index = np.where(done)[0]
@@ -175,6 +199,6 @@ class gym_envs(object):
 
     def partial_reset(self, obs, dones_index):
         correct_new_obs = deepcopy(obs)
-        partial_obs = np.asarray(Asyn.op_func([self.envs[i] for i in dones_index], Asyn.OP.RESET))
+        partial_obs = np.asarray(self.envs.reset(dones_index.tolist()))
         correct_new_obs[dones_index] = partial_obs
         return correct_new_obs

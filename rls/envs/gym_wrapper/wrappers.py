@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import gym
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('rls.envs.gym_wrapper.wrappers')
+from rls.utils.logging_utils import get_logger
+logger = get_logger(__name__)
+
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)
@@ -22,10 +22,9 @@ except:
 import numpy as np
 
 from collections import deque
-from gym.spaces import \
-    Box, \
-    Discrete, \
-    Tuple
+from gym.spaces import (Box,
+                        Discrete,
+                        Tuple)
 
 from rls.utils.LazyFrames import LazyFrames
 

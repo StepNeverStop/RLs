@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
@@ -23,11 +23,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
     '''
 
     def __init__(self,
-                 s_dim,
-                 visual_sources,
-                 visual_resolution,
-                 a_dim,
-                 is_continuous,
+                 envspec,
 
                  ployak=0.995,
                  high_scale=1.0,
@@ -44,21 +40,15 @@ class HIRO(make_off_policy_class(mode='no_share')):
                  high_critic_lr=1.0e-3,
                  low_actor_lr=1.0e-4,
                  low_critic_lr=1.0e-3,
-                 hidden_units={
+                 network_settings={
                      'high_actor': [64, 64],
                      'high_critic': [64, 64],
                      'low_actor': [64, 64],
                      'low_critic': [64, 64]
                  },
                  **kwargs):
-        assert visual_sources == 0, 'HIRO doesn\'t support visual inputs.'
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+        assert envspec.visual_sources == 0, 'HIRO doesn\'t support visual inputs.'
+        super().__init__(envspec=envspec, **kwargs)
         self.data_high = ExperienceReplay(high_batch_size, high_buffer_size)
         self.data_low = ExperienceReplay(low_batch_size, low_buffer_size)
 
@@ -75,11 +65,11 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.high_noise = ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale / 2)
         self.low_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
-        def _high_actor_net(): return ActorCts(self.s_dim, self.sub_goal_dim, hidden_units['high_actor'])
+        def _high_actor_net(): return ActorCts(self.s_dim, self.sub_goal_dim, network_settings['high_actor'])
         if self.is_continuous:
-            def _low_actor_net(): return ActorCts(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return ActorCts(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
         else:
-            def _low_actor_net(): return ActorDcs(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_actor'])
+            def _low_actor_net(): return ActorDcs(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
         self.high_actor = _high_actor_net()
@@ -87,8 +77,8 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor = _low_actor_net()
         self.low_actor_target = _low_actor_net()
 
-        def _high_critic_net(): return Critic(self.s_dim, self.sub_goal_dim, hidden_units['high_critic'])
-        def _low_critic_net(): return Critic(self.s_dim + self.sub_goal_dim, self.a_dim, hidden_units['low_critic'])
+        def _high_critic_net(): return Critic(self.s_dim, self.sub_goal_dim, network_settings['high_critic'])
+        def _low_critic_net(): return Critic(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_critic'])
 
         self.high_critic = DoubleQ(_high_critic_net)
         self.high_critic_target = DoubleQ(_high_critic_net)
@@ -105,21 +95,23 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.low_actor_optimizer, self.low_critic_optimizer = map(self.init_optimizer, [self.low_actor_lr, self.low_critic_lr])
         self.high_actor_optimizer, self.high_critic_optimizer = map(self.init_optimizer, [self.high_actor_lr, self.high_critic_lr])
 
-        self.model_recorder(dict(
-            high_actor=self.high_actor,
-            high_critic=self.high_critic,
-            low_actor=self.low_actor,
-            low_critic=self.low_critic,
-            low_actor_optimizer=self.low_actor_optimizer,
-            low_critic_optimizer=self.low_critic_optimizer,
-            high_actor_optimizer=self.high_actor_optimizer,
-            high_critic_optimizer=self.high_critic_optimizer
-        ))
-
         self.counts = 0
         self._high_s = [[] for _ in range(self.n_agents)]
         self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
+
+        self._worker_params_dict.update(
+            high_actor=self.high_actor,
+            low_actor=self.low_actor)
+        self._residual_params_dict.update(
+            high_critic=self.high_critic,
+            low_critic=self.low_critic,
+            low_actor_optimizer=self.low_actor_optimizer,
+            low_critic_optimizer=self.low_critic_optimizer,
+            high_actor_optimizer=self.high_actor_optimizer,
+            high_critic_optimizer=self.high_critic_optimizer)
+
+        self._model_post_process()
 
     def generate_ir_func(self, mode='os'):
         if mode == 'os':
@@ -130,19 +122,6 @@ class HIRO(make_off_policy_class(mode='no_share')):
                     tf.cast(feat - last_feat, tf.float32),
                     tf.cast(subgoal, tf.float32),
                     axis=-1), axis=-1)
-
-    def show_logo(self):
-        self.logger.info('''
-　　ｘｘｘｘｘ　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘ　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘｘｘｘｘ　　　　　　　　ｘｘｘ　ｘｘｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　ｘｘ　　　　　ｘｘｘ　　
-　　　　ｘｘｘｘｘｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘ　　　　　ｘｘｘ　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘｘｘｘｘ　　　　　　　　ｘｘ　　　　　ｘｘｘ　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　ｘｘｘｘ　　　　　　　ｘｘ　　　　　ｘｘｘ　　
-　　　　ｘｘ　　　ｘｘ　　　　　　　　　　　ｘｘ　　　　　　　　　　ｘｘ　　ｘｘｘ　　　　　　　ｘｘｘ　　　ｘｘｘ　　　
-　　ｘｘｘｘｘ　ｘｘｘｘｘ　　　　　　　　ｘｘｘｘ　　　　　　　　ｘｘｘｘｘ　ｘｘｘｘ　　　　　　ｘｘｘｘｘｘｘ　　　
-        ''')
 
     def store_high_buffer(self, i):
         eps_len = len(self._high_s[i])
@@ -212,7 +191,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
             else:
                 logits = self.low_actor(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfd.Categorical(logits)
+                cate_dist = tfd.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi
 
@@ -248,15 +227,15 @@ class HIRO(make_off_policy_class(mode='no_share')):
 
                 self.summaries.update(summaries)
                 update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
-                                               self.low_actor.weights + self.low_critic.weights,
-                                               self.ployak)
+                                          self.low_actor.weights + self.low_critic.weights,
+                                          self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(_high_training_data)
                     self.summaries.update(high_summaries)
                     update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
-                                                   self.high_actor.weights + self.high_critic.weights,
-                                                   self.ployak)
+                                              self.high_actor.weights + self.high_critic.weights,
+                                              self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
                     ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.train_step)],

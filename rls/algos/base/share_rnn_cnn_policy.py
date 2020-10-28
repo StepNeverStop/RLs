@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# encoding: utf-8
 
 import numpy as np
 import tensorflow as tf
 
-from typing import \
-    Tuple, \
-    List, \
-    Optional, \
-    NoReturn, \
-    Dict, \
-    Union, \
-    Callable
+from typing import (Tuple,
+                    List,
+                    Optional,
+                    NoReturn,
+                    Dict,
+                    Union,
+                    Callable)
 
 from rls.algos.base.policy import Policy
-from rls.nn.networks import \
-    VisualNet, \
-    ObsRNN
+from rls.nn.networks import (VisualNet,
+                             ObsRNN)
 
 
 def _split_with_time(
@@ -64,25 +62,14 @@ def _split_without_time(
 
 
 class SharedPolicy(Policy):
-    def __init__(self,
-                 s_dim: Union[int, np.ndarray],
-                 visual_sources: Union[int, np.ndarray],
-                 visual_resolution: Union[List, np.ndarray],
-                 a_dim: Union[int, np.ndarray],
-                 is_continuous: Union[bool, np.ndarray],
-                 **kwargs):
-        super().__init__(
-            s_dim=s_dim,
-            visual_sources=visual_sources,
-            visual_resolution=visual_resolution,
-            a_dim=a_dim,
-            is_continuous=is_continuous,
-            **kwargs)
+    def __init__(self, envspec, **kwargs):
+        super().__init__(envspec=envspec, **kwargs)
         if self.use_visual:
             self.visual_feature = int(kwargs.get('visual_feature', 128))
             self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
             self.other_tv += self.visual_net.trainable_variables
             self.feat_dim = self.visual_net.hdim
+            self._worker_params_dict.update(visual_net=self.visual_net)
 
         if self.use_rnn:
             self.rnn_units = int(kwargs.get('rnn_units', 16))
@@ -92,16 +79,10 @@ class SharedPolicy(Policy):
             self.rnn_net = ObsRNN(self.feat_dim, self.rnn_units)
             self.other_tv += self.rnn_net.trainable_variables
             self.feat_dim = self.rnn_units
+            self._worker_params_dict.update(rnn_net=self.rnn_net)
 
         self.get_feature = tf.function(func=self.generate_get_feature_function(), experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(func=self.generate_get_brun_in_feature_function(), experimental_relax_shapes=True)
-
-    def model_recorder(self, kwargs: Dict) -> NoReturn:
-        if self.use_visual:
-            kwargs.update(visual_net=self.visual_net)
-        if self.use_rnn:
-            kwargs.update(rnn_net=self.rnn_net)
-        super().model_recorder(kwargs)
 
     def initial_cell_state(self, batch: Optional[int] = None) -> Tuple[tf.Tensor]:
         if batch is None:
