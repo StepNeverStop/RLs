@@ -123,7 +123,7 @@ class SAC_V(make_off_policy_class(mode='share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
@@ -164,7 +164,7 @@ class SAC_V(make_off_policy_class(mode='share')):
                     pi, log_pi = squash_rsample(mu, log_std)
                 else:
                     logits = self.actor_net(feat)
-                    cate_dist = tfp.distributions.Categorical(logits)
+                    cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                     pi = cate_dist.sample()
                     log_pi = cate_dist.log_prob(pi)
                     pi = tf.one_hot(pi, self.a_dim, dtype=tf.float32)
@@ -217,7 +217,7 @@ class SAC_V(make_off_policy_class(mode='share')):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
                         logits = self.actor_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits)
+                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

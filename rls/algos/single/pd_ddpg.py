@@ -94,7 +94,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 

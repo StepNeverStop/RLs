@@ -127,13 +127,13 @@ class PPOC(make_on_policy_class(mode='share')):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = pi
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
             o_log_prob = tf.reduce_sum(o * options_onehot, axis=-1)   # [B, ]
             q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
             beta_adv = q_o - tf.reduce_sum(q * tf.math.exp(o), axis=-1)   # [B, ]
-            option_norm_dist = tfp.distributions.Categorical(probs=tf.math.exp(o))
+            option_norm_dist = tfp.distributions.Categorical(logits=o)
             sample_options = option_norm_dist.sample()
             beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
             beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)

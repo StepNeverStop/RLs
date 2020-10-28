@@ -181,7 +181,7 @@ class CURL(make_off_policy_class(mode='no_share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi
 
@@ -246,7 +246,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
@@ -306,7 +306,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
                         logits = self.actor_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits)
+                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

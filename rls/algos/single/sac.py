@@ -114,7 +114,7 @@ class SAC(make_off_policy_class(mode='share')):
             else:
                 logits = self.actor_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits)
+                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
@@ -159,7 +159,7 @@ class SAC(make_off_policy_class(mode='share')):
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
@@ -209,7 +209,7 @@ class SAC(make_off_policy_class(mode='share')):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
                         logits = self.actor_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits)
+                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     # $J(\alpha)=\mathbb{E}_{\mathbf{a}_{t} \sim \pi_{t}}\left[-\alpha \log \pi_{t}\left(\mathbf{a}_{t} | \mathbf{s}_{t}\right)-\alpha \overline{\mathcal{H}}\right.$
                     # \overline{\mathcal{H}} is negative
@@ -264,7 +264,7 @@ class SAC(make_off_policy_class(mode='share')):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
 
                     target_logits = self.actor_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(target_logits)
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)

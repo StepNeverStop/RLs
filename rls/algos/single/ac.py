@@ -63,7 +63,7 @@ class AC(make_off_policy_class(mode='share')):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = self.actor_net(feat)
-                norm_dist = tfp.distributions.Categorical(logits)
+                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, log_prob, cell_state

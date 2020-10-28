@@ -364,7 +364,7 @@ ppo:
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
     max_grad_norm: null
-    condition_sigma: false
+    condition_sigma: false  # not recommended
 
     # value function clip
     use_vclip: false
