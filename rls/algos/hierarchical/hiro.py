@@ -11,9 +11,9 @@ from rls.nn import actor_discrete as ActorDcs
 from rls.nn import critic_q_one as Critic
 from rls.nn.modules import DoubleQ
 from rls.nn.noise import ClippedNormalActionNoise
-from rls.utils.np_utila import int2one_hot
 from rls.algos.base.off_policy import make_off_policy_class
 from rls.memories.replay_buffer import ExperienceReplay
+from rls.utils.np_utils import int2one_hot
 from rls.utils.tf2_utils import update_target_net_weights
 
 

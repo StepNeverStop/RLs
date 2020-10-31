@@ -43,7 +43,7 @@ class UnityWrapper(object):
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel])
         else:
-            unity_env_dict = load_yaml(os.path.dirname(__file__) + '/../../unity_env_dict.yaml')
+            unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
             self._env = UnityEnvironment(file_name=env_args['file_path'],
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
@@ -81,7 +81,6 @@ class BasicWrapper:
 class InfoWrapper(BasicWrapper):
     def __init__(self, env, env_args):
         super().__init__(env)
-        # self._env.step()    # NOTE: 在一些图像输入的场景，如果初始化时不执行这条指令，那么将不能获取正确的场景智能体数量
         self.resize = env_args['resize']
 
         self.group_names = list(self._env.behavior_specs.keys())  # 所有脑的名字列表
