@@ -26,7 +26,7 @@ def make_on_policy_class(mode: str = 'share'):
 
         def initialize_data_buffer(self,
                                    data_name_list: List[str] = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) -> NoReturn:
-            self.data = DataBuffer(dict_keys=data_name_list, n_agents=self.n_agents)
+            self.data = DataBuffer(n_agents=self.n_agents, dict_keys=data_name_list)
 
         def store_data(self,
                        s: Union[List, np.ndarray],
@@ -74,6 +74,7 @@ def make_on_policy_class(mode: str = 'share'):
                 s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()
                 crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
                 self.data.r = r.reshape([self.data.eps_len, -1])
+                # self.data.r += crsty_r
                 self.summaries.update(crsty_summaries)
             else:
                 crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)

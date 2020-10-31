@@ -60,6 +60,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         train_args.add_dict(default_config['unity']['train'])
     train_args.index = 0
     train_args.name = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
+    train_args.max_step_per_episode = abs(train_args.max_step_per_episode) or sys.maxsize
     train_args.max_train_step = abs(train_args.max_train_step) or sys.maxsize
     train_args.max_frame_step = abs(train_args.max_frame_step) or sys.maxsize
     train_args.max_train_episode = abs(train_args.max_train_episode) or sys.maxsize

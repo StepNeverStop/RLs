@@ -15,13 +15,21 @@ class DataBuffer(object):
     On-policy 算法的经验池
     '''
 
-    def __init__(self, dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'], n_agents=1):
+    def __init__(self,
+                 n_agents=1,
+                 dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'],
+                 rnn_3dim_keys=['s', 's_', 'visual_s', 'visual_s_']):
+        '''
+        params:
+            dict_keys: 要存入buffer中元素的名称
+            n_agents: 一个policy控制的智能体数量
+            rnn_3dim_keys: 如果使用rnn训练时，从经验池取出的数据中需要设置为[batchsize, timestep, dimension]的元素名称
+        '''
         assert n_agents > 0
-        self.dict_keys = dict_keys
-        self.buffer = dict([
-            [n, []] for n in dict_keys
-        ])
         self.n_agents = n_agents
+        self.dict_keys = dict_keys
+        self.buffer = {k: [] for k in dict_keys}
+        self.rnn_3dim_keys = rnn_3dim_keys
         self.eps_len = 0
 
     def add(self, *args):
@@ -39,7 +47,7 @@ class DataBuffer(object):
         '''
         dc_r = discounted_sum(self.buffer['r'], gamma, init_value, self.buffer['done'])
         if normalize:
-            dc_r = (dc_r - np.mean(dc_r)) / (np.std(dc_r) + 1e-8)
+            dc_r = standardization(np.asarray(dc_r))
         self.buffer['discounted_reward'] = list(dc_r)
 
     def cal_tr(self, init_value):
@@ -75,7 +83,7 @@ class DataBuffer(object):
             self.buffer['done']
         ))
         if normalize:
-            adv = (adv - np.mean(adv)) / (np.std(adv) + 1e-8)
+            adv = standardization(adv)
         self.buffer['gae_adv'] = list(standardization(adv))
 
     def last_s(self):
@@ -105,8 +113,11 @@ class DataBuffer(object):
         keys = keys or self.buffer.keys()
         keys_shape = self.calculate_dim_before_sample(keys)
         all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+        idxs = np.arange(self.eps_len * self.n_agents)
+        np.random.shuffle(idxs)
         for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
-            yield [data[i:i + batch_size * self.n_agents] for data in all_data]
+            _idxs = idxs[i:i + batch_size * self.n_agents]
+            yield [data[_idxs] for data in all_data]
 
     def sample_generater_rnn(self, time_step, keys=None):
         '''
@@ -117,18 +128,24 @@ class DataBuffer(object):
             keys: the keys of data that should be sampled to train policies
         return:
             sampled data.
-            if key in ['s', 's_', 'visual_s', 'visual_s_'], then return data with shape (agents_num, time_step, *)
+            if key in self.rnn_3dim_keys, then return data with shape (agents_num, time_step, *)
             else return with shape (agents_num*time_step, *)
         '''
         keys = keys or self.buffer.keys()
+        # acquire shape of each items
         keys_shape = self.calculate_dim_before_sample(keys)
         all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len, self.n_agents, -1).astype(np.float32) for k in keys]
+        # change data shape from [timestep, agents, dim] to [agents, timestep, dim]
+        # TODO: check whether suit for visual observations.
         all_data = [np.transpose(data, (1, 0, 2)) for data in all_data]
-        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in ['s', 's_', 'visual_s', 'visual_s_']
+        # reshape necessary data shape from [agents, timestep, dim] to [agents*timestep, dim], i.e. rewards
+        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in self.rnn_3dim_keys
                     else np.reshape(data, (self.n_agents * self.eps_len, *keys_shape[k]))
                     for k, data in zip(keys, all_data)]
-        for i in range(0, self.eps_len, time_step):
-            yield [data[:, i:i + time_step] if k in ['s', 's_', 'visual_s', 'visual_s_'] else data[i * self.n_agents:(i + time_step) * self.n_agents]
+        idxs = np.arange(0, self.eps_len, time_step)    # [1, 3, 5, 7, 9]
+        np.random.shuffle(idxs)
+        for i in idxs:
+            yield [data[:, i:i + time_step] if k in self.rnn_3dim_keys else data[i * self.n_agents:(i + time_step) * self.n_agents]
                    for k, data in zip(keys, all_data)]
 
     def get_curiosity_data(self):
@@ -194,3 +211,45 @@ class DataBuffer(object):
         keys = keys or self.buffer.keys()
         keys_shape = {k: self.buffer[k][0].shape[1:] if len(self.buffer[k][0].shape[1:]) > 0 else (-1,) for k in keys}
         return keys_shape
+
+    def __str__(self):
+        return str(self.buffer)
+
+
+if __name__ == "__main__":
+    db = DataBuffer(
+        dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'],
+        n_agents=2,
+        rnn_3dim_keys=['s', 's_', 'visual_s', 'visual_s_'])
+
+    for i in range(10):
+        db.add(
+            np.full((2, 2), i, dtype=np.float32),
+            np.full((2, 8, 8, 3), i, dtype=np.float32),
+            np.full((2, 2), i, dtype=np.float32),
+            np.full((2,), i, dtype=np.float32),
+            np.full((2, 2), i, dtype=np.float32),
+            np.full((2, 8, 8, 3), i, dtype=np.float32),
+            np.full((2,), False, dtype=np.float32)
+        )
+
+    # should be [[9, 9], [9, 9]]
+    print(db.last_s())
+    # shouble be np.full((2, 8, 8, 3), 9)
+    print(db.last_visual_s())
+
+    for d in db.sample_generater(batch_size=2, keys=['s', 'r']):
+        print(d[0].shape, d[1].shape)
+
+    for d in db.sample_generater_rnn(time_step=6, keys=['s', 'r']):
+        print(d[0].shape, d[1].shape)
+        # print(d[0])
+
+    # db.cal_dc_r(1., 1.)
+    # print(db.buffer['discounted_reward'])
+
+    # db.cal_dc_r(1., 1., normalize=True)
+    # print(db.buffer['discounted_reward'])
+
+    # db.clear()
+    # print(db)

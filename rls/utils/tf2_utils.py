@@ -25,7 +25,7 @@ def get_device():
 
 def show_graph(name='my_func_trace'):
     '''
-    show tf2 graph in tensorboard. work for ppo, have bug in off-policy algorithm, like dqn..
+    show tf2 graph in tensorboard. work for ppo, has bug in off-policy algorithm, like dqn..
     TODO: fix bug when showing graph of off-policy algorithm based on TF2.
     '''
     def show_tf2_graph(func):
