@@ -222,14 +222,14 @@ class CURL(make_off_policy_class(mode='no_share')):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def _train(self, memories, isw, crsty_loss, cell_state):
-        td_error, summaries = self.train(memories, isw, crsty_loss, cell_state)
+    def _train(self, memories, isw, cell_state):
+        td_error, summaries = self.train(memories, isw, cell_state)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
     return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def train(self, memories, isw, cell_state):
         s, visual_s, a, r, s_, visual_s_, done, pos = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -258,7 +258,7 @@ class CURL(make_off_policy_class(mode='no_share')):
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
 
                 z_a = vis_feat  # [B, N]
                 z_out = self.encoder_target(pos)

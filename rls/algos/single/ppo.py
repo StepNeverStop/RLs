@@ -151,7 +151,7 @@ class PPO(make_on_policy_class(mode='share')):
                       s: np.ndarray,
                       visual_s: np.ndarray,
                       evaluation: bool = False) -> np.ndarray:
-        a, value, log_prob, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+        a, value, log_prob, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(value.numpy())
         self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
@@ -192,7 +192,11 @@ class PPO(make_on_policy_class(mode='share')):
         assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self._running_average(s)
-        self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob)
+        data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob)
+        if self.use_rnn:
+            data += tuple(cs.numpy() for cs in self.cell_state)
+        self.data.add(*data)
+        self.cell_state = self.next_cell_state
 
     @tf.function
     def _get_value(self, feat):
@@ -220,15 +224,13 @@ class PPO(make_on_policy_class(mode='share')):
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, crsty_loss, cell_state):
+        def _train(data):
             early_step = 0
             if self.share_net:
                 for i in range(self.policy_epoch):
                     actor_loss, critic_loss, entropy, kl = self.train_share(
                         data,
-                        self.kl_coef,
-                        crsty_loss,
-                        cell_state
+                        self.kl_coef
                     )
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
@@ -238,8 +240,7 @@ class PPO(make_on_policy_class(mode='share')):
                     s, visual_s, a, dc_r, old_log_prob, advantage, old_value = data
                     actor_loss, entropy, kl = self.train_actor(
                         (s, visual_s, a, old_log_prob, advantage),
-                        self.kl_coef,
-                        cell_state
+                        self.kl_coef
                     )
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
@@ -247,9 +248,7 @@ class PPO(make_on_policy_class(mode='share')):
 
                 for _ in range(self.value_epoch):
                     critic_loss = self.train_critic(
-                        (s, visual_s, dc_r, old_value),
-                        crsty_loss,
-                        cell_state
+                        (s, visual_s, dc_r, old_value)
                     )
 
             summaries = dict([
@@ -292,8 +291,8 @@ class PPO(make_on_policy_class(mode='share')):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_share(self, memories, kl_coef, crsty_loss, cell_state):
-        s, visual_s, a, dc_r, old_log_prob, advantage, old_value = memories
+    def train_share(self, memories, kl_coef):
+        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -345,7 +344,7 @@ class PPO(make_on_policy_class(mode='share')):
                     extra_loss = self.extra_coef * tf.square(tf.maximum(0., kl - self.kl_cutoff))
                     actor_loss += extra_loss
                 value_loss = 0.5 * tf.reduce_mean(td_square)
-                loss = actor_loss + self.vf_coef * value_loss + crsty_loss
+                loss = actor_loss + self.vf_coef * value_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
@@ -354,8 +353,8 @@ class PPO(make_on_policy_class(mode='share')):
             return actor_loss, value_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, memories, kl_coef, cell_state):
-        s, visual_s, a, old_log_prob, advantage = memories
+    def train_actor(self, memories, kl_coef):
+        s, visual_s, a, old_log_prob, advantage, cell_state = memories
         with tf.device(self.device):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
@@ -398,8 +397,8 @@ class PPO(make_on_policy_class(mode='share')):
             return actor_loss, entropy, kl
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, memories, crsty_loss, cell_state):
-        s, visual_s, dc_r, old_value = memories
+    def train_critic(self, memories):
+        s, visual_s, dc_r, old_value, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -413,7 +412,7 @@ class PPO(make_on_policy_class(mode='share')):
                 else:
                     td_square = tf.square(td_error)
 
-                value_loss = 0.5 * tf.reduce_mean(td_square) + crsty_loss
+                value_loss = 0.5 * tf.reduce_mean(td_square)
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

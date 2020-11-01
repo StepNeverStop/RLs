@@ -3,6 +3,8 @@
 
 import numpy as np
 
+from collections import defaultdict
+
 from rls.utils.np_utils import (int2one_hot,
                                 discounted_sum,
                                 discounted_sum_minus,
@@ -17,6 +19,7 @@ class DataBuffer(object):
 
     def __init__(self,
                  n_agents=1,
+                 rnn_cell_nums=0,
                  dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'],
                  rnn_3dim_keys=['s', 's_', 'visual_s', 'visual_s_']):
         '''
@@ -27,8 +30,10 @@ class DataBuffer(object):
         '''
         assert n_agents > 0
         self.n_agents = n_agents
-        self.dict_keys = dict_keys
-        self.buffer = {k: [] for k in dict_keys}
+        self.rnn_cell_nums = rnn_cell_nums
+        self.cell_state_keys = ['cell_state_'+str(i) for i in range(rnn_cell_nums)]
+        self.dict_keys = dict_keys + self.cell_state_keys
+        self.buffer = defaultdict(list)
         self.rnn_3dim_keys = rnn_3dim_keys
         self.eps_len = 0
 
@@ -100,54 +105,6 @@ class DataBuffer(object):
         assert 'visual_s_' in self.buffer.keys()
         return self.buffer['visual_s_'][-1]
 
-    def sample_generater(self, batch_size, keys=None):
-        '''
-        create sampling data iterator without using rnn.
-
-        params:
-            batch_size: the batch size of training data
-            keys: the keys of data that should be sampled to train policies
-        return:
-            sampled data.
-        '''
-        keys = keys or self.buffer.keys()
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
-        idxs = np.arange(self.eps_len * self.n_agents)
-        np.random.shuffle(idxs)
-        for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
-            _idxs = idxs[i:i + batch_size * self.n_agents]
-            yield [data[_idxs] for data in all_data]
-
-    def sample_generater_rnn(self, time_step, keys=None):
-        '''
-        create rnn sampling data iterator.
-
-        params:
-            time_step: the length of time slide window
-            keys: the keys of data that should be sampled to train policies
-        return:
-            sampled data.
-            if key in self.rnn_3dim_keys, then return data with shape (agents_num, time_step, *)
-            else return with shape (agents_num*time_step, *)
-        '''
-        keys = keys or self.buffer.keys()
-        # acquire shape of each items
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len, self.n_agents, -1).astype(np.float32) for k in keys]
-        # change data shape from [timestep, agents, dim] to [agents, timestep, dim]
-        # TODO: check whether suit for visual observations.
-        all_data = [np.transpose(data, (1, 0, 2)) for data in all_data]
-        # reshape necessary data shape from [agents, timestep, dim] to [agents*timestep, dim], i.e. rewards
-        all_data = [np.reshape(data, (self.n_agents, self.eps_len, *keys_shape[k])) if k in self.rnn_3dim_keys
-                    else np.reshape(data, (self.n_agents * self.eps_len, *keys_shape[k]))
-                    for k, data in zip(keys, all_data)]
-        idxs = np.arange(0, self.eps_len, time_step)    # [1, 3, 5, 7, 9]
-        np.random.shuffle(idxs)
-        for i in idxs:
-            yield [data[:, i:i + time_step] if k in self.rnn_3dim_keys else data[i * self.n_agents:(i + time_step) * self.n_agents]
-                   for k, data in zip(keys, all_data)]
-
     def get_curiosity_data(self):
         '''
         返回用于好奇心机制的数据
@@ -166,6 +123,122 @@ class DataBuffer(object):
         '''
         if 'a' in self.buffer.keys():
             self.buffer['a'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
+
+    def normalize_vector_obs(self, func):
+        '''
+        TODO: Annotation
+        '''
+        if 's' in self.buffer.keys():
+            self.buffer['s'] = [func(s) for s in self.buffer['s']]
+        if 's_' in self.buffer.keys():
+            self.buffer['s_'] = [func(s) for s in self.buffer['s_']]
+
+    def calculate_dim_before_sample(self, keys=None):
+        '''
+        calculate the dimension of each items stored in data buffer. This will help to reshape the data.
+        For example, if the dimension of vector obs is 4, and the dimension of visual obs is (84, 84, 3),
+        you cannot just use tf.reshape(x, (batch_size, time_step, -1)) to get the correct shape of visual obs.
+        By recording the data dimension in this way, it is easy to reshape them.
+
+        params:
+            keys: the key of items in data buffer
+        return:
+            keys_shape: a dict that include all dimension info of each key in data buffer
+        '''
+        keys = keys or self.buffer.keys()
+        keys_shape = {k: self.buffer[k][0].shape[1:]
+                      if len(self.buffer[k][0].shape[1:]) > 0
+                      else (-1,) for k in keys}
+        return keys_shape
+
+    def split_data_by_timestep(self, time_step: int):
+        assert 'done' in self.buffer.keys()
+        assert time_step > 0
+        keys = self.buffer.keys()
+
+        # [eps_len, agents, dim]
+        buffer = defaultdict(list)
+        # [eps_len, agents, dim] to [agents, eps_len, dim]
+        for k in keys:
+            self.buffer[k] = list(np.transpose(
+                np.asarray(self.buffer[k]),
+                (1, 0) + tuple(np.arange(self.buffer[k][0][0].ndim) + 2)
+            ))
+        nums = 0
+        for ag, dones in enumerate(self.buffer['done']):
+            # dones: (eps_len,)
+            idxs = (np.where(dones == True)[0] + 1).tolist()
+            for i, j in zip([0]+idxs, idxs+[self.eps_len]):
+                count, remainder = divmod((j - i), time_step)
+                offset = np.random.randint(0, remainder+1)
+                for c in range(count):
+                    l = c * time_step + offset
+                    r = l + time_step
+                    [buffer[k].append(self.buffer[k][ag][l:r]) for k in keys]
+                    nums += 1
+        self.clear()
+        del self.buffer
+        self.buffer = buffer
+        return nums
+
+    def sample_generater(self, batch_size, keys=None):
+        '''
+        create sampling data iterator without using rnn.
+
+        params:
+            batch_size: the batch size of training data
+            keys: the keys of data that should be sampled to train policies
+        return:
+            sampled data.
+        '''
+        keys = keys or self.buffer.keys()
+        keys_shape = self.calculate_dim_before_sample(keys)
+        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+        idxs = np.arange(self.eps_len * self.n_agents)
+        np.random.shuffle(idxs)
+        for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
+            _idxs = idxs[i:i + batch_size * self.n_agents]
+            yield [data[_idxs] for data in all_data]+[(None,)]
+
+    def sample_generater_rnn(self, batch_size, time_step, keys=None):
+        '''
+        create rnn sampling data iterator.
+
+        params:
+            time_step: the length of time slide window
+            keys: the keys of data that should be sampled to train policies
+        return:
+            sampled data.
+            if key in self.rnn_3dim_keys, then return data with shape (agents_num, time_step, *)
+            else return with shape (agents_num*time_step, *)
+        '''
+        # [agents, timestep, dim]
+        total_eps_num = self.split_data_by_timestep(time_step=time_step)
+        idxs = np.arange(total_eps_num)
+        np.random.shuffle(idxs)
+        
+        keys = keys or self.buffer.keys()
+        keys_shape = self.calculate_dim_before_sample(keys)
+        all_data = {k:np.asarray(self.buffer[k]).astype(np.float32) for k in self.buffer.keys()}
+
+        # prevent total_eps_num is smaller than batch_size
+        while batch_size > total_eps_num:
+            batch_size //= 2
+
+        count, remainder = divmod(total_eps_num, batch_size)
+        offset = np.random.randint(0, remainder+1)
+        for i in range(count):
+            l = i * batch_size + offset
+            r = l + batch_size
+            _idxs = idxs[l:r]
+            yield [all_data[k][_idxs]
+                    if k in self.rnn_3dim_keys
+                    else all_data[k][_idxs].reshape(batch_size * time_step, *keys_shape[k])
+                    for k in keys] \
+                    + \
+                    [
+                        tuple(all_data[cell_k][_idxs, 0, :] for cell_k in self.cell_state_keys)
+                    ]
 
     def clear(self):
         '''
@@ -187,31 +260,6 @@ class DataBuffer(object):
         '''
         return self.buffer[name]
 
-    def normalize_vector_obs(self, func):
-        '''
-        TODO: Annotation
-        '''
-        if 's' in self.buffer.keys():
-            self.buffer['s'] = [func(s) for s in self.buffer['s']]
-        if 's_' in self.buffer.keys():
-            self.buffer['s_'] = [func(s) for s in self.buffer['s_']]
-
-    def calculate_dim_before_sample(self, keys=None):
-        '''
-        calculate the dimension of each items stored in data buffer. This will help to reshape the data.
-        For example, if the dimension of vector obs is 4, and the dimension of visual obs is (84, 84, 3),
-        you cannot just use tf.reshape(x, (batch_size, time_step, -1)) to get the correct shape of visual obs.
-        By recording the data dimension in this way, it is easy to reshape them.
-
-        params: 
-            keys: the key of items in data buffer
-        return:
-            keys_shape: a dict that include all dimension info of each key in data buffer
-        '''
-        keys = keys or self.buffer.keys()
-        keys_shape = {k: self.buffer[k][0].shape[1:] if len(self.buffer[k][0].shape[1:]) > 0 else (-1,) for k in keys}
-        return keys_shape
-
     def __str__(self):
         return str(self.buffer)
 
@@ -224,13 +272,13 @@ if __name__ == "__main__":
 
     for i in range(10):
         db.add(
-            np.full((2, 2), i, dtype=np.float32),
-            np.full((2, 8, 8, 3), i, dtype=np.float32),
-            np.full((2, 2), i, dtype=np.float32),
-            np.full((2,), i, dtype=np.float32),
-            np.full((2, 2), i, dtype=np.float32),
-            np.full((2, 8, 8, 3), i, dtype=np.float32),
-            np.full((2,), False, dtype=np.float32)
+            np.full((2, 2), i, dtype=np.float32),   # s
+            np.full((2, 8, 8, 3), i, dtype=np.float32),  # visual_s
+            np.full((2, 2), i, dtype=np.float32),   # a
+            np.full((2,), i, dtype=np.float32),  # r
+            np.full((2, 2), i, dtype=np.float32),   # s_
+            np.full((2, 8, 8, 3), i, dtype=np.float32),  # visual_s
+            np.full((2,), True, dtype=np.float32)  # done
         )
 
     # should be [[9, 9], [9, 9]]
@@ -238,12 +286,12 @@ if __name__ == "__main__":
     # shouble be np.full((2, 8, 8, 3), 9)
     print(db.last_visual_s())
 
-    for d in db.sample_generater(batch_size=2, keys=['s', 'r']):
-        print(d[0].shape, d[1].shape)
+    # for d in db.sample_generater(batch_size=2, keys=['s', 'r']):
+    #     print(d[0].shape, d[1].shape)
 
-    for d in db.sample_generater_rnn(time_step=6, keys=['s', 'r']):
-        print(d[0].shape, d[1].shape)
-        # print(d[0])
+    # for d in db.sample_generater_rnn(time_step=6, keys=['s', 'r']):
+    #     print(d[0].shape, d[1].shape)
+    # print(d[0])
 
     # db.cal_dc_r(1., 1.)
     # print(db.buffer['discounted_reward'])
@@ -253,3 +301,6 @@ if __name__ == "__main__":
 
     # db.clear()
     # print(db)
+
+    db.split_data_by_timestep(time_step=1)
+    print(db)

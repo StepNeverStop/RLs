@@ -97,7 +97,7 @@ class AC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -112,7 +112,7 @@ class AC(make_off_policy_class(mode='share')):
                     max_q_next = tf.stop_gradient(self.critic_net(feat_, max_a_one_hot))
                 q = self.critic_net(feat, a)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
+                critic_loss = tf.reduce_mean(tf.square(td_error) * isw)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -147,7 +147,7 @@ class AC(make_off_policy_class(mode='share')):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+    def train_persistent(self, memories, isw, cell_state):
         ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
@@ -171,7 +171,7 @@ class AC(make_off_policy_class(mode='share')):
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
                 td_error = q - (r + self.gamma * (1 - done) * max_q_next)
-                critic_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
+                critic_loss = tf.reduce_mean(tf.square(td_error) * isw)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(

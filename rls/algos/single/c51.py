@@ -86,7 +86,7 @@ class C51(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -117,7 +117,7 @@ class C51(make_off_policy_class(mode='share')):
                 # tf.debugging.check_numerics(_cross_entropy, '_cross_entropy')
                 cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1)  # [B,]
                 # tf.debugging.check_numerics(cross_entropy, 'cross_entropy')
-                loss = tf.reduce_mean(cross_entropy * isw) + crsty_loss
+                loss = tf.reduce_mean(cross_entropy * isw)
                 td_error = cross_entropy
             grads = tape.gradient(loss, self.critic_tv)
             self.optimizer.apply_gradients(

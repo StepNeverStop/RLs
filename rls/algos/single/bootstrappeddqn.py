@@ -85,7 +85,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -100,7 +100,7 @@ class BootstrappedDQN(make_off_policy_class(mode='share')):
 
                 mask_dist = tfp.distributions.Bernoulli(probs=self._probs)
                 mask = tf.transpose(mask_dist.sample(batch_size), [1, 0])   # [H, B]
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer.apply_gradients(
                 zip(grads, self.critic_tv)

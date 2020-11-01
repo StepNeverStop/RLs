@@ -137,17 +137,17 @@ class SAC(make_off_policy_class(mode='share')):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         if self.is_continuous or self.use_gumbel:
-            td_error, summaries = self.train_persistent(memories, isw, crsty_loss, cell_state)
+            td_error, summaries = self.train_persistent(memories, isw, cell_state)
         else:
-            td_error, summaries = self.train_discrete(memories, isw, crsty_loss, cell_state)
+            td_error, summaries = self.train_discrete(memories, isw, cell_state)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
+    def train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -171,7 +171,7 @@ class SAC(make_off_policy_class(mode='share')):
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -238,7 +238,7 @@ class SAC(make_off_policy_class(mode='share')):
             return (td_error1 + td_error2) / 2., summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+    def train_persistent(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -277,7 +277,7 @@ class SAC(make_off_policy_class(mode='share')):
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
                 actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
                 if self.auto_adaption:
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
@@ -314,7 +314,7 @@ class SAC(make_off_policy_class(mode='share')):
             return (td_error1 + td_error2) / 2, summaries
 
     @tf.function(experimental_relax_shapes=True)
-    def train_discrete(self, memories, isw, crsty_loss, cell_state):
+    def train_discrete(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -335,7 +335,7 @@ class SAC(make_off_policy_class(mode='share')):
                 td_error2 = q2 - dc_r_q2
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + crsty_loss
+                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

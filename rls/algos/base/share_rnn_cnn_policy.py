@@ -14,7 +14,7 @@ from typing import (Tuple,
 
 from rls.algos.base.policy import Policy
 from rls.nn.networks import (VisualNet,
-                             ObsRNN)
+                             ObsLSTM)
 
 
 def _split_with_time(
@@ -43,6 +43,7 @@ def _split_with_time(
 
 def _split_without_time(
         state: tf.Tensor,
+        cell_state: Tuple[Optional[tf.Tensor]] = (None,),
         record_cs: bool = False,
         s_and_s_: bool = False) -> Union[tf.Tensor, Tuple[Union[tf.Tensor, Tuple]]]:
     '''
@@ -51,12 +52,12 @@ def _split_without_time(
     if s_and_s_:
         state_s, state_s_ = tf.split(state, num_or_size_splits=2, axis=0)
         if record_cs:
-            return state_s, state_s_, (None,)
+            return state_s, state_s_, cell_state
         else:
             return state_s, state_s_
     else:
         if record_cs:
-            return state, (None,)
+            return state, cell_state
         else:
             return state
 
@@ -70,31 +71,35 @@ class SharedPolicy(Policy):
             self.other_tv += self.visual_net.trainable_variables
             self.feat_dim = self.visual_net.hdim
             self._worker_params_dict.update(visual_net=self.visual_net)
+        self.cell_state_nums = 0
 
         if self.use_rnn:
             self.rnn_units = int(kwargs.get('rnn_units', 16))
             self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 20))
             self.train_time_step = int(kwargs.get('train_time_step', 40))
             self.episode_batch_size = int(kwargs.get('episode_batch_size', 32))
-            self.rnn_net = ObsRNN(self.feat_dim, self.rnn_units)
+            self.rnn_net = ObsLSTM(self.feat_dim, self.rnn_units)
+            self.cell_state_nums = 2 if self.rnn_net.rnn_type == 'lstm' else 1
             self.other_tv += self.rnn_net.trainable_variables
             self.feat_dim = self.rnn_units
             self._worker_params_dict.update(rnn_net=self.rnn_net)
+        
 
         self.get_feature = tf.function(func=self.generate_get_feature_function(), experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(func=self.generate_get_brun_in_feature_function(), experimental_relax_shapes=True)
 
+        self.reset()
+
     def initial_cell_state(self, batch: Optional[int] = None) -> Tuple[tf.Tensor]:
-        if batch is None:
-            batch = self.episode_batch_size
-        n = 2 if self.rnn_net.rnn_type == 'lstm' else 1
-        return tuple(tf.zeros((batch, self.rnn_units), dtype=tf.float32) for _ in range(n))
+        if self.use_rnn:
+            if batch is None:
+                batch = self.episode_batch_size
+            n = 2 if self.rnn_net.rnn_type == 'lstm' else 1
+            return tuple(tf.zeros((batch, self.rnn_units), dtype=tf.float32) for _ in range(n))
+        return (None,)
 
     def reset(self) -> NoReturn:
-        if self.use_rnn:
-            self.cell_state = self.initial_cell_state(self.n_agents)
-        else:
-            self.cell_state = (None,)
+        self.cell_state = self.next_cell_state = self.initial_cell_state(batch=self.n_agents)
 
     def get_cell_state(self) -> Tuple[Optional[tf.Tensor]]:
         return self.cell_state
@@ -128,7 +133,7 @@ class SharedPolicy(Policy):
                     '''
                     无CNN 和 RNN 的状态特征提取与分割方法
                     '''
-                    return _split_without_time(s, record_cs, s_and_s_)
+                    return _split_without_time(s, cell_state, record_cs, s_and_s_)
                 return _f
 
     def _cnn_get_feature(self, s, visual_s, *,
@@ -141,7 +146,7 @@ class SharedPolicy(Policy):
         s, visual_s = self._tf_data_cast(s, visual_s)
         with tf.device(self.device):
             feature = self.visual_net(s, visual_s)
-            return _split_without_time(feature, record_cs, s_and_s_)
+            return _split_without_time(feature, cell_state, record_cs, s_and_s_)
 
     def _rnn_get_feature(self, s, visual_s, *,
                          cell_state: Tuple[Optional[tf.Tensor]] = (None,),
@@ -187,7 +192,8 @@ class SharedPolicy(Policy):
             _, cell_state = self.rnn_net(s, *cell_state)
             return cell_state
 
-    def _cnn_rnn_get_burn_in_feature(self, s, visual_s) -> Tuple[tf.Tensor]:
+    def _cnn_rnn_get_burn_in_feature(self, s, visual_s,
+                                 cell_state: Tuple[Optional[tf.Tensor]]) -> Tuple[tf.Tensor]:
         s, visual_s = self._tf_data_cast(s, visual_s)    # [B, T, N]
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
@@ -195,5 +201,5 @@ class SharedPolicy(Policy):
             visual_s = tf.reshape(visual_s, [-1, tf.shape(visual_s)[-1]])   # [B*T, N]
             feature = self.visual_net(s, visual_s)  # [B*T, N]
             feature = tf.reshape(feature, [batch_size, -1, tf.shape(feature)[-1]])  # [B*T, N] => [B, T, N]
-            _, cell_state = self.rnn_net(feature)
+            _, cell_state = self.rnn_net(feature, *cell_state)
             return cell_state

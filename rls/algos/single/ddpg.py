@@ -102,7 +102,7 @@ class DDPG(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -123,7 +123,7 @@ class DDPG(make_off_policy_class(mode='share')):
                 q_target = self.q_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
             q_grads = tape.gradient(q_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(q_grads, self.critic_tv)
@@ -153,7 +153,7 @@ class DDPG(make_off_policy_class(mode='share')):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+    def train_persistent(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -180,7 +180,7 @@ class DDPG(make_off_policy_class(mode='share')):
                 q_target = self.q_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error = q - dc_r
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
+                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
 
                 q_actor = self.q_net(feat, mu)
                 actor_loss = -tf.reduce_mean(q_actor)

@@ -42,7 +42,7 @@ class PG(make_on_policy_class(mode='share')):
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+        a, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         return a
 
@@ -65,12 +65,10 @@ class PG(make_on_policy_class(mode='share')):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, crsty_loss, cell_state):
+        def _train(data):
             for _ in range(self.epoch):
                 loss, entropy = self.train(
-                    data,
-                    crsty_loss,
-                    cell_state
+                    data
                 )
             summaries = dict([
                 ['LOSS/loss', loss],
@@ -86,8 +84,8 @@ class PG(make_on_policy_class(mode='share')):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, crsty_loss, cell_state):
-        s, visual_s, a, dc_r = memories
+    def train(self, memories):
+        s, visual_s, a, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -100,7 +98,7 @@ class PG(make_on_policy_class(mode='share')):
                     logp_all = tf.nn.log_softmax(logits)
                     log_act_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                loss = -tf.reduce_mean(log_act_prob * dc_r) + crsty_loss
+                loss = -tf.reduce_mean(log_act_prob * dc_r)
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
