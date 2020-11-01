@@ -81,6 +81,7 @@ buffer:
         epsilon: 0.01
         global_v: false
         n: 4
+    # off-policy with rnn
     EpisodeER:
         burn_in_time_step: 20
         train_time_step: 40 # null

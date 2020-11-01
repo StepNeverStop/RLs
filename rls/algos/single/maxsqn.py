@@ -95,7 +95,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -119,7 +119,7 @@ class MAXSQN(make_off_policy_class(mode='share')):
                 td_error2 = q2_eval - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
+                loss = 0.5 * (q1_loss + q2_loss)
             loss_grads = tape.gradient(loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(loss_grads, self.critic_tv)

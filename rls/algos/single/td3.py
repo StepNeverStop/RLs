@@ -113,7 +113,7 @@ class TD3(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -138,7 +138,7 @@ class TD3(make_off_policy_class(mode='share')):
                     td_error2 = q2 - dc_r
                     q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                     q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                    critic_loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
+                    critic_loss = 0.5 * (q1_loss + q2_loss)
                 critic_grads = tape.gradient(critic_loss, self.critic_tv)
                 self.optimizer_critic.apply_gradients(
                     zip(critic_grads, self.critic_tv)
@@ -168,7 +168,7 @@ class TD3(make_off_policy_class(mode='share')):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+    def train_persistent(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -200,7 +200,7 @@ class TD3(make_off_policy_class(mode='share')):
                     td_error2 = q2 - dc_r
                     q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                     q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                    critic_loss = 0.5 * (q1_loss + q2_loss) + crsty_loss
+                    critic_loss = 0.5 * (q1_loss + q2_loss)
                     actor_loss = -tf.reduce_mean(q1_actor)
                 critic_grads = tape.gradient(critic_loss, self.critic_tv)
                 self.optimizer_critic.apply_gradients(

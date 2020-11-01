@@ -100,7 +100,7 @@ class PPOC(make_on_policy_class(mode='share')):
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
 
-        a, value, log_prob, o_log_prob, beta_adv, new_options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, value, log_prob, o_log_prob, beta_adv, new_options, self.next_cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
         a = a.numpy()
         new_options = tf.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_agents, False)
@@ -146,7 +146,13 @@ class PPOC(make_on_policy_class(mode='share')):
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self._running_average(s)
         r -= (1 - self.oc_mask) * self.dc
-        self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._o_log_prob, self._beta_adv, self.last_options, self.options)
+
+        data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._o_log_prob, self._beta_adv, self.last_options, self.options)
+        if self.use_rnn:
+            data += tuple(cs.numpy() for cs in self.cell_state)
+        self.data.add(*data)
+        self.cell_state = self.next_cell_state
+
         self.oc_mask = tf.zeros_like(self.oc_mask)
 
     @tf.function
@@ -168,14 +174,12 @@ class PPOC(make_on_policy_class(mode='share')):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, crsty_loss, cell_state):
+        def _train(data):
             early_step = 0
             for i in range(self.epoch):
                 loss, pi_loss, q_loss, o_loss, beta_loss, entropy, o_entropy, kl = self.train_share(
                     data,
-                    self.kl_coef,
-                    crsty_loss,
-                    cell_state
+                    self.kl_coef
                 )
                 if kl > self.kl_stop:
                     early_step = i
@@ -210,8 +214,8 @@ class PPOC(make_on_policy_class(mode='share')):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_share(self, memories, kl_coef, crsty_loss, cell_state):
-        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, old_o_log_prob, beta_advantage, last_options, options = memories
+    def train_share(self, memories, kl_coef):
+        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, old_o_log_prob, beta_advantage, last_options, options, cell_state = memories
         last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,))  # [B, 1] => [B,]
         options = tf.reshape(tf.cast(options, tf.int32), (-1,))
         with tf.device(self.device):
@@ -273,7 +277,7 @@ class PPOC(make_on_policy_class(mode='share')):
                         tf.clip_by_value(o_ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
                     ))
 
-                loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - self.pi_beta * entropy - self.o_beta * o_entropy + crsty_loss
+                loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - self.pi_beta * entropy - self.o_beta * o_entropy
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)

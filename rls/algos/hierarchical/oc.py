@@ -151,7 +151,7 @@ class OC(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done, last_options, options = memories
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)
@@ -178,7 +178,7 @@ class OC(make_off_policy_class(mode='share')):
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
                 qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
                 td_error = qu_target - qu_eval     # gradient : q
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss        # [B, 1] => 1
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw)        # [B, 1] => 1
 
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
                 if self.use_baseline:

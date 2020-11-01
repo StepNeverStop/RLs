@@ -78,10 +78,10 @@ class Policy(Base):
         return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
 
     def reset(self) -> NoReturn:
-        self.cell_state = (None,)
+        pass
 
     def get_cell_state(self) -> Tuple:
-        return self.cell_state
+        pass
 
     def set_cell_state(self, cs) -> Any:
         pass

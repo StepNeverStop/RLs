@@ -175,12 +175,10 @@ def make_off_policy_class(mode: str = 'share'):
                         data['s_'] = tf.reshape(data['s_'], [-1, data['s_'].shape[-1]])
                         data['visual_s'] = tf.reshape(data['visual_s'], [-1, data['visual_s'].shape[-1]])
                         data['visual_s_'] = tf.reshape(data['visual_s_'], [-1, data['visual_s_'].shape[-1]])
-                    crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(
+                    crsty_r, crsty_summaries = self.curiosity_model(
                         *self.get_value_from_dict(data_name_list=['s', 'visual_s', 'a', 's_', 'visual_s_'], data_dict=data))
                     data['r'] += crsty_r
                     _summary.update(crsty_summaries)
-                else:
-                    crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
                 # --------------------------------------
 
                 # --------------------------------------优先经验回放部分，获取重要性比例
@@ -196,17 +194,14 @@ def make_off_policy_class(mode: str = 'share'):
                 # --------------------------------------
 
                 # --------------------------------------burn in隐状态部分
-                if self.use_rnn:
-                    cell_state = self.initial_cell_state()
-                    if self.burn_in_time_step > 0:
-                        _s, _visual_s = self.data.get_burn_in_states()
-                        cell_state = self.get_burn_in_feature(_s, _visual_s, cell_state)
-                else:
-                    cell_state = (None,)
+                cell_state = self.initial_cell_state()
+                if self.use_rnn and self.burn_in_time_step > 0:
+                    _s, _visual_s = self.data.get_burn_in_states()
+                    cell_state = self.get_burn_in_feature(_s, _visual_s, cell_state)
                 # --------------------------------------
 
                 # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-                td_error, summaries = self._train(_training_data, _isw, crsty_loss, cell_state)
+                td_error, summaries = self._train(_training_data, _isw, cell_state)
                 # --------------------------------------
 
                 # --------------------------------------更新summary
@@ -246,19 +241,17 @@ def make_off_policy_class(mode: str = 'share'):
             data['vvss'] = tf.concat([data['visual_s'], data['visual_s_']], axis=0)
             data = self._process_before_train(data)[0]
             if self.use_curiosity:
-                crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(
+                crsty_r, crsty_summaries = self.curiosity_model(
                     *self.get_value_from_dict(data_name_list=['s', 'visual_s', 'a', 's_', 'visual_s_'], data_dict=data))
                 data['r'] += crsty_r
                 _summary.update(crsty_summaries)
-            else:
-                crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
 
             _isw = self.data_convert(priorities)
             _training_data = self.get_value_from_dict(data_name_list=_train_data_list, data_dict=data)
 
             cell_state = (None,)
 
-            td_error, summaries = self._train(_training_data, _isw, crsty_loss, cell_state)
+            td_error, summaries = self._train(_training_data, _isw, cell_state)
             _summary.update(summaries)
 
             self._target_params_update()

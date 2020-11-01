@@ -18,10 +18,12 @@ on_policy:
     rnn_time_step: 8
 
 off_policy:
-    use_isw: false
-    episode_batch_size: 32 # rnn
-    episode_buffer_size: 10000
     train_times_per_step: 1 # train multiple times per agent step
+    # PER
+    use_isw: false
+    # rnn
+    episode_batch_size: 32
+    episode_buffer_size: 10000
 
 hiro:
     gamma: 0.99
@@ -365,6 +367,10 @@ ppo:
     critic_lr: 1.0e-3
     max_grad_norm: null
     condition_sigma: false  # not recommended
+
+    # duel clip
+    use_duel_clip: false
+    duel_epsilon: 0.1
 
     # value function clip
     use_vclip: false
