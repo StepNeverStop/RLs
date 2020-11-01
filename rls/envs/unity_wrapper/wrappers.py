@@ -192,49 +192,60 @@ class UnityReturnWrapper(BasicWrapper):
         reward = []
         done = []
         info = []
+        corrected_vector = []
+        corrected_visual = []
         for i, gn in enumerate(self.group_names):
-            vec, vis, r, d, ifo = self.coordinate_information(i, gn)
+            vec, vis, r, d, ifo, corrected_vec, corrected_vis = self.coordinate_information(i, gn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
             info.append(ifo)
-        return (vector, visual, reward, done, info)
+            corrected_vector.append(corrected_vec)
+            corrected_visual.append(corrected_vis)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
 
     def coordinate_information(self, i, gn):
         '''
         TODO: Annotation
         '''
         n = self.group_agents[i]
+        ps = []
         d, t = self._env.get_steps(gn)
-        ps = [t]
+        if len(t):
+            ps.append(t)
 
         if len(d) != 0 and len(d) != n:
             raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
-
+        
+        # some of environments done, but some of not
         while len(d) != n:
             self._env.step()
             d, t = self._env.get_steps(gn)
-            ps.append(t)
+            if len(t):
+                ps.append(t)
 
-        obs, reward = d.obs, d.reward
+        corrected_obs, reward = d.obs, d.reward
+        obs = deepcopy(corrected_obs) # corrected_obs应包含正确的用于决策动作的下一状态
         done = np.full(n, False)
         info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
         for t in ps:    # TODO: 有待优化
-            if len(t) != 0:
-                info['max_step'][t.agent_id] = t.interrupted
-                info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-                reward[t.agent_id] = t.reward
-                done[t.agent_id] = True
-                for _obs, _tobs in zip(obs, t.obs):
-                    _obs[t.agent_id] = _tobs
+            info['max_step'][t.agent_id] = t.interrupted    # 因为达到episode最大步数而终止的
+            info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+            reward[t.agent_id] = t.reward
+            done[t.agent_id] = True
+            # zip: vector, visual, ...
+            for _obs, _tobs in zip(obs, t.obs):
+                _obs[t.agent_id] = _tobs
 
         return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[i]]),
                 self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[i]]),
                 np.asarray(reward),
                 np.asarray(done),
-                info)
+                info,
+                self.deal_vector(n, [corrected_obs[vi] for vi in self.vector_idxs[i]]),
+                self.deal_visual(n, [corrected_obs[vi] for vi in self.visual_idxs[i]]))
 
     def deal_vector(self, n, vecs):
         '''
