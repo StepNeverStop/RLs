@@ -38,6 +38,8 @@ class PPO(make_on_policy_class(mode='share')):
                  lr: float = 5.0e-4,
                  lambda_: float = 0.95,
                  epsilon: float = 0.2,
+                 use_duel_clip: bool = False,
+                 duel_epsilon: float = 0.,
                  use_vclip: bool = False,
                  value_epsilon: float = 0.2,
                  share_net: bool = True,
@@ -79,6 +81,7 @@ class PPO(make_on_policy_class(mode='share')):
         self.policy_epoch = policy_epoch
         self.value_epoch = value_epoch
         self.lambda_ = lambda_
+        assert 0.0 <= lambda_ <= 1.0, "GAE lambda should be in [0, 1]."
         self.epsilon = epsilon
         self.use_vclip = use_vclip
         self.value_epsilon = value_epsilon
@@ -90,6 +93,11 @@ class PPO(make_on_policy_class(mode='share')):
         self.extra_coef = extra_coef
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
+
+        self.use_duel_clip = use_duel_clip
+        self.duel_epsilon = duel_epsilon
+        if self.use_duel_clip:
+            assert -self.epsilon < self.duel_epsilon < self.epsilon, "duel_epsilon should be set in the range of (-epsilon, epsilon)."
 
         self.kl_cutoff = kl_target * kl_target_cutoff
         self.kl_stop = kl_target * kl_target_earlystop
@@ -257,7 +265,7 @@ class PPO(make_on_policy_class(mode='share')):
                 ]))
 
             if self.use_kl_loss:
-                # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
+                # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
                 if kl > self.kl_high:
                     self.kl_coef *= self.kl_alpha
                 elif kl < self.kl_low:
@@ -300,14 +308,20 @@ class PPO(make_on_policy_class(mode='share')):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 ratio = tf.exp(new_log_prob - old_log_prob)
                 surrogate = ratio * advantage
-                actor_loss = pi_loss = -tf.reduce_mean(
-                    tf.minimum(
-                        surrogate,
-                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
-                    ))
+                clipped_surrogate = tf.minimum(
+                                        surrogate,
+                                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
+                                    )
+                # ref: https://github.com/thu-ml/tianshou/blob/c97aa4065ee8464bd5897bb86f1f81abd8e2cff9/tianshou/policy/modelfree/ppo.py#L159
+                if self.use_duel_clip:
+                    clipped_surrogate = tf.maximum(
+                        clipped_surrogate,
+                        (1.0 + self.duel_epsilon) * advantage
+                    )
+                actor_loss = -(tf.reduce_mean(clipped_surrogate) + self.ent_coef * entropy)
 
-                # https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
-                # https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L185
+                # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
+                # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L185
                 if self.kl_reverse:
                     kl = .5 * tf.reduce_mean(tf.square(new_log_prob - old_log_prob))
                 else:
@@ -315,8 +329,8 @@ class PPO(make_on_policy_class(mode='share')):
 
                 td_error = dc_r - value
                 if self.use_vclip:
-                    # https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
-                    # https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
+                    # ref: https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
+                    # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
                     value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
                     td_error_clip = dc_r - value_clip
                     td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
@@ -331,7 +345,7 @@ class PPO(make_on_policy_class(mode='share')):
                     extra_loss = self.extra_coef * tf.square(tf.maximum(0., kl - self.kl_cutoff))
                     actor_loss += extra_loss
                 value_loss = 0.5 * tf.reduce_mean(td_square)
-                loss = actor_loss + self.vf_coef * value_loss - self.ent_coef * entropy + crsty_loss
+                loss = actor_loss + self.vf_coef * value_loss + crsty_loss
             loss_grads = tape.gradient(loss, self.net_tv)
             self.optimizer.apply_gradients(
                 zip(loss_grads, self.net_tv)
@@ -357,8 +371,17 @@ class PPO(make_on_policy_class(mode='share')):
                 ratio = tf.exp(new_log_prob - old_log_prob)
                 kl = tf.reduce_mean(old_log_prob - new_log_prob)
                 surrogate = ratio * advantage
-                min_adv = tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
-                actor_loss = pi_loss = -(tf.reduce_mean(tf.minimum(surrogate, min_adv)) + self.ent_coef * entropy)
+                clipped_surrogate = tf.minimum(
+                                        surrogate,
+                                        tf.where(advantage > 0, (1 + self.epsilon) * advantage, (1 - self.epsilon) * advantage)
+                                    )
+                if self.use_duel_clip:
+                    clipped_surrogate = tf.maximum(
+                        clipped_surrogate,
+                        (1.0 + self.duel_epsilon) * advantage
+                    )
+
+                actor_loss = -(tf.reduce_mean(clipped_surrogate) + self.ent_coef * entropy)
 
                 if self.use_kl_loss:
                     kl_loss = kl_coef * kl

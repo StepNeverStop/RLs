@@ -366,6 +366,10 @@ ppo:
     max_grad_norm: null
     condition_sigma: false  # not recommended
 
+    # duel clip
+    use_duel_clip: false
+    duel_epsilon: 0.1
+
     # value function clip
     use_vclip: false
     value_epsilon: 0.2
