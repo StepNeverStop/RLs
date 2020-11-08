@@ -118,7 +118,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
+    def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done, cost = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -139,7 +139,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                 q_target = self.reward_critic_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error_reward = q_reward - dc_r
-                reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw) + crsty_loss
+                reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw)
             q_grads = tape.gradient(reward_loss, self.reward_critic_tv)
             self.optimizer_reward_critic.apply_gradients(
                 zip(q_grads, self.reward_critic_tv)
@@ -150,7 +150,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                 q_target = self.cost_critic_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(cost + self.gamma * q_target * (1 - done))
                 td_error_cost = q_cost - dc_r
-                cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw) + crsty_loss
+                cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw)
             q_grads = tape.gradient(cost_loss, self.cost_critic_net.trainable_variables)
             self.optimizer_cost_critic.apply_gradients(
                 zip(q_grads, self.cost_critic_net.trainable_variables)
@@ -197,7 +197,7 @@ class PD_DDPG(make_off_policy_class(mode='share')):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, crsty_loss, cell_state):
+    def train_persistent(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
@@ -224,13 +224,13 @@ class PD_DDPG(make_off_policy_class(mode='share')):
                 q_target = self.reward_critic_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error_reward = q_reward - dc_r
-                reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw) + crsty_loss
+                reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw)
 
                 q_cost = self.cost_critic_net(tf.stop_gradient(feat), a)
                 q_target = self.cost_critic_target_net(feat_, action_target)
                 dc_r = tf.stop_gradient(cost + self.gamma * q_target * (1 - done))
                 td_error_cost = q_cost - dc_r
-                cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw) + crsty_loss
+                cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw)
 
                 q_loss = reward_loss + cost_loss
 

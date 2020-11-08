@@ -62,11 +62,11 @@ def unity_train(env, models,
     for episode in range(begin_episode, max_train_episode):
         [model.reset() for model in models]
         ObsRewDone = zip(*env.reset())
-        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info, _corrected_v, _correcred_vs) in enumerate(ObsRewDone):
             dones_flag[i] = np.zeros(env.group_agents[i])
             rewards[i] = np.zeros(env.group_agents[i])
-            state[i] = _v
-            visual_state[i] = _vs
+            state[i] = _corrected_v
+            visual_state[i] = _correcred_vs
         step = 0
         last_done_step = -1
         while True:
@@ -76,7 +76,7 @@ def unity_train(env, models,
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
             ObsRewDone = zip(*env.step(actions))
 
-            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
+            for i, (_v, _vs, _r, _d, _info, _corrected_v, _correcred_vs) in enumerate(ObsRewDone):
                 models[i].store_data(
                     s=state[i],
                     visual_s=visual_state[i],
@@ -89,8 +89,8 @@ def unity_train(env, models,
                 models[i].partial_reset(_d)
                 rewards[i] += (1 - dones_flag[i]) * _r
                 dones_flag[i] = np.sign(dones_flag[i] + _d)
-                state[i] = _v
-                visual_state[i] = _vs
+                state[i] = _corrected_v
+                visual_state[i] = _correcred_vs
                 if policy_mode == 'off-policy':
                     if train_step[i] % off_policy_train_interval == 0:
                         models[i].learn(episode=episode, train_step=train_step[i])
@@ -156,9 +156,9 @@ def unity_no_op(env, models,
 
     [model.reset() for model in models]
     ObsRewDone = zip(*env.reset())
-    for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
-        state[i] = _v
-        visual_state[i] = _vs
+    for i, (_v, _vs, _r, _d, _info, _corrected_v, _correcred_vs) in enumerate(ObsRewDone):
+        state[i] = _corrected_v
+        visual_state[i] = _correcred_vs
 
     for _ in trange(0, pre_fill_steps, min(env.group_agents) + 1, unit_scale=min(env.group_agents) + 1, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
@@ -168,7 +168,7 @@ def unity_no_op(env, models,
             action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
         ObsRewDone = zip(*env.step(actions))
-        for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
+        for i, (_v, _vs, _r, _d, _info, _corrected_v, _correcred_vs) in enumerate(ObsRewDone):
             models[i].no_op_store(
                 s=state[i],
                 visual_s=visual_state[i],
@@ -179,8 +179,8 @@ def unity_no_op(env, models,
                 done=_info['real_done'] if real_done else _d
             )
             models[i].partial_reset(_d)
-            state[i] = _v
-            visual_state[i] = _vs
+            state[i] = _corrected_v
+            visual_state[i] = _correcred_vs
 
 
 def unity_inference(env, models,
@@ -194,8 +194,8 @@ def unity_inference(env, models,
         [model.reset() for model in models]
         ObsRewDone = zip(*env.reset())
         while True:
-            for i, (_v, _vs, _r, _d, _info) in enumerate(ObsRewDone):
-                action[i] = models[i].choose_action(s=_v, visual_s=_vs, evaluation=True)
+            for i, (_v, _vs, _r, _d, _info, _corrected_v, _correcred_vs) in enumerate(ObsRewDone):
+                action[i] = models[i].choose_action(s=_corrected_v, visual_s=_correcred_vs, evaluation=True)
                 models[i].partial_reset(_d)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
             ObsRewDone = zip(*env.step(actions))

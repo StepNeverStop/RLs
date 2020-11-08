@@ -89,7 +89,7 @@ class TRPO(make_on_policy_class(mode='share')):
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a, _v, _lp, _morlpa, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+        a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(_v.numpy())
         self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
@@ -124,9 +124,13 @@ class TRPO(make_on_policy_class(mode='share')):
         assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
         self._running_average(s)
         if self.is_continuous:
-            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self._log_std)
+            data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self._log_std)
         else:
-            self.data.add(s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._logp_all)
+            data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._logp_all)
+        if self.use_rnn:
+            data += tuple(cs.numpy() for cs in self.cell_state)
+        self.data.add(*data)
+        self.cell_state = self.next_cell_state
 
     @tf.function
     def _get_value(self, feat):
@@ -144,17 +148,14 @@ class TRPO(make_on_policy_class(mode='share')):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, crsty_loss, cell_state):
+        def _train(data):
             if self.is_continuous:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std = data
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std, cell_state = data
                 Hx_args = (s, visual_s, old_mu, old_log_std)
             else:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all = data
+                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all, cell_state = data
                 Hx_args = (s, visual_s, old_logp_all)
-            actor_loss, entropy, gradients = self.train_actor(
-                (s, visual_s, a, old_log_prob, advantage),
-                cell_state
-            )
+            actor_loss, entropy, gradients = self.train_actor((s, visual_s, a, old_log_prob, advantage, cell_state))
 
             x = self.cg(self.Hx, gradients.numpy(), Hx_args)
             x = tf.convert_to_tensor(x)
@@ -164,9 +165,7 @@ class TRPO(make_on_policy_class(mode='share')):
 
             for _ in range(self.train_v_iters):
                 critic_loss = self.train_critic(
-                    (s, visual_s, dc_r),
-                    crsty_loss,
-                    cell_state
+                    (s, visual_s, dc_r, cell_state)
                 )
 
             summaries = dict([
@@ -191,8 +190,8 @@ class TRPO(make_on_policy_class(mode='share')):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, memories, cell_state):
-        s, visual_s, a, old_log_prob, advantage = memories
+    def train_actor(self, memories):
+        s, visual_s, a, old_log_prob, advantage, cell_state = memories
         with tf.device(self.device):
             feat = self.get_feature(s, visual_s, cell_state=cell_state)
             with tf.GradientTape() as tape:
@@ -241,14 +240,14 @@ class TRPO(make_on_policy_class(mode='share')):
             return hvp
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, memories, crsty_loss, cell_state):
-        s, visual_s, dc_r = memories
+    def train_critic(self, memories):
+        s, visual_s, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 value = self.critic_net(feat)
                 td_error = dc_r - value
-                value_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
+                value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)

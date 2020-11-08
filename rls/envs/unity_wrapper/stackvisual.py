@@ -61,6 +61,7 @@ class StackVisualWrapper(UnityReturnWrapper):
         super().__init__(env)
         self._stack_nums = stack_nums
         self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        self._stack_deque_corrected = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
 
     def reset(self, **kwargs):
         self._env.reset(**kwargs)
@@ -75,22 +76,28 @@ class StackVisualWrapper(UnityReturnWrapper):
         reward = []
         done = []
         info = []
+        corrected_vector = []
+        corrected_visual = []
         for i, gn in enumerate(self.group_names):
-            vec, vis, r, d, ifo = self.coordinate_reset_information(i, gn)
+            vec, vis, r, d, ifo, corrected_vec, corrected_vis= self.coordinate_reset_information(i, gn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
             info.append(ifo)
-        return (vector, visual, reward, done, info)
+            corrected_vector.append(corrected_vec)
+            corrected_visual.append(corrected_vis)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
 
     def coordinate_reset_information(self, i, gn):
-        vector, visual, reward, done, info = super().coordinate_information(i, gn)
+        vector, visual, reward, done, info, corrected_vec, corrected_vis = super().coordinate_information(i, gn)
         for _ in range(self._stack_nums):
             self._stack_deque[gn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info)
+            self._stack_deque_corrected[gn].append(corrected_vis)
+        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info, corrected_vec, np.concatenate(self._stack_deque_corrected[gn], axis=-1))
 
     def coordinate_information(self, i, gn):
-        vector, visual, reward, done, info = super().coordinate_information(i, gn)
+        vector, visual, reward, done, info, corrected_vec, corrected_vis = super().coordinate_information(i, gn)
         self._stack_deque[gn].append(visual)
-        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info)
+        self._stack_deque_corrected[gn].append(corrected_vis)
+        return (vector, np.concatenate(self._stack_deque[gn], axis=-1), reward, done, info, corrected_vec, np.concatenate(self._stack_deque_corrected[gn], axis=-1))

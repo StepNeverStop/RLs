@@ -66,18 +66,6 @@ def wrap_deepmind(env, config: Dict):
 
 def build_env(config: Dict, index: int = 0):
     gym_env_name = config['env_name']
-    action_skip = bool(config.get('action_skip', False))
-    skip = int(config.get('skip', 4))
-    obs_stack = bool(config.get('obs_stack', False))
-    stack = int(config.get('stack', 4))
-
-    noop = bool(config.get('noop', False))
-    noop_max = int(config.get('noop_max', 30))
-    obs_grayscale = bool(config.get('obs_grayscale', False))
-    obs_resize = bool(config.get('obs_resize', False))
-    resize = config.get('resize', [84, 84])
-    obs_scale = bool(config.get('obs_scale', False))
-    max_episode_steps = config.get('max_episode_steps', None)
 
     env_type = get_env_type(gym_env_name)
 
@@ -103,6 +91,18 @@ def build_env(config: Dict, index: int = 0):
         default_config = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['atari']
         env = make_atari(env, default_config)
     else:
+        action_skip = bool(config.get('action_skip', False))
+        skip = int(config.get('skip', 4))
+        obs_stack = bool(config.get('obs_stack', False))
+        stack = int(config.get('stack', 4))
+        noop = bool(config.get('noop', False))
+        noop_max = int(config.get('noop_max', 30))
+        obs_grayscale = bool(config.get('obs_grayscale', False))
+        obs_resize = bool(config.get('obs_resize', False))
+        resize = config.get('resize', [84, 84])
+        obs_scale = bool(config.get('obs_scale', False))
+        max_episode_steps = config.get('max_episode_steps', None)
+
         if gym_env_name.split('-')[0] == 'MiniGrid':
             env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env)  # Get pixel observations, or RGBImgObsWrapper
             env = gym_minigrid.wrappers.ImgObsWrapper(env)  # Get rid of the 'mission' field

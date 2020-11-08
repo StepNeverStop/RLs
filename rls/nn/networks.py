@@ -39,7 +39,7 @@ class MultiCameraCNN(M):
         return f
 
 
-class ObsRNN(M):
+class ObsLSTM(M):
     '''输入状态的RNN
     '''
 
@@ -58,6 +58,21 @@ class ObsRNN(M):
         # s = self.masking(s)
         x, h, c = self.lstm_net(s, initial_state=(h, c))  # 如果没指定初始化隐状态，就用burn_in的， 或者 None
         return (x, (h, c))
+
+class ObsGRU(M):
+    '''输入状态的RNN
+    '''
+
+    def __init__(self, dim, hidden_units):
+        super().__init__()
+        self.rnn_type = 'gru'
+        cell = tf.keras.layers.GRUCell(hidden_units)
+        self.lstm_net = tf.keras.layers.RNN(cell, return_state=True, return_sequences=True)
+        self(I(shape=(None, dim)), I(shape=(hidden_units,)))
+
+    def call(self, s, h):
+        x, h = self.lstm_net(s, initial_state=h)  # 如果没指定初始化隐状态，就用burn_in的， 或者 None
+        return (x, (h,))
 
 
 class VisualNet(M):
@@ -179,4 +194,5 @@ class CuriosityModel(M):
                 summaries.update({
                     'LOSS/inverse_loss': loss_inverse
                 })
-            return intrinsic_reward, loss * self.loss_weight, summaries
+            # crsty_loss = loss * self.loss_weight
+            return intrinsic_reward, summaries

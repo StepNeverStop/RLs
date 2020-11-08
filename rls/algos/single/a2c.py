@@ -53,7 +53,7 @@ class A2C(make_on_policy_class(mode='share')):
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
-        a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+        a, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
         a = a.numpy()
         return a
 
@@ -84,9 +84,9 @@ class A2C(make_on_policy_class(mode='share')):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, crsty_loss, cell_state):
+        def _train(data):
             for _ in range(self.epoch):
-                actor_loss, critic_loss, entropy = self.train(data, crsty_loss, cell_state)
+                actor_loss, critic_loss, entropy = self.train(data)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -106,14 +106,14 @@ class A2C(make_on_policy_class(mode='share')):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, crsty_loss, cell_state):
-        s, visual_s, a, dc_r = memories
+    def train(self, memories):
+        s, visual_s, a, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
                 v = self.critic_net(feat)
                 td_error = dc_r - v
-                critic_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
+                critic_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.critic_tv)
@@ -145,8 +145,8 @@ class A2C(make_on_policy_class(mode='share')):
             return actor_loss, critic_loss, entropy
 
     @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, crsty_loss, cell_state):
-        s, visual_s, a, dc_r = memories
+    def train_persistent(self, memories):
+        s, visual_s, a, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 feat = self.get_feature(s, visual_s, cell_state=cell_state)
@@ -162,7 +162,7 @@ class A2C(make_on_policy_class(mode='share')):
                 v = self.critic_net(feat)
                 advantage = tf.stop_gradient(dc_r - v)
                 td_error = dc_r - v
-                critic_loss = tf.reduce_mean(tf.square(td_error)) + crsty_loss
+                critic_loss = tf.reduce_mean(tf.square(td_error))
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             critic_grads = tape.gradient(critic_loss, self.critic_tv)
             self.optimizer_critic.apply_gradients(

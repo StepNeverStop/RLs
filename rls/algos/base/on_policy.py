@@ -26,7 +26,11 @@ def make_on_policy_class(mode: str = 'share'):
 
         def initialize_data_buffer(self,
                                    data_name_list: List[str] = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) -> NoReturn:
-            self.data = DataBuffer(dict_keys=data_name_list, n_agents=self.n_agents)
+            self.data = DataBuffer(
+                n_agents=self.n_agents,
+                rnn_cell_nums=self.cell_state_nums,
+                dict_keys=data_name_list
+                )
 
         def store_data(self,
                        s: Union[List, np.ndarray],
@@ -43,7 +47,11 @@ def make_on_policy_class(mode: str = 'share'):
             assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
             assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
             self._running_average(s)
-            self.data.add(s, visual_s, a, r, s_, visual_s_, done)
+            data = (s, visual_s, a, r, s_, visual_s_, done)
+            if self.use_rnn:
+                data += tuple(cs.numpy() for cs in self.cell_state)
+            self.data.add(*data)
+            self.cell_state = self.next_cell_state
 
         def no_op_store(self, *args, **kwargs) -> Any:
             pass
@@ -72,29 +80,20 @@ def make_on_policy_class(mode: str = 'share'):
 
             if self.use_curiosity:
                 s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()
-                crsty_r, crsty_loss, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
-                self.data.r = r.reshape([self.data.eps_len, -1])
+                crsty_r, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
+                self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
                 self.summaries.update(crsty_summaries)
-            else:
-                crsty_loss = tf.constant(value=0., dtype=self._tf_data_type)
 
             _cal_stics()
 
             if self.use_rnn:
-                all_data = self.data.sample_generater_rnn(self.rnn_time_step, _train_data_list)
+                all_data = self.data.sample_generater_rnn(self.batch_size, self.rnn_time_step, _train_data_list)
             else:
                 all_data = self.data.sample_generater(self.batch_size, _train_data_list)
 
             for data in all_data:
                 data = list(map(self.data_convert, data))
-                if self.use_rnn:
-                    cell_state = self.initial_cell_state(batch=self.n_agents)
-                    # if self.burn_in_time_step:
-                    #     pass
-                else:
-                    cell_state = (None,)
-
-                summaries = _train(data, crsty_loss, cell_state)
+                summaries = _train(data)
 
             self.summaries.update(summaries)
             self.summaries.update(_summary)

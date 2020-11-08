@@ -4,6 +4,7 @@
 import itertools
 import numpy as np
 
+
 def intprod(x):
     return int(np.prod(x))
 
@@ -121,7 +122,7 @@ def standardization(data):
     '''
     assert isinstance(data, np.ndarray)
     mu = np.mean(data)
-    sigma = np.std(data)
+    sigma = np.std(data) + 1e-8
     return (data - mu) / sigma
 
 
