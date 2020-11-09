@@ -3,7 +3,6 @@
 
 import tensorflow as tf
 
-from tensorflow.keras.layers import Dense
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 
@@ -11,12 +10,6 @@ from .activations import (swish,
                           mish)
 from rls.nn.layers import (Noisy,
                            mlp)
-
-
-initKernelAndBias = {
-    'kernel_initializer': tf.random_normal_initializer(0.0, .1),
-    'bias_initializer': tf.constant_initializer(0.1)    # 2.x 不需要指定dtype
-}
 
 
 class actor_dpg(M):

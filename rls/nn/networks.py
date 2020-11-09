@@ -13,6 +13,7 @@ from tensorflow.keras.layers import (Conv2D,
 from rls.utils.tf2_utils import get_device
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
+from rls.nn.initializers import initKernelAndBias
 
 CNNS = {
     'simple': lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
@@ -30,7 +31,7 @@ class MultiCameraCNN(M):
         self.nets = []
         for _ in range(n):
             net = CNNS[encoder_type]()
-            net.add(Dense(feature_dim, activation_fn))
+            net.add(Dense(feature_dim, activation_fn, **initKernelAndBias))
             self.nets.append(net)
 
     def call(self, vector_input, visual_input):
@@ -90,7 +91,7 @@ class VisualNet(M):
         self(I(shape=vector_dim), I(shape=visual_dim))
 
     def call(self, vector_input, visual_input):
-        visual_input = tf.cast(visual_input / 255., tf.float32)
+        visual_input = tf.cast(visual_input, tf.float32)
         return self.nets(vector_input, visual_input)
 
 
@@ -134,14 +135,14 @@ class CuriosityModel(M):
         if self.use_visual:
             # S, S' => A
             self.inverse_dynamic_net = Sequential([
-                Dense(self.s_dim * 2, default_activation),
-                Dense(action_dim, 'tanh' if is_continuous else None)
+                Dense(self.s_dim * 2, default_activation, **initKernelAndBias),
+                Dense(action_dim, 'tanh' if is_continuous else None, **initKernelAndBias)
             ])
 
         # S, A => S'
         self.forward_net = Sequential([
-            Dense(self.s_dim + action_dim, default_activation),
-            Dense(self.s_dim, None)
+            Dense(self.s_dim + action_dim, default_activation, **initKernelAndBias),
+            Dense(self.s_dim, None, **initKernelAndBias)
         ])
         self.initial_weights(I(shape=vector_dim), I(shape=visual_dim), I(shape=action_dim))
 
