@@ -2,6 +2,13 @@
 # encoding: utf-8
 
 import os
+import numpy as np
+
+from copy import deepcopy
+from collections import deque
+from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
@@ -13,16 +20,56 @@ except:
     logger.warning('opencv-python is needed to train visual-based model.')
     pass
 
-import numpy as np
-from copy import deepcopy
-
 from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
 from rls.utils.tuples import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs)
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
-from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+
+# obs: [
+#     brain1: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+#     brain2: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+#     ...
+#     brainn: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+# ]
+
+# =>
+
+# obs: [
+#     brain1: [
+#         agent1: n*[],
+#         agent2: n*[],
+#         ...
+#         agentn: n*[]
+#     ],
+#     brain2: [
+#         agent1: n*[],
+#         agent2: n*[],
+#         ...
+#         agentn: n*[]
+#     ],
+#     ...
+#     brainn: [
+#         agent1: n*[]
+#         agent2: n*[]
+#         ...
+#         agentn: n*[]
+#     ],
+# ]
 
 
 class UnityWrapper(object):
@@ -77,12 +124,13 @@ class BasicWrapper:
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
         return getattr(self._env, name)
 
+    def process_visual_obs(self, image):
+        return image
+
 
 class InfoWrapper(BasicWrapper):
     def __init__(self, env, env_args):
         super().__init__(env)
-        self.resize = env_args['resize']
-
         self.group_names = list(self._env.behavior_specs.keys())  # 所有脑的名字列表
         self.fixed_group_names = list(map(lambda x: x.replace('?', '_'), self.group_names))
         self.group_specs = [self._env.behavior_specs[g] for g in self.group_names]  # 所有脑的信息
@@ -93,12 +141,10 @@ class InfoWrapper(BasicWrapper):
 
         self.visual_sources = [len(v) for v in self.visual_idxs]
         self.visual_resolutions = []
-        stack_visual_nums = env_args['stack_visual_nums'] if env_args['stack_visual_nums'] > 1 else 1
         for spec in self.group_specs:
             for g in spec.observation_shapes:
                 if len(g) == 3:
-                    self.visual_resolutions.append(
-                        list(self.resize) + [list(g)[-1] * stack_visual_nums])
+                    self.visual_resolutions.append(list(g))
                     break
             else:
                 self.visual_resolutions.append([])
@@ -111,6 +157,7 @@ class InfoWrapper(BasicWrapper):
 
         self.group_agents = self.get_real_agent_numbers()  # 得到每个环境控制几个智能体
 
+    def initialize(self):
         if all('#' in name for name in self.group_names):
             # use for multi-agents
             self.group_controls = list(map(lambda x: int(x.split('#')[0]), self.group_names))
@@ -169,6 +216,46 @@ class InfoWrapper(BasicWrapper):
         return group_agents
 
 
+class GrayVisualWrapper(BasicWrapper):
+
+    def __init__(self, env):
+        super().__init__(env)
+        for v in self.visual_resolutions:
+            if v[-1] > 3:
+                raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
+            v[-1] = 1
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        return image
+
+
+class ResizeVisualWrapper(BasicWrapper):
+
+    def __init__(self, env, resize=[84, 84]):
+        super().__init__(env)
+        self.resize = resize
+        for v in self.visual_resolutions:
+            v[0], v[1] = resize[0], resize[1]
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
+        return image
+
+
+class ScaleVisualWrapper(BasicWrapper):
+
+    def __init__(self, env):
+        super().__init__(env)
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image *= 255
+        return image.astype(np.uint8)
+
+
 class UnityReturnWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -217,7 +304,7 @@ class UnityReturnWrapper(BasicWrapper):
 
         if len(d) != 0 and len(d) != n:
             raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
-        
+
         # some of environments done, but some of not
         while len(d) != n:
             self._env.step()
@@ -226,7 +313,7 @@ class UnityReturnWrapper(BasicWrapper):
                 ps.append(t)
 
         corrected_obs, reward = d.obs, d.reward
-        obs = deepcopy(corrected_obs) # corrected_obs应包含正确的用于决策动作的下一状态
+        obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
         done = np.full(n, False)
         info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
@@ -263,16 +350,44 @@ class UnityReturnWrapper(BasicWrapper):
         '''
         ss = []
         for j in range(n):
+            # 第j个智能体
             s = []
             for v in viss:
-                s.append(self.resize_image(v[j]))
+                s.append(self._env.process_visual_obs(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss, dtype=np.uint8)  # [B, N, (H, W, C)]
+        return np.array(ss)  # [B, N, (H, W, C)]
 
-    def resize_image(self, image):
-        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
-        image *= 255
-        return image
+
+class StackVisualWrapper(BasicWrapper):
+
+    def __init__(self, env, stack_nums=4):
+        super().__init__(env)
+        self._stack_nums = stack_nums
+        self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        self._stack_deque_corrected = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        for v in self.visual_resolutions:
+            if v[-1] > 3:
+                raise Exception('visual observations have been stacked in unity environment. You cannot sepecify stack in python.')
+            v[-1] *= stack_nums
+
+    def reset(self, **kwargs):
+        vector, visual, reward, done, info, corrected_vector, corrected_visual = self._env.reset(**kwargs)
+        for i, gn in enumerate(self.group_names):
+            for _ in range(self._stack_nums):
+                self._stack_deque[gn].append(visual[i])
+                self._stack_deque_corrected[gn].append(corrected_visual[i])
+            visual[i] = np.concatenate(self._stack_deque[gn], axis=-1)
+            corrected_visual[i] = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
+
+    def step(self, actions):
+        vector, visual, reward, done, info, corrected_vector, corrected_visual = self._env.step(actions)
+        for i, gn in enumerate(self.group_names):
+            self._stack_deque[gn].append(visual[i])
+            self._stack_deque_corrected[gn].append(corrected_visual[i])
+        visual[i] = np.concatenate(self._stack_deque[gn], axis=-1)
+        corrected_visual[i] = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
 
 
 class ActionWrapper(BasicWrapper):
