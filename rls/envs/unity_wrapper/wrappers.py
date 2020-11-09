@@ -221,9 +221,10 @@ class GrayVisualWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
         for v in self.visual_resolutions:
-            if v[-1] > 3:
-                raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
-            v[-1] = 1
+            if v:
+                if v[-1] > 3:
+                    raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
+                v[-1] = 1
 
     def process_visual_obs(self, image):
         image = self._env.process_visual_obs(image)
@@ -237,7 +238,8 @@ class ResizeVisualWrapper(BasicWrapper):
         super().__init__(env)
         self.resize = resize
         for v in self.visual_resolutions:
-            v[0], v[1] = resize[0], resize[1]
+            if v:
+                v[0], v[1] = resize[0], resize[1]
 
     def process_visual_obs(self, image):
         image = self._env.process_visual_obs(image)
@@ -366,9 +368,10 @@ class StackVisualWrapper(BasicWrapper):
         self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
         self._stack_deque_corrected = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
         for v in self.visual_resolutions:
-            if v[-1] > 3:
-                raise Exception('visual observations have been stacked in unity environment. You cannot sepecify stack in python.')
-            v[-1] *= stack_nums
+            if v:
+                if v[-1] > 3:
+                    raise Exception('visual observations have been stacked in unity environment. You cannot sepecify stack in python.')
+                v[-1] *= stack_nums
 
     def reset(self, **kwargs):
         vector, visual, reward, done, info, corrected_vector, corrected_visual = self._env.reset(**kwargs)
