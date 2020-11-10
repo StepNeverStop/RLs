@@ -135,6 +135,6 @@ def ConvLayer(conv_function=Conv2D,
     Return:
         A sequential of multi-convolution layers, with Flatten.
     '''
-    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation) for f, k, s in zip(filters, kernels, strides)])
+    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation, **initKernelAndBias) for f, k, s in zip(filters, kernels, strides)])
     layers.add(Flatten())
     return layers

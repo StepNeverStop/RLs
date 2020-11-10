@@ -3,6 +3,8 @@
 
 import tensorflow as tf
 
+# from rls.utils.indexs import DefaultActivationFuncType
+
 default_activation = 'relu'  # 'tanh', 'relu', swish, mish
 
 
