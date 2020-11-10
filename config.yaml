@@ -28,11 +28,15 @@ unity:
         train_time_scale: 100
         width: 1028
         height: 720
-        resize: [84, 84]
         quality_level: 5
         inference_time_scale: 0
         target_frame_rate: 60
+        obs_resize: true
+        resize: [84, 84]
+        obs_stack: true
         stack_visual_nums: 4
+        obs_grayscale: false
+        obs_scale: false    # change [0, 1] to [0, 255]
         reset_config: {}
 
 gym:

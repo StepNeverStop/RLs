@@ -24,6 +24,7 @@ from rls.algos.base.off_policy import make_off_policy_class
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.modules import DoubleQ
 from rls.nn.networks import NatureCNN
+from rls.nn.initializers import initKernelAndBias
 
 
 class VisualEncoder(M):
@@ -33,7 +34,7 @@ class VisualEncoder(M):
         self.net = Sequential([
             NatureCNN(),
             Flatten(),
-            Dense(fc_dim),
+            Dense(fc_dim, **initKernelAndBias),
             LayerNormalization()
         ])
         self(I(shape=img_dim))
