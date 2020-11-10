@@ -15,6 +15,7 @@ from typing import (Tuple,
 from rls.algos.base.policy import Policy
 from rls.nn.networks import (VisualNet,
                              ObsLSTM)
+from rls.utils.indexs import VisualEncoderType
 
 
 def _split_with_time(
@@ -67,7 +68,7 @@ class SharedPolicy(Policy):
         super().__init__(envspec=envspec, **kwargs)
         if self.use_visual:
             self.visual_feature = int(kwargs.get('visual_feature', 128))
-            self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature)
+            self.visual_net = VisualNet(self.s_dim, self.visual_dim, self.visual_feature, encoder_type=VisualEncoderType.NATURE)
             self.other_tv += self.visual_net.trainable_variables
             self.feat_dim = self.visual_net.hdim
             self._worker_params_dict.update(visual_net=self.visual_net)
@@ -83,7 +84,6 @@ class SharedPolicy(Policy):
             self.other_tv += self.rnn_net.trainable_variables
             self.feat_dim = self.rnn_units
             self._worker_params_dict.update(rnn_net=self.rnn_net)
-        
 
         self.get_feature = tf.function(func=self.generate_get_feature_function(), experimental_relax_shapes=True)
         self.get_burn_in_feature = tf.function(func=self.generate_get_brun_in_feature_function(), experimental_relax_shapes=True)
@@ -193,7 +193,7 @@ class SharedPolicy(Policy):
             return cell_state
 
     def _cnn_rnn_get_burn_in_feature(self, s, visual_s,
-                                 cell_state: Tuple[Optional[tf.Tensor]]) -> Tuple[tf.Tensor]:
+                                     cell_state: Tuple[Optional[tf.Tensor]]) -> Tuple[tf.Tensor]:
         s, visual_s = self._tf_data_cast(s, visual_s)    # [B, T, N]
         batch_size = tf.shape(s)[0]
         with tf.device(self.device):
