@@ -20,9 +20,9 @@ except:
     logger.warning('opencv-python is needed to train visual-based model.')
     pass
 
-from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
-from rls.utils.tuples import (SingleAgentEnvArgs,
+from rls.utils.np_utils import int2action_index
+from rls.utils.indexs import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs)
 
 # obs: [

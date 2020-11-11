@@ -11,14 +11,19 @@ from tensorflow.keras.layers import (Conv2D,
                                      Flatten)
 
 from rls.utils.tf2_utils import get_device
+from rls.utils.indexs import VisualEncoderType
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
 from rls.nn.initializers import initKernelAndBias
 
-CNNS = {
-    'simple': lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
-    'nature': lambda: ConvLayer(Conv2D, [32, 64, 64], [[8, 8], [4, 4], [3, 3]], [[4, 4], [2, 2], [1, 1]], padding='valid', activation='relu')
-}
+
+def get_visual_encoder_from_type(encoder_type: VisualEncoderType):
+    VISUAL_ENCODER_FUNCS = {
+        VisualEncoderType.SIMPLE: lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
+        VisualEncoderType.NATURE: lambda: ConvLayer(Conv2D, [32, 64, 64], [[8, 8], [4, 4], [3, 3]], [[4, 4], [2, 2], [1, 1]], padding='valid', activation='relu'),
+        VisualEncoderType.MATCH3: lambda: ConvLayer(Conv2D, [35, 144], [[3, 3], [1, 1]], [[3, 3], [1, 1]], padding='valid', activation='elu')
+    }
+    return VISUAL_ENCODER_FUNCS.get(encoder_type, VISUAL_ENCODER_FUNCS[VisualEncoderType.SIMPLE])
 
 
 class MultiCameraCNN(M):
@@ -30,7 +35,7 @@ class MultiCameraCNN(M):
         self.n = n
         self.nets = []
         for _ in range(n):
-            net = CNNS[encoder_type]()
+            net = get_visual_encoder_from_type(encoder_type)()
             net.add(Dense(feature_dim, activation_fn, **initKernelAndBias))
             self.nets.append(net)
 
@@ -60,6 +65,7 @@ class ObsLSTM(M):
         x, h, c = self.lstm_net(s, initial_state=(h, c))  # 如果没指定初始化隐状态，就用burn_in的， 或者 None
         return (x, (h, c))
 
+
 class ObsGRU(M):
     '''输入状态的RNN
     '''
@@ -83,7 +89,7 @@ class VisualNet(M):
     If there is no visual image input, Conv layers won't be built and initialized.
     '''
 
-    def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type='nature'):
+    def __init__(self, vector_dim, visual_dim=[], visual_feature=128, encoder_type=VisualEncoderType.NATURE):
         super().__init__()
         self.camera_num = visual_dim[0]
         self.nets = MultiCameraCNN(n=self.camera_num, feature_dim=visual_feature, activation_fn=default_activation, encoder_type=encoder_type)
@@ -102,7 +108,7 @@ class CuriosityModel(M):
     '''
 
     def __init__(self, is_continuous, vector_dim, action_dim, visual_dim=[], visual_feature=128,
-                 *, eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10., encoder_type='simple'):
+                 *, eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10., encoder_type=VisualEncoderType.SIMPLE):
         '''
         params:
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)

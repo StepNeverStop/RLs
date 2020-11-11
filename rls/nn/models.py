@@ -6,8 +6,8 @@ import tensorflow as tf
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 
-from .activations import (swish,
-                          mish)
+from rls.nn.activations import (swish,
+                                mish)
 from rls.nn.layers import (Noisy,
                            mlp)
 

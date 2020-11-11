@@ -19,7 +19,7 @@ from rls.nn.networks import CuriosityModel
 from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.utils.tuples import SingleAgentEnvArgs
+from rls.utils.indexs import SingleAgentEnvArgs
 
 
 class Policy(Base):
