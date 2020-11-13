@@ -13,18 +13,18 @@ from tensorflow.keras.layers import (Dense,
                                      Flatten,
                                      LayerNormalization)
 
-from rls.nn import actor_continuous as ActorCts
-from rls.nn import actor_discrete as ActorDcs
-from rls.nn import critic_q_one as Critic
 from rls.utils.tf2_utils import (clip_nn_log_std,
                                  squash_rsample,
                                  gaussian_entropy,
                                  update_target_net_weights)
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.modules import DoubleQ
-from rls.nn.networks import NatureCNN
+from rls.nn.networks import get_visual_network_from_type
 from rls.nn.initializers import initKernelAndBias
+from rls.utils.indexs import VisualNetworkType
+from rls.utils.build_networks import (ValueNetwork,
+                                      DoubleValueNetwork)
+from rls.utils.indexs import OutputNetworkType
 
 
 class VisualEncoder(M):
@@ -32,8 +32,7 @@ class VisualEncoder(M):
     def __init__(self, img_dim, fc_dim):
         super().__init__()
         self.net = Sequential([
-            NatureCNN(),
-            Flatten(),
+            get_visual_network_from_type(VisualNetworkType.NATURE)(),
             Dense(fc_dim, **initKernelAndBias),
             LayerNormalization()
         ])
@@ -77,7 +76,7 @@ def center_crop_image(image, output_size):
     return image
 
 
-class CURL(make_off_policy_class(mode='no_share')):
+class CURL(Off_Policy):
     """
     CURL: Contrastive Unsupervised Representations for Reinforcement Learning, http://arxiv.org/abs/2004.04136
     """
@@ -126,22 +125,40 @@ class CURL(make_off_policy_class(mode='no_share')):
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
+        def _create_net(name): return DoubleValueNetwork(
+            name=name,
+            value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+            value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+                                  action_dim=self.a_dim,
+                                  network_settings=network_settings['q'])
+        )
+
+        self.critic_net = _create_net('critic_net')
+        self.critic_target_net = _create_net('critic_target_net')
+
         if self.is_continuous:
-            self.actor_net = ActorCts(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_continuous'])
+            self.actor_net = ValueNetwork(
+                name='actor_net',
+                value_net_type=OutputNetworkType.ACTOR_CTS,
+                value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+                                      output_shape=self.a_dim,
+                                      network_settings=network_settings['actor_continuous'])
+            )
         else:
-            self.actor_net = ActorDcs(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['actor_discrete'])
+            self.actor_net = ValueNetwork(
+                name='actor_net',
+                value_net_type=OutputNetworkType.ACTOR_DCT,
+                value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+                                      output_shape=self.a_dim,
+                                      network_settings=network_settings['actor_discrete'])
+            )
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
-        self.actor_tv = self.actor_net.trainable_variables
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        def _q_net(): return Critic(self.s_dim + self.vis_feat_size, self.a_dim, network_settings['q'])
-        self.critic_net = DoubleQ(_q_net)
-        self.critic_target_net = DoubleQ(_q_net)
-
-        self.encoder = VisualEncoder(self.img_dim, network_settings['encoder'])
-        self.encoder_target = VisualEncoder(self.img_dim, network_settings['encoder'])
+        self.encoder = VisualEncoder(self.img_dim, self.vis_feat_size)
+        self.encoder_target = VisualEncoder(self.img_dim, self.vis_feat_size)
 
         self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
 
@@ -154,14 +171,14 @@ class CURL(make_off_policy_class(mode='no_share')):
         self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr, curl_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha, self.optimizer_curl = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr])
 
-        self._worker_params_dict.update(actor=self.actor_net)
-        self._residual_params_dict.update(
-            critic_net=self.critic_net,
-            curl_w=self.curl_w,
-            optimizer_actor=self.optimizer_actor,
-            optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha,
-            optimizer_curl=self.optimizer_curl)
+        self._worker_params_dict.update(self.actor_net._policy_models)
+        self._worker_params_dict.update(encoder=self.encoder)
+        self._residual_params_dict.update(self.critic_net._all_models)
+        self._residual_params_dict.update(curl_w=self.curl_w,
+                                          optimizer_actor=self.optimizer_actor,
+                                          optimizer_critic=self.optimizer_critic,
+                                          optimizer_alpha=self.optimizer_alpha,
+                                          optimizer_curl=self.optimizer_curl)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -175,12 +192,12 @@ class CURL(make_off_policy_class(mode='no_share')):
         with tf.device(self.device):
             feat = tf.concat([self.encoder(visual_s), s], axis=-1)
             if self.is_continuous:
-                mu, log_std = self.actor_net(feat)
+                mu, log_std = self.actor_net.value_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
                 mu = tf.tanh(mu)  # squash mu
             else:
-                logits = self.actor_net(feat)
+                logits = self.actor_net.value_net(feat)
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
@@ -201,10 +218,9 @@ class CURL(make_off_policy_class(mode='no_share')):
         return (data,)
 
     def _target_params_update(self):
-        update_target_net_weights(
-            self.critic_target_net.weights + self.encoder_target.trainable_variables,
-            self.critic_net.weights + self.encoder.trainable_variables,
-            self.ployak)
+        update_target_net_weights(self.critic_target_net.weights + self.encoder_target.trainable_variables,
+                                  self.critic_net.weights + self.encoder.trainable_variables,
+                                  self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
@@ -242,17 +258,17 @@ class CURL(make_off_policy_class(mode='no_share')):
                 feat_ = tf.concat([vis_feat_, s_], axis=-1)
                 target_feat_ = tf.concat([target_vis_feat_, s_], axis=-1)
                 if self.is_continuous:
-                    target_mu, target_log_std = self.actor_net(feat_)
+                    target_mu, target_log_std = self.actor_net.value_net(feat_)
                     target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
-                    target_logits = self.actor_net(feat_)
+                    target_logits = self.actor_net.value_net(feat_)
                     target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.critic_net(feat, a)
-                q1_target, q2_target = self.critic_target_net(feat_, target_pi)
+                q1, q2 = self.critic_net.value_net(feat, a)
+                q1_target, q2_target = self.critic_target_net.value_net(feat_, target_pi)
                 dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
                 dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r_q1
@@ -277,12 +293,12 @@ class CURL(make_off_policy_class(mode='no_share')):
 
             with tf.GradientTape() as tape:
                 if self.is_continuous:
-                    mu, log_std = self.actor_net(feat)
+                    mu, log_std = self.actor_net.value_net(feat)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = self.actor_net(feat)
+                    logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
@@ -293,20 +309,20 @@ class CURL(make_off_policy_class(mode='no_share')):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 q_s_pi = self.critic_net.get_min(feat, pi)
                 actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
-            actor_grads = tape.gradient(actor_loss, self.actor_tv)
+            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_tv)
+                zip(actor_grads, self.actor_net.trainable_variables)
             )
 
             if self.auto_adaption:
                 with tf.GradientTape() as tape:
                     if self.is_continuous:
-                        mu, log_std = self.actor_net(feat)
+                        mu, log_std = self.actor_net.value_net(feat)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
                     else:
-                        logits = self.actor_net(feat)
+                        logits = self.actor_net.value_net(feat)
                         cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = cate_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))

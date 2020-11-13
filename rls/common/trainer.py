@@ -81,12 +81,12 @@ class Trainer:
 
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
-        self.algo_args['use_rnn'] = self.train_args['use_rnn']
+        self.algo_args['memory_net_kwargs']['use_rnn'] = self.train_args['use_rnn']
         show_dict(self.algo_args)
 
         # BUFFER
         if self.train_args['policy_mode'] == 'off-policy':
-            if self.algo_args['use_rnn'] == True:
+            if self.algo_args['memory_net_kwargs']['use_rnn'] == True:
                 self.buffer_args['type'] = 'EpisodeER'
                 self.buffer_args['batch_size'] = self.algo_args.get('episode_batch_size', 0)
                 self.buffer_args['buffer_size'] = self.algo_args.get('episode_buffer_size', 0)

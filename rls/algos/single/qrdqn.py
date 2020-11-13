@@ -4,14 +4,15 @@
 import numpy as np
 import tensorflow as tf
 
-from rls.nn import qrdqn_distributional as NetWork
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.tf2_utils import (huber_loss,
                                  update_target_net_weights)
+from rls.utils.build_networks import ValueNetwork
+from rls.utils.indexs import OutputNetworkType
 
 
-class QRDQN(make_off_policy_class(mode='share')):
+class QRDQN(Off_Policy):
     '''
     Quantile Regression DQN
     Distributional Reinforcement Learning with Quantile Regression, https://arxiv.org/abs/1710.10044
@@ -45,15 +46,22 @@ class QRDQN(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.nums, network_settings)
-        self.q_dist_net = _net()
-        self.q_target_dist_net = _net()
-        self.critic_tv = self.q_dist_net.trainable_variables + self.other_tv
+        def _create_net(name, representation_net=None): return ValueNetwork(
+            name=name,
+            representation_net=representation_net,
+            value_net_type=OutputNetworkType.QRDQN_DISTRIBUTIONAL,
+            value_net_kwargs=dict(action_dim=self.a_dim, nums=self.nums, network_settings=network_settings)
+        )
+
+        self.q_dist_net = _create_net('q_dist_net', self._representation_net)
+        self._representation_target_net = self._create_representation_net('_representation_target_net')
+        self.q_target_dist_net = _create_net('q_target_dist_net', self._representation_target_net)
         update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self._worker_params_dict.update(model=self.q_dist_net)
+        self._worker_params_dict.update(self.q_dist_net._policy_models)
+        self._residual_params_dict.update(self.q_dist_net._residual_models)
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
@@ -68,8 +76,8 @@ class QRDQN(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
-            q = self.get_q(feat)  # [B, A]
+            q_values, cell_state = self.q_dist_net(s, visual_s, cell_state=cell_state)
+            q = tf.reduce_sum(self.batch_quantiles * q_values, axis=-1)  # [B, A, N] => [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
     def _target_params_update(self):
@@ -80,20 +88,20 @@ class QRDQN(make_off_policy_class(mode='share')):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
+                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done = memories
+        s, visual_s, a, r, s_, visual_s_, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist = self.q_dist_net(feat)  # [B, A, N]
+                q_dist, _ = self.q_dist_net(s, visual_s, cell_state=cell_state)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
-                target_q_dist = self.q_target_dist_net(feat_)  # [B, A, N]
+                target_q_dist, _ = self.q_target_dist_net(s_, visual_s_, cell_state=cell_state)  # [B, A, N]
                 target_q = tf.reduce_sum(self.batch_quantiles * target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
@@ -110,9 +118,9 @@ class QRDQN(make_off_policy_class(mode='share')):
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
                 loss = tf.reduce_mean(loss * isw)  # [B, ] => 1
-            grads = tape.gradient(loss, self.critic_tv)
+            grads = tape.gradient(loss, self.q_dist_net.trainable_variables)
             self.optimizer.apply_gradients(
-                zip(grads, self.critic_tv)
+                zip(grads, self.q_dist_net.trainable_variables)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
@@ -121,8 +129,3 @@ class QRDQN(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
-
-    @tf.function(experimental_relax_shapes=True)
-    def get_q(self, feat):
-        with tf.device(self.device):
-            return tf.reduce_sum(self.batch_quantiles * self.q_dist_net(feat), axis=-1)  # [B, A, N] => [B, A]
