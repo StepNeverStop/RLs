@@ -9,8 +9,8 @@ from typing import (List,
                     NoReturn,
                     Dict)
 
-from rls.nn import actor_dpg as ActorCts
-from rls.nn import critic_q_one as Critic
+from rls.nn import ActorDPG as ActorCts
+from rls.nn import CriticQvalueOne as Critic
 from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
                           NormalActionNoise)
 from rls.algos.base.ma_off_policy import MultiAgentOffPolicy

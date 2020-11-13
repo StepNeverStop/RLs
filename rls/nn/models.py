@@ -6,13 +6,39 @@ import tensorflow as tf
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 
-from rls.nn.activations import (swish,
-                                mish)
 from rls.nn.layers import (Noisy,
                            mlp)
+from rls.utils.indexs import OutputNetworkType
 
 
-class actor_dpg(M):
+def get_output_network_from_type(network_type: OutputNetworkType):
+    OUTPUT_NETWORKS = {
+        OutputNetworkType.ACTOR_DPG: ActorDPG,
+        OutputNetworkType.ACTOR_MU: ActorMu,
+        OutputNetworkType.ACTOR_MU_LOGSTD: ActorMuLogstd,
+        OutputNetworkType.ACTOR_CTS: ActorCts,
+        OutputNetworkType.ACTOR_DCT: ActorDct,
+        OutputNetworkType.CRITIC_QVALUE_ONE: CriticQvalueOne,
+        OutputNetworkType.CRITIC_QVALUE_ONE_DDPG: CriticQvalueOneDDPG,
+        OutputNetworkType.CRITIC_QVALUE_ONE_TD3: CriticQvalueOneTD3,
+        OutputNetworkType.CRITIC_VALUE: CriticValue,
+        OutputNetworkType.CRITIC_QVALUE_ALL: CriticQvalueAll,
+        OutputNetworkType.CRITIC_QVALUE_BOOTSTRAP: CriticQvalueBootstrap,
+        OutputNetworkType.CRITIC_DUELING: CriticDueling,
+        OutputNetworkType.OC_INTRA_OPTION: OcIntraOption,
+        OutputNetworkType.AOC_SHARE: AocShare,
+        OutputNetworkType.PPOC_SHARE: PpocShare,
+        OutputNetworkType.ACTOR_CRITIC_VALUE_CTS: ActorCriticValueCts,
+        OutputNetworkType.ACTOR_CRITIC_VALUE_DET: ActorCriticValueDct,
+        OutputNetworkType.C51_DISTRIBUTIONAL: C51Distributional,
+        OutputNetworkType.QRDQN_DISTRIBUTIONAL: QrdqnDistributional,
+        OutputNetworkType.RAINBOW_DUELING: RainbowDueling,
+        OutputNetworkType.IQN_NET: IqnNet
+    }
+    return OUTPUT_NETWORKS.get(network_type, OUTPUT_NETWORKS[OutputNetworkType.ACTOR_CTS])
+
+
+class ActorDPG(M):
     '''
     use for DDPG and/or TD3 algorithms' actor network.
     input: vector of state
@@ -29,7 +55,7 @@ class actor_dpg(M):
         return mu
 
 
-class actor_mu(M):
+class ActorMu(M):
     '''
     input: vector of state
     output: stochastic action(mu), normally is the mean of a Normal distribution
@@ -45,7 +71,7 @@ class actor_mu(M):
         return mu
 
 
-class actor_mu_logstd(M):
+class ActorMuLogstd(M):
     '''
     use for PPO/PG algorithms' actor network.
     input: vector of state
@@ -76,7 +102,7 @@ class actor_mu_logstd(M):
         return (mu, log_std)
 
 
-class actor_continuous(M):
+class ActorCts(M):
     '''
     use for continuous action space.
     input: vector of state
@@ -97,7 +123,7 @@ class actor_continuous(M):
         return (mu, log_std)
 
 
-class actor_discrete(M):
+class ActorDct(M):
     '''
     use for discrete action space.
     input: vector of state
@@ -114,7 +140,7 @@ class actor_discrete(M):
         return logits
 
 
-class critic_q_one(M):
+class CriticQvalueOne(M):
     '''
     use for evaluate the value given a state-action pair.
     input: tf.concat((state, action),axis = 1)
@@ -131,7 +157,7 @@ class critic_q_one(M):
         return q
 
 
-class critic_q_one2(M):
+class CriticQvalueOneDDPG(M):
     '''
     Original architecture in DDPG paper.
     s-> layer -> feature, then tf.concat(feature, a) -> layer -> output
@@ -150,7 +176,7 @@ class critic_q_one2(M):
         return q
 
 
-class critic_q_one3(M):
+class CriticQvalueOneTD3(M):
     '''
     Original architecture in TD3 paper.
     tf.concat(s,a) -> layer -> feature, then tf.concat(feature, a) -> layer -> output
@@ -169,7 +195,7 @@ class critic_q_one3(M):
         return q
 
 
-class critic_v(M):
+class CriticValue(M):
     '''
     use for evaluate the value given a state.
     input: vector of state
@@ -186,7 +212,7 @@ class critic_v(M):
         return v
 
 
-class critic_q_all(M):
+class CriticQvalueAll(M):
     '''
     use for evaluate all values of Q(S,A) given a state. must be discrete action space.
     input: vector of state
@@ -203,7 +229,7 @@ class critic_q_all(M):
         return q
 
 
-class critic_q_bootstrap(M):
+class CriticQvalueBootstrap(M):
     '''
     use for bootstrapped dqn.
     '''
@@ -218,7 +244,7 @@ class critic_q_bootstrap(M):
         return q
 
 
-class critic_dueling(M):
+class CriticDueling(M):
     '''
     Neural network for dueling deep Q network.
     Input:
@@ -243,7 +269,7 @@ class critic_dueling(M):
         return q
 
 
-class oc_intra_option(M):
+class OcIntraOption(M):
     '''
     Intra Option Neural network of Option-Critic.
     '''
@@ -261,7 +287,7 @@ class oc_intra_option(M):
         return pi
 
 
-class aoc_share(M):
+class AocShare(M):
     '''
     Neural network for AOC.
     '''
@@ -285,7 +311,7 @@ class aoc_share(M):
         return q, pi, beta
 
 
-class ppoc_share(M):
+class PpocShare(M):
     '''
     Neural network for PPOC.
     '''
@@ -311,7 +337,7 @@ class ppoc_share(M):
         return q, pi, beta, o
 
 
-class a_c_v_continuous(M):
+class ActorCriticValueCts(M):
     '''
     combine actor network and critic network, share some nn layers. use for continuous action space.
     input: vector of state
@@ -346,7 +372,7 @@ class a_c_v_continuous(M):
         return (mu, log_std, v)
 
 
-class a_c_v_discrete(M):
+class ActorCriticValueDct(M):
     '''
     combine actor network and critic network, share some nn layers. use for discrete action space.
     input: vector of state
@@ -367,7 +393,7 @@ class a_c_v_discrete(M):
         return (logits, v)
 
 
-class c51_distributional(M):
+class C51Distributional(M):
     '''
     neural network for C51
     '''
@@ -385,7 +411,7 @@ class c51_distributional(M):
         return q_dist
 
 
-class qrdqn_distributional(M):
+class QrdqnDistributional(M):
     '''
     neural network for QRDQN
     '''
@@ -403,7 +429,7 @@ class qrdqn_distributional(M):
         return q_dist
 
 
-class rainbow_dueling(M):
+class RainbowDueling(M):
     '''
     Neural network for Rainbow.
     Input:
@@ -434,7 +460,7 @@ class rainbow_dueling(M):
         return q  # [B, A, N]
 
 
-class iqn_net(M):
+class IqnNet(M):
     def __init__(self, vector_dim, action_dim, quantiles_idx, network_settings):
         super().__init__()
         self.action_dim = action_dim

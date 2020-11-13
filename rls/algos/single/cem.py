@@ -4,11 +4,13 @@
 import numpy as np
 import tensorflow as tf
 
+from tensorflow.keras import Model as M
+
 from rls.nn.layers import mlp
-from rls.algos.base.on_policy import make_on_policy_class
+from rls.algos.base.on_policy import On_Policy
 
 
-class Model(tf.keras.Model):
+class Model(M):
 
     def __init__(self, vector_dim, output_shape, network_settings, is_continuous):
         super().__init__()
@@ -39,7 +41,7 @@ class Model(tf.keras.Model):
         self.set_weights(wbs)
 
 
-class CEM(make_on_policy_class(mode='share')):
+class CEM(On_Policy):
     '''
     Cross-Entropy Method
     '''
@@ -63,6 +65,8 @@ class CEM(make_on_policy_class(mode='share')):
         self.extra_decay_eps = extra_decay_eps
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
+        
+        self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
         self._check_agents(s)

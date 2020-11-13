@@ -19,4 +19,4 @@ def mish(x):
     return tf.multiply(x, tf.nn.tanh(tf.nn.softplus(x)))
 
 
-default_activation = 'relu'  # 'tanh', 'relu', swish, mish
+default_activation = swish  # 'tanh', 'relu', swish, mish
