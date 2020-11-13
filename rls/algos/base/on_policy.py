@@ -73,9 +73,10 @@ class On_Policy(Policy):
         if not self.is_continuous:
             self.data.convert_action2one_hot(self.a_dim)
 
-        if self.use_curiosity:
+        if self.use_curiosity and not self.use_rnn:
             s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()
-            crsty_r, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_)
+            cell_state = self.initial_cell_state(batch=s.shape[0])
+            crsty_r, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_, cell_state)
             self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
             self.summaries.update(crsty_summaries)
 
