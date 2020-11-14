@@ -7,6 +7,8 @@ from typing import Tuple
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras.layers import (Conv2D,
+                                     MaxPool2D,
+                                     Flatten,
                                      Dense)
 
 from rls.nn.layers import ConvLayer
@@ -20,9 +22,44 @@ def get_visual_network_from_type(network_type: VisualNetworkType):
     VISUAL_NETWORKS = {
         VisualNetworkType.SIMPLE: lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
         VisualNetworkType.NATURE: lambda: ConvLayer(Conv2D, [32, 64, 64], [[8, 8], [4, 4], [3, 3]], [[4, 4], [2, 2], [1, 1]], padding='valid', activation='relu'),
-        VisualNetworkType.MATCH3: lambda: ConvLayer(Conv2D, [35, 144], [[3, 3], [1, 1]], [[3, 3], [1, 1]], padding='valid', activation='elu')
+        VisualNetworkType.MATCH3: lambda: ConvLayer(Conv2D, [35, 144], [[3, 3], [1, 1]], [[3, 3], [1, 1]], padding='valid', activation='elu'),
+        VisualNetworkType.RESNET: ResnetNetwork
     }
     return VISUAL_NETWORKS.get(network_type, VISUAL_NETWORKS[VisualNetworkType.SIMPLE])
+
+
+class ResnetNetwork(M):
+
+    def __init__(self):
+        super().__init__()
+        self.all_filters = [16, 32, 32]
+        self.res_blocks = 2
+        for i, filters in enumerate(self.all_filters):
+            setattr(self, 'conv' + str(i), Conv2D(filters=filters, kernel_size=[3, 3], strides=(1, 1), **initKernelAndBias))
+            setattr(self, 'pool' + str(i), MaxPool2D(pool_size=[3, 3], strides=[2, 2], padding='same'))
+            for j in range(self.res_blocks):
+                setattr(self, 'resblock' + str(i) + 'conv' + str(j), Conv2D(filters=filters, kernel_size=[3, 3], strides=(1, 1), padding='same', **initKernelAndBias))
+        self.flatten = Flatten()
+
+    def call(self, x):
+        '''
+           -----------------------------------multi conv layer---------------------------------
+           ↓                                             ----multi residual block-------      ↑
+           ↓                                             ↓                             ↑      ↑
+        x - > conv -> x -> max_pooling -> x(block_x) -> relu -> x -> resnet_conv -> x => x ↘ ↑
+                                               ↓                                         +    x -> relu -> x -> flatten -> x
+                                               --------------residual add----------------↑ ↗
+        '''
+        for i in range(len(self.all_filters)):
+            x = getattr(self, 'conv' + str(i))(x)
+            block_x = x = getattr(self, 'pool' + str(i))(x)
+            for j in range(self.res_blocks):
+                x = tf.nn.relu(x)
+                x = getattr(self, 'resblock' + str(i) + 'conv' + str(j))(x)
+            x = tf.add(block_x, x)
+        x = tf.nn.relu(x)
+        x = self.flatten(x)
+        return x
 
 
 class MultiVectorNetwork(M):
@@ -53,10 +90,11 @@ class MultiVisualNetwork(M):
     def __init__(self, visual_dim=[], visual_feature=128, network_type=VisualNetworkType.NATURE):
         super().__init__()
         self.nets = []
+        self.dense_nets = []
         for _ in visual_dim:
             net = get_visual_network_from_type(network_type)()
-            net.add(Dense(visual_feature, default_activation, **initKernelAndBias))
             self.nets.append(net)
+            self.dense_nets.append(Dense(visual_feature, default_activation, **initKernelAndBias))
         self.h_dim = visual_feature * len(self.nets)
         self.use_visual = not self.h_dim == 0
         if visual_dim:
@@ -65,8 +103,12 @@ class MultiVisualNetwork(M):
     @tf.function(experimental_relax_shapes=True)
     def call(self, *args):
         output = []
-        for net, visual_s in zip(self.nets, args):
-            output.append(net(visual_s))
+        for net, dense_net, visual_s in zip(self.nets, self.dense_nets, args):
+            output.append(
+                dense_net(
+                    net(visual_s)
+                )
+            )
         if output:
             output = tf.concat(output, axis=-1)
         return output
