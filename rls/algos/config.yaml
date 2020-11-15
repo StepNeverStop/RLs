@@ -368,11 +368,11 @@ ppo:
     share_net: true
     epsilon: 0.2
     gamma: 0.99
-    ent_coef: 1.0e-2
+    ent_coef: 0.005
     vf_coef: 0.5
-    lr: 5.0e-4
+    lr: 0.0003
     lambda_: 0.97
-    batch_size: 64
+    batch_size: 32
     policy_epoch: 4 # very important
     value_epoch: 4
     actor_lr: 3.0e-4
@@ -385,7 +385,7 @@ ppo:
     duel_epsilon: 0.1
 
     # value function clip
-    use_vclip: false
+    use_vclip: true
     value_epsilon: 0.2
 
     # kl loss
@@ -402,7 +402,7 @@ ppo:
     kl_target_cutoff: 2
 
     # early stopping
-    use_early_stop: false
+    use_early_stop: true
     kl_target_earlystop: 4
 
     network_settings:

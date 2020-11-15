@@ -19,6 +19,7 @@ class VisualNetworkType(Enum):
     MATCH3 = 'match3'
     SIMPLE = 'simple'
     NATURE = 'nature'
+    RESNET = 'resnet'
 
 
 class DefaultActivationFuncType(Enum):
