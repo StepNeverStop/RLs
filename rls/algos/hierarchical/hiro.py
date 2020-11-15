@@ -6,18 +6,16 @@ import tensorflow as tf
 
 from tensorflow_probability import distributions as tfd
 
-from rls.nn import actor_dpg as ActorCts
-from rls.nn import actor_discrete as ActorDcs
-from rls.nn import critic_q_one as Critic
-from rls.nn.modules import DoubleQ
 from rls.nn.noise import ClippedNormalActionNoise
-from rls.utils.np_utila import int2one_hot
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.algos.base.off_policy import Off_Policy
 from rls.memories.replay_buffer import ExperienceReplay
+from rls.utils.np_utils import int2one_hot
 from rls.utils.tf2_utils import update_target_net_weights
+from rls.utils.build_networks import ADoubleCNetwork
+from rls.utils.indexs import OutputNetworkType
 
 
-class HIRO(make_off_policy_class(mode='no_share')):
+class HIRO(Off_Policy):
     '''
     Data-Efficient Hierarchical Reinforcement Learning, http://arxiv.org/abs/1805.08296
     '''
@@ -53,42 +51,64 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self.data_low = ExperienceReplay(low_batch_size, low_buffer_size)
 
         self.ployak = ployak
-        self.high_scale = np.array(
-            high_scale if isinstance(high_scale, list) else [high_scale] * self.s_dim,
-            dtype=np.float32)
         self.reward_scale = reward_scale
         self.fn_goal_dim = fn_goal_dim
         self.sample_g_nums = sample_g_nums
         self.sub_goal_steps = sub_goal_steps
         self.sub_goal_dim = self.s_dim - self.fn_goal_dim
+        self.high_scale = np.array(
+            high_scale if isinstance(high_scale, list) else [high_scale] * self.sub_goal_dim,
+            dtype=np.float32)
 
         self.high_noise = ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale / 2)
         self.low_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
 
-        def _high_actor_net(): return ActorCts(self.s_dim, self.sub_goal_dim, network_settings['high_actor'])
+        def _create_high_ac_net(name): return ADoubleCNetwork(
+            name=name,
+            policy_net_type=OutputNetworkType.ACTOR_DPG,
+            policy_net_kwargs=dict(vector_dim=self.s_dim,
+                                   output_shape=self.sub_goal_dim,
+                                   network_settings=network_settings['high_actor']),
+            value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+            value_net_kwargs=dict(vector_dim=self.s_dim,
+                                  action_dim=self.sub_goal_dim,
+                                  network_settings=network_settings['high_critic'])
+        )
+
+        self.high_ac_net = _create_high_ac_net('high_ac_net')
+        self.high_ac_target_net = _create_high_ac_net('high_ac_target_net')
+
         if self.is_continuous:
-            def _low_actor_net(): return ActorCts(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
+            def _create_low_ac_net(name): return ADoubleCNetwork(
+                name=name,
+                policy_net_type=OutputNetworkType.ACTOR_DPG,
+                policy_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                                       output_shape=self.a_dim,
+                                       network_settings=network_settings['low_actor']),
+                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+                value_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                                      action_dim=self.a_dim,
+                                      network_settings=network_settings['low_critic'])
+            )
         else:
-            def _low_actor_net(): return ActorDcs(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_actor'])
+            def _create_low_ac_net(name): return ADoubleCNetwork(
+                name=name,
+                policy_net_type=OutputNetworkType.ACTOR_DCT,
+                policy_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                                       output_shape=self.a_dim,
+                                       network_settings=network_settings['low_actor']),
+                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+                value_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                                      action_dim=self.a_dim,
+                                      network_settings=network_settings['low_critic'])
+            )
             self.gumbel_dist = tfd.Gumbel(0, 1)
 
-        self.high_actor = _high_actor_net()
-        self.high_actor_target = _high_actor_net()
-        self.low_actor = _low_actor_net()
-        self.low_actor_target = _low_actor_net()
+        self.low_ac_net = _create_low_ac_net('low_ac_net')
+        self.low_ac_target_net = _create_low_ac_net('low_ac_target_net')
 
-        def _high_critic_net(): return Critic(self.s_dim, self.sub_goal_dim, network_settings['high_critic'])
-        def _low_critic_net(): return Critic(self.s_dim + self.sub_goal_dim, self.a_dim, network_settings['low_critic'])
-
-        self.high_critic = DoubleQ(_high_critic_net)
-        self.high_critic_target = DoubleQ(_high_critic_net)
-        self.low_critic = DoubleQ(_low_critic_net)
-        self.low_critic_target = DoubleQ(_low_critic_net)
-
-        update_target_net_weights(
-            self.low_actor_target.weights + self.low_critic_target.weights + self.high_actor_target.weights + self.high_critic_target.weights,
-            self.low_actor.weights + self.low_critic.weights + self.high_actor.weights + self.high_critic.weights
-        )
+        update_target_net_weights(self.low_ac_target_net.weights + self.high_ac_target_net.weights,
+                                  self.low_ac_net.weights + self.high_ac_net.weights)
 
         self.low_actor_lr, self.low_critic_lr = map(self.init_lr, [low_actor_lr, low_critic_lr])
         self.high_actor_lr, self.high_critic_lr = map(self.init_lr, [high_actor_lr, high_critic_lr])
@@ -100,16 +120,14 @@ class HIRO(make_off_policy_class(mode='no_share')):
         self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
 
-        self._worker_params_dict.update(
-            high_actor=self.high_actor,
-            low_actor=self.low_actor)
-        self._residual_params_dict.update(
-            high_critic=self.high_critic,
-            low_critic=self.low_critic,
-            low_actor_optimizer=self.low_actor_optimizer,
-            low_critic_optimizer=self.low_critic_optimizer,
-            high_actor_optimizer=self.high_actor_optimizer,
-            high_critic_optimizer=self.high_critic_optimizer)
+        self._worker_params_dict.update(self.high_ac_net._policy_models)
+        self._worker_params_dict.update(self.low_ac_net._policy_models)
+        self._residual_params_dict.update(self.high_ac_net._residual_models)
+        self._residual_params_dict.update(self.low_ac_net._residual_models)
+        self._residual_params_dict.update(low_actor_optimizer=self.low_actor_optimizer,
+                                          low_critic_optimizer=self.low_critic_optimizer,
+                                          high_actor_optimizer=self.high_actor_optimizer,
+                                          high_critic_optimizer=self.high_critic_optimizer)
 
         self._model_post_process()
 
@@ -185,11 +203,12 @@ class HIRO(make_off_policy_class(mode='no_share')):
     def _get_action(self, s, visual_s, subgoal):
         with tf.device(self.device):
             feat = tf.concat([s, subgoal], axis=-1)
+            output = self.low_ac_net.policy_net(feat)
             if self.is_continuous:
-                mu = self.low_actor(feat)
+                mu = output
                 pi = tf.clip_by_value(mu + self.low_noise(), -1, 1)
             else:
-                logits = self.low_actor(feat)
+                logits = output
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfd.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
@@ -208,7 +227,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
         subgoal 上一个子目标
         s 当前隐状态
         '''
-        new_subgoal = self.high_scale * self.high_actor(s)
+        new_subgoal = self.high_scale * self.high_ac_net.policy_net(s)
         new_subgoal = tf.clip_by_value(new_subgoal + self.high_noise(), -self.high_scale, self.high_scale)
         return new_subgoal
 
@@ -226,16 +245,12 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 summaries = self.train_low(_low_training_data)
 
                 self.summaries.update(summaries)
-                update_target_net_weights(self.low_actor_target.weights + self.low_critic_target.weights,
-                                          self.low_actor.weights + self.low_critic.weights,
-                                          self.ployak)
+                update_target_net_weights(self.low_ac_target_net.weights, self.low_ac_net.weights, self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(_high_training_data)
                     self.summaries.update(high_summaries)
-                    update_target_net_weights(self.high_actor_target.weights + self.high_critic_target.weights,
-                                              self.high_actor.weights + self.high_critic.weights,
-                                              self.ployak)
+                    update_target_net_weights(self.high_ac_target_net.weights, self.high_ac_net.weights, self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
                     ['LEARNING_RATE/low_actor_lr', self.low_actor_lr(self.train_step)],
@@ -253,44 +268,46 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 feat = tf.concat([s, g], axis=-1)
                 feat_ = tf.concat([s_, g_], axis=-1)
 
+                target_output = self.low_ac_target_net.policy_net(feat_)
                 if self.is_continuous:
-                    target_mu = self.low_actor_target(feat_)
+                    target_mu = target_output
                     action_target = tf.clip_by_value(target_mu + self.low_noise(), -1, 1)
                 else:
-                    target_logits = self.low_actor_target(feat_)
+                    target_logits = target_output
                     logp_all = tf.nn.log_softmax(target_logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample([tf.shape(feat_)[0], self.a_dim]), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / 1.)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     action_target = _pi_diff + _pi
-                q1, q2 = self.low_critic(feat, a)
+                q1, q2 = self.low_ac_net.get_value(feat, a)
                 q = tf.minimum(q1, q2)
-                q_target = self.low_critic_target.get_min(feat_, action_target)
+                q_target = self.low_ac_target_net.get_min(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
                 q2_loss = tf.reduce_mean(tf.square(td_error2))
                 low_critic_loss = q1_loss + q2_loss
-            low_critic_grads = tape.gradient(low_critic_loss, self.low_critic.weights)
+            low_critic_grads = tape.gradient(low_critic_loss, self.low_ac_net.critic_trainable_variables)
             self.low_critic_optimizer.apply_gradients(
-                zip(low_critic_grads, self.low_critic.weights)
+                zip(low_critic_grads, self.low_ac_net.critic_trainable_variables)
             )
             with tf.GradientTape() as tape:
+                output = self.low_ac_net.policy_net(feat)
                 if self.is_continuous:
-                    mu = self.low_actor(feat)
+                    mu = output
                 else:
-                    logits = self.low_actor(feat)
+                    logits = output
                     _pi = tf.nn.softmax(logits)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q_actor = self.low_critic.Q1(feat, mu)
+                q_actor = self.low_ac_net.value_net(feat, mu)
                 low_actor_loss = -tf.reduce_mean(q_actor)
-            low_actor_grads = tape.gradient(low_actor_loss, self.low_actor.trainable_variables)
+            low_actor_grads = tape.gradient(low_actor_loss, self.low_ac_net.actor_trainable_variables)
             self.low_actor_optimizer.apply_gradients(
-                zip(low_actor_grads, self.low_actor.trainable_variables)
+                zip(low_actor_grads, self.low_ac_net.actor_trainable_variables)
             )
 
             self.global_step.assign_add(1)
@@ -332,7 +349,7 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 all_g = tf.reshape(all_g, [-1, tf.shape(all_g)[-1]])    # [10*B*T, N]
                 all_g = all_g - ss[:, self.fn_goal_dim:]  # [10*B*T, N]
                 feat = tf.concat([ss, all_g], axis=-1)  # [10*B*T, *]
-                _aa = self.low_actor(feat)  # [10*B*T, A]
+                _aa = self.low_ac_net.policy_net(feat)  # [10*B*T, A]
                 if not self.is_continuous:
                     _aa = tf.one_hot(tf.argmax(_aa, axis=-1), self.a_dim, dtype=tf.float32)
                 diff = _aa - aa
@@ -343,12 +360,12 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 idx = tf.stack([tf.range(batchs), idx], axis=1)  # [B, 2]
                 g = tf.gather_nd(tf.transpose(gs, [1, 0, 2]), idx)  # [B, N]
 
-                q1, q2 = self.high_critic(s, g)
+                q1, q2 = self.high_ac_net.get_value(s, g)
                 q = tf.minimum(q1, q2)
 
-                target_sub_goal = self.high_actor_target(s_) * self.high_scale
+                target_sub_goal = self.high_ac_target_net.policy_net(s_) * self.high_scale
                 target_sub_goal = tf.clip_by_value(target_sub_goal + self.high_noise(), -self.high_scale, self.high_scale)
-                q_target = self.high_critic_target.get_min(s_, target_sub_goal)
+                q_target = self.high_ac_target_net.get_min(s_, target_sub_goal)
 
                 dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * q_target)
                 td_error1 = q1 - dc_r
@@ -357,17 +374,17 @@ class HIRO(make_off_policy_class(mode='no_share')):
                 q2_loss = tf.reduce_mean(tf.square(td_error2))
                 high_critic_loss = q1_loss + q2_loss
 
-            high_critic_grads = tape.gradient(high_critic_loss, self.high_critic.weights)
+            high_critic_grads = tape.gradient(high_critic_loss, self.high_ac_net.critic_trainable_variables)
             self.high_critic_optimizer.apply_gradients(
-                zip(high_critic_grads, self.high_critic.weights)
+                zip(high_critic_grads, self.high_ac_net.critic_trainable_variables)
             )
             with tf.GradientTape() as tape:
-                mu = self.high_actor(s) * self.high_scale
-                q_actor = self.high_critic.Q1(s, mu)
+                mu = self.high_ac_net.policy_net(s) * self.high_scale
+                q_actor = self.high_ac_net.value_net(s, mu)
                 high_actor_loss = -tf.reduce_mean(q_actor)
-            high_actor_grads = tape.gradient(high_actor_loss, self.high_actor.trainable_variables)
+            high_actor_grads = tape.gradient(high_actor_loss, self.high_ac_net.actor_trainable_variables)
             self.high_actor_optimizer.apply_gradients(
-                zip(high_actor_grads, self.high_actor.trainable_variables)
+                zip(high_actor_grads, self.high_ac_net.actor_trainable_variables)
             )
             return dict([
                 ['LOSS/high_actor_loss', high_actor_loss],

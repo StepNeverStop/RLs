@@ -11,6 +11,7 @@ from tensorflow.keras.layers import (Dense,
                                      Flatten)
 
 from rls.nn.activations import default_activation
+from rls.nn.initializers import initKernelAndBias
 
 
 class mlp(Sequential):
@@ -24,9 +25,9 @@ class mlp(Sequential):
         """
         super().__init__()
         for u in hidden_units:
-            self.add(layer(u, act_fn))
+            self.add(layer(u, act_fn, **initKernelAndBias))
         if out_layer:
-            self.add(layer(output_shape, out_activation))
+            self.add(layer(output_shape, out_activation, **initKernelAndBias))
 
 
 class mlp_with_noisy(Sequential):
@@ -42,10 +43,10 @@ class mlp_with_noisy(Sequential):
         super().__init__()
         for u in hidden_units:
             self.add(GaussianNoise(0.4))  # Or use kwargs
-            self.add(Dense(u, act_fn))
+            self.add(Dense(u, act_fn, **initKernelAndBias))
         if out_layer:
             self.add(GaussianNoise(0.4))
-            self.add(Dense(output_shape, out_activation))
+            self.add(Dense(output_shape, out_activation, **initKernelAndBias))
 
 
 class Noisy(Dense):
@@ -134,6 +135,6 @@ def ConvLayer(conv_function=Conv2D,
     Return:
         A sequential of multi-convolution layers, with Flatten.
     '''
-    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation) for f, k, s in zip(filters, kernels, strides)])
+    layers = Sequential([conv_function(filters=f, kernel_size=k, strides=s, padding=padding, activation=activation, **initKernelAndBias) for f, k, s in zip(filters, kernels, strides)])
     layers.add(Flatten())
     return layers

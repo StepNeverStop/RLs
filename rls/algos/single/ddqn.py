@@ -40,26 +40,34 @@ class DDQN(DQN):
             network_settings=network_settings,
             **kwargs)
 
+    def learn(self, **kwargs) -> NoReturn:
+        self.train_step = kwargs.get('train_step')
+        for i in range(self.train_times_per_step):
+            self._learn(function_dict={
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
+                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 's_', 'visual_s_']
+            })
+
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, crsty_loss, cell_state):
-        ss, vvss, a, r, done = memories
+    def _train(self, memories, isw, cell_state):
+        ss, vvss, a, r, done, s_, visual_s_ = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
-                q = self.q_net(feat)
-                q_next = self.q_net(feat_)
+                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
+                q = self.q_net.value_net(feat)
+                q_next = self.q_net.value_net(feat_)
+                q_target_next, _ = self.q_target_net(s_, visual_s_, cell_state=cell_state)
                 next_max_action = tf.argmax(q_next, axis=1)
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                q_target_next = self.q_target_net(feat_)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
                 td_error = q_eval - q_target
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw) + crsty_loss
-            grads = tape.gradient(q_loss, self.critic_tv)
+                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
+            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(
-                zip(grads, self.critic_tv)
+                zip(grads, self.q_net.trainable_variables)
             )
             self.global_step.assign_add(1)
             return td_error, dict([

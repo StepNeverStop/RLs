@@ -2,6 +2,13 @@
 # encoding: utf-8
 
 import os
+import numpy as np
+
+from copy import deepcopy
+from collections import deque
+from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
@@ -13,16 +20,56 @@ except:
     logger.warning('opencv-python is needed to train visual-based model.')
     pass
 
-import numpy as np
-from copy import deepcopy
-
-from rls.utils.np_utils import int2action_index
 from rls.common.yaml_ops import load_yaml
-from rls.utils.tuples import (SingleAgentEnvArgs,
+from rls.utils.np_utils import int2action_index
+from rls.utils.indexs import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs)
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
-from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+
+# obs: [
+#     brain1: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+#     brain2: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+#     ...
+#     brainn: [
+#         agent1: [],
+#         agent2: [],
+#         ...
+#         agentn: []
+#     ],
+# ]
+
+# =>
+
+# obs: [
+#     brain1: [
+#         agent1: n*[],
+#         agent2: n*[],
+#         ...
+#         agentn: n*[]
+#     ],
+#     brain2: [
+#         agent1: n*[],
+#         agent2: n*[],
+#         ...
+#         agentn: n*[]
+#     ],
+#     ...
+#     brainn: [
+#         agent1: n*[]
+#         agent2: n*[]
+#         ...
+#         agentn: n*[]
+#     ],
+# ]
 
 
 class UnityWrapper(object):
@@ -43,7 +90,7 @@ class UnityWrapper(object):
                                          seed=env_args['env_seed'],
                                          side_channels=[self.engine_configuration_channel, self.float_properties_channel])
         else:
-            unity_env_dict = load_yaml(os.path.dirname(__file__) + '/../../unity_env_dict.yaml')
+            unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
             self._env = UnityEnvironment(file_name=env_args['file_path'],
                                          base_port=env_args['port'],
                                          no_graphics=not env_args['render'],
@@ -77,13 +124,13 @@ class BasicWrapper:
             raise AttributeError("attempted to get missing private attribute '{}'".format(name))
         return getattr(self._env, name)
 
+    def process_visual_obs(self, image):
+        return image
+
 
 class InfoWrapper(BasicWrapper):
     def __init__(self, env, env_args):
         super().__init__(env)
-        # self._env.step()    # NOTE: 在一些图像输入的场景，如果初始化时不执行这条指令，那么将不能获取正确的场景智能体数量
-        self.resize = env_args['resize']
-
         self.group_names = list(self._env.behavior_specs.keys())  # 所有脑的名字列表
         self.fixed_group_names = list(map(lambda x: x.replace('?', '_'), self.group_names))
         self.group_specs = [self._env.behavior_specs[g] for g in self.group_names]  # 所有脑的信息
@@ -94,12 +141,10 @@ class InfoWrapper(BasicWrapper):
 
         self.visual_sources = [len(v) for v in self.visual_idxs]
         self.visual_resolutions = []
-        stack_visual_nums = env_args['stack_visual_nums'] if env_args['stack_visual_nums'] > 1 else 1
         for spec in self.group_specs:
             for g in spec.observation_shapes:
                 if len(g) == 3:
-                    self.visual_resolutions.append(
-                        list(self.resize) + [list(g)[-1] * stack_visual_nums])
+                    self.visual_resolutions.append(list(g))
                     break
             else:
                 self.visual_resolutions.append([])
@@ -112,6 +157,7 @@ class InfoWrapper(BasicWrapper):
 
         self.group_agents = self.get_real_agent_numbers()  # 得到每个环境控制几个智能体
 
+    def initialize(self):
         if all('#' in name for name in self.group_names):
             # use for multi-agents
             self.group_controls = list(map(lambda x: int(x.split('#')[0]), self.group_names))
@@ -170,6 +216,48 @@ class InfoWrapper(BasicWrapper):
         return group_agents
 
 
+class GrayVisualWrapper(BasicWrapper):
+
+    def __init__(self, env):
+        super().__init__(env)
+        for v in self.visual_resolutions:
+            if v:
+                if v[-1] > 3:
+                    raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
+                v[-1] = 1
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        return image
+
+
+class ResizeVisualWrapper(BasicWrapper):
+
+    def __init__(self, env, resize=[84, 84]):
+        super().__init__(env)
+        self.resize = resize
+        for v in self.visual_resolutions:
+            if v:
+                v[0], v[1] = resize[0], resize[1]
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
+        return image
+
+
+class ScaleVisualWrapper(BasicWrapper):
+
+    def __init__(self, env):
+        super().__init__(env)
+
+    def process_visual_obs(self, image):
+        image = self._env.process_visual_obs(image)
+        image *= 255
+        return image.astype(np.uint8)
+
+
 class UnityReturnWrapper(BasicWrapper):
     def __init__(self, env):
         super().__init__(env)
@@ -193,49 +281,60 @@ class UnityReturnWrapper(BasicWrapper):
         reward = []
         done = []
         info = []
+        corrected_vector = []
+        corrected_visual = []
         for i, gn in enumerate(self.group_names):
-            vec, vis, r, d, ifo = self.coordinate_information(i, gn)
+            vec, vis, r, d, ifo, corrected_vec, corrected_vis = self.coordinate_information(i, gn)
             vector.append(vec)
             visual.append(vis)
             reward.append(r)
             done.append(d)
             info.append(ifo)
-        return (vector, visual, reward, done, info)
+            corrected_vector.append(corrected_vec)
+            corrected_visual.append(corrected_vis)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
 
     def coordinate_information(self, i, gn):
         '''
         TODO: Annotation
         '''
         n = self.group_agents[i]
+        ps = []
         d, t = self._env.get_steps(gn)
-        ps = [t]
+        if len(t):
+            ps.append(t)
 
         if len(d) != 0 and len(d) != n:
             raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
 
+        # some of environments done, but some of not
         while len(d) != n:
             self._env.step()
             d, t = self._env.get_steps(gn)
-            ps.append(t)
+            if len(t):
+                ps.append(t)
 
-        obs, reward = d.obs, d.reward
+        corrected_obs, reward = d.obs, d.reward
+        obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
         done = np.full(n, False)
         info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
         for t in ps:    # TODO: 有待优化
-            if len(t) != 0:
-                info['max_step'][t.agent_id] = t.interrupted
-                info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-                reward[t.agent_id] = t.reward
-                done[t.agent_id] = True
-                for _obs, _tobs in zip(obs, t.obs):
-                    _obs[t.agent_id] = _tobs
+            info['max_step'][t.agent_id] = t.interrupted    # 因为达到episode最大步数而终止的
+            info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+            reward[t.agent_id] = t.reward
+            done[t.agent_id] = True
+            # zip: vector, visual, ...
+            for _obs, _tobs in zip(obs, t.obs):
+                _obs[t.agent_id] = _tobs
 
         return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[i]]),
                 self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[i]]),
                 np.asarray(reward),
                 np.asarray(done),
-                info)
+                info,
+                self.deal_vector(n, [corrected_obs[vi] for vi in self.vector_idxs[i]]),
+                self.deal_visual(n, [corrected_obs[vi] for vi in self.visual_idxs[i]]))
 
     def deal_vector(self, n, vecs):
         '''
@@ -253,16 +352,45 @@ class UnityReturnWrapper(BasicWrapper):
         '''
         ss = []
         for j in range(n):
+            # 第j个智能体
             s = []
             for v in viss:
-                s.append(self.resize_image(v[j]))
+                s.append(self._env.process_visual_obs(v[j]))
             ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss, dtype=np.uint8)  # [B, N, (H, W, C)]
+        return np.array(ss)  # [B, N, (H, W, C)]
 
-    def resize_image(self, image):
-        image = cv2.resize(image, tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
-        image *= 255
-        return image
+
+class StackVisualWrapper(BasicWrapper):
+
+    def __init__(self, env, stack_nums=4):
+        super().__init__(env)
+        self._stack_nums = stack_nums
+        self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        self._stack_deque_corrected = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        for v in self.visual_resolutions:
+            if v:
+                if v[-1] > 3:
+                    raise Exception('visual observations have been stacked in unity environment. You cannot sepecify stack in python.')
+                v[-1] *= stack_nums
+
+    def reset(self, **kwargs):
+        vector, visual, reward, done, info, corrected_vector, corrected_visual = self._env.reset(**kwargs)
+        for i, gn in enumerate(self.group_names):
+            for _ in range(self._stack_nums):
+                self._stack_deque[gn].append(visual[i])
+                self._stack_deque_corrected[gn].append(corrected_visual[i])
+            visual[i] = np.concatenate(self._stack_deque[gn], axis=-1)
+            corrected_visual[i] = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
+
+    def step(self, actions):
+        vector, visual, reward, done, info, corrected_vector, corrected_visual = self._env.step(actions)
+        for i, gn in enumerate(self.group_names):
+            self._stack_deque[gn].append(visual[i])
+            self._stack_deque_corrected[gn].append(corrected_visual[i])
+        visual[i] = np.concatenate(self._stack_deque[gn], axis=-1)
+        corrected_visual[i] = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+        return (vector, visual, reward, done, info, corrected_vector, corrected_visual)
 
 
 class ActionWrapper(BasicWrapper):

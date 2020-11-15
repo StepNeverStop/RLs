@@ -48,3 +48,9 @@ def plot_heatmap(s_dim, a_dim, table):
     fig.tight_layout()
     plt.pause(0.0001)
     plt.close()
+
+
+def show_np_img(data: np.ndarray):
+    plt.imshow(data)  # 显示图片
+    plt.axis('off')  # 不显示坐标轴
+    plt.show()

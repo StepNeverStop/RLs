@@ -66,7 +66,15 @@ class Base:
         TODO: Annotation
         '''
         with tf.device(self.device):
-            return tf.convert_to_tensor(data, dtype=self._tf_data_type)
+            if isinstance(data, tuple):
+                return tuple(
+                    tf.convert_to_tensor(d, dtype=self._tf_data_type) 
+                    if d is not None 
+                    else d 
+                    for d in data
+                    )
+            else:
+                return tf.convert_to_tensor(data, dtype=self._tf_data_type)
 
     def _create_saver(self) -> NoReturn:
         """

@@ -5,7 +5,7 @@ train:
     save_frequency: 100 # save training model every `save_frequency` train steps. Should larger for off-policy algorithms, and smaller for on-policy algorithms
     # max_step_per_episode, max_train_step, max_frame_step, max_train_episode are set to sys.maxsize if default value is set to zero.
     max_step_per_episode: 2000 # max_step_per_episode per episode, if gym.env.max_episode_steps > max_step_per_episode, then PEB(Partial Episode Bootstraping), else TimeLimit.
-    max_train_step: 0       # if max_train_step > 0, then training will stop when training steps > max_train_step.
+    max_train_step: 0 # if max_train_step > 0, then training will stop when training steps > max_train_step.
     max_frame_step: 0
     max_train_episode: 0
     moving_average_episode: 100
@@ -28,11 +28,16 @@ unity:
         train_time_scale: 100
         width: 1028
         height: 720
-        resize: [84, 84]
         quality_level: 5
         inference_time_scale: 0
         target_frame_rate: 60
+
+        obs_resize: false
+        resize: [84, 84]
+        obs_stack: false
         stack_visual_nums: 4
+        obs_grayscale: false
+        obs_scale: false # change [0, 1] to [0, 255]
         reset_config: {}
 
 gym:
@@ -81,6 +86,7 @@ buffer:
         epsilon: 0.01
         global_v: false
         n: 4
+    # off-policy with rnn
     EpisodeER:
         burn_in_time_step: 20
         train_time_step: 40 # null

@@ -1,27 +1,40 @@
 general:
-    use_rnn: false # always false, using -r to active RNN
     decay_lr: false
-    burn_in_time_step: 10
     train_time_step: 5
-    rnn_units: 8
     tf_dtype: float32 # float32 or float64
+
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
     curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
     curiosity_loss_weight: 5 # weight that scale the gradient loss and ICM loss
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
-    visual_feature: 128
-    normalize_vector_obs: False
+
+    normalize_vector_obs: false
     logger2file: false
+
+    vector_net_kwargs: {}
+    visual_net_kwargs:
+        visual_feature: 128
+        network_type: simple
+    encoder_net_kwargs:
+        use_encoder: false
+        output_dim: 16
+    memory_net_kwargs:
+        use_rnn: false # always false, using -r to active RNN
+        rnn_units: 16
+        network_type: lstm
 
 on_policy:
     rnn_time_step: 8
 
 off_policy:
-    use_isw: false
-    episode_batch_size: 32 # rnn
-    episode_buffer_size: 10000
     train_times_per_step: 1 # train multiple times per agent step
+    # PER
+    use_isw: false
+    # rnn
+    burn_in_time_step: 4
+    episode_batch_size: 32
+    episode_buffer_size: 10000
 
 hiro:
     gamma: 0.99
@@ -31,7 +44,8 @@ hiro:
     reward_scale: 1.0
     sample_g_nums: 100
     sub_goal_steps: 10
-    fn_goal_dim: 0
+    # 指定从第几位之后开始是真实目标信息
+    fn_goal_dim: 1
     high_batch_size: 128
     high_buffer_size: 100000
     low_batch_size: 128
@@ -354,20 +368,24 @@ ppo:
     share_net: true
     epsilon: 0.2
     gamma: 0.99
-    ent_coef: 1.0e-2
+    ent_coef: 0.005
     vf_coef: 0.5
-    lr: 5.0e-4
+    lr: 0.0003
     lambda_: 0.97
-    batch_size: 64
+    batch_size: 32
     policy_epoch: 4 # very important
     value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
     max_grad_norm: null
-    condition_sigma: false  # not recommended
+    condition_sigma: false # not recommended
+
+    # duel clip
+    use_duel_clip: false
+    duel_epsilon: 0.1
 
     # value function clip
-    use_vclip: false
+    use_vclip: true
     value_epsilon: 0.2
 
     # kl loss
@@ -384,7 +402,7 @@ ppo:
     kl_target_cutoff: 2
 
     # early stopping
-    use_early_stop: false
+    use_early_stop: true
     kl_target_earlystop: 4
 
     network_settings:

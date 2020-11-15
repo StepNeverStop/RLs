@@ -4,13 +4,15 @@
 import numpy as np
 import tensorflow as tf
 
-from rls.nn import rainbow_dueling as NetWork
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.nn import RainbowDueling as NetWork
+from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.tf2_utils import update_target_net_weights
+from rls.utils.build_networks import ValueNetwork
+from rls.utils.indexs import OutputNetworkType
 
 
-class RAINBOW(make_off_policy_class(mode='share')):
+class RAINBOW(Off_Policy):
     '''
     Rainbow DQN:    https://arxiv.org/abs/1710.02298
         1. Double
@@ -54,15 +56,22 @@ class RAINBOW(make_off_policy_class(mode='share')):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _net(): return NetWork(self.feat_dim, self.a_dim, self.atoms, network_settings)
-        self.rainbow_net = _net()
-        self.rainbow_target_net = _net()
-        self.critic_tv = self.rainbow_net.trainable_variables + self.other_tv
+        def _create_net(name, representation_net=None): return ValueNetwork(
+            name=name,
+            representation_net=representation_net,
+            value_net_type=OutputNetworkType.RAINBOW_DUELING,
+            value_net_kwargs=dict(action_dim=self.a_dim, atoms=self.atoms, network_settings=network_settings)
+        )
+
+        self.rainbow_net = _create_net('rainbow_net', self._representation_net)
+        self._representation_target_net = self._create_representation_net('_representation_target_net')
+        self.rainbow_target_net = _create_net('rainbow_target_net', self._representation_target_net)
         update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self._worker_params_dict.update(model=self.rainbow_net)
+        self._worker_params_dict.update(self.rainbow_net._policy_models)
+        self._residual_params_dict.update(self.rainbow_net._residual_models)
         self._residual_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
@@ -77,8 +86,8 @@ class RAINBOW(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
-            q = self.get_q(feat)  # [B, A]
+            q_values, cell_state = self.rainbow_net(s, visual_s, cell_state=cell_state)
+            q = tf.reduce_sum(self.zb * q_values, axis=-1)  # [B, A, N] => [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
     def _target_params_update(self):
@@ -89,23 +98,26 @@ class RAINBOW(make_off_policy_class(mode='share')):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
+                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 's_', 'visual_s_']
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, crsty_loss, cell_state):
-        ss, vvss, a, r, done = memories
+    def _train(self, memories, isw, cell_state):
+        ss, vvss, a, r, done, s_, visual_s_ = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
+                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist = self.rainbow_net(feat)  # [B, A, N]
+                q_dist = self.rainbow_net.value_net(feat)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
                 q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)
-                target_q = self.get_q(feat_)    # [B, A]
+                target_q = self.rainbow_net.value_net(feat_)
+                target_q = tf.reduce_sum(self.zb * target_q, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
-                target_q_dist = self.rainbow_target_net(feat_)  # [B, A, N]
+
+                target_q_dist, _ = self.rainbow_target_net(s_, visual_s_, cell_state=cell_state)  # [B, A, N]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
                 target = tf.tile(r, tf.constant([1, self.atoms])) \
                     + self.gamma * tf.multiply(self.z,   # [1, N]
@@ -122,11 +134,11 @@ class RAINBOW(make_off_policy_class(mode='share')):
                 _cross_entropy = tf.stop_gradient(target_q_dist * u_minus_b) * tf.math.log(tf.gather_nd(q_dist, l_id)) \
                     + tf.stop_gradient(target_q_dist * b_minus_l) * tf.math.log(tf.gather_nd(q_dist, u_id))  # [B, N]
                 cross_entropy = -tf.reduce_sum(_cross_entropy, axis=-1)  # [B,]
-                loss = tf.reduce_mean(cross_entropy * isw) + crsty_loss
+                loss = tf.reduce_mean(cross_entropy * isw)
                 td_error = cross_entropy
-            grads = tape.gradient(loss, self.critic_tv)
+            grads = tape.gradient(loss, self.rainbow_net.trainable_variables)
             self.optimizer.apply_gradients(
-                zip(grads, self.critic_tv)
+                zip(grads, self.rainbow_net.trainable_variables)
             )
             self.global_step.assign_add(1)
             return td_error, dict([
@@ -135,8 +147,3 @@ class RAINBOW(make_off_policy_class(mode='share')):
                 ['Statistics/q_min', tf.reduce_min(q_eval)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
-
-    @tf.function(experimental_relax_shapes=True)
-    def get_q(self, feat):
-        with tf.device(self.device):
-            return tf.reduce_sum(self.zb * self.rainbow_net(feat), axis=-1)  # [B, A, N] => [B, A]

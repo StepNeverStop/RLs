@@ -32,6 +32,9 @@ def make_unity_env(env_args: Dict):
     from rls.envs.unity_wrapper import (UnityWrapper,
                                         InfoWrapper,
                                         UnityReturnWrapper,
+                                        GrayVisualWrapper,
+                                        ResizeVisualWrapper,
+                                        ScaleVisualWrapper,
                                         ActionWrapper,
                                         StackVisualWrapper)
 
@@ -42,14 +45,23 @@ def make_unity_env(env_args: Dict):
     env = InfoWrapper(env, env_args)
     logger.debug('Unity InfoWrapper success.')
 
-    if env_args['stack_visual_nums'] > 1:
+    if env_kargs['obs_grayscale']:
+        env = GrayVisualWrapper(env)
+
+    if env_kargs['obs_resize']:
+        env = ResizeVisualWrapper(env, resize=env_kargs['resize'])
+
+    if env_kargs['obs_scale']:
+        env = ScaleVisualWrapper(env)
+
+    env = UnityReturnWrapper(env)
+
+    if env_kargs['obs_stack']:
         env = StackVisualWrapper(env, stack_nums=env_args['stack_visual_nums'])
-        logger.debug('Unity StackVisualWrapper success.')
-    else:
-        env = UnityReturnWrapper(env)
-        logger.debug('Unity UnityReturnWrapper success.')
 
     env = ActionWrapper(env)
     logger.debug('Unity ActionWrapper success.')
+
+    env.initialize()
 
     return env

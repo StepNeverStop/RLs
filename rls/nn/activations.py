@@ -3,7 +3,7 @@
 
 import tensorflow as tf
 
-default_activation = 'relu'  # 'tanh', 'relu', swish, mish
+# from rls.utils.indexs import DefaultActivationFuncType
 
 
 def swish(x):
@@ -17,3 +17,6 @@ def mish(x):
     The original repository for Mish: https://github.com/digantamisra98/Mish
     """
     return tf.multiply(x, tf.nn.tanh(tf.nn.softplus(x)))
+
+
+default_activation = swish  # 'tanh', 'relu', swish, mish
