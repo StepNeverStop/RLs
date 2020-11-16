@@ -69,9 +69,11 @@ Options:
                                 whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
+    --no-save                 指定是否在训练中保存模型、日志及训练数据
+                                specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
-        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole --no-save
     unity:
         python run.py -u -a ppo -n run_with_unity
         python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
@@ -155,7 +157,8 @@ def get_options(options: Dict) -> Config:
         ['use_wandb',           bool(options['--use-wandb'])],
         ['unity_env',           f('--unity-env', str)],
         ['apex',                f('--apex', str)],
-        ['hostname',            bool(options['--hostname'])]
+        ['hostname',            bool(options['--hostname'])],
+        ['no_save',           bool(options['--no-save'])]
     ]))
     return op
 
