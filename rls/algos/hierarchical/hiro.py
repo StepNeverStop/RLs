@@ -122,12 +122,13 @@ class HIRO(Off_Policy):
 
         self._worker_params_dict.update(self.high_ac_net._policy_models)
         self._worker_params_dict.update(self.low_ac_net._policy_models)
-        self._residual_params_dict.update(self.high_ac_net._residual_models)
-        self._residual_params_dict.update(self.low_ac_net._residual_models)
-        self._residual_params_dict.update(low_actor_optimizer=self.low_actor_optimizer,
-                                          low_critic_optimizer=self.low_critic_optimizer,
-                                          high_actor_optimizer=self.high_actor_optimizer,
-                                          high_critic_optimizer=self.high_critic_optimizer)
+
+        self._all_params_dict.update(self.high_ac_net._all_models)
+        self._all_params_dict.update(self.low_ac_net._all_models)
+        self._all_params_dict.update(low_actor_optimizer=self.low_actor_optimizer,
+                                     low_critic_optimizer=self.low_critic_optimizer,
+                                     high_actor_optimizer=self.high_actor_optimizer,
+                                     high_critic_optimizer=self.high_critic_optimizer)
 
         self._model_post_process()
 

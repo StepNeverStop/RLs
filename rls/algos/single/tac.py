@@ -95,13 +95,15 @@ class TAC(Off_Policy):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self._worker_params_dict.update(self._representation_net._policy_models)
+        self._worker_params_dict.update(self._representation_net._all_models)
         self._worker_params_dict.update(self.actor_net._policy_models)
-        self._residual_params_dict.update(self.critic_net._residual_models)
-        self._residual_params_dict.update(log_alpha=self.log_alpha,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha)
+
+        self._all_params_dict.update(self.actor_net._all_models)
+        self._all_params_dict.update(self.critic_net._all_models)
+        self._all_params_dict.update(log_alpha=self.log_alpha,
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
     @property

@@ -51,7 +51,7 @@ class Base:
 
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self._worker_params_dict = {}
-        self._residual_params_dict = dict(global_step=self.global_step)
+        self._all_params_dict = dict(global_step=self.global_step)
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
         if bool(kwargs.get('logger2file', False)):
@@ -83,7 +83,7 @@ class Base:
         """
         create checkpoint and saver.
         """
-        self.checkpoint = tf.train.Checkpoint(**self._worker_params_dict, **self._residual_params_dict)
+        self.checkpoint = tf.train.Checkpoint(**self._all_params_dict)
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
 
     def _create_writer(self, log_dir: str) -> tf.summary.SummaryWriter:

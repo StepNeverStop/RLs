@@ -72,9 +72,10 @@ class DDPG(Off_Policy):
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self._worker_params_dict.update(self.ac_net._policy_models)
-        self._residual_params_dict.update(self.ac_net._residual_models)
-        self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic)
+
+        self._all_params_dict.update(self.ac_net._all_models)
+        self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):

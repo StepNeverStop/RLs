@@ -88,10 +88,11 @@ class PD_DDPG(Off_Policy):
         self.optimizer_actor, self.optimizer_reward_critic, self.optimizer_cost_critic = map(self.init_optimizer, [self.actor_lr, self.reward_critic_lr, self.cost_critic_lr])
 
         self._worker_params_dict.update(self.ac_net._policy_models)
-        self._residual_params_dict.update(self.ac_net._residual_models)
-        self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                          optimizer_reward_critic=self.optimizer_reward_critic,
-                                          optimizer_cost_critic=self.optimizer_cost_critic)
+
+        self._all_params_dict.update(self.ac_net._all_models)
+        self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                     optimizer_reward_critic=self.optimizer_reward_critic,
+                                     optimizer_cost_critic=self.optimizer_cost_critic)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):

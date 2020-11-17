@@ -63,9 +63,11 @@ class MADDPG(MultiAgentOffPolicy):
         self.optimizer_critics = {i: self.init_optimizer(self.critic_lrs[i]) for i in range(self.agent_sep_ctls)}
 
         self._worker_params_dict.update({f'actor-{i}': self.actor_nets[i] for i in range(self.agent_sep_ctls)})
-        self._residual_params_dict.update({f'critic-{i}': self.q_nets[i] for i in range(self.agent_sep_ctls)})
-        self._residual_params_dict.update({f'optimizer_actor-{i}': self.optimizer_actors[i] for i in range(self.agent_sep_ctls)})
-        self._residual_params_dict.update({f'optimizer_critic-{i}': self.optimizer_critics[i] for i in range(self.agent_sep_ctls)})
+
+        self._all_params_dict.update({f'actor-{i}': self.actor_nets[i] for i in range(self.agent_sep_ctls)})
+        self._all_params_dict.update({f'critic-{i}': self.q_nets[i] for i in range(self.agent_sep_ctls)})
+        self._all_params_dict.update({f'optimizer_actor-{i}': self.optimizer_actors[i] for i in range(self.agent_sep_ctls)})
+        self._all_params_dict.update({f'optimizer_critic-{i}': self.optimizer_critics[i] for i in range(self.agent_sep_ctls)})
         self._model_post_process()
 
     def choose_action(self,

@@ -173,12 +173,15 @@ class CURL(Off_Policy):
 
         self._worker_params_dict.update(self.actor_net._policy_models)
         self._worker_params_dict.update(encoder=self.encoder)
-        self._residual_params_dict.update(self.critic_net._all_models)
-        self._residual_params_dict.update(curl_w=self.curl_w,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha,
-                                          optimizer_curl=self.optimizer_curl)
+
+        self._all_params_dict.update(self.actor_net._all_models)
+        self._all_params_dict.update(self.critic_net._all_models)
+        self._all_params_dict.update(curl_w=self.curl_w,
+                                     encoder=self.encoder,
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha,
+                                     optimizer_curl=self.optimizer_curl)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
