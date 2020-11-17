@@ -81,12 +81,13 @@ class Trainer:
 
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
-        self.algo_args['use_rnn'] = self.train_args['use_rnn']
+        self.algo_args['memory_net_kwargs']['use_rnn'] = self.train_args['use_rnn']
+        self.algo_args['no_save'] = self.train_args['no_save']
         show_dict(self.algo_args)
 
         # BUFFER
         if self.train_args['policy_mode'] == 'off-policy':
-            if self.algo_args['use_rnn'] == True:
+            if self.algo_args['memory_net_kwargs']['use_rnn'] == True:
                 self.buffer_args['type'] = 'EpisodeER'
                 self.buffer_args['batch_size'] = self.algo_args.get('episode_batch_size', 0)
                 self.buffer_args['buffer_size'] = self.algo_args.get('episode_buffer_size', 0)
@@ -149,7 +150,7 @@ class Trainer:
         self.train_args['begin_train_step'] = _train_info['train_step']
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
-        if not self.train_args['inference']:
+        if not self.train_args['inference'] and not self.train_args['no_save']:
             self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
@@ -183,7 +184,7 @@ class Trainer:
         self.train_args['begin_train_step'] = _train_info['train_step']
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
-        if not self.train_args['inference']:
+        if not self.train_args['inference'] and not self.train_args['no_save']:
             self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
@@ -215,7 +216,7 @@ class Trainer:
             model.init_or_restore(_targs.load_model_path)
             self.models.append(model)
 
-            if not _targs['inference']:
+            if not _targs['inference'] and not _targs['no_save']:
                 _aargs['envspec'] = str(_aargs['envspec'])
                 records_dict = {
                     'env': self.env_args.to_dict,

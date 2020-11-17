@@ -5,16 +5,16 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn import oc_intra_option as OptionNet
-from rls.nn import critic_q_all as Critic
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy,
                                  update_target_net_weights)
+from rls.utils.build_networks import ValueNetwork
+from rls.utils.indexs import OutputNetworkType
 
 
-class IOC(make_off_policy_class(mode='share')):
+class IOC(Off_Policy):
     '''
     Learning Options with Interest Functions, https://www.aaai.org/ojs/index.php/AAAI/article/view/5114/4987 
     Options of Interest: Temporal Abstraction with Interest Functions, http://arxiv.org/abs/2001.00271
@@ -52,14 +52,41 @@ class IOC(make_off_policy_class(mode='share')):
         self.double_q = double_q
         self.boltzmann_temperature = boltzmann_temperature
 
-        def _q_net(): return Critic(self.feat_dim, self.options_num, network_settings['q'])
+        def _create_net(name, representation_net=None): return ValueNetwork(
+            name=name,
+            representation_net=representation_net,
+            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
+            value_net_kwargs=dict(output_shape=self.options_num, network_settings=network_settings['q'])
+        )
+        self.q_net = _create_net('q_net', self._representation_net)
+        self._representation_target_net = self._create_representation_net('_representation_target_net')
+        self.q_target_net = _create_net('q_target_net', self._representation_target_net)
 
-        self.q_net = _q_net()
-        self.q_target_net = _q_net()
-        self.intra_option_net = OptionNet(self.feat_dim, self.a_dim, self.options_num, network_settings['intra_option'])
-        self.termination_net = Critic(self.feat_dim, self.options_num, network_settings['termination'], 'sigmoid')
-        self.interest_net = Criticl(self.feat_dim, self.options_num, network_settings['interest'], 'sigmoid')
-        self.critic_tv = self.q_net.trainable_variables + self.other_tv
+        self.intra_option_net = ValueNetwork(
+            name='intra_option_net',
+            value_net_type=OutputNetworkType.OC_INTRA_OPTION,
+            value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
+                                  output_shape=self.a_dim,
+                                  options_num=self.options_num,
+                                  network_settings=network_settings['intra_option'])
+        )
+        self.termination_net = ValueNetwork(
+            name='termination_net',
+            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
+            value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
+                                  output_shape=self.options_num,
+                                  network_settings=network_settings['termination'],
+                                  out_activation='sigmoid')
+        )
+        self.interest_net = ValueNetwork(
+            name='interest_net',
+            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
+            value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
+                                  output_shape=self.options_num,
+                                  network_settings=network_settings['interest'],
+                                  out_activation='sigmoid')
+        )
+
         self.actor_tv = self.intra_option_net.trainable_variables
         if self.is_continuous:
             self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
@@ -72,16 +99,18 @@ class IOC(make_off_policy_class(mode='share')):
         self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
         self.interest_optimizer = self.init_optimizer(self.interest_lr, clipvalue=5.)
 
-        self._worker_params_dict.update(
-            q_net=self.q_net,
-            intra_option_net=self.intra_option_net,
-            interest_net=self.interest_net)
-        self._residual_params_dict.update(
-            termination_net=self.termination_net,
-            q_optimizer=self.q_optimizer,
-            intra_option_optimizer=self.intra_option_optimizer,
-            termination_optimizer=self.termination_optimizer,
-            interest_optimizer=self.interest_optimizer)
+        self._worker_params_dict.update(self.q_net._policy_models)
+        self._worker_params_dict.update(self.intra_option_net._policy_models)
+        self._worker_params_dict.update(self.interest_net._policy_models)
+
+        self._residual_params_dict.update(self.q_net._residual_models)
+        self._residual_params_dict.update(self.intra_option_net._residual_models)
+        self._residual_params_dict.update(self.interest_net._residual_models)
+        self._residual_params_dict.update(self.termination_net._all_models)
+        self._residual_params_dict.update(q_optimizer=self.q_optimizer,
+                                          intra_option_optimizer=self.intra_option_optimizer,
+                                          termination_optimizer=self.termination_optimizer,
+                                          interest_optimizer=self.interest_optimizer)
         self._model_post_process()
 
     def _generate_random_options(self):
@@ -99,9 +128,9 @@ class IOC(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state, options):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
-            q = self.q_net(feat)  # [B, P]
-            pi = self.intra_option_net(feat)  # [B, P, A]
+            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            q = self.q_net.value_net(feat)  # [B, P]
+            pi = self.intra_option_net.value_net(feat)  # [B, P, A]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
@@ -113,7 +142,7 @@ class IOC(make_off_policy_class(mode='share')):
                 pi = pi / self.boltzmann_temperature
                 dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(pi))  # [B, ]
                 a = dist.sample()
-            interests = self.interest_net(feat)  # [B, P]
+            interests = self.interest_net.value_net(feat)  # [B, P]
             op_logits = interests * q  # [B, P] or tf.nn.softmax(q)
             new_options = tfp.distributions.Categorical(logits=tf.nn.log_softmax(op_logits)).sample()
         return a, new_options, cell_state
@@ -128,7 +157,7 @@ class IOC(make_off_policy_class(mode='share')):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'last_options', 'options'],
+                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
                     ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.train_step)],
@@ -139,25 +168,26 @@ class IOC(make_off_policy_class(mode='share')):
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, last_options, options = memories
+        s, visual_s, a, r, s_, visual_s_, done, last_options, options = memories
         last_options = tf.cast(last_options, tf.int32)
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
-                q = self.q_net(feat)  # [B, P]
-                pi = self.intra_option_net(feat)  # [B, P, A]
-                beta = self.termination_net(feat)   # [B, P]
-                q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
-                beta_next = self.termination_net(feat_)  # [B, P]
-                interests = self.interest_net(feat)  # [B, P]
+                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
+                q = self.q_net.value_net(feat)  # [B, P]
+                pi = self.intra_option_net.value_net(feat)  # [B, P, A]
+                beta = self.termination_net.value_net(feat)   # [B, P]
+                q_next = self.q_target_net.value_net(feat_)   # [B, P], [B, P, A], [B, P]
+                beta_next = self.termination_net.value_net(feat_)  # [B, P]
+                interests = self.interest_net.value_net(feat)  # [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
                 q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
                 beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True)  # [B, 1]
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 if self.double_q:
-                    q_ = self.q_net(feat)  # [B, P], [B, P, A], [B, P]
+                    q_ = self.q_net.value_net(feat)  # [B, P], [B, P, A], [B, P]
                     max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
                     q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
                 else:
@@ -197,12 +227,12 @@ class IOC(make_off_policy_class(mode='share')):
                     beta_loss *= (1 - done)
                 beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
 
-            q_grads = tape.gradient(q_loss, self.critic_tv)
+            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             intra_option_grads = tape.gradient(pi_loss, self.actor_tv)
             termination_grads = tape.gradient(beta_loss, self.termination_net.trainable_variables)
             interest_grads = tape.gradient(interest_loss, self.interest_net.trainable_variables)
             self.q_optimizer.apply_gradients(
-                zip(q_grads, self.critic_tv)
+                zip(q_grads, self.q_net.trainable_variables)
             )
             self.intra_option_optimizer.apply_gradients(
                 zip(intra_option_grads, self.actor_tv)

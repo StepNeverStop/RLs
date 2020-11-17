@@ -31,7 +31,8 @@ class Base:
             base_dir: the directory that store data, like model, logs, and other data
         '''
         super().__init__()
-        base_dir = kwargs.get('base_dir')
+        self.no_save = bool(kwargs.get('no_save', False))
+        self.base_dir = base_dir = kwargs.get('base_dir')
         tf_dtype = str(kwargs.get('tf_dtype'))
         self._tf_data_type = tf.float32 if tf_dtype == 'float32' else tf.float64
         tf.keras.backend.set_floatx(tf_dtype)
@@ -40,10 +41,8 @@ class Base:
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
-        check_or_create(self.cp_dir, 'checkpoints(models)')
-        check_or_create(self.log_dir, 'logs(summaries)')
-        if bool(kwargs.get('logger2file', False)):
-            set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
+        if not self.no_save:
+            check_or_create(self.cp_dir, 'checkpoints(models)')
 
         if 1 == 0:  # Not used
             import pandas as pd
@@ -53,6 +52,10 @@ class Base:
         self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
         self._worker_params_dict = {}
         self._residual_params_dict = dict(global_step=self.global_step)
+        self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
+
+        if bool(kwargs.get('logger2file', False)):
+            set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
 
     def _tf_data_cast(self, *args):
         '''
@@ -68,11 +71,11 @@ class Base:
         with tf.device(self.device):
             if isinstance(data, tuple):
                 return tuple(
-                    tf.convert_to_tensor(d, dtype=self._tf_data_type) 
-                    if d is not None 
-                    else d 
+                    tf.convert_to_tensor(d, dtype=self._tf_data_type)
+                    if d is not None
+                    else d
                     for d in data
-                    )
+                )
             else:
                 return tf.convert_to_tensor(data, dtype=self._tf_data_type)
 
@@ -84,8 +87,9 @@ class Base:
         self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
 
     def _create_writer(self, log_dir: str) -> tf.summary.SummaryWriter:
-        check_or_create(log_dir, 'logs(summaries)')
-        return tf.summary.create_file_writer(log_dir)
+        if not self.no_save:
+            check_or_create(log_dir, 'logs(summaries)')
+            return tf.summary.create_file_writer(log_dir)
 
     def init_or_restore(self, base_dir: Optional[str] = None) -> NoReturn:
         """
@@ -112,16 +116,17 @@ class Base:
         """
         save the training model 
         """
-        train_step = int(kwargs.get('train_step', 0))
-        self.saver.save(checkpoint_number=train_step)
-        logger.info(colorize(f'Save checkpoint success. Training step: {train_step}', color='green'))
-        self.write_training_info(kwargs)
+        if not self.no_save:
+            train_step = int(kwargs.get('train_step', 0))
+            self.saver.save(checkpoint_number=train_step)
+            logger.info(colorize(f'Save checkpoint success. Training step: {train_step}', color='green'))
+            self.write_training_info(kwargs)
 
     def get_init_training_info(self) -> Dict:
         '''
         TODO: Annotation
         '''
-        path = f'{self.log_dir}/step.json'
+        path = f'{self.base_dir}/step.json'
         if os.path.exists(path):
             with open(path, 'r') as f:
                 data = json.load(f)
@@ -137,7 +142,7 @@ class Base:
         '''
         TODO: Annotation
         '''
-        with open(f'{self.log_dir}/step.json', 'w') as f:
+        with open(f'{self.base_dir}/step.json', 'w') as f:
             json.dump(data, f)
 
     def writer_summary(self,
@@ -147,12 +152,13 @@ class Base:
         """
         record the data used to show in the tensorboard
         """
-        writer = writer or self.writer
-        writer.set_as_default()
-        tf.summary.experimental.set_step(global_step)
-        for i in [{'tag': 'AGENT/' + key, 'value': kargs[key]} for key in kargs]:
-            tf.summary.scalar(i['tag'], i['value'])
-        writer.flush()
+        if not self.no_save:
+            writer = writer or self.writer
+            writer.set_as_default()
+            tf.summary.experimental.set_step(global_step)
+            for i in [{'tag': 'AGENT/' + key, 'value': kargs[key]} for key in kargs]:
+                tf.summary.scalar(i['tag'], i['value'])
+            writer.flush()
 
     def write_training_summaries(self,
                                  global_step: Union[int, tf.Variable],
@@ -161,12 +167,13 @@ class Base:
         '''
         write tf summaries showing in tensorboard.
         '''
-        writer = writer or self.writer
-        writer.set_as_default()
-        tf.summary.experimental.set_step(global_step)
-        for key, value in summaries.items():
-            tf.summary.scalar(key, value)
-        writer.flush()
+        if not self.no_save:
+            writer = writer or self.writer
+            writer.set_as_default()
+            tf.summary.experimental.set_step(global_step)
+            for key, value in summaries.items():
+                tf.summary.scalar(key, value)
+            writer.flush()
 
     def get_worker_params(self):
         weights_list = list(map(lambda x: x.numpy(), self._worker_params_list))

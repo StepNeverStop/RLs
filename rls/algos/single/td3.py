@@ -5,17 +5,15 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn import actor_dpg as ActorCts
-from rls.nn import actor_discrete as ActorDcs
-from rls.nn import critic_q_one as Critic
-from rls.nn.modules import DoubleQ
 from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
                           ClippedNormalActionNoise)
-from rls.algos.base.off_policy import make_off_policy_class
+from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
+from rls.utils.build_networks import ADoubleCNetwork
+from rls.utils.indexs import OutputNetworkType
 
 
-class TD3(make_off_policy_class(mode='share')):
+class TD3(Off_Policy):
     '''
     Twin Delayed Deep Deterministic Policy Gradient, https://arxiv.org/abs/1802.09477
     '''
@@ -45,36 +43,45 @@ class TD3(make_off_policy_class(mode='share')):
         self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
-            def _actor_net(): return ActorCts(self.feat_dim, self.a_dim, network_settings['actor_continuous'])
+            def _create_net(name, representation_net=None): return ADoubleCNetwork(
+                name=name,
+                representation_net=representation_net,
+                policy_net_type=OutputNetworkType.ACTOR_DPG,
+                policy_net_kwargs=dict(output_shape=self.a_dim,
+                                       network_settings=network_settings['actor_continuous']),
+                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+                value_net_kwargs=dict(action_dim=self.a_dim,
+                                      network_settings=network_settings['q'])
+            )
+        else:
+            def _create_net(name, representation_net=None): return ADoubleCNetwork(
+                name=name,
+                representation_net=representation_net,
+                policy_net_type=OutputNetworkType.ACTOR_DCT,
+                policy_net_kwargs=dict(output_shape=self.a_dim,
+                                       network_settings=network_settings['actor_discrete']),
+                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
+                value_net_kwargs=dict(action_dim=self.a_dim,
+                                      network_settings=network_settings['q'])
+            )
             if noise_type == 'gaussian':
                 self.action_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
                 self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
-        else:
-            def _actor_net(): return ActorDcs(self.feat_dim, self.a_dim, network_settings['actor_discrete'])
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
-        self.actor_net = _actor_net()
-        self.actor_target_net = _actor_net()
-        self.actor_tv = self.actor_net.trainable_variables
+        self.ac_net = _create_net('ac_net', self._representation_net)
+        self._representation_target_net = self._create_representation_net('_representation_target_net')
+        self.ac_target_net = _create_net('ac_target_net', self._representation_target_net)
 
-        def _q_net(): return Critic(self.feat_dim, self.a_dim, network_settings['q'])
-        self.critic_net = DoubleQ(_q_net)
-        self.critic_target_net = DoubleQ(_q_net)
-        self.critic_tv = self.critic_net.trainable_variables + self.other_tv
-
-        update_target_net_weights(
-            self.actor_target_net.weights + self.critic_target_net.weights,
-            self.actor_net.weights + self.critic_net.weights
-        )
+        update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
-        self._worker_params_dict.update(actor=self.actor_net)
-        self._residual_params_dict.update(
-            critic_net=self.critic_net,
-            optimizer_actor=self.optimizer_actor,
-            optimizer_critic=self.optimizer_critic)
+        self._worker_params_dict.update(self.ac_net._policy_models)
+        self._residual_params_dict.update(self.ac_net._residual_models)
+        self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                          optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -85,22 +92,19 @@ class TD3(make_off_policy_class(mode='share')):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self.get_feature(s, visual_s, cell_state=cell_state, record_cs=True)
+            output, cell_state = self.ac_net(s, visual_s, cell_state=cell_state)
             if self.is_continuous:
-                mu = self.actor_net(feat)
+                mu = output
                 pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
             else:
-                logits = self.actor_net(feat)
+                logits = output
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
     def _target_params_update(self):
-        update_target_net_weights(
-            self.actor_target_net.weights + self.critic_target_net.weights,
-            self.actor_net.weights + self.critic_net.weights,
-            self.ployak)
+        update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
@@ -109,92 +113,39 @@ class TD3(make_off_policy_class(mode='share')):
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
-                ])
+                ]),
+                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done = memories
-        batch_size = tf.shape(a)[0]
-        with tf.device(self.device):
-            for _ in range(self.delay_num):
-                with tf.GradientTape() as tape:
-                    feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
-                    if self.is_continuous:
-                        target_mu = self.actor_target_net(feat_)
-                        action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
-                    else:
-                        target_logits = self.actor_target_net(feat_)
-                        logp_all = tf.nn.log_softmax(target_logits)
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
-                        _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                        _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
-                        _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                        action_target = _pi_diff + _pi
-                    q1, q2 = self.critic_net(feat, a)
-                    q_target = self.critic_target_net.get_min(feat_, action_target)
-                    dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
-                    td_error1 = q1 - dc_r
-                    td_error2 = q2 - dc_r
-                    q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
-                    q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                    critic_loss = 0.5 * (q1_loss + q2_loss)
-                critic_grads = tape.gradient(critic_loss, self.critic_tv)
-                self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.critic_tv)
-                )
-            with tf.GradientTape() as tape:
-                if self.is_continuous:
-                    mu = self.actor_net(feat)
-                else:
-                    logits = self.actor_net(feat)
-                    _pi = tf.nn.softmax(logits)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
-                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    mu = _pi_diff + _pi
-                q1_actor = self.critic_net.Q1(feat, mu)
-                actor_loss = -tf.reduce_mean(q1_actor)
-            actor_grads = tape.gradient(actor_loss, self.actor_tv)
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_tv)
-            )
-            self.global_step.assign_add(1)
-            return (td_error1 + td_error2) / 2, dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', critic_loss],
-                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))],
-            ])
-
-    @tf.function(experimental_relax_shapes=True)
-    def train_persistent(self, memories, isw, cell_state):
-        ss, vvss, a, r, done = memories
+        s, visual_s, a, r, s_, visual_s_, done = memories
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
-                    feat, feat_ = self.get_feature(ss, vvss, cell_state=cell_state, s_and_s_=True)
+                    feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
+                    feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
                     if self.is_continuous:
-                        target_mu = self.actor_target_net(feat_)
+                        target_mu = self.ac_target_net.policy_net(feat_)
                         action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
-                        mu = self.actor_net(feat)
+                        mu = self.ac_net.policy_net(feat)
                     else:
-                        target_logits = self.actor_target_net(feat_)
+                        target_logits = self.ac_target_net.policy_net(feat_)
                         logp_all = tf.nn.log_softmax(target_logits)
                         gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         action_target = _pi_diff + _pi
-                        logits = self.actor_net(feat)
+                        logits = self.ac_net.policy_net(feat)
                         _pi = tf.nn.softmax(logits)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         mu = _pi_diff + _pi
-                    q1, q2 = self.critic_net(feat, a)
-                    q_target = self.critic_target_net.get_min(feat_, action_target)
-                    q1_actor = self.critic_net.Q1(feat, mu)
+                    q1, q2 = self.ac_net.get_value(feat, a)
+                    q1_actor = self.ac_net.value_net(feat, mu)
+                    q_target = self.ac_target_net.get_min(feat_, action_target)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
@@ -202,13 +153,13 @@ class TD3(make_off_policy_class(mode='share')):
                     q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                     critic_loss = 0.5 * (q1_loss + q2_loss)
                     actor_loss = -tf.reduce_mean(q1_actor)
-                critic_grads = tape.gradient(critic_loss, self.critic_tv)
+                critic_grads = tape.gradient(critic_loss, self.ac_net.critic_trainable_variables)
                 self.optimizer_critic.apply_gradients(
-                    zip(critic_grads, self.critic_tv)
+                    zip(critic_grads, self.ac_net.critic_trainable_variables)
                 )
-            actor_grads = tape.gradient(actor_loss, self.actor_tv)
+            actor_grads = tape.gradient(actor_loss, self.ac_net.actor_trainable_variables)
             self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_tv)
+                zip(actor_grads, self.ac_net.actor_trainable_variables)
             )
             self.global_step.assign_add(1)
             return (td_error1 + td_error2) / 2, dict([
