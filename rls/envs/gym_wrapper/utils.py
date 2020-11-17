@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import os
+import re
 import gym
 
 from typing import Dict
@@ -16,21 +17,17 @@ def get_env_type(env_id):
     _game_envs = defaultdict(set)
     # Re-parse the gym registry, since we could have new envs since last time.
     for env in gym.envs.registry.all():
-        env_type = env.entry_point.split(':')[0].split('.')[-1]
+        env_type = env.entry_point.split(':')[0]
         _game_envs[env_type].add(env.id)  # This is a set so add is idempotent
 
-    if env_id in _game_envs.keys():
-        env_type = env_id
-        env_id = _game_envs[env_type][0]
-    else:
-        env_type = None
-        for g, e in _game_envs.items():
-            if env_id in e:
-                env_type = g
-                break
-        if ':' in env_id:
-            env_type = re.sub(r':.*', '', env_id)
-        assert env_type is not None, 'env_id {} is not recognized in env types'.format(env_id, _game_envs.keys())
+    env_type = None
+    for g, e in _game_envs.items():
+        if env_id in e:
+            env_type = g
+            break
+    if ':' in env_id:
+        env_type = re.sub(r':.*', '', env_id)
+    assert env_type is not None, 'env_id {} is not recognized in env types'.format(env_id, _game_envs.keys())
 
     return env_type
 
@@ -70,10 +67,10 @@ def build_env(config: Dict, index: int = 0):
     env_type = get_env_type(gym_env_name)
 
     env_params = {}
-    if env_type == 'bullet':
+    if env_type == 'pybullet_envs.bullet':
         env_params.update({'renders': bool(config.get('inference', False))})
 
-    elif env_type == 'donkey_env':
+    elif env_type == 'gym_donkeycar.envs.donkey_env':
         _donkey_conf = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['donkey']
         import uuid
         # [120, 160, 3]
@@ -85,7 +82,7 @@ def build_env(config: Dict, index: int = 0):
     env = gym.make(gym_env_name, **env_params)
     env = BaseEnv(env)
 
-    if env_type == 'atari':
+    if env_type == 'gym.envs.atari':
         assert 'NoFrameskip' in env.spec.id, 'env id should contain NoFrameskip.'
 
         default_config = load_yaml(f'{os.path.dirname(__file__)}/config.yaml')['atari']
