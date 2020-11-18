@@ -126,7 +126,6 @@ class TD3(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
         s, visual_s, a, r, s_, visual_s_, done = memories
-        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
@@ -138,7 +137,7 @@ class TD3(Off_Policy):
                     else:
                         target_logits = self.ac_target_net.policy_net(feat_)
                         logp_all = tf.nn.log_softmax(target_logits)
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
