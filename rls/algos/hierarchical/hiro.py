@@ -277,12 +277,10 @@ class HIRO(Off_Policy):
                     action_target = target_output
                 else:
                     target_logits = target_output
-                    logp_all = tf.nn.log_softmax(target_logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([tf.shape(feat_)[0], self.a_dim]), dtype=tf.float32)
-                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / 1.)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
-                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    action_target = _pi_diff + _pi
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_pi = target_cate_dist.sample()
+                    target_log_pi = target_cate_dist.log_prob(target_pi)
+                    action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
                 q1, q2 = self.low_ac_net.get_value(feat, a)
                 q = tf.minimum(q1, q2)
                 q_target = self.low_ac_target_net.get_min(feat_, action_target)
@@ -302,8 +300,10 @@ class HIRO(Off_Policy):
                     mu = output
                 else:
                     logits = output
-                    _pi = tf.nn.softmax(logits)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    logp_all = tf.nn.log_softmax(logits)
+                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
+                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q_actor = self.low_ac_net.value_net(feat, mu)
