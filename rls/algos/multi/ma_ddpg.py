@@ -40,8 +40,8 @@ class MADDPG(MultiAgentOffPolicy):
         super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
 
-        # self.action_noises = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-        self.action_noises = {i: OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim[i]), sigma=0.2 * np.ones(self.a_dim[i])) for i in range(self.agent_sep_ctls)}
+        # self.action_noises = NormalActionNoise(sigma=1.0)
+        self.action_noises = {i: OrnsteinUhlenbeckActionNoise(sigma=0.2) for i in range(self.agent_sep_ctls)}
 
         def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], network_settings['actor'])
         self.actor_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
@@ -69,6 +69,11 @@ class MADDPG(MultiAgentOffPolicy):
         self._all_params_dict.update({f'optimizer_actor-{i}': self.optimizer_actors[i] for i in range(self.agent_sep_ctls)})
         self._all_params_dict.update({f'optimizer_critic-{i}': self.optimizer_critics[i] for i in range(self.agent_sep_ctls)})
         self._model_post_process()
+
+    def reset(self):
+        super().reset()
+        for action_noise in self.action_noises:
+            action_noise.reset()
 
     def choose_action(self,
                       s: List[np.ndarray],
@@ -105,7 +110,7 @@ class MADDPG(MultiAgentOffPolicy):
         action = _get_action_func(vector_input).numpy()
 
         if evaluation:
-            np.clip(action + self.action_noises[model_idx](), -1, 1, out=action)
+            np.clip(action + self.action_noises[model_idx](action.shape), -1, 1, out=action)
 
         return action
 
@@ -120,7 +125,7 @@ class MADDPG(MultiAgentOffPolicy):
                 batch_data = self.data.sample()
                 done = batch_data[-1]
                 s, visual_a, a, r, s_, visual_s_ = [batch_data[i:i + self.agent_sep_ctls] for i in range(0, len(batch_data) - 1, self.agent_sep_ctls)]
-                target_a = [self._get_actions(i, s_[i], evaluation=True, use_target=True) for i in range(self.agent_sep_ctls)]
+                target_a = [self._get_actions(i, s_[i], use_target=True) for i in range(self.agent_sep_ctls)]
 
                 s_all = np.hstack(s)
                 a_all = np.hstack(a)

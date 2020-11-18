@@ -65,9 +65,9 @@ class TD3(Off_Policy):
                                       network_settings=network_settings['q'])
             )
             if noise_type == 'gaussian':
-                self.action_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
+                self.action_noise = ClippedNormalActionNoise(sigma=self.gaussian_noise_sigma, bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
-                self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
+                self.action_noise = OrnsteinUhlenbeckActionNoise(sigma=0.2)
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
@@ -85,6 +85,11 @@ class TD3(Off_Policy):
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
+    def reset(self):
+        super().reset()
+        if self.is_continuous:
+            self.action_noise.reset()
+
     def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
@@ -96,7 +101,7 @@ class TD3(Off_Policy):
             output, cell_state = self.ac_net(s, visual_s, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -128,8 +133,7 @@ class TD3(Off_Policy):
                     feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
                     feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
                     if self.is_continuous:
-                        target_mu = self.ac_target_net.policy_net(feat_)
-                        action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                        action_target = self.ac_target_net.policy_net(feat_)
                         mu = self.ac_net.policy_net(feat)
                     else:
                         target_logits = self.ac_target_net.policy_net(feat_)
