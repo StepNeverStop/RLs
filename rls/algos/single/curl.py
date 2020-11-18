@@ -173,12 +173,15 @@ class CURL(Off_Policy):
 
         self._worker_params_dict.update(self.actor_net._policy_models)
         self._worker_params_dict.update(encoder=self.encoder)
-        self._residual_params_dict.update(self.critic_net._all_models)
-        self._residual_params_dict.update(curl_w=self.curl_w,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha,
-                                          optimizer_curl=self.optimizer_curl)
+
+        self._all_params_dict.update(self.actor_net._all_models)
+        self._all_params_dict.update(self.critic_net._all_models)
+        self._all_params_dict.update(curl_w=self.curl_w,
+                                     encoder=self.encoder,
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha,
+                                     optimizer_curl=self.optimizer_curl)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -248,7 +251,6 @@ class CURL(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, cell_state):
         s, visual_s, a, r, s_, visual_s_, done, pos = memories
-        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 vis_feat = self.encoder(visual_s)
@@ -300,7 +302,7 @@ class CURL(Off_Policy):
                 else:
                     logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)

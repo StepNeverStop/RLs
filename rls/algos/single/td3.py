@@ -65,9 +65,9 @@ class TD3(Off_Policy):
                                       network_settings=network_settings['q'])
             )
             if noise_type == 'gaussian':
-                self.action_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=self.gaussian_noise_sigma * np.ones(self.a_dim), bound=self.gaussian_noise_bound)
+                self.action_noise = ClippedNormalActionNoise(sigma=self.gaussian_noise_sigma, bound=self.gaussian_noise_bound)
             elif noise_type == 'ou':
-                self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
+                self.action_noise = OrnsteinUhlenbeckActionNoise(sigma=0.2)
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
@@ -79,10 +79,16 @@ class TD3(Off_Policy):
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self._worker_params_dict.update(self.ac_net._policy_models)
-        self._residual_params_dict.update(self.ac_net._residual_models)
-        self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic)
+
+        self._all_params_dict.update(self.ac_net._all_models)
+        self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic)
         self._model_post_process()
+
+    def reset(self):
+        super().reset()
+        if self.is_continuous:
+            self.action_noise.reset()
 
     def choose_action(self, s, visual_s, evaluation=False):
         mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
@@ -95,7 +101,7 @@ class TD3(Off_Policy):
             output, cell_state = self.ac_net(s, visual_s, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -120,20 +126,18 @@ class TD3(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
         s, visual_s, a, r, s_, visual_s_, done = memories
-        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             for _ in range(2):
                 with tf.GradientTape(persistent=True) as tape:
                     feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
                     feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
                     if self.is_continuous:
-                        target_mu = self.ac_target_net.policy_net(feat_)
-                        action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                        action_target = self.ac_target_net.policy_net(feat_)
                         mu = self.ac_net.policy_net(feat)
                     else:
                         target_logits = self.ac_target_net.policy_net(feat_)
                         logp_all = tf.nn.log_softmax(target_logits)
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)

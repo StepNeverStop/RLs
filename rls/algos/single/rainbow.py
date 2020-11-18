@@ -71,8 +71,9 @@ class RAINBOW(Off_Policy):
         self.optimizer = self.init_optimizer(self.lr)
 
         self._worker_params_dict.update(self.rainbow_net._policy_models)
-        self._residual_params_dict.update(self.rainbow_net._residual_models)
-        self._residual_params_dict.update(optimizer=self.optimizer)
+
+        self._all_params_dict.update(self.rainbow_net._all_models)
+        self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):

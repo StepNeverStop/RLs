@@ -122,12 +122,13 @@ class HIRO(Off_Policy):
 
         self._worker_params_dict.update(self.high_ac_net._policy_models)
         self._worker_params_dict.update(self.low_ac_net._policy_models)
-        self._residual_params_dict.update(self.high_ac_net._residual_models)
-        self._residual_params_dict.update(self.low_ac_net._residual_models)
-        self._residual_params_dict.update(low_actor_optimizer=self.low_actor_optimizer,
-                                          low_critic_optimizer=self.low_critic_optimizer,
-                                          high_actor_optimizer=self.high_actor_optimizer,
-                                          high_critic_optimizer=self.high_critic_optimizer)
+
+        self._all_params_dict.update(self.high_ac_net._all_models)
+        self._all_params_dict.update(self.low_ac_net._all_models)
+        self._all_params_dict.update(low_actor_optimizer=self.low_actor_optimizer,
+                                     low_critic_optimizer=self.low_critic_optimizer,
+                                     high_actor_optimizer=self.high_actor_optimizer,
+                                     high_critic_optimizer=self.high_critic_optimizer)
 
         self._model_post_process()
 
@@ -174,6 +175,9 @@ class HIRO(Off_Policy):
         )
 
     def reset(self):
+        self.high_noise.reset()
+        self.low_noise.reset()
+
         self._c = np.full((self.n_agents, 1), self.sub_goal_steps, np.int32)
 
         for i in range(self.n_agents):
@@ -206,7 +210,7 @@ class HIRO(Off_Policy):
             output = self.low_ac_net.policy_net(feat)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.low_noise(), -1, 1)
+                pi = tf.clip_by_value(mu + self.low_noise(mu.shape), -1, 1)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -228,7 +232,7 @@ class HIRO(Off_Policy):
         s 当前隐状态
         '''
         new_subgoal = self.high_scale * self.high_ac_net.policy_net(s)
-        new_subgoal = tf.clip_by_value(new_subgoal + self.high_noise(), -self.high_scale, self.high_scale)
+        new_subgoal = tf.clip_by_value(new_subgoal + self.high_noise(new_subgoal.shape), -self.high_scale, self.high_scale)
         return new_subgoal
 
     def learn(self, **kwargs):
@@ -270,8 +274,7 @@ class HIRO(Off_Policy):
 
                 target_output = self.low_ac_target_net.policy_net(feat_)
                 if self.is_continuous:
-                    target_mu = target_output
-                    action_target = tf.clip_by_value(target_mu + self.low_noise(), -1, 1)
+                    action_target = target_output
                 else:
                     target_logits = target_output
                     logp_all = tf.nn.log_softmax(target_logits)
@@ -364,7 +367,6 @@ class HIRO(Off_Policy):
                 q = tf.minimum(q1, q2)
 
                 target_sub_goal = self.high_ac_target_net.policy_net(s_) * self.high_scale
-                target_sub_goal = tf.clip_by_value(target_sub_goal + self.high_noise(), -self.high_scale, self.high_scale)
                 q_target = self.high_ac_target_net.get_min(s_, target_sub_goal)
 
                 dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * q_target)

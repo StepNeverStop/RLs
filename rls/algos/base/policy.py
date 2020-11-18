@@ -84,7 +84,7 @@ class Policy(Base):
                                                   lr=self.curiosity_lr,
                                                   beta=self.curiosity_beta,
                                                   loss_weight=self.curiosity_loss_weight)
-            self._worker_params_dict.update(curiosity_model=self.curiosity_model)
+            self._all_params_dict.update(curiosity_model=self.curiosity_model)
 
     def _create_representation_net(self, name: str = 'default'):
         # TODO: Added changeable command

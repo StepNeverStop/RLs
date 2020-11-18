@@ -45,11 +45,6 @@ class RepresentationNetwork(ABC):
 
     @property
     @abstractmethod
-    def _residual_models(self):
-        pass
-
-    @property
-    @abstractmethod
     def _all_models(self):
         pass
 
@@ -63,7 +58,7 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  vec_dims=[],
                  vis_dims=[],
 
@@ -200,10 +195,6 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
         return models
 
     @property
-    def _residual_models(self):
-        return {}
-
-    @property
     def _all_models(self):
         models = {}
         models.update({self.name + '/' + 'vector_net': self.vector_net})
@@ -219,7 +210,7 @@ class ValueNetwork:
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  representation_net: RepresentationNetwork = None,
 
                  value_net_type: OutputNetworkType = None,
@@ -265,11 +256,6 @@ class ValueNetwork:
         return models
 
     @property
-    def _residual_models(self):
-        models = self.representation_net._residual_models if self.representation_net else {}
-        return models
-
-    @property
     def _all_models(self):
         models = self.representation_net._all_models if self.representation_net else {}
         models.update({self.name + '/' + 'value_net': self.value_net})
@@ -284,7 +270,7 @@ class DoubleValueNetwork(ValueNetwork):
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  representation_net: RepresentationNetwork = None,
 
                  value_net_type: OutputNetworkType = None,
@@ -324,12 +310,6 @@ class DoubleValueNetwork(ValueNetwork):
         return super().weights + self.value_net2.weights
 
     @property
-    def _residual_models(self):
-        models = super()._residual_models
-        models.update({self.name + '/' + 'value_net2': self.value_net2})
-        return models
-
-    @property
     def _all_models(self):
         models = super()._all_models
         models.update({self.name + '/' + 'value_net2': self.value_net2})
@@ -344,7 +324,7 @@ class ACNetwork(ValueNetwork):
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  representation_net: RepresentationNetwork = None,
 
                  policy_net_type: OutputNetworkType = None,
@@ -382,15 +362,8 @@ class ACNetwork(ValueNetwork):
     @property
     def _policy_models(self):
         '''重载'''
-        models = self.representation_net._policy_models if self.representation_net else {}
+        models = super()._policy_models
         models.update({self.name + '/' + 'policy_net': self.policy_net})
-        return models
-
-    @property
-    def _residual_models(self):
-        '''重载'''
-        models = self.representation_net._residual_models if self.representation_net else {}
-        models.update({self.name + '/' + 'value_net': self.value_net})
         return models
 
     @property
@@ -410,7 +383,7 @@ class ACCNetwork(ACNetwork):
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  representation_net: RepresentationNetwork = None,
 
                  policy_net_type: OutputNetworkType = None,
@@ -449,12 +422,6 @@ class ACCNetwork(ACNetwork):
         return super().weights + self.value_net2.weights
 
     @property
-    def _residual_models(self):
-        models = super()._residual_models
-        models.update({self.name + '/' + 'value_net2': self.value_net2})
-        return models
-
-    @property
     def _all_models(self):
         models = super()._all_models
         models.update({self.name + '/' + 'value_net2': self.value_net2})
@@ -470,7 +437,7 @@ class ADoubleCNetwork(ACNetwork):
     '''
 
     def __init__(self,
-                 name: str = 'test',  # TODO
+                 name: str = 'test',
                  representation_net: RepresentationNetwork = None,
 
                  policy_net_type: OutputNetworkType = None,
@@ -506,12 +473,6 @@ class ADoubleCNetwork(ACNetwork):
     @property
     def weights(self):
         return super().weights + self.value_net2.weights
-
-    @property
-    def _residual_models(self):
-        models = super()._residual_models
-        models.update({self.name + '/' + 'value_net2': self.value_net2})
-        return models
 
     @property
     def _all_models(self):
