@@ -33,8 +33,8 @@ class PG(On_Policy):
                 representation_net=self._representation_net,
                 value_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 value_net_kwargs=dict(output_shape=self.a_dim,
-                                       condition_sigma=condition_sigma,
-                                       network_settings=network_settings['actor_continuous'])
+                                      condition_sigma=condition_sigma,
+                                      network_settings=network_settings['actor_continuous'])
             )
         else:
             self.net = ValueNetwork(
@@ -42,7 +42,7 @@ class PG(On_Policy):
                 representation_net=self._representation_net,
                 value_net_type=OutputNetworkType.ACTOR_DCT,
                 value_net_kwargs=dict(output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_discrete'])
+                                      network_settings=network_settings['actor_discrete'])
             )
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
@@ -50,8 +50,9 @@ class PG(On_Policy):
         self.initialize_data_buffer()
 
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
-        self._residual_params_dict.update(optimizer=self.optimizer)
+
+        self._all_params_dict.update(self.net._all_models)
+        self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):

@@ -74,7 +74,8 @@ class AOC(On_Policy):
             value_net_type=OutputNetworkType.AOC_SHARE,
             value_net_kwargs=dict(action_dim=self.a_dim,
                                   options_num=self.options_num,
-                                  network_settings=network_settings, is_continuous=self.is_continuous)
+                                  network_settings=network_settings,
+                                  is_continuous=self.is_continuous)
         )
 
         if self.is_continuous:
@@ -86,8 +87,9 @@ class AOC(On_Policy):
         self.optimizer = self.init_optimizer(self.lr)
 
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
-        self._residual_params_dict.update(optimizer=self.optimizer)
+
+        self._all_params_dict.update(self.net._all_models)
+        self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
         self.initialize_data_buffer(
@@ -130,8 +132,8 @@ class AOC(On_Policy):
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
             if self.is_continuous:
-                log_std = tf.gather(self.log_std, options)
                 mu = pi
+                log_std = tf.gather(self.log_std, options)
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
@@ -230,8 +232,8 @@ class AOC(On_Policy):
                 value = tf.reduce_sum(q * options_onehot, axis=1, keepdims=True)    # [B, 1]
 
                 if self.is_continuous:
-                    log_std = tf.gather(self.log_std, options)
                     mu = pi  # [B, A]
+                    log_std = tf.gather(self.log_std, options)
                     new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:

@@ -129,7 +129,7 @@ class PPO(On_Policy):
                 self.optimizer = self.init_optimizer(self.lr, clipnorm=self.max_grad_norm)
             else:
                 self.optimizer = self.init_optimizer(self.lr)
-            self._residual_params_dict.update(optimizer=self.optimizer)
+            self._all_params_dict.update(optimizer=self.optimizer)
         else:
             if self.is_continuous:
                 self.net = ACNetwork(
@@ -159,10 +159,12 @@ class PPO(On_Policy):
             else:
                 self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
-            self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                              optimizer_critic=self.optimizer_critic)
+            self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                         optimizer_critic=self.optimizer_critic)
+
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
+
+        self._all_params_dict.update(self.net._all_models)
 
         self.initialize_data_buffer(
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob'])

@@ -40,9 +40,9 @@ Options:
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
                                 specify the directory that store model, log and others [default: None]
     --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and tensorflow [default: 0]
+                                specify the random seed of module random, numpy and tensorflow [default: 42]
     --unity-env-seed=<n>        指定unity环境的随机种子
-                                specify the environment random seed of UNITY3D [default: 0]
+                                specify the environment random seed of UNITY3D [default: 42]
     --max-step=<n>              每回合最大步长
                                 specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数
@@ -60,7 +60,7 @@ Options:
     --gym-env=<name>            指定gym环境的名字
                                 specify the environment name of gym [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子
-                                specify the environment random seed of gym [default: 0]
+                                specify the environment random seed of gym [default: 42]
     --render-episode=<n>        指定gym环境从何时开始渲染
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
@@ -69,9 +69,11 @@ Options:
                                 whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
+    --no-save                 指定是否在训练中保存模型、日志及训练数据
+                                specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
-        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole --no-save
     unity:
         python run.py -u -a ppo -n run_with_unity
         python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
@@ -122,40 +124,41 @@ def get_options(options: Dict) -> Config:
     return:
         op: an instance of Config class that contains the parameters
     '''
-    f = lambda k, t: None if options[k] == 'None' else t(options[k])
+    def f(k, t): return None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
-        ['inference',           bool(options['--inference'])],
-        ['algo',                str(options['--algorithm'])],
-        ['use_rnn',             bool(options['--rnn'])],
-        ['algo_config',         f('--config-file', str)],
-        ['env',                 f('--env', str)],
-        ['port',                int(options['--port'])],
-        ['unity',               bool(options['--unity'])],
-        ['graphic',             bool(options['--graphic'])],
-        ['name',                f('--name', str)],
-        ['save_frequency',      f('--save-frequency', int)],
-        ['models',              int(options['--models'])],
-        ['store_dir',           f('--store-dir', str)],
-        ['seed',                int(options['--seed'])],
-        ['unity_env_seed',      int(options['--unity-env-seed'])],
-        ['max_step_per_episode',f('--max-step', int)],
-        ['max_train_step',      f('--train-step', int)],
-        ['max_train_frame',     f('--train-frame', int)],
-        ['max_train_episode',   f('--train-episode', int)],
-        ['load',                f('--load', str)],
-        ['prefill_steps',       f('--prefill-steps', int)],
-        ['prefill_choose',      bool(options['--prefill-choose'])],
-        ['gym',                 bool(options['--gym'])],
-        ['n_copys',             int(options['--copys'])],
-        ['gym_env',             str(options['--gym-env'])],
-        ['gym_env_seed',        int(options['--gym-env-seed'])],
-        ['render_episode',      f('--render-episode', int)],
-        ['info',                f('--info', str)],
-        ['use_wandb',           bool(options['--use-wandb'])],
-        ['unity_env',           f('--unity-env', str)],
-        ['apex',                f('--apex', str)],
-        ['hostname',            bool(options['--hostname'])]
+        ['inference', bool(options['--inference'])],
+        ['algo', str(options['--algorithm'])],
+        ['use_rnn', bool(options['--rnn'])],
+        ['algo_config', f('--config-file', str)],
+        ['env', f('--env', str)],
+        ['port', int(options['--port'])],
+        ['unity', bool(options['--unity'])],
+        ['graphic', bool(options['--graphic'])],
+        ['name', f('--name', str)],
+        ['save_frequency', f('--save-frequency', int)],
+        ['models', int(options['--models'])],
+        ['store_dir', f('--store-dir', str)],
+        ['seed', int(options['--seed'])],
+        ['unity_env_seed', int(options['--unity-env-seed'])],
+        ['max_step_per_episode', f('--max-step', int)],
+        ['max_train_step', f('--train-step', int)],
+        ['max_train_frame', f('--train-frame', int)],
+        ['max_train_episode', f('--train-episode', int)],
+        ['load', f('--load', str)],
+        ['prefill_steps', f('--prefill-steps', int)],
+        ['prefill_choose', bool(options['--prefill-choose'])],
+        ['gym', bool(options['--gym'])],
+        ['n_copys', int(options['--copys'])],
+        ['gym_env', str(options['--gym-env'])],
+        ['gym_env_seed', int(options['--gym-env-seed'])],
+        ['render_episode', f('--render-episode', int)],
+        ['info', f('--info', str)],
+        ['use_wandb', bool(options['--use-wandb'])],
+        ['unity_env', f('--unity-env', str)],
+        ['apex', f('--apex', str)],
+        ['hostname', bool(options['--hostname'])],
+        ['no_save', bool(options['--no-save'])]
     ]))
     return op
 
@@ -180,7 +183,7 @@ def main():
     if options.inference:
         Trainer(env_args, buffer_args, train_args).evaluate()
         return
-    
+
     if options.apex is not None:
         train_args.update(load_yaml(f'./rls/distribute/apex/config.yaml'))
         Trainer(env_args, buffer_args, train_args).apex()

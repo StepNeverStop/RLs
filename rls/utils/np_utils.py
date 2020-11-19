@@ -63,7 +63,7 @@ def int2one_hot(x, action_dim_prod):
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
     '''
-    x = np.asarray(x).flatten()
+    x = np.ravel(x)
     a = np.eye(action_dim_prod)[x]
     return a
 

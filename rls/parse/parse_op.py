@@ -75,6 +75,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     train_args.inference = options.inference
     train_args.prefill_choose = options.prefill_choose
     train_args.load_model_path = options.load
+    train_args.no_save = options.no_save
     train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, train_args.algo)
     if train_args.load_model_path is not None and not os.path.exists(train_args.load_model_path):   # 如果不是绝对路径，就拼接load的训练相对路径
         train_args.load_model_path = os.path.join(train_args.base_dir, train_args.load_model_path)

@@ -64,9 +64,10 @@ class DPG(Off_Policy):
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
-        self._residual_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic)
+
+        self._all_params_dict.update(self.net._all_models)
+        self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):
@@ -101,7 +102,6 @@ class DPG(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
         ss, vvss, a, r, done = memories
-        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
@@ -111,12 +111,11 @@ class DPG(Off_Policy):
                     mu = self.net.policy_net(feat)
                 else:
                     target_logits = self.net.policy_net(feat_)
-                    logp_all = tf.nn.log_softmax(target_logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
-                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
-                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    action_target = _pi_diff + _pi
+                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_pi = target_cate_dist.sample()
+                    target_log_pi = target_cate_dist.log_prob(target_pi)
+                    action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
+
                     logits = self.net.policy_net(feat)
                     _pi = tf.nn.softmax(logits)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)

@@ -34,6 +34,12 @@ except ImportError:
     logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
     pass
 
+try:
+    import highway_env
+except ImportError:
+    logger.warning(colorize("import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
+    pass
+
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import int2action_index
 from rls.utils.indexs import SingleAgentEnvArgs
@@ -63,6 +69,7 @@ class gym_envs(object):
             from rls.envs.gym_wrapper.threading_wrapper import MultiThreadEnv as AsynVectorEnvClass
         elif config['vector_env_type'] == 'ray':
             import platform
+            # TODO: check it
             assert platform.system() != "Windows", 'Ray wrapper can be used in non-windows systems.'
             from rls.envs.gym_wrapper.ray_wrapper import RayEnv as AsynVectorEnvClass
         elif config['vector_env_type'] == 'vector':

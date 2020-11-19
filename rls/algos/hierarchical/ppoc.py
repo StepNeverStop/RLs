@@ -88,8 +88,9 @@ class PPOC(On_Policy):
             data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'o_log_prob', 'beta_adv', 'last_options', 'options'])
 
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
-        self._residual_params_dict.update(optimizer=self.optimizer)
+
+        self._all_params_dict.update(self.net._all_models)
+        self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
     def reset(self):

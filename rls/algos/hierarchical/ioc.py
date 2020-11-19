@@ -103,14 +103,14 @@ class IOC(Off_Policy):
         self._worker_params_dict.update(self.intra_option_net._policy_models)
         self._worker_params_dict.update(self.interest_net._policy_models)
 
-        self._residual_params_dict.update(self.q_net._residual_models)
-        self._residual_params_dict.update(self.intra_option_net._residual_models)
-        self._residual_params_dict.update(self.interest_net._residual_models)
-        self._residual_params_dict.update(self.termination_net._all_models)
-        self._residual_params_dict.update(q_optimizer=self.q_optimizer,
-                                          intra_option_optimizer=self.intra_option_optimizer,
-                                          termination_optimizer=self.termination_optimizer,
-                                          interest_optimizer=self.interest_optimizer)
+        self._all_params_dict.update(self.q_net._all_models)
+        self._all_params_dict.update(self.intra_option_net._all_models)
+        self._all_params_dict.update(self.interest_net._all_models)
+        self._all_params_dict.update(self.termination_net._all_models)
+        self._all_params_dict.update(q_optimizer=self.q_optimizer,
+                                     intra_option_optimizer=self.intra_option_optimizer,
+                                     termination_optimizer=self.termination_optimizer,
+                                     interest_optimizer=self.interest_optimizer)
         self._model_post_process()
 
     def _generate_random_options(self):

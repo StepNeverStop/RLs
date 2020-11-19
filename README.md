@@ -195,9 +195,9 @@ Options:
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
                                 specify the directory that store model, log and others [default: None]
     --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and tensorflow [default: 0]
+                                specify the random seed of module random, numpy and tensorflow [default: 42]
     --unity-env-seed=<n>        指定unity环境的随机种子
-                                specify the environment random seed of UNITY3D [default: 0]
+                                specify the environment random seed of UNITY3D [default: 42]
     --max-step=<n>              每回合最大步长
                                 specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数
@@ -215,7 +215,7 @@ Options:
     --gym-env=<name>            指定gym环境的名字
                                 specify the environment name of gym [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子
-                                specify the environment random seed of gym [default: 0]
+                                specify the environment random seed of gym [default: 42]
     --render-episode=<n>        指定gym环境从何时开始渲染
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
@@ -224,9 +224,11 @@ Options:
                                 whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
+    --no-save                 指定是否在训练中保存模型、日志及训练数据
+                                specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
-        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole
+        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole --no-save
     unity:
         python run.py -u -a ppo -n run_with_unity
         python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
