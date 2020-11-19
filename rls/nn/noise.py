@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import numpy as np
+from abc import ABC, abstractmethod
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 
 
@@ -32,30 +33,38 @@ class AdaptiveParamNoiseSpec(object):
         return fmt.format(self.initial_stddev, self.desired_action_stddev, self.adoption_coefficient)
 
 
-class ActionNoise(object):
+class ActionNoise(ABC, object):
+
+    def __init__(self):
+        super().__init__()
+
     def reset(self):
         pass
 
+    @abstractmethod
+    def __call__(self, size):
+        raise NotImplementedError
+
 
 class NormalActionNoise(ActionNoise):
-    def __init__(self, mu, sigma):
+    def __init__(self, mu=0.0, sigma=1.0):
         self.mu = mu
         self.sigma = sigma
 
-    def __call__(self):
-        return np.random.normal(self.mu, self.sigma)
+    def __call__(self, size):
+        return np.random.normal(self.mu, self.sigma, size)
 
     def __repr__(self):
         return 'NormalActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
 
 
 class ClippedNormalActionNoise(NormalActionNoise):
-    def __init__(self, mu, sigma, bound):
+    def __init__(self, mu=0.0, sigma=1.0, bound=0.2):
         super().__init__(mu, sigma)
         self.bound = bound
 
     def __call__(self):
-        return np.clip(np.random.normal(self.mu, self.sigma), -self.bound, self.bound)
+        return np.clip(np.random.normal(self.mu, self.sigma, size), -self.bound, self.bound)
 
     def __repr__(self):
         return 'ClippedNormalActionNoise(mu={}, sigma={}, bound={})'.format(self.mu, self.sigma, self.bound)
@@ -63,7 +72,7 @@ class ClippedNormalActionNoise(NormalActionNoise):
 
 # Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
 class OrnsteinUhlenbeckActionNoise(ActionNoise):
-    def __init__(self, mu, sigma, theta=.15, dt=1e-2, x0=None):
+    def __init__(self, mu=0.0, sigma=0.2, theta=.15, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = mu
         self.sigma = sigma
@@ -71,13 +80,12 @@ class OrnsteinUhlenbeckActionNoise(ActionNoise):
         self.x0 = x0
         self.reset()
 
-    def __call__(self):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * np.sqrt(self.dt) * np.random.normal(size=self.mu.shape)
-        self.x_prev = x
-        return x
+    def __call__(self, size):
+        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * np.sqrt(self.dt) * np.random.normal(size=size)
+        return self.x_prev
 
     def reset(self):
-        self.x_prev = self.x0 if self.x0 is not None else np.zeros_like(self.mu)
+        self.x_prev = self.x0 if self.x0 is not None else 0.
 
     def __repr__(self):
         return 'OrnsteinUhlenbeckActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)

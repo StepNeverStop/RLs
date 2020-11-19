@@ -97,8 +97,9 @@ class TRPO(On_Policy):
             data_name_list=data_name_list)
 
         self._worker_params_dict.update(self.net._policy_models)
-        self._residual_params_dict.update(self.net._residual_models)
-        self._residual_params_dict.update(optimizer_critic=self.optimizer_critic)
+
+        self._all_params_dict.update(self.net._all_models)
+        self._all_params_dict.update(optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
     def choose_action(self, s, visual_s, evaluation=False):

@@ -61,10 +61,10 @@ class MAXSQN(Off_Policy):
         self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.q_lr, self.alpha_lr])
 
         self._worker_params_dict.update(self.critic_net._policy_models)
-        self._residual_params_dict.update(self.critic_net._residual_models)
-        self._residual_params_dict.update(
-            optimizer_critic=self.optimizer_critic,
-            optimizer_alpha=self.optimizer_alpha)
+
+        self._all_params_dict.update(self.critic_net._all_models)
+        self._all_params_dict.update(optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
     @property

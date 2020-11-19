@@ -1,3 +1,9 @@
+# algorithm config = general UNION on_policy/off_policy UNION specific algorithm config
+# if same key happened in multiple configurations, then specific algorithm config override on_policy/off_policy override general
+# priority 1: specific algorithm config
+# priority 2: on_policy/off_policy
+# priority 3: general
+
 general:
     decay_lr: false
     train_time_step: 5
@@ -11,7 +17,7 @@ general:
 
     normalize_vector_obs: false
     logger2file: false
-
+    # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     vector_net_kwargs: {}
     visual_net_kwargs:
         visual_feature: 128
@@ -23,6 +29,7 @@ general:
         use_rnn: false # always false, using -r to active RNN
         rnn_units: 16
         network_type: lstm
+    # -----
 
 on_policy:
     rnn_time_step: 8

@@ -95,13 +95,15 @@ class TAC(Off_Policy):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self._worker_params_dict.update(self._representation_net._policy_models)
+        self._worker_params_dict.update(self._representation_net._all_models)
         self._worker_params_dict.update(self.actor_net._policy_models)
-        self._residual_params_dict.update(self.critic_net._residual_models)
-        self._residual_params_dict.update(log_alpha=self.log_alpha,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha)
+
+        self._all_params_dict.update(self.actor_net._all_models)
+        self._all_params_dict.update(self.critic_net._all_models)
+        self._all_params_dict.update(log_alpha=self.log_alpha,
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
     @property
@@ -154,7 +156,6 @@ class TAC(Off_Policy):
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, cell_state):
         ss, vvss, a, r, done, s_, visual_s_ = memories
-        batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
@@ -169,7 +170,7 @@ class TAC(Off_Policy):
                 else:
                     logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample([batch_size, self.a_dim]), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
@@ -186,10 +187,10 @@ class TAC(Off_Policy):
                 q_s_pi = self.critic_net.get_min(feat, pi)
 
                 q1_target, q2_target, _ = self.critic_target_net(s_, visual_s_, target_pi, cell_state=cell_state)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
-                td_error1 = q1 - dc_r_q1
-                td_error2 = q2 - dc_r_q2
+                q_target = tf.minimum(q1_target, q2_target)
+                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss

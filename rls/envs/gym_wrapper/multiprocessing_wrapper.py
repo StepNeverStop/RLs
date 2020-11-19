@@ -40,6 +40,7 @@ class MultiProcessingEnv:
             op, data = conn.recv()
             if op == OP.SEED:
                 env.seed(data)
+                env.action_space.np_random.seed(data)
             elif op == OP.RESET:
                 conn.send(env.reset())
             elif op == OP.STEP:
