@@ -69,6 +69,7 @@ class gym_envs(object):
             from rls.envs.gym_wrapper.threading_wrapper import MultiThreadEnv as AsynVectorEnvClass
         elif config['vector_env_type'] == 'ray':
             import platform
+            # TODO: check it
             assert platform.system() != "Windows", 'Ray wrapper can be used in non-windows systems.'
             from rls.envs.gym_wrapper.ray_wrapper import RayEnv as AsynVectorEnvClass
         elif config['vector_env_type'] == 'vector':
