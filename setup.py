@@ -17,8 +17,8 @@ systembased_extras = {
         'pywin32'
     ],
     'non-windows': [
-        'ray',
-        'ray[debug]',
+        'pytest-runner',
+        'ray'
     ]
 }
 extras = {
@@ -26,9 +26,7 @@ extras = {
         'mlagents-envs==0.21.0'
     ],
     'atari': [
-        'atari_py~=0.2.0',
-        'Pillow',
-        'opencv-python==4.1.2.30',
+        'gym[atari]==0.15.3',
         'imageio'
     ],
     'mujoco': [
@@ -41,11 +39,13 @@ extras = {
         'gym-minigrid'
     ]
 }
+
 all_deps = []
 for group_name in extras:
     all_deps += extras[group_name]
+
 if platform.system() == "Windows":
-    extras['windes'] = systembased_extras['windows']
+    extras['windows'] = systembased_extras['windows']
     all_deps += systembased_extras['windows']
 else:
     extras['non-windows'] = systembased_extras['non-windows']
@@ -83,17 +83,17 @@ setup(
         # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         "Operating System :: OS Independent",
     ],
     install_requires=[
         'docopt',
         'numpy',
-        'gym>=0.15.0, <=0.15.3',
         'pyyaml',
         'tqdm',
-        'tensorflow>=2.0.0, <=2.1.0',
-        'tensorflow_probability==0.8.0',
-        'gast==0.2.2'
+        'gym>=0.15.0, <=0.15.3',
+        'tensorflow>=2.0.0, <=2.3.1',
+        'tensorflow_probability>=0.8.0, <=0.11.1'
     ],
     extras_require=extras,
 )

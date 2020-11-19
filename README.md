@@ -195,9 +195,9 @@ Options:
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
                                 specify the directory that store model, log and others [default: None]
     --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and tensorflow [default: 0]
+                                specify the random seed of module random, numpy and tensorflow [default: 42]
     --unity-env-seed=<n>        指定unity环境的随机种子
-                                specify the environment random seed of UNITY3D [default: 0]
+                                specify the environment random seed of UNITY3D [default: 42]
     --max-step=<n>              每回合最大步长
                                 specify the maximum step per episode [default: None]
     --train-episode=<n>         总的训练回合数
@@ -215,7 +215,7 @@ Options:
     --gym-env=<name>            指定gym环境的名字
                                 specify the environment name of gym [default: CartPole-v0]
     --gym-env-seed=<n>          指定gym环境的随机种子
-                                specify the environment random seed of gym [default: 0]
+                                specify the environment random seed of gym [default: 42]
     --render-episode=<n>        指定gym环境从何时开始渲染
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹

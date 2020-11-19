@@ -3,6 +3,7 @@
 
 import gym
 
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -10,13 +11,13 @@ try:
     import cv2
     cv2.ocl.setUseOpenCL(False)
 except:
-    logger.warning('opencv-python is needed to train visual-based model.')
+    logger.warning(colorize('opencv-python is needed to train visual-based model.', color='yellow'))
     pass
 
 try:
     import imageio
 except:
-    logger.warning('imageio should be installed to record vedio if needed.')
+    logger.warning(colorize('imageio should be installed to record vedio if needed.', color='yellow'))
     pass
 
 import numpy as np

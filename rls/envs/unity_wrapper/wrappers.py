@@ -11,13 +11,14 @@ from mlagents_envs.side_channel.engine_configuration_channel import EngineConfig
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 from rls.utils.logging_utils import get_logger
+from rls.utils.display import colorize
 logger = get_logger(__name__)
 
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)
 except:
-    logger.warning('opencv-python is needed to train visual-based model.')
+    logger.warning(colorize('opencv-python is needed to train visual-based model.', color='yellow'))
     pass
 
 from rls.common.yaml_ops import load_yaml

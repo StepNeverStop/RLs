@@ -6,10 +6,13 @@ import tensorflow as tf
 from typing import Tuple
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
+from tensorflow.keras import Sequential
 from tensorflow.keras.layers import (Conv2D,
                                      MaxPool2D,
+                                     AveragePooling2D,
                                      Flatten,
-                                     Dense)
+                                     Dense,
+                                     BatchNormalization)
 
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
@@ -23,9 +26,45 @@ def get_visual_network_from_type(network_type: VisualNetworkType):
         VisualNetworkType.SIMPLE: lambda: ConvLayer(Conv2D, [16, 32], [[8, 8], [4, 4]], [[4, 4], [2, 2]], padding='valid', activation='elu'),
         VisualNetworkType.NATURE: lambda: ConvLayer(Conv2D, [32, 64, 64], [[8, 8], [4, 4], [3, 3]], [[4, 4], [2, 2], [1, 1]], padding='valid', activation='relu'),
         VisualNetworkType.MATCH3: lambda: ConvLayer(Conv2D, [35, 144], [[3, 3], [1, 1]], [[3, 3], [1, 1]], padding='valid', activation='elu'),
-        VisualNetworkType.RESNET: ResnetNetwork
+        VisualNetworkType.RESNET: ResnetNetwork,
+        VisualNetworkType.DEEPCONV: DeepConvNetwork
     }
     return VISUAL_NETWORKS.get(network_type, VISUAL_NETWORKS[VisualNetworkType.SIMPLE])
+
+
+class DeepConvNetwork(Sequential):
+
+    def __init__(self,
+                 filters=[16, 32],
+                 kernel_sizes=[[8, 8], [4, 4]],
+                 strides=[[4, 4], [2, 2]],
+                 padding='valid',
+
+                 use_bn=False,
+                 
+                 max_pooling=False,
+                 avg_pooling=False,
+                 pool_sizes=[[2, 2], [2, 2]],
+                 pool_strides=[[1, 1], [1, 1]],
+                 ):
+        super().__init__()
+        for i in range(conv_layers):
+            self.add(Conv2D(filters=filters[i], 
+                            kernel_size=kernel_sizes[i], 
+                            strides=strides[i], 
+                            padding=padding, 
+                            activation='relu', 
+                            **initKernelAndBias))
+            if use_bn:
+                self.add(BatchNormalization())
+
+            if max_pooling:
+                self.add(MaxPool2D(pool_size=pool_sizes[i], 
+                                   strides=pool_strides[i]))
+            elif avg_pooling:
+                self.add(AveragePooling2D(pool_size=pool_sizes[i], 
+                                          strides=pool_strides[i]))
+        self.add(Flatten())
 
 
 class ResnetNetwork(M):

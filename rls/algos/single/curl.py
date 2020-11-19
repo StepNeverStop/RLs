@@ -271,10 +271,10 @@ class CURL(Off_Policy):
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
                 q1, q2 = self.critic_net.value_net(feat, a)
                 q1_target, q2_target = self.critic_target_net.value_net(feat_, target_pi)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
-                td_error1 = q1 - dc_r_q1
-                td_error2 = q2 - dc_r_q2
+                q_target = tf.minimum(q1_target, q2_target)
+                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
