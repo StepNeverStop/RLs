@@ -9,6 +9,7 @@ class VectorEnv:
         self.envs = [make_func(config, idx) for idx in range(n)]
         for i in range(n):
             self.envs[i].seed(seed + i)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            self.envs.action_space.np_random.seed(seed + i)
 
     def reset(self, idxs=[]):
         return [self.envs[i].reset() for i in (idxs or self.idxs)]

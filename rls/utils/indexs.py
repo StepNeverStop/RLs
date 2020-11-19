@@ -20,6 +20,7 @@ class VisualNetworkType(Enum):
     SIMPLE = 'simple'
     NATURE = 'nature'
     RESNET = 'resnet'
+    DEEPCONV = 'deepconv'
 
 
 class DefaultActivationFuncType(Enum):

@@ -187,10 +187,10 @@ class TAC(Off_Policy):
                 q_s_pi = self.critic_net.get_min(feat, pi)
 
                 q1_target, q2_target, _ = self.critic_target_net(s_, visual_s_, target_pi, cell_state=cell_state)
-                dc_r_q1 = tf.stop_gradient(r + self.gamma * (1 - done) * (q1_target - self.alpha * target_log_pi))
-                dc_r_q2 = tf.stop_gradient(r + self.gamma * (1 - done) * (q2_target - self.alpha * target_log_pi))
-                td_error1 = q1 - dc_r_q1
-                td_error2 = q2 - dc_r_q2
+                q_target = tf.minimum(q1_target, q2_target)
+                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                td_error1 = q1 - dc_r
+                td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
                 q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss

@@ -39,6 +39,7 @@ class RayEnv:
         self.envs = [Env.remote(make_func, (config, idx)) for idx in range(n)]
         for i in range(n):
             self.envs[i].seed.remote(seed + i)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+            self.envs[i].action_space.np_random.seed.remote(seed + i)
 
     def reset(self, idxs=[]):
         return ray.get([self.envs[i].reset.remote() for i in (idxs or self.idxs)])
