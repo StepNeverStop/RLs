@@ -71,16 +71,15 @@ trusted-host = mirrors.aliyun.com" > ~/.pip/pip.conf
 
 # install my own conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \
-    conda create -n rls python=3.7 && \
+    conda create -n rls python=3.8 && \
     conda activate rls && \
     echo -e "\033[4;41;32m conda activate rls successed. \033[0m" && \
     cd ~ && git clone https://github.com/StepNeverStop/RLs.git && cd RLs && \
     pip install -e . && \
     /opt/conda/bin/conda build purge-all && \
     rm -rf ~/.cache/pip/* && \
-    python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --store-dir '/root/test_rls' && \
-    echo -e "\033[4;41;32m run rls successed. \033[0m" && \
-    rm -rf /root/test_rls
+    python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --no-save && \
+    echo -e "\033[4;41;32m run rls successed. \033[0m"
 
 # 22:ssh 6006:tensorboard 8888:jupyter lab
 EXPOSE 22 6006 8888

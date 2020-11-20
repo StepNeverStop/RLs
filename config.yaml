@@ -54,7 +54,7 @@ gym:
         # 1. multiprocessing
         # 2. threading
         # 3. ray
-        # 4 vector
+        # 4. vector
         vector_env_type: multiprocessing
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false

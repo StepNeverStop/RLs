@@ -52,6 +52,12 @@ This project supports:
 
 ## Installation
 
+method 1:
+```bash
+conda env create -f environment.yaml
+```
+
+method 2:
 ```bash
 $ git clone https://github.com/StepNeverStop/RLs.git
 $ cd RLs
@@ -73,7 +79,7 @@ If using atari:
 $ pip install -e .[atari]
 ```
 
-You can download builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
+You can download the builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
 ```bash
 $ docker pull keavnn/rls:latest
 ```
@@ -224,7 +230,7 @@ Options:
                                 whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
-    --no-save                 指定是否在训练中保存模型、日志及训练数据
+    --no-save                   指定是否在训练中保存模型、日志及训练数据
                                 specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:

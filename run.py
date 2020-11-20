@@ -69,7 +69,7 @@ Options:
                                 whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
-    --no-save                 指定是否在训练中保存模型、日志及训练数据
+    --no-save                   指定是否在训练中保存模型、日志及训练数据
                                 specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
@@ -84,6 +84,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 
 if sys.platform.startswith('win'):
+    import pywintypes   # necessary when using python 3.8+
     import win32api
     import win32con
     import _thread
