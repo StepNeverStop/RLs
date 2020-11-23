@@ -148,6 +148,7 @@ def unity_no_op(env, models,
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
     '''
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
+    min_of_all_agents = min(env.group_agents)
 
     if pre_fill_steps == 0:
         return
@@ -160,7 +161,7 @@ def unity_no_op(env, models,
         state[i] = _corrected_v
         visual_state[i] = _correcred_vs
 
-    for _ in trange(0, pre_fill_steps, min(env.group_agents) + 1, unit_scale=min(env.group_agents) + 1, ncols=80, desc=desc, bar_format=bar_format):
+    for _ in trange(0, pre_fill_steps, min_of_all_agents, unit_scale=min_of_all_agents, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
             for i in range(env.group_num):
                 action[i] = models[i].choose_action(s=state[i], visual_s=visual_state[i])

@@ -21,7 +21,7 @@ def make_env(env_args: Dict):
 
 
 def make_gym_env(env_args: Dict):
-    from rls.envs.gym_wrapper import gym_envs
+    from rls.envs.gym_env import gym_envs
 
     env_kargs = deepcopy(env_args)
     env = gym_envs(env_kargs)

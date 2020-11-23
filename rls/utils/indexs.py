@@ -14,6 +14,12 @@ SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
 MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
                                SingleAgentEnvArgs._fields + ('group_controls',))
 
+class GymVectorizedType(Enum):
+    RAY = 'ray'
+    VECTOR = 'vector'
+    MULTITHREADING = 'multithreading'
+    MULTIPROCESSING = 'multiprocessing'
+
 
 class VisualNetworkType(Enum):
     MATCH3 = 'match3'
