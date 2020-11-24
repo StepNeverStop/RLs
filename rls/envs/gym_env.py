@@ -41,7 +41,7 @@ except ImportError:
     pass
 
 from rls.envs.gym_wrapper.utils import build_env
-from rls.utils.np_utils import int2action_index
+from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.indexs import (SingleAgentEnvArgs,
                               GymVectorizedType)
 
@@ -115,12 +115,13 @@ class gym_envs(object):
             self.action_type = 'Tuple(Discrete)'
             self._is_continuous = False
             self.a_dim = int(np.asarray([i.n for i in ActSpace]).prod())
-            self.discrete_action_dim_list = [i.n for i in ActSpace]
+            discrete_action_dim_list = [i.n for i in ActSpace]
         else:
             self.action_type = 'discrete'
             self._is_continuous = False
             self.a_dim = env.action_space.n
-            self.discrete_action_dim_list = [env.action_space.n]
+            discrete_action_dim_list = [env.action_space.n]
+        self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
         self.EnvSpec = SingleAgentEnvArgs(
@@ -188,7 +189,7 @@ class gym_envs(object):
     def step(self, actions):
         actions = np.array(actions)
         if not self.is_continuous:
-            actions = int2action_index(actions, self.discrete_action_dim_list)
+            actions = self.discrete_action_list[actions]
             if self.action_type == 'discrete':
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':

@@ -22,7 +22,7 @@ except:
     pass
 
 from rls.common.yaml_ops import load_yaml
-from rls.utils.np_utils import int2action_index
+from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.indexs import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs)
 
@@ -152,7 +152,7 @@ class InfoWrapper(BasicWrapper):
 
         self.s_dim = [sum(v) for v in self.vector_dims]
         self.a_dim = [int(np.asarray(spec.action_shape).prod()) for spec in self.group_specs]
-        self.discrete_action_dim_list = [spec.action_shape for spec in self.group_specs]
+        self.discrete_action_lists = [get_discrete_action_list(spec.action_shape) for spec in self.group_specs]
         self.a_size = [spec.action_size for spec in self.group_specs]
         self.is_continuous = [spec.is_action_continuous() for spec in self.group_specs]
 
@@ -405,5 +405,5 @@ class ActionWrapper(BasicWrapper):
             if self.is_continuous[i]:
                 pass
             else:
-                actions[k] = int2action_index(actions[k], self.discrete_action_dim_list[i])
+                actions[k] = self.discrete_action_lists[i][actions[k]]
         return self._env.step(actions)
