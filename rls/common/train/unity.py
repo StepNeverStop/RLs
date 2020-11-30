@@ -217,7 +217,7 @@ def ma_unity_no_op(env, model,
     model.reset()
 
     # [s(s_brain1(agent1, agent2, ...), s_brain2, ...), visual_s, r, done, info]
-    s, visual_s, _, _, _ = env.reset()
+    s, visual_s, _, _, _, _, _ = env.reset()
     # [total_agents, batch, dimension]
     s, visual_s = map(data_change_func, [s, visual_s])
 
@@ -228,11 +228,11 @@ def ma_unity_no_op(env, model,
         else:
             action = env.random_action()
         actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
-        s_, visual_s_, r, done, info = env.step(actions)
+        s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)
         if real_done:
             done = [g['real_done'] for g in info]
 
-        action, r, done, s_, visual_s_ = map(data_change_func, [action, r, done, s_, visual_s_])
+        action, r, done, s_, visual_s_, corrected_s_, corrected_visual_s_ = map(data_change_func, [action, r, done, s_, visual_s_, corrected_s_, corrected_visual_s_])
         done = np.asarray(done).sum((0, 2))
 
         model.no_op_store(
@@ -245,8 +245,8 @@ def ma_unity_no_op(env, model,
             done[np.newaxis, :]
         )
         model.partial_reset(done)
-        s = s_
-        visual_s = visual_s_
+        s = corrected_s_
+        visual_s = corrected_visual_s_
 
 
 def ma_unity_train(env, model,
@@ -280,7 +280,7 @@ def ma_unity_train(env, model,
         rewards = np.zeros((agents_num_per_copy, env.env_copys))
 
         model.reset()
-        s, visual_s, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset()
         s, visual_s = map(data_change_func, [s, visual_s])
 
         step = 0
@@ -289,14 +289,14 @@ def ma_unity_train(env, model,
             action = model.choose_action(s=s, visual_s=visual_s)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
-            s_, visual_s_, r, done, info = env.step(actions)    # [Brains, Agents, Dims]
+            s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)    # [Brains, Agents, Dims]
             step += 1
 
             if real_done:
                 done = [g['real_done'] for g in info]
 
             # [Agents_perCopy, Copys, Dims]
-            action, r, done, s_, visual_s_ = map(data_change_func, [action, r, done, s_, visual_s_])
+            action, r, done, s_, visual_s_, corrected_s_, corrected_visual_s_ = map(data_change_func, [action, r, done, s_, visual_s_, corrected_s_, corrected_visual_s_])
             done = np.sign(np.asarray(done).sum((0, 2)))  # [Copys,]
 
             rewards += np.asarray(r).reshape(-1, env.env_copys) * (1 - dones_flag)
@@ -312,8 +312,8 @@ def ma_unity_train(env, model,
                 done[np.newaxis, :]
             )
             model.partial_reset(done)
-            s = s_
-            visual_s = visual_s_
+            s = corrected_s_
+            visual_s = corrected_visual_s_
 
             if policy_mode == 'off-policy':
                 if train_step % off_policy_train_interval == 0:
@@ -362,9 +362,9 @@ def ma_unity_inference(env, model,
     action_reshape_func = multi_agents_action_reshape(env.env_copys, env.group_controls)
     for episode in range(episodes):
         model.reset()
-        s, visual_s, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset()
         while True:
             action = model.choose_action(s=s, visual_s=visual_s, evaluation=True)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
-            s, visual_s, _, _, _ = env.step(actions)
+            _, _, _, _, _, s, visual_s_ = env.step(actions)

@@ -19,7 +19,10 @@ from rls.utils.time import get_time_hhmmss
 from rls.algos import get_model_info
 from rls.common.train.unity import (unity_train,
                                     unity_no_op,
-                                    unity_inference)
+                                    unity_inference,
+                                    ma_unity_no_op,
+                                    ma_unity_train,
+                                    ma_unity_inference)
 from rls.common.train.gym import (gym_train,
                                   gym_no_op,
                                   gym_inference)

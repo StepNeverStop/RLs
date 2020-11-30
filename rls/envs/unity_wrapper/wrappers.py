@@ -152,11 +152,11 @@ class InfoWrapper(BasicWrapper):
 
         self.s_dim = [sum(v) for v in self.vector_dims]
         self.a_dim = [int(np.asarray(spec.action_shape).prod()) for spec in self.group_specs]
-        self.discrete_action_lists = [get_discrete_action_list(spec.action_shape) for spec in self.group_specs]
+        self.discrete_action_lists = [None if spec.is_action_continuous() else get_discrete_action_list(spec.action_shape) for spec in self.group_specs]
         self.a_size = [spec.action_size for spec in self.group_specs]
         self.is_continuous = [spec.is_action_continuous() for spec in self.group_specs]
 
-        self.group_agents = self.get_real_agent_numbers()  # 得到每个环境控制几个智能体
+        self.group_agents, self.group_ids = self.get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
 
     def initialize(self):
         if all('#' in name for name in self.group_names):
@@ -197,12 +197,17 @@ class InfoWrapper(BasicWrapper):
                 actions.append(np.random.randint(self.a_dim[i], size=(self.group_agents[i],), dtype=np.int32))
         return actions
 
-    def get_real_agent_numbers(self):
+    def get_real_agent_numbers_and_ids(self):
         group_agents = [0] * self.group_num
+        group_ids = [np.empty(0) for _ in range(self.group_num)]
         for _ in range(10):  # 10 step
             for i, gn in enumerate(self.group_names):
                 d, t = self._env.get_steps(gn)
                 group_agents[i] = max(group_agents[i], len(d.agent_id))
+                # TODO: 检查t是否影响
+                if len(d.agent_id) > len(group_ids[i]):
+                    group_ids[i] = d.agent_id
+
                 group_spec = self.group_specs[i]
                 if group_spec.is_action_continuous():
                     action = np.random.randn(len(d), group_spec.action_size)
@@ -214,7 +219,11 @@ class InfoWrapper(BasicWrapper):
                     ])
                 self._env.set_actions(gn, action)
             self._env.step()
-        return group_agents
+
+        for i in range(self.group_num):
+            group_ids[i] = {_id: _idx for _id, _idx in zip(group_ids[i], range(len(group_ids[i])))}
+
+        return group_agents, group_ids
 
 
 class GrayVisualWrapper(BasicWrapper):
@@ -300,6 +309,7 @@ class UnityReturnWrapper(BasicWrapper):
         TODO: Annotation
         '''
         n = self.group_agents[i]
+        ids = self.group_ids[i]
         ps = []
         d, t = self._env.get_steps(gn)
         if len(t):
@@ -321,13 +331,14 @@ class UnityReturnWrapper(BasicWrapper):
         info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
         for t in ps:    # TODO: 有待优化
-            info['max_step'][t.agent_id] = t.interrupted    # 因为达到episode最大步数而终止的
-            info['real_done'][t.agent_id[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-            reward[t.agent_id] = t.reward
-            done[t.agent_id] = True
+            _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
+            info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
+            info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+            reward[_ids] = t.reward
+            done[_ids] = True
             # zip: vector, visual, ...
             for _obs, _tobs in zip(obs, t.obs):
-                _obs[t.agent_id] = _tobs
+                _obs[_ids] = _tobs
 
         return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[i]]),
                 self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[i]]),
