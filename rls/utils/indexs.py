@@ -14,6 +14,18 @@ SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
 MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
                                SingleAgentEnvArgs._fields + ('group_controls',))
 
+UnitySingleAgentReturn = namedtuple('UnitySingleAgentReturn',
+                                    [
+                                        'vector',
+                                        'visual',
+                                        'reward',
+                                        'done',
+                                        'corrected_vector',
+                                        'corrected_visual',
+                                        'info'
+                                    ])
+
+
 class GymVectorizedType(Enum):
     RAY = 'ray'
     VECTOR = 'vector'

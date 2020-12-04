@@ -226,8 +226,6 @@ Options:
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
                                 write another information that describe this training task [default: None]
-    --use-wandb                 是否上传数据到W&B
-                                whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
     --no-save                   指定是否在训练中保存模型、日志及训练数据

@@ -15,7 +15,6 @@ train:
     add_noise2buffer_episode_interval: 10 # episode interval when adding noise into replay buffer while training
     add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
     info: None
-    wandb_project: RLs
     # off-policy
     off_policy_train_interval: 1 # train policy every interval times
 

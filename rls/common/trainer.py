@@ -6,7 +6,6 @@ import sys
 import time
 import numpy as np
 
-from copy import deepcopy
 from typing import (Dict,
                     NoReturn,
                     Optional)
@@ -120,17 +119,15 @@ class Trainer:
         else:
             # unity
             if self.multi_agents_training:
+                assert self.env.is_multi_agents, 'assert self.env.is_multi_agents'
                 self.initialize_multi_unity()
             else:
+                assert not self.env.is_multi_agents, 'assert not self.env.is_multi_agents'
                 self.initialize_unity()
         pass
 
     def initialize_gym(self):
         # gym
-        if self.train_args['use_wandb']:
-            import wandb
-            check_or_create(os.path.join(self.train_args.base_dir, 'wandb'))
-            wandb.init(sync_tensorboard=True, name=self._name, dir=self.train_args.base_dir, project=self.train_args['wandb_project'])
 
         # buffer ------------------------------
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
@@ -162,8 +159,39 @@ class Trainer:
                 'algo': self.algo_args
             }
             save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
-            if self.train_args['use_wandb']:
-                wandb.config.update(records_dict)
+
+    def initialize_unity(self):
+        # single agent with unity
+        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fgn)
+        if self.train_args.load_model_path is not None:
+            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fgn)
+
+        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
+            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.group_agents[self.env.first_gn]
+        buffer = get_buffer(self.buffer_args)
+
+        self.algo_args.update({
+            'envspec': self.env.EnvSpec,
+            'max_train_step': self.train_args.max_train_step,
+            'base_dir': self.train_args.base_dir,
+        })
+        self.model = self.MODEL(**self.algo_args)
+        self.model.set_buffer(buffer)
+        self.model.init_or_restore(self.train_args.load_model_path)
+
+        _train_info = self.model.get_init_training_info()
+        self.train_args['begin_train_step'] = _train_info['train_step']
+        self.train_args['begin_frame_step'] = _train_info['frame_step']
+        self.train_args['begin_episode'] = _train_info['episode']
+        if not self.train_args['inference'] and not self.train_args['no_save']:
+            self.algo_args['envspec'] = str(self.algo_args['envspec'])
+            records_dict = {
+                'env': self.env_args.to_dict,
+                'buffer': self.buffer_args.to_dict,
+                'train': self.train_args.to_dict,
+                'algo': self.algo_args
+            }
+            save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
 
     def initialize_multi_unity(self):
         # multi agents with unity
@@ -196,43 +224,6 @@ class Trainer:
                 'algo': self.algo_args
             }
             save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
-
-    def initialize_unity(self):
-        # single agent with unity
-        self.models = []
-        for i, fgn in enumerate(self.env.fixed_group_names):
-            _bargs, _targs, _aargs = map(deepcopy, [self.buffer_args, self.train_args, self.algo_args])
-            _targs.base_dir = os.path.join(_targs.base_dir, fgn)
-            if _targs.load_model_path is not None:
-                _targs.load_model_path = os.path.join(_targs.load_model_path, fgn)
-            if 'Nstep' in _bargs['type'] or 'Episode' in _bargs['type']:
-                _bargs[_bargs['type']]['agents_num'] = self.env.group_agents[i]
-            buffer = get_buffer(_bargs)
-
-            _aargs.update({
-                'envspec': self.env.EnvSpec[i],
-                'max_train_step': _targs.max_train_step,
-                'base_dir': _targs.base_dir,
-            })
-            model = self.MODEL(**_aargs)
-            model.set_buffer(buffer)
-            model.init_or_restore(_targs.load_model_path)
-            self.models.append(model)
-
-            if not _targs['inference'] and not _targs['no_save']:
-                _aargs['envspec'] = str(_aargs['envspec'])
-                records_dict = {
-                    'env': self.env_args.to_dict,
-                    'buffer': _bargs.to_dict,
-                    'train': _targs.to_dict,
-                    'algo': _aargs
-                }
-                save_config(os.path.join(_targs.base_dir, 'config'), records_dict)
-
-        _train_info = self.models[0].get_init_training_info()
-        self.train_args['begin_train_step'] = _train_info['train_step']
-        self.train_args['begin_frame_step'] = _train_info['frame_step']
-        self.train_args['begin_episode'] = _train_info['episode']
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self._allow_print:
@@ -317,14 +308,14 @@ class Trainer:
                 try:
                     unity_no_op(
                         env=self.env,
-                        models=self.models,
+                        model=self.model,
                         pre_fill_steps=int(self.train_args['pre_fill_steps']),
                         prefill_choose=bool(self.train_args['prefill_choose']),
                         real_done=bool(self.train_args['real_done'])
                     )
                     unity_train(
                         env=self.env,
-                        models=self.models,
+                        model=self.model,
                         print_func=self.pwi,
                         begin_train_step=int(self.train_args['begin_train_step']),
                         begin_frame_step=int(self.train_args['begin_frame_step']),
@@ -343,7 +334,7 @@ class Trainer:
                         off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
                     )
                 finally:
-                    [model.close() for model in self.models]
+                    self.model.close()
                     self.env.close()
 
     def evaluate(self) -> NoReturn:
@@ -372,11 +363,11 @@ class Trainer:
                 try:
                     unity_inference(
                         env=self.env,
-                        models=self.models,
+                        model=self.model,
                         episodes=self.train_args['inference_episode']
                     )
                 finally:
-                    [model.close() for model in self.models]
+                    self.model.close()
                     self.env.close()
 
     def apex(self) -> NoReturn:
