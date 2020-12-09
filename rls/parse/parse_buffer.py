@@ -17,7 +17,8 @@ BufferDict = {
     'PER': 'PrioritizedExperienceReplay',
     'NstepER': 'NStepExperienceReplay',
     'NstepPER': 'NStepPrioritizedExperienceReplay',
-    'EpisodeER': 'EpisodeExperienceReplay'
+    'EpisodeER': 'EpisodeExperienceReplay',
+    'SEM': 'StagedExperienceMechanism'
 }
 
 

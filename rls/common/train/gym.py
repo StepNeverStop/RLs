@@ -53,7 +53,8 @@ def gym_train(env, model,
               add_noise2buffer_steps: int,
               off_policy_eval_interval: int,
               max_train_step: int,
-              max_frame_step: int) -> NoReturn:
+              max_frame_step: int,
+              use_sem: bool) -> NoReturn:
     """
     TODO: Annotation
     """
@@ -130,6 +131,8 @@ def gym_train(env, model,
             step=last_done_step,
             **sma.rs
         )
+        if use_sem:
+            model.data.mark(rets, sma.mean, sma.fluct)
         print_func(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}', out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:

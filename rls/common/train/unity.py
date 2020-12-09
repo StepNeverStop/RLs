@@ -33,7 +33,8 @@ def unity_train(env, model,
                 max_train_step: int,
                 max_frame_step: int,
                 real_done: bool,
-                off_policy_train_interval: int) -> NoReturn:
+                off_policy_train_interval: int,
+                use_sem: bool) -> NoReturn:
     """
     TODO: Annotation
     Train loop. Execute until episode reaches its maximum or press 'ctrl+c' artificially.
@@ -123,6 +124,8 @@ def unity_train(env, model,
             step=last_done_step,
             **sma.rs
         )
+        if use_sem:
+            model.data.mark(rewards, sma.mean, sma.fluct)
         print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
         print_func(f'{env.first_gn} R: {arrprint(rewards, 2)}')
 

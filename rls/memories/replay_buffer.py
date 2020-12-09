@@ -452,6 +452,125 @@ class EpisodeExperienceReplay(ReplayBuffer):
         print(self._buffer)
 
 
+class StagedExperienceMechanism(ReplayBuffer):
+
+    def __init__(self, batch_size, capacity, n, cof, gamma, agents_num=12):
+        super().__init__(batch_size, capacity)
+        self._data_pointer = [i for i in range(capacity)]
+        self.rec = {i for i in range(capacity)}
+        self._buffer = np.empty(capacity, dtype=object)
+        self.n = n
+        self.cof = cof
+        self.gamma = gamma
+        self.queues = [[] for _ in range(agents_num)]
+        self.n_queues = [[] for _ in range(agents_num)]
+        self._mean = -1.e30
+        self.fluct = 0.
+
+    def add(self, *args):
+        '''
+        change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
+        '''
+        # [q.append(data) for q, data in zip(self.queues, zip(*args))]
+        [self._per_store(i, list(data)) for i, data in enumerate(zip(*args))]
+
+    def _per_store(self, i, data):
+        '''
+        data:
+            0   s           -7
+            1   visual_s    -6
+            2   a           -5
+            3   r           -4
+            4   s_          -3
+            5   visual_s_   -2
+            6   done        -1
+        '''
+        q = self.n_queues[i]
+        if len(q) == 0:
+            q.append(data)
+            return
+        if (q[-1][-3] != data[0]).any() or (q[-1][-2] != data[1]).any():
+            if len(q) == self.n:
+                self.queues[i].append(q.pop(0))
+            else:
+                q.clear()
+            q.append(data)
+            return
+
+        if len(q) == self.n:
+            self.queues[i].append(q.pop(0))
+        _len = len(q)
+        for j in range(_len):
+            q[j][3] += data[3] * (self.gamma ** (_len - j))
+            q[j][4:] = data[4:]
+        q.append(data)
+        if data[-1]:
+            while q:
+                self.queues[i].append(q.pop())
+
+    def _store_op(self, data):
+        if len(self._data_pointer) == 0:
+            _idx = np.unique(np.random.randint(0, self.capacity, self.capacity // 10))
+            self._data_pointer.extend(_idx)
+            [self.rec.add(i) for i in _idx]
+        idx = self._data_pointer.pop(0)
+        self.rec.remove(idx)
+        self._buffer[idx] = data
+        self.update_rb_after_add()
+
+    def mark(self, r, _mean, fluct):
+        for i, q in enumerate(self.queues):
+            [self._store_op(tuple(data) + (r[i],)) for data in q]
+        [q.clear() for q in self.queues]
+        self._mean = _mean
+        self.fluct = fluct
+
+    def sample(self):
+        n_sample = self.batch_size if self.is_lg_batch_size else self._size
+        idx = np.random.randint(0, self._size, n_sample)
+        t = self._buffer[idx]
+        s, visual_s, a, r, s_, visual_s_, done, qr = [np.asarray(e) for e in zip(*t)]
+        qr = np.abs(qr - self._mean)
+        if qr.max() == 0:
+            _idx = idx
+        else:
+            p = (1 - qr / qr.max())   # [0, 1] 与当前阶段均值差别越大，越小概率被替换，保留差值较大的经验   probability of being replaced
+            p = p ** (self.cof * self.fluct) - 0.5
+            rand = np.random.rand()
+            _idx = idx[np.where((p + rand) > 1.)[0]]
+        for i in _idx:
+            l = len(self.rec)
+            self.rec.add(i)
+            if len(self.rec) != l:
+                self._data_pointer.append(i)
+        return [s, visual_s, a, r, s_, visual_s_, done]
+
+    def get_all(self):
+        return [np.asarray(e) for e in zip(*self._buffer[:self._size])]
+
+    def update_rb_after_add(self):
+        if self._size < self.capacity:
+            self._size += 1
+
+    @property
+    def is_full(self):
+        return self._size == self.capacity
+
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def is_lg_batch_size(self):
+        return self._size > self.batch_size
+
+    @property
+    def show_rb(self):
+        print('RB size: ', self._size)
+        print('RB capacity: ', self.capacity)
+        print(self._buffer[:, np.newaxis])
+
+
 if __name__ == "__main__":
     buff = EpisodeExperienceReplay(4, 10, 2)
 

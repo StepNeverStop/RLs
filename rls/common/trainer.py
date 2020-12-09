@@ -87,6 +87,7 @@ class Trainer:
         self.algo_args['no_save'] = self.train_args['no_save']
         show_dict(self.algo_args)
 
+        self.use_sem = False
         # BUFFER
         if self.train_args['policy_mode'] == 'off-policy':
             if self.algo_args['memory_net_kwargs']['use_rnn'] == True:
@@ -101,15 +102,21 @@ class Trainer:
                 self.buffer_args['batch_size'] = self.algo_args.get('batch_size', 0)
                 self.buffer_args['buffer_size'] = self.algo_args.get('buffer_size', 0)
 
-                _apex_buffer_args = {}
-                if self.algo_args.get('use_priority', False):
-                    self.buffer_args['type'] = 'P' + self.buffer_args['type']
-                    _apex_buffer_args.update({'max_train_step': self.train_args['max_train_step']})
-                if self.algo_args.get('n_step', False):
-                    self.buffer_args['type'] = 'Nstep' + self.buffer_args['type']
-                    self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
-                    _apex_buffer_args.update({'gamma': self.algo_args['gamma']})
-                self.buffer_args[self.buffer_args['type']].update(_apex_buffer_args)
+                _buffer_args = {}
+                if self.train_args['sem']:
+                    self.buffer_args['type'] = 'SEM'
+                    _buffer_args.update({'gamma': self.algo_args['gamma']})
+                    self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['SEM']['n'])
+                    self.use_sem = True
+                else:
+                    if self.algo_args.get('use_priority', False):
+                        self.buffer_args['type'] = 'P' + self.buffer_args['type']
+                        _buffer_args.update({'max_train_step': self.train_args['max_train_step']})
+                    if self.algo_args.get('n_step', False):
+                        self.buffer_args['type'] = 'Nstep' + self.buffer_args['type']
+                        self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
+                        _buffer_args.update({'gamma': self.algo_args['gamma']})
+                self.buffer_args[self.buffer_args['type']].update(_buffer_args)
         else:
             self.buffer_args['type'] = 'None'
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
@@ -130,7 +137,7 @@ class Trainer:
         # gym
 
         # buffer ------------------------------
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
+        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type'] or 'SEM' in self.buffer_args['type']:
             self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
         buffer = get_buffer(self.buffer_args)
         # buffer ------------------------------
@@ -269,7 +276,8 @@ class Trainer:
                     add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
                     off_policy_eval_interval=int(self.train_args['off_policy_eval_interval']),
                     max_train_step=int(self.train_args['max_train_step']),
-                    max_frame_step=int(self.train_args['max_frame_step'])
+                    max_frame_step=int(self.train_args['max_frame_step']),
+                    use_sem=self.use_sem
                 )
             finally:
                 self.model.close()
@@ -331,7 +339,8 @@ class Trainer:
                         max_train_step=int(self.train_args['max_train_step']),
                         max_frame_step=int(self.train_args['max_frame_step']),
                         real_done=bool(self.train_args['real_done']),
-                        off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
+                        off_policy_train_interval=int(self.train_args['off_policy_train_interval']),
+                        use_sem=self.use_sem
                     )
                 finally:
                     self.model.close()

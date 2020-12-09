@@ -2,6 +2,8 @@
 
 :evergreen_tree::evergreen_tree::evergreen_tree:
 
+Branch: Staged Experience Mechanism
+
 Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
 This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_8) Release 8 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.

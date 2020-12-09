@@ -86,3 +86,6 @@ buffer:
     EpisodeER:
         burn_in_time_step: 20
         train_time_step: 40 # null
+    SEM:
+        n: 4
+        cof: 1.0

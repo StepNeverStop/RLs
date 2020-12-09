@@ -138,6 +138,7 @@ class SMA:
         self.now = 0
         self.r_list = []
         self.max, self.min, self.mean = 0, 0, 0
+        self.fluct = 0.
 
     def update(self, r):
         assert isinstance(r, (np.ndarray, list)), 'r must have __len__ attr'
@@ -153,6 +154,12 @@ class SMA:
             self.max += (r.max() - self.max) / self.now
             self.min += (r.min() - self.min) / self.now
             self.mean += (r.mean() - self.mean) / self.now
+        rr = np.array(self.r_list)
+        if rr.max() == rr.min():
+            self.fluct = 0.
+        else:
+            normal = (rr - rr.min()) / (rr.max() - rr.min())
+            self.fluct = normal.std() * 2
 
     @property
     def rs(self):
