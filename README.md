@@ -137,6 +137,7 @@ For now, these algorithms are available:
 |               DQN               |    √     |            |   √   |  √   |        dqn        |
 |           Double DQN            |    √     |            |   √   |  √   |       ddqn        |
 |       Dueling Double DQN        |    √     |            |   √   |  √   |       dddqn       |
+|          Averaged DQN           |    √     |            |   √   |  √   |    averaged_dqn   |
 |        Bootstrapped DQN         |    √     |            |   √   |  √   |  bootstrappeddqn  |
 |         Soft Q-Learning         |    √     |            |   √   |  √   |        sql        |
 |               C51               |    √     |            |   √   |  √   |        c51        |
