@@ -233,6 +233,8 @@ Options:
                                 whether concatenate hostname with the training name [default: False]
     --no-save                   指定是否在训练中保存模型、日志及训练数据
                                 specify whether save models/logs/summaries while training or not [default: False]
+    --sem                       是否使用StagedExperienceMechanism
+                                Whether to use SEM or not [default: False]
 Example:
     gym:
         python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole --no-save
