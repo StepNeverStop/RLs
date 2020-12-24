@@ -10,6 +10,10 @@ from collections import (deque,
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+from mlagents_envs.base_env import (
+    ActionTuple,
+    ActionSpec  # TODO
+)
 
 from rls.utils.logging_utils import get_logger
 from rls.utils.display import colorize
@@ -49,6 +53,7 @@ class BasicUnityEnvironment(object):
                               additional_args=[
                 '--scene', str(unity_env_dict.get(kwargs.get('env_name', 'Roller'), 'None')),
                 '--n_agents', str(kwargs.get('env_num', 1))
+                #  '--scene', "Antisubmarine",
             ])
         self.env = UnityEnvironment(**env_kwargs)
         self.env.reset()
@@ -83,7 +88,11 @@ class BasicUnityEnvironment(object):
 
     def step(self, actions):
         for k, v in actions.items():
-            self.env.set_actions(k, v)
+            if self.is_continuous[k]:
+                self.predesigned_actiontuples[k].add_continuous(v)
+            else:
+                self.predesigned_actiontuples[k].add_discrete(v)
+            self.env.set_actions(k, self.predesigned_actiontuples[k])
         self.env.step()
         return self.get_obs()
 
@@ -111,6 +120,9 @@ class BasicUnityEnvironment(object):
         self.a_dim = {}
         self.discrete_action_lists = {}
         self.is_continuous = {}
+        self.continuous_sizes = {}
+        self.discrete_branchess = {}
+        self.discrete_sizes = {}
 
         for gn, spec in self.env.behavior_specs.items():
             # 向量输入
@@ -127,11 +139,27 @@ class BasicUnityEnvironment(object):
             else:
                 self.visual_resolutions[gn] = []
             # 动作
-            self.a_dim[gn] = int(np.asarray(spec.action_shape).prod())
-            self.discrete_action_lists[gn] = None if spec.is_action_continuous() else get_discrete_action_list(spec.action_shape)
-            self.is_continuous[gn] = spec.is_action_continuous()
+            # 连续
+            self.continuous_sizes[gn] = spec.action_spec.continuous_size
+            # 离散
+            self.discrete_branchess[gn] = spec.action_spec.discrete_branches
+            self.discrete_sizes[gn] = len(self.discrete_branchess[gn])
+
+            if self.continuous_sizes[gn] > 0 and self.discrete_sizes[gn] > 0:
+                raise UnImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
+            elif self.continuous_sizes[gn] > 0:
+                self.a_dim[gn] = int(np.asarray(self.continuous_sizes[gn]).prod())
+                self.discrete_action_lists[gn] = None
+                self.is_continuous[gn] = True
+            else:
+                self.a_dim[gn] = int(np.asarray(self.discrete_branchess[gn]).prod())
+                self.discrete_action_lists[gn] = get_discrete_action_list(self.discrete_branchess[gn])
+                self.is_continuous[gn] = Flase
 
         self.group_agents, self.group_ids = self._get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
+        self.predesigned_actiontuples = {}
+        for gn in self.group_names:
+            self.predesigned_actiontuples[gn] = self.env.behavior_specs[gn].action_spec.random_action(n_agents=self.group_agents[gn])
 
         if self.is_multi_agents:
             self.group_controls = {}
@@ -174,17 +202,7 @@ class BasicUnityEnvironment(object):
                 # TODO: 检查t是否影响
                 if len(d.agent_id) > len(group_ids[gn]):
                     group_ids[gn] = d.agent_id
-
-                group_spec = self.env.behavior_specs[gn]
-                if group_spec.is_action_continuous():
-                    action = np.random.randn(len(d), group_spec.action_size)
-                else:
-                    branch_size = group_spec.discrete_action_branches
-                    action = np.column_stack([
-                        np.random.randint(0, branch_size[j], size=(len(d)))
-                        for j in range(len(branch_size))
-                    ])
-                self.env.set_actions(gn, action)
+                self.env.set_actions(gn, self.env.behavior_specs[gn].action_spec.random_action(n_agents=len(d)))
             self.env.step()
 
         for gn in self.group_names:
