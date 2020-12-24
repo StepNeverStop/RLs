@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from rls.utils.np_utils import (int2one_hot,
                                 discounted_sum,
-                                discounted_sum_minus,
+                                calculate_td_error,
                                 normalization,
                                 standardization)
 
@@ -31,7 +31,7 @@ class DataBuffer(object):
         assert n_agents > 0
         self.n_agents = n_agents
         self.rnn_cell_nums = rnn_cell_nums
-        self.cell_state_keys = ['cell_state_'+str(i) for i in range(rnn_cell_nums)]
+        self.cell_state_keys = ['cell_state_' + str(i) for i in range(rnn_cell_nums)]
         self.dict_keys = dict_keys + self.cell_state_keys
         self.buffer = defaultdict(list)
         self.rnn_3dim_keys = rnn_3dim_keys
@@ -67,13 +67,13 @@ class DataBuffer(object):
         TD = r + gamma * (1- done) * v(s') - v(s)
         '''
         assert 'value' in self.buffer.keys()
-        self.buffer['td_error'] = discounted_sum_minus(
+        self.buffer['td_error'] = list(calculate_td_error(
             self.buffer['r'],
             gamma,
-            init_value,
             self.buffer['done'],
-            self.buffer['value']
-        )
+            self.buffer['value'],
+            self.buffer['value'][1:] + [init_value],
+        ))
 
     def cal_gae_adv(self, lambda_, gamma, normalize=False):
         '''
@@ -168,9 +168,9 @@ class DataBuffer(object):
         for ag, dones in enumerate(self.buffer['done']):
             # dones: (eps_len,)
             idxs = (np.where(dones == True)[0] + 1).tolist()
-            for i, j in zip([0]+idxs, idxs+[self.eps_len]):
+            for i, j in zip([0] + idxs, idxs + [self.eps_len]):
                 count, remainder = divmod((j - i), time_step)
-                offset = np.random.randint(0, remainder+1)
+                offset = np.random.randint(0, remainder + 1)
                 for c in range(count):
                     l = c * time_step + offset
                     r = l + time_step
@@ -198,7 +198,7 @@ class DataBuffer(object):
         np.random.shuffle(idxs)
         for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
             _idxs = idxs[i:i + batch_size * self.n_agents]
-            yield [data[_idxs] for data in all_data]+[(None,)]
+            yield [data[_idxs] for data in all_data] + [(None,)]
 
     def sample_generater_rnn(self, batch_size, time_step, keys=None):
         '''
@@ -216,29 +216,29 @@ class DataBuffer(object):
         total_eps_num = self.split_data_by_timestep(time_step=time_step)
         idxs = np.arange(total_eps_num)
         np.random.shuffle(idxs)
-        
+
         keys = keys or self.buffer.keys()
         keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = {k:np.asarray(self.buffer[k]).astype(np.float32) for k in self.buffer.keys()}
+        all_data = {k: np.asarray(self.buffer[k]).astype(np.float32) for k in self.buffer.keys()}
 
         # prevent total_eps_num is smaller than batch_size
         while batch_size > total_eps_num:
             batch_size //= 2
 
         count, remainder = divmod(total_eps_num, batch_size)
-        offset = np.random.randint(0, remainder+1)
+        offset = np.random.randint(0, remainder + 1)
         for i in range(count):
             l = i * batch_size + offset
             r = l + batch_size
             _idxs = idxs[l:r]
             yield [all_data[k][_idxs]
-                    if k in self.rnn_3dim_keys
-                    else all_data[k][_idxs].reshape(batch_size * time_step, *keys_shape[k])
-                    for k in keys] \
-                    + \
-                    [
-                        tuple(all_data[cell_k][_idxs, 0, :] for cell_k in self.cell_state_keys)
-                    ]
+                   if k in self.rnn_3dim_keys
+                   else all_data[k][_idxs].reshape(batch_size * time_step, *keys_shape[k])
+                   for k in keys] \
+                + \
+                [
+                tuple(all_data[cell_k][_idxs, 0, :] for cell_k in self.cell_state_keys)
+            ]
 
     def clear(self):
         '''

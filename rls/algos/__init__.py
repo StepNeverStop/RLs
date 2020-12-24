@@ -3,7 +3,7 @@
 
 from rls.algos.register import register, get_model_info
 
-# logo: font-size: 12, background character: 'O', font: 幼圆
+# logo: font-size: 12, foreground character: 'O', font: 幼圆
 
 # On-policy Algorithms
 register(
@@ -428,6 +428,30 @@ register(
 　　　　　ＯＯ　　　ＯＯＯＯＯ　　　　　　　　ＯＯＯ　　　　ＯＯ　　　　　　　　　ＯＯＯ　　　ＯＯ　　　　　　　　　　　ＯＯ　　　　ＯＯ　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　Ｏ　　　　　ＯＯＯ　　　　　　　　ＯＯＯ　　　　　ＯＯ　　　　
 　　　ＯＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯ　　　　　ＯＯ　　　　　　　　ＯＯＯＯＯ　ＯＯＯＯ　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　
+    '''
+)
+
+register(
+    name='averaged_dqn',
+    algo_class='AveragedDQN',
+    policy_mode='off-policy',
+    update_mode='perStep',
+    policy_type='single',
+    logo='''
+　　　　　　 　ＯＯ　　　　　　　　　　　　 　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
+　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
+　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　　ＯＯＯＯ　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　　Ｏ　　　　
+　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　　　ＯＯＯＯ　　　　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　Ｏ　　　　
+　　　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　ＯＯＯ　　ＯＯＯ　　　　　　　ＯＯ　　　　　ＯＯＯＯ　　　　　ＯＯＯ　　　　　　ＯＯＯ　　　　　　　　Ｏ　ＯＯＯＯ　　Ｏ　　　　
+　　　　　　ＯＯ　ＯＯＯ　　　　　　　　ＯＯＯＯ　ＯＯＯＯ　　ＯＯＯＯ　　　　　　ＯＯ　　　　　　ＯＯＯ　　　　　ＯＯＯ　　　　　　ＯＯＯ　　　　　　　　Ｏ　　ＯＯＯＯ　Ｏ　　　　
+　　　　　ＯＯ　　ＯＯＯ　　　　　　　　ＯＯＯＯ　ＯＯＯＯ　　ＯＯＯＯ　　　　　　ＯＯ　　　　　　ＯＯＯ　　　　　ＯＯＯ　　　　　　ＯＯＯ　　　　　　　　Ｏ　　ＯＯＯＯＯＯ　　　　
+　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　ＯＯＯ　　ＯＯＯ　　　　　　　ＯＯ　　　　　ＯＯＯＯ　　　　　ＯＯＯ　　　　　　ＯＯＯ　　　　　　　　Ｏ　　　ＯＯＯＯＯ　　　　
+　　　　ＯＯＯ　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　　　ＯＯＯ　　　　　　　ＯＯＯ　　　　　ＯＯＯ　　　　　　　　Ｏ　　　　ＯＯＯＯ　　　　
+　　　　ＯＯ　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　ＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　　Ｏ　　　　　ＯＯＯ　　　　
+　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　　　　ＯＯ　　　　
+　　　ＯＯＯ　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　
+　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯ
     '''
 )
 

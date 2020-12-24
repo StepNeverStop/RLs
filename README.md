@@ -4,7 +4,7 @@
 
 Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_8) Release 8 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_12) Release 12 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ![](./pics/framework.jpg)
 
@@ -137,6 +137,7 @@ For now, these algorithms are available:
 |               DQN               |    √     |            |   √   |  √   |        dqn        |
 |           Double DQN            |    √     |            |   √   |  √   |       ddqn        |
 |       Dueling Double DQN        |    √     |            |   √   |  √   |       dddqn       |
+|          Averaged DQN           |    √     |            |   √   |  √   |    averaged_dqn   |
 |        Bootstrapped DQN         |    √     |            |   √   |  √   |  bootstrappeddqn  |
 |         Soft Q-Learning         |    √     |            |   √   |  √   |        sql        |
 |               C51               |    √     |            |   √   |  √   |        c51        |
@@ -226,8 +227,6 @@ Options:
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
                                 write another information that describe this training task [default: None]
-    --use-wandb                 是否上传数据到W&B
-                                whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
     --no-save                   指定是否在训练中保存模型、日志及训练数据
@@ -257,7 +256,7 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now. group name in training scene should be set like `{agents control nums of this group per environment copy}#{others}`, i.e. `2#Agents` means one group controls two same agents in one environment copy.
+10. MADDPG is only suitable for Unity3D ML-Agents for now. group name in training scene should be set like `{agents control nums of this group per environment copy}#{group_name}`, i.e. `2#3DBallAgents` means one group/team controls two same agents in one environment copy.
 
 ## Ongoing things
 

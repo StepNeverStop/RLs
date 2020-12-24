@@ -15,14 +15,13 @@ train:
     add_noise2buffer_episode_interval: 10 # episode interval when adding noise into replay buffer while training
     add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
     info: None
-    wandb_project: RLs
     # off-policy
     off_policy_train_interval: 1 # train policy every interval times
 
 unity:
     train:
         real_done: true
-        pre_fill_steps: 10000
+        pre_fill_steps: 10000   # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
         file_path: *env
         train_time_scale: 100
@@ -51,10 +50,7 @@ gym:
         off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
         off_policy_step_eval_episodes: 100
     env:
-        # 1. multiprocessing
-        # 2. threading
-        # 3. ray
-        # 4. vector
+        # refer to rls.nn.indexs.py -> GymVectorizedType
         vector_env_type: multiprocessing
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false

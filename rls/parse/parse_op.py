@@ -71,7 +71,6 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     train_args.use_rnn = options.use_rnn
     train_args.algo_config = options.algo_config
     train_args.seed = options.seed
-    train_args.use_wandb = options.use_wandb
     train_args.inference = options.inference
     train_args.prefill_choose = options.prefill_choose
     train_args.load_model_path = options.load
