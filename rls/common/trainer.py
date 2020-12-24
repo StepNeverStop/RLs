@@ -101,15 +101,15 @@ class Trainer:
                 self.buffer_args['batch_size'] = self.algo_args.get('batch_size', 0)
                 self.buffer_args['buffer_size'] = self.algo_args.get('buffer_size', 0)
 
-                _apex_buffer_args = {}
+                _buffer_args = {}
                 if self.algo_args.get('use_priority', False):
                     self.buffer_args['type'] = 'P' + self.buffer_args['type']
-                    _apex_buffer_args.update({'max_train_step': self.train_args['max_train_step']})
+                    _buffer_args.update({'max_train_step': self.train_args['max_train_step']})
                 if self.algo_args.get('n_step', False):
                     self.buffer_args['type'] = 'Nstep' + self.buffer_args['type']
                     self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
-                    _apex_buffer_args.update({'gamma': self.algo_args['gamma']})
-                self.buffer_args[self.buffer_args['type']].update(_apex_buffer_args)
+                    _buffer_args.update({'gamma': self.algo_args['gamma']})
+                self.buffer_args[self.buffer_args['type']].update(_buffer_args)
         else:
             self.buffer_args['type'] = 'None'
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.

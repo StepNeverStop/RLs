@@ -89,6 +89,7 @@ class Off_Policy(Policy):
         return self._data_process2dict(data, data_name_list)
 
     def _data_process2dict(self, data, data_name_list):
+        assert isinstance(data, list), 'assert isinstance(data, list)'
         if not self.is_continuous and 'a' in data_name_list:
             a_idx = data_name_list.index('a')
             data[a_idx] = int2one_hot(data[a_idx].astype(np.int32), self.a_dim)
