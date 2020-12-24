@@ -73,7 +73,7 @@ def unity_train(env, model,
             action = model.choose_action(s=s, visual_s=visual_s)
             ret = env.step({env.first_gn: action})[env.first_gn]
 
-            model.no_op_store(
+            model.store_data(
                 s=s,
                 visual_s=visual_s,
                 a=action,
