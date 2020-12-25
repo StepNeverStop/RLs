@@ -121,7 +121,8 @@ class gym_envs(object):
             self._is_continuous = False
             self.a_dim = env.action_space.n
             discrete_action_dim_list = [env.action_space.n]
-        self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
+        if not self._is_continuous:
+            self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
         self.EnvSpec = SingleAgentEnvArgs(
