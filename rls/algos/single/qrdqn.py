@@ -38,7 +38,6 @@ class QRDQN(Off_Policy):
         self.nums = nums
         self.huber_delta = huber_delta
         self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums])  # [1, N]
-        self.batch_quantiles = tf.tile(self.quantiles, [self.a_dim, 1])  # [1, N] => [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -77,8 +76,8 @@ class QRDQN(Off_Policy):
     @tf.function
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_dist_net(s, visual_s, cell_state=cell_state)
-            q = tf.reduce_sum(self.batch_quantiles * q_values, axis=-1)  # [B, A, N] => [B, A]
+            q_values, cell_state = self.q_dist_net(s, visual_s, cell_state=cell_state) 
+            q = tf.reduce_mean(q_values, axis=-1)  # [B, A, N] => [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
     def _target_params_update(self):
@@ -102,20 +101,22 @@ class QRDQN(Off_Policy):
                 indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist, _ = self.q_dist_net(s, visual_s, cell_state=cell_state)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
+
                 target_q_dist, _ = self.q_target_dist_net(s_, visual_s_, cell_state=cell_state)  # [B, A, N]
-                target_q = tf.reduce_sum(self.batch_quantiles * target_q_dist, axis=-1)  # [B, A, N] => [B, A]
+                target_q = tf.reduce_mean(target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
                 target = tf.tile(r, tf.constant([1, self.nums])) \
-                    + self.gamma * tf.multiply(self.quantiles,   # [1, N]
-                                               (1.0 - tf.tile(done, tf.constant([1, self.nums]))))  # [B, N], [1, N]* [B, N] = [B, N]
-                q_eval = tf.reduce_sum(q_dist * self.quantiles, axis=-1)    # [B, 1]
-                q_target = tf.reduce_sum(target * self.quantiles, axis=-1)  # [B, 1]
-                td_error = q_eval - q_target    # [B, 1]
+                    + self.gamma * tf.multiply(target_q_dist,   # [1, N]
+                                               (1.0 - tf.tile(done, tf.constant([1, self.nums]))))  # [B, N], [B, N]* [B, N] = [B, N]
 
-                quantile_error = tf.expand_dims(q_dist, axis=-1) - tf.expand_dims(target, axis=1)  # [B, N, 1] - [B, 1, N] => [B, N, N]
+                q_eval = tf.reduce_mean(q_dist, axis=-1)    # [B, 1]
+                q_target = tf.reduce_mean(target, axis=-1)  # [B, 1]
+                td_error = q_target - q_eval     # [B, 1], used for PER
+
+                quantile_error = tf.expand_dims(target, axis=1) - tf.expand_dims(q_dist, axis=-1)   # [B, 1, N] - [B, N, 1] => [B, N, N]
                 huber = huber_loss(quantile_error, delta=self.huber_delta)  # [B, N, N]
-                huber_abs = tf.abs(self.quantiles - tf.where(quantile_error < 0, tf.ones_like(quantile_error), tf.zeros_like(quantile_error)))   # [1, N] - [B, N, N] => [B, N, N]
+                huber_abs = tf.abs(self.quantiles - tf.where(quantile_error < 0, 1., 0.))   # [1, N] - [B, N, N] => [B, N, N]
                 loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]
                 loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
                 loss = tf.reduce_mean(loss * isw)  # [B, ] => 1

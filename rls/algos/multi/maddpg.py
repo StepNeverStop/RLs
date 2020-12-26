@@ -189,7 +189,7 @@ class MADDPG(MultiAgentOffPolicy):
                     q = q_net(s, a)
                     q_target = q_target_net(s_, a_)
                     dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
-                    td_error = q - dc_r
+                    td_error = dc_r - q
                     q_loss = 0.5 * tf.reduce_mean(tf.square(td_error))
 
                     mu = actor_net(s_i)

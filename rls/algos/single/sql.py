@@ -94,7 +94,7 @@ class SQL(Off_Policy):
                 v_next = self.get_v(q_next)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * v_next)
-                td_error = q_eval - q_target
+                td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(

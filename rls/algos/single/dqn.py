@@ -99,7 +99,7 @@ class DQN(Off_Policy):
                 q_next, _ = self.q_target_net(s_, visual_s_, cell_state=cell_state)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
-                td_error = q_eval - q_target
+                td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(
@@ -121,7 +121,7 @@ class DQN(Off_Policy):
             q_next = self.q_target_net(s_, visual_s_, cell_state=cell_state)
             q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
             q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
-            td_error = q_eval - q_target
+            td_error = q_target - q_eval
         return td_error
 
     def apex_learn(self, train_step, data, priorities):

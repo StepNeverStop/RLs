@@ -144,7 +144,7 @@ class DDPG(Off_Policy):
                 q = self.ac_net.value_net(feat, a)
                 q_target = self.ac_target_net.value_net(feat_, action_target)
                 dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
-                td_error = q - dc_r
+                td_error = dc_r - q
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
 
                 q_actor = self.ac_net.value_net(feat, mu)
