@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
+from tensorflow.keras.layers import Dense
 
 from rls.nn.layers import (Noisy,
                            mlp)
@@ -402,12 +403,16 @@ class C51Distributional(M):
         super().__init__()
         self.action_dim = action_dim
         self.atoms = atoms
-        self.net = mlp(network_settings, output_shape=atoms * action_dim, out_activation='softmax')
+        self.net = mlp(network_settings, out_layer=False)
+        self.outputs = []
+        for _ in range(action_dim):
+            self.outputs.append(Dense(atoms, activation='softmax'))
         self(I(shape=vector_dim))
 
     def call(self, x):
-        q_dist = self.net(x)    # [B, A*N]
-        q_dist = tf.reshape(q_dist, [-1, self.action_dim, self.atoms])   # [B, A, N]
+        feat = self.net(x)    # [B, A*N]
+        outputs = [output(feat) for output in self.outputs] # A * [B, N]
+        q_dist = tf.reshape(tf.concat(outputs, axis=-1), [-1, self.action_dim, self.atoms])   # A * [B, N] => [B, A*N] => [B, A, N]
         return q_dist
 
 
