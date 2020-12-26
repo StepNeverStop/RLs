@@ -116,7 +116,7 @@ class AveragedDQN(Off_Policy):
                 q_next /= self.target_k
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=1, keepdims=True))
-                td_error = q_eval - q_target
+                td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(

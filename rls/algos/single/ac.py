@@ -137,7 +137,7 @@ class AC(Off_Policy):
                 q = self.net.value_net(feat, a)
                 ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
                 q_value = tf.stop_gradient(q)
-                td_error = q - (r + self.gamma * (1 - done) * max_q_next)
+                td_error = (r + self.gamma * (1 - done) * max_q_next) - q
                 critic_loss = tf.reduce_mean(tf.square(td_error) * isw)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.net.critic_trainable_variables)

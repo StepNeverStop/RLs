@@ -102,7 +102,7 @@ class BootstrappedDQN(Off_Policy):
                 q_next, _ = self.q_target_net(s_, visual_s_, cell_state=cell_state)   # [H, B, A]
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
-                td_error = q_eval - q_target    # [H, B, 1]
+                td_error = q_target - q_eval    # [H, B, 1]
                 td_error = tf.reduce_sum(td_error, axis=-1)  # [H, B]
 
                 mask_dist = tfp.distributions.Bernoulli(probs=self._probs)
