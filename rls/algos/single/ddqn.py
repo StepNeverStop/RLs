@@ -63,7 +63,7 @@ class DDQN(DQN):
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * q_target_next_max)
-                td_error = q_eval - q_target
+                td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(

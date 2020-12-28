@@ -152,7 +152,7 @@ class IQN(Off_Policy):
                 target_quantiles_value = tf.reduce_sum(target_quantiles_value * _next_max_action, axis=-1, keepdims=True)   # [N', B, A] => [N', B, 1]
                 target_q = tf.reduce_sum(target_q * a, axis=-1, keepdims=True)  # [B, A] => [B, 1]
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * target_q)   # [B, 1]
-                td_error = q_eval - q_target    # [B, 1]
+                td_error = q_target - q_eval    # [B, 1]
 
                 _r = tf.reshape(tf.tile(r, [self.target_quantiles, 1]), [self.target_quantiles, -1, 1])  # [B, 1] => [N'*B, 1] => [N', B, 1]
                 _done = tf.reshape(tf.tile(done, [self.target_quantiles, 1]), [self.target_quantiles, -1, 1])    # [B, 1] => [N'*B, 1] => [N', B, 1]

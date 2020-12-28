@@ -8,60 +8,51 @@ from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def make_env(env_args: Dict):
+def make_env(env_kargs: Dict):
     logger.info('Initialize environment begin...')
-    if env_args['type'] == 'gym':
-        env = make_gym_env(env_args)
-    elif env_args['type'] == 'unity':
-        env = make_unity_env(env_args)
+    if env_kargs['type'] == 'gym':
+        env = make_gym_env(env_kargs)
+    elif env_kargs['type'] == 'unity':
+        env = make_unity_env(env_kargs)
     else:
         raise Exception('Unknown environment type.')
     logger.info('Initialize environment successful.')
     return env
 
 
-def make_gym_env(env_args: Dict):
-    from rls.envs.gym_wrapper import gym_envs
+def make_gym_env(env_kargs: Dict):
+    from rls.envs.gym_env import gym_envs
 
-    env_kargs = deepcopy(env_args)
-    env = gym_envs(env_kargs)
+    copied_env_kargs = deepcopy(env_kargs)
+    env = gym_envs(copied_env_kargs)
     return env
 
 
-def make_unity_env(env_args: Dict):
-    from rls.envs.unity_wrapper import (UnityWrapper,
-                                        InfoWrapper,
-                                        UnityReturnWrapper,
+def make_unity_env(env_kargs: Dict):
+    from rls.envs.unity_wrapper import (BasicUnityEnvironment,
                                         GrayVisualWrapper,
                                         ResizeVisualWrapper,
                                         ScaleVisualWrapper,
-                                        ActionWrapper,
+                                        BasicActionWrapper,
                                         StackVisualWrapper)
 
-    env_kargs = deepcopy(env_args)
-    env = UnityWrapper(env_kargs)
-    logger.debug('Unity UnityWrapper success.')
+    copied_env_kargs = deepcopy(env_kargs)
+    env = BasicUnityEnvironment(copied_env_kargs)
+    logger.debug('Unity BasicUnityEnvironment success.')
 
-    env = InfoWrapper(env, env_args)
-    logger.debug('Unity InfoWrapper success.')
-
-    if env_kargs['obs_grayscale']:
+    if copied_env_kargs['obs_grayscale']:
         env = GrayVisualWrapper(env)
 
-    if env_kargs['obs_resize']:
-        env = ResizeVisualWrapper(env, resize=env_kargs['resize'])
+    if copied_env_kargs['obs_resize']:
+        env = ResizeVisualWrapper(env, resize=copied_env_kargs['resize'])
 
-    if env_kargs['obs_scale']:
+    if copied_env_kargs['obs_scale']:
         env = ScaleVisualWrapper(env)
 
-    env = UnityReturnWrapper(env)
+    if copied_env_kargs['obs_stack']:
+        env = StackVisualWrapper(env, stack_nums=env_kargs['stack_visual_nums'])
 
-    if env_kargs['obs_stack']:
-        env = StackVisualWrapper(env, stack_nums=env_args['stack_visual_nums'])
-
-    env = ActionWrapper(env)
-    logger.debug('Unity ActionWrapper success.')
-
-    env.initialize()
+    env = BasicActionWrapper(env)
+    logger.debug('Unity BasicActionWrapper success.')
 
     return env

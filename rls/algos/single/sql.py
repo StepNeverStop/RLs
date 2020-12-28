@@ -13,7 +13,8 @@ from rls.utils.indexs import OutputNetworkType
 
 class SQL(Off_Policy):
     '''
-        Soft Q-Learning.
+        Soft Q-Learning. ref: https://github.com/Bigpig4396/PyTorch-Soft-Q-Learning/blob/master/SoftQ.py
+        NOTE: not the original of the paper, NO SVGD.
         Reinforcement Learning with Deep Energy-Based Policies: https://arxiv.org/abs/1702.08165
     '''
 
@@ -60,8 +61,8 @@ class SQL(Off_Policy):
     def _get_action(self, s, visual_s, cell_state):
         with tf.device(self.device):
             q_values, cell_state = self.q_net(s, visual_s, cell_state=cell_state)
-            # NOTE: check whether this is correct or not
             logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
+            logits /= tf.reduce_sum(logits)
             cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
             pi = cate_dist.sample()
         return pi, cell_state
@@ -93,7 +94,7 @@ class SQL(Off_Policy):
                 v_next = self.get_v(q_next)
                 q_eval = tf.reduce_sum(tf.multiply(q, a), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(r + self.gamma * (1 - done) * v_next)
-                td_error = q_eval - q_target
+                td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)
             self.optimizer.apply_gradients(
