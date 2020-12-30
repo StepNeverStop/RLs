@@ -28,13 +28,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         env_args.add_dict(default_config['unity']['env'])
         env_args.port = options.port
         env_args.env_seed = options.unity_env_seed
-
-        if options.inference:
-            env_args.train_mode = False
-            env_args.render = True
-        else:
-            env_args.train_mode = True
-            env_args.render = options.graphic
+        env_args.render = options.graphic or options.inference
 
         if options.unity:
             env_args.file_path = None
