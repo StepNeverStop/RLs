@@ -66,7 +66,7 @@ class BasicUnityEnvironment(object):
         engine_configuration_channel.set_configuration_parameters(width=kwargs['width'],
                                                                   height=kwargs['height'],
                                                                   quality_level=kwargs['quality_level'],
-                                                                  time_scale=kwargs['inference_time_scale'],
+                                                                  time_scale=1 if bool(kwargs.get('inference', False)) else kwargs['time_scale'],
                                                                   target_frame_rate=kwargs['target_frame_rate'],
                                                                   capture_frame_rate=kwargs['capture_frame_rate'])
         float_properties_channel = EnvironmentParametersChannel()
