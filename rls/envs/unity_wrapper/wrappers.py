@@ -53,7 +53,6 @@ class BasicUnityEnvironment(object):
                               additional_args=[
                 '--scene', str(unity_env_dict.get(kwargs.get('env_name', 'Roller'), 'None')),
                 '--n_agents', str(kwargs.get('env_num', 1))
-                #  '--scene', "Antisubmarine",
             ])
         self.env = UnityEnvironment(**env_kwargs)
         self.env.reset()
@@ -64,18 +63,15 @@ class BasicUnityEnvironment(object):
         初始化所有的通讯频道
         '''
         engine_configuration_channel = EngineConfigurationChannel()
-        if kwargs['train_mode']:
-            engine_configuration_channel.set_configuration_parameters(time_scale=kwargs['train_time_scale'])
-        else:
-            engine_configuration_channel.set_configuration_parameters(width=kwargs['width'],
-                                                                      height=kwargs['height'],
-                                                                      quality_level=kwargs['quality_level'],
-                                                                      time_scale=kwargs['inference_time_scale'],
-                                                                      target_frame_rate=kwargs['target_frame_rate'])
+        engine_configuration_channel.set_configuration_parameters(width=kwargs['width'],
+                                                                  height=kwargs['height'],
+                                                                  quality_level=kwargs['quality_level'],
+                                                                  time_scale=kwargs['inference_time_scale'],
+                                                                  target_frame_rate=kwargs['target_frame_rate'],
+                                                                  capture_frame_rate=kwargs['capture_frame_rate'])
         float_properties_channel = EnvironmentParametersChannel()
         return dict(engine_configuration_channel=engine_configuration_channel,
-                    float_properties_channel=float_properties_channel
-                    )
+                    float_properties_channel=float_properties_channel)
 
     def reset(self, **kwargs):
         # 如果注册了float_properties_channel，就使用其动态调整每个episode的环境参数

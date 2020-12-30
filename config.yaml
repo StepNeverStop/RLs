@@ -24,12 +24,13 @@ unity:
         pre_fill_steps: 10000   # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
         file_path: *env
-        train_time_scale: 100
-        width: 1028
-        height: 720
+        width: 84
+        height: 84
         quality_level: 5
-        inference_time_scale: 0
-        target_frame_rate: 60
+        train_time_scale: 20
+        inference_time_scale: 1
+        target_frame_rate: -1
+        capture_frame_rate: 60
 
         obs_resize: false
         resize: [84, 84]
