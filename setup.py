@@ -50,8 +50,8 @@ extras = {
 }
 
 all_deps = []
-for group_name in extras:
-    all_deps += extras[group_name]
+for name in extras:
+    all_deps += extras[name]
 
 if platform.system() == "Windows":
     extras['windows'] = systembased_extras['windows']

@@ -246,7 +246,7 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 
 1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&log&model`
+3. record directory format is `RLData/Environment/Algorithm/Behavior name(for ml-agents)/Training name/config&log&model`
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
@@ -256,7 +256,7 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now. group name in training scene should be set like `{agents control nums of this group per environment copy}#{group_name}`, i.e. `2#3DBallAgents` means one group/team controls two same agents in one environment copy.
+10. MADDPG is only suitable for Unity3D ML-Agents for now. behavior name in training scene should be set like `{agents control nums of this group per environment copy}#{bahevior_name}`, i.e. `2#3DBallAgents` means one group/team controls two same agents in one environment copy.
 
 ## Ongoing things
 

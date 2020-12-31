@@ -7,7 +7,7 @@ from typing import (List,
                     Callable)
 
 
-def multi_agents_data_preprocess(copy_nums: int, group_controls: List) -> Callable[..., List]:
+def multi_agents_data_preprocess(copy_nums: int, behavior_controls: List) -> Callable[..., List]:
     '''
     处理多个环境副本下的多智能体训练数据, 将数据格式从
     [组1:[组1控制的智能体数量, 组1的维度], 组2:[组2控制的智能体数量, 组2的维度], ...]
@@ -20,7 +20,7 @@ def multi_agents_data_preprocess(copy_nums: int, group_controls: List) -> Callab
     def data_change_func(data):
         # Copys: Batch
         # [Brains, Agents, Dims] => [Brains, Copys, Agents_perCopy_perBrain, Dims]
-        data = [np.asarray(x).reshape(copy_nums, group_controls[i], -1) for i, x in enumerate(data)]
+        data = [np.asarray(x).reshape(copy_nums, behavior_controls[i], -1) for i, x in enumerate(data)]
         # [Brains, Copys, Agents_perCopy_perBrain, Dims] => [Agents_perCopy_perBrain * Brains, Copys, Dims]: [Agents_perCopy, Copys, Dims]
         l = []
         for d in data:  # brains
@@ -31,7 +31,7 @@ def multi_agents_data_preprocess(copy_nums: int, group_controls: List) -> Callab
     return data_change_func
 
 
-def multi_agents_action_reshape(copy_nums: int, group_controls: List) -> Callable[..., List]:
+def multi_agents_action_reshape(copy_nums: int, behavior_controls: List) -> Callable[..., List]:
 
     def action_reshape_func(actions):
         '''
@@ -40,10 +40,10 @@ def multi_agents_action_reshape(copy_nums: int, group_controls: List) -> Callabl
 
         l = []
         start = 0
-        for i in group_controls:
+        for i in behavior_controls:
             l.append(actions[start:start + i])
             start += i
         # l: [Brains, Agents_perCopy_perBrain, Copys, Dims] => [Brains, Agents, Dims]
-        return [np.asarray(x).reshape(group_controls[i] * copy_nums, -1) for i, x in enumerate(l)]
+        return [np.asarray(x).reshape(behavior_controls[i] * copy_nums, -1) for i, x in enumerate(l)]
 
     return action_reshape_func

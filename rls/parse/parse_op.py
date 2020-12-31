@@ -31,13 +31,13 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         env_args.render = options.graphic or options.inference
 
         if options.unity:
-            env_args.file_path = None
+            env_args.file_name = None
             env_args.env_name = 'unity'
         else:
-            env_args.update({'file_path': options.env})
-            if os.path.exists(env_args.file_path):
+            env_args.update({'file_name': options.env})
+            if os.path.exists(env_args.file_name):
                 env_args.env_name = options.unity_env or os.path.join(
-                    *os.path.split(env_args.file_path)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
+                    *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
                 )
                 if 'visual' in env_args.env_name.lower():
                     # if traing with visual input but do not render the environment, all 0 obs will be passed.

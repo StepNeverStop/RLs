@@ -23,7 +23,10 @@ unity:
         real_done: true
         pre_fill_steps: 10000   # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
-        file_path: *env
+        file_name: *env
+        worker_id: 0
+        timeout_wait: 60
+
         width: 84
         height: 84
         quality_level: 5

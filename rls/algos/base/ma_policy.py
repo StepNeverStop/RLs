@@ -22,12 +22,12 @@ from rls.utils.indexs import MultiAgentEnvArgs
 class MultiAgentPolicy(Base):
     def __init__(self, envspec: MultiAgentEnvArgs, **kwargs):
         super().__init__(**kwargs)
-        self.group_controls = envspec.group_controls
-        self.s_dim = count_repeats(envspec.s_dim, self.group_controls)
-        self.visual_sources = count_repeats(envspec.visual_sources, self.group_controls)    # not use yet
+        self.behavior_controls = envspec.behavior_controls
+        self.s_dim = count_repeats(envspec.s_dim, self.behavior_controls)
+        self.visual_sources = count_repeats(envspec.visual_sources, self.behavior_controls)    # not use yet
         # self.visual_resolutions = envspec.visual_resolutions
-        self.a_dim = count_repeats(envspec.a_dim, self.group_controls)
-        self.is_continuous = count_repeats(envspec.is_continuous, self.group_controls)
+        self.a_dim = count_repeats(envspec.a_dim, self.behavior_controls)
+        self.is_continuous = count_repeats(envspec.is_continuous, self.behavior_controls)
         self.n_agents = envspec.n_agents
         if not self.n_agents:
             raise ValueError('agents num is None.')
@@ -39,7 +39,7 @@ class MultiAgentPolicy(Base):
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
-        self.agent_sep_ctls = sum(self.group_controls)
+        self.agent_sep_ctls = sum(self.behavior_controls)
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.agent_sep_ctls)]
 
     def init_lr(self, lr: float) -> Callable:

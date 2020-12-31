@@ -43,11 +43,13 @@ class BasicUnityEnvironment(object):
         self._side_channels = self.initialize_all_side_channels(kwargs)
 
         env_kwargs = dict(seed=int(kwargs['env_seed']),
+                          worker_id=int(kwargs['worker_id']),
+                          timeout_wait=int(kwargs['timeout_wait']),
                           side_channels=list(self._side_channels.values())    # 注册所有初始化后的通讯频道
                           )
-        if kwargs['file_path'] is not None:
+        if kwargs['file_name'] is not None:
             unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
-            env_kwargs.update(file_name=kwargs['file_path'],
+            env_kwargs.update(file_name=kwargs['file_name'],
                               base_port=kwargs['port'],
                               no_graphics=not kwargs['render'],
                               additional_args=[
@@ -97,15 +99,15 @@ class BasicUnityEnvironment(object):
         初始化环境，获取必要的信息，如状态、动作维度等等
         '''
 
-        # 获取所有group在Unity的名称
-        self.group_names = list(self.env.behavior_specs.keys())
-        self.first_gn = first_gn = self.group_names[0]
-        # NOTE: 为了根据group名称建立文件夹，需要替换名称中的问号符号 TODO: 优化
-        self.fixed_group_names = list(map(lambda x: x.replace('?', '_'), self.group_names))
-        self.first_fgn = self.fixed_group_names[0]
+        # 获取所有behavior在Unity的名称
+        self.behavior_names = list(self.env.behavior_specs.keys())
+        self.first_bn = first_bn = self.behavior_names[0]
+        # NOTE: 为了根据behavior名称建立文件夹，需要替换名称中的问号符号 TODO: 优化
+        self.fixed_behavior_names = list(map(lambda x: x.replace('?', '_'), self.behavior_names))
+        self.first_fbn = self.fixed_behavior_names[0]
 
-        self.group_num = len(self.group_names)
-        self.is_multi_agents = self.group_num > 1
+        self.behavior_num = len(self.behavior_names)
+        self.is_multi_agents = self.behavior_num > 1
 
         self.vector_idxs = {}
         self.vector_dims = {}
@@ -120,48 +122,48 @@ class BasicUnityEnvironment(object):
         self.discrete_branchess = {}
         self.discrete_sizes = {}
 
-        for gn, spec in self.env.behavior_specs.items():
+        for bn, spec in self.env.behavior_specs.items():
             # 向量输入
-            self.vector_idxs[gn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 1]
-            self.vector_dims[gn] = [g[0] for g in spec.observation_shapes if len(g) == 1]
-            self.s_dim[gn] = sum(self.vector_dims[gn])
+            self.vector_idxs[bn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 1]
+            self.vector_dims[bn] = [g[0] for g in spec.observation_shapes if len(g) == 1]
+            self.s_dim[bn] = sum(self.vector_dims[bn])
             # 图像输入
-            self.visual_idxs[gn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 3]
-            self.visual_sources[gn] = len(self.visual_idxs[gn])
+            self.visual_idxs[bn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 3]
+            self.visual_sources[bn] = len(self.visual_idxs[bn])
             for g in spec.observation_shapes:
                 if len(g) == 3:
-                    self.visual_resolutions[gn] = list(g)
+                    self.visual_resolutions[bn] = list(g)
                     break
             else:
-                self.visual_resolutions[gn] = []
+                self.visual_resolutions[bn] = []
             # 动作
             # 连续
-            self.continuous_sizes[gn] = spec.action_spec.continuous_size
+            self.continuous_sizes[bn] = spec.action_spec.continuous_size
             # 离散
-            self.discrete_branchess[gn] = spec.action_spec.discrete_branches
-            self.discrete_sizes[gn] = len(self.discrete_branchess[gn])
+            self.discrete_branchess[bn] = spec.action_spec.discrete_branches
+            self.discrete_sizes[bn] = len(self.discrete_branchess[bn])
 
-            if self.continuous_sizes[gn] > 0 and self.discrete_sizes[gn] > 0:
-                raise UnImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
-            elif self.continuous_sizes[gn] > 0:
-                self.a_dim[gn] = int(np.asarray(self.continuous_sizes[gn]).prod())
-                self.discrete_action_lists[gn] = None
-                self.is_continuous[gn] = True
+            if self.continuous_sizes[bn] > 0 and self.discrete_sizes[bn] > 0:
+                raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
+            elif self.continuous_sizes[bn] > 0:
+                self.a_dim[bn] = int(np.asarray(self.continuous_sizes[bn]).prod())
+                self.discrete_action_lists[bn] = None
+                self.is_continuous[bn] = True
             else:
-                self.a_dim[gn] = int(np.asarray(self.discrete_branchess[gn]).prod())
-                self.discrete_action_lists[gn] = get_discrete_action_list(self.discrete_branchess[gn])
-                self.is_continuous[gn] = False
+                self.a_dim[bn] = int(np.asarray(self.discrete_branchess[bn]).prod())
+                self.discrete_action_lists[bn] = get_discrete_action_list(self.discrete_branchess[bn])
+                self.is_continuous[bn] = False
 
-        self.group_agents, self.group_ids = self._get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
+        self.behavior_agents, self.behavior_ids = self._get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
         self.predesigned_actiontuples = {}
-        for gn in self.group_names:
-            self.predesigned_actiontuples[gn] = self.env.behavior_specs[gn].action_spec.random_action(n_agents=self.group_agents[gn])
+        for bn in self.behavior_names:
+            self.predesigned_actiontuples[bn] = self.env.behavior_specs[bn].action_spec.random_action(n_agents=self.behavior_agents[bn])
 
         if self.is_multi_agents:
-            self.group_controls = {}
-            for gn in self.group_names:
-                self.group_controls[gn] = int(gn.split('#')[0])
-            self.env_copys = self.group_agents[first_gn] // self.group_controls[first_gn]
+            self.behavior_controls = {}
+            for bn in self.behavior_names:
+                self.behavior_controls[bn] = int(bn.split('#')[0])
+            self.env_copys = self.behavior_agents[first_bn] // self.behavior_controls[first_bn]
 
     @property
     def EnvSpec(self):
@@ -172,50 +174,50 @@ class BasicUnityEnvironment(object):
                 visual_sources=self.visual_sources.values(),
                 visual_resolutions=self.visual_resolutions.values(),
                 is_continuous=self.is_continuous.values(),
-                n_agents=self.group_agents.values(),
-                group_controls=self.group_controls.values()
+                n_agents=self.behavior_agents.values(),
+                behavior_controls=self.behavior_controls.values()
             )
         else:
             return SingleAgentEnvArgs(
-                s_dim=self.s_dim[self.first_gn],
-                a_dim=self.a_dim[self.first_gn],
-                visual_sources=self.visual_sources[self.first_gn],
-                visual_resolutions=self.visual_resolutions[self.first_gn],
-                is_continuous=self.is_continuous[self.first_gn],
-                n_agents=self.group_agents[self.first_gn]
+                s_dim=self.s_dim[self.first_bn],
+                a_dim=self.a_dim[self.first_bn],
+                visual_sources=self.visual_sources[self.first_bn],
+                visual_resolutions=self.visual_resolutions[self.first_bn],
+                is_continuous=self.is_continuous[self.first_bn],
+                n_agents=self.behavior_agents[self.first_bn]
             )
 
     def _get_real_agent_numbers_and_ids(self):
         '''获取环境中真实的智能体数量和对应的id'''
         self.env.reset()
-        group_agents = defaultdict(int)
-        group_ids = defaultdict(lambda: np.empty(0))
+        behavior_agents = defaultdict(int)
+        behavior_ids = defaultdict(lambda: np.empty(0))
         # 10 step
         for _ in range(10):
-            for gn in self.group_names:
-                d, t = self.env.get_steps(gn)
-                group_agents[gn] = max(group_agents[gn], len(d.agent_id))
+            for bn in self.behavior_names:
+                d, t = self.env.get_steps(bn)
+                behavior_agents[bn] = max(behavior_agents[bn], len(d.agent_id))
                 # TODO: 检查t是否影响
-                if len(d.agent_id) > len(group_ids[gn]):
-                    group_ids[gn] = d.agent_id
-                self.env.set_actions(gn, self.env.behavior_specs[gn].action_spec.random_action(n_agents=len(d)))
+                if len(d.agent_id) > len(behavior_ids[bn]):
+                    behavior_ids[bn] = d.agent_id
+                self.env.set_actions(bn, self.env.behavior_specs[bn].action_spec.random_action(n_agents=len(d)))
             self.env.step()
 
-        for gn in self.group_names:
-            group_ids[gn] = {_id: _idx for _id, _idx in zip(group_ids[gn], range(len(group_ids[gn])))}
+        for bn in self.behavior_names:
+            behavior_ids[bn] = {_id: _idx for _id, _idx in zip(behavior_ids[bn], range(len(behavior_ids[bn])))}
 
         self.env.reset()
 
-        return group_agents, group_ids
+        return behavior_agents, behavior_ids
 
     def get_obs(self):
         '''
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
         rets = {}
-        for gn in self.group_names:
-            vector, visual, reward, done, corrected_vector, corrected_visual, info = self.coordinate_information(gn)
-            rets[gn] = UnitySingleAgentReturn(
+        for bn in self.behavior_names:
+            vector, visual, reward, done, corrected_vector, corrected_visual, info = self.coordinate_information(bn)
+            rets[bn] = UnitySingleAgentReturn(
                 vector=vector,
                 visual=visual,
                 reward=reward,
@@ -226,14 +228,14 @@ class BasicUnityEnvironment(object):
             )
         return rets
 
-    def coordinate_information(self, gn):
+    def coordinate_information(self, bn):
         '''
         TODO: Annotation
         '''
-        n = self.group_agents[gn]
-        ids = self.group_ids[gn]
+        n = self.behavior_agents[bn]
+        ids = self.behavior_ids[bn]
         ps = []
-        d, t = self.env.get_steps(gn)
+        d, t = self.env.get_steps(bn)
         if len(t):
             ps.append(t)
 
@@ -243,7 +245,7 @@ class BasicUnityEnvironment(object):
         # some of environments done, but some of not
         while len(d) != n:
             self.env.step()
-            d, t = self.env.get_steps(gn)
+            d, t = self.env.get_steps(bn)
             if len(t):
                 ps.append(t)
 
@@ -262,12 +264,12 @@ class BasicUnityEnvironment(object):
             for _obs, _tobs in zip(obs, t.obs):
                 _obs[_ids] = _tobs
 
-        return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[gn]]),
-                self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[gn]]),
+        return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[bn]]),
+                self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[bn]]),
                 np.asarray(reward),
                 np.asarray(done),
-                self.deal_vector(n, [corrected_obs[vi] for vi in self.vector_idxs[gn]]),
-                self.deal_visual(n, [corrected_obs[vi] for vi in self.visual_idxs[gn]]),
+                self.deal_vector(n, [corrected_obs[vi] for vi in self.vector_idxs[bn]]),
+                self.deal_visual(n, [corrected_obs[vi] for vi in self.visual_idxs[bn]]),
                 info)
 
     def deal_vector(self, n, vecs):
@@ -300,11 +302,11 @@ class BasicUnityEnvironment(object):
         discrete: [0-max, 0-max, ...] i.e. action dim = [2, 3] => action range from [0, 0] to [1, 2].
         '''
         actions = {}
-        for gn in self.group_names:
-            if self.is_continuous[gn]:
-                actions[gn] = np.random.random((self.group_agents[gn], self.a_dim[gn])) * 2 - 1  # [-1, 1]
+        for bn in self.behavior_names:
+            if self.is_continuous[bn]:
+                actions[bn] = np.random.random((self.behavior_agents[bn], self.a_dim[bn])) * 2 - 1  # [-1, 1]
             else:
-                actions[gn] = np.random.randint(self.a_dim[gn], size=(self.group_agents[gn],), dtype=np.int32)
+                actions[bn] = np.random.randint(self.a_dim[bn], size=(self.behavior_agents[bn],), dtype=np.int32)
         return actions
 
     def __getattr__(self, name):
@@ -321,18 +323,18 @@ class GrayVisualWrapper(ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
         # TODO: 有待优化
-        for gn in self.group_names:
-            v = self.visual_resolutions[gn]
+        for bn in self.behavior_names:
+            v = self.visual_resolutions[bn]
             if v:
                 if v[-1] > 3:
                     raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
-                self.visual_resolutions[gn][-1] = 1
+                self.visual_resolutions[bn][-1] = 1
 
     def observation(self, observation):
 
-        for gn in self.group_names:
-            observation[gn].visual = self.func(observation[gn].visual)
-            observation[gn].corrected_visual = self.func(observation[gn].corrected_visual)
+        for bn in self.behavior_names:
+            observation[bn].visual = self.func(observation[bn].visual)
+            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
 
         return observation
 
@@ -352,15 +354,15 @@ class ResizeVisualWrapper(ObservationWrapper):
     def __init__(self, env, resize=[84, 84]):
         super().__init__(env)
         self.resize = resize
-        for gn in self.group_names:
-            if self.visual_resolutions[gn]:
-                self.visual_resolutions[gn][0], self.visual_resolutions[gn][1] = resize[0], resize[1]
+        for bn in self.behavior_names:
+            if self.visual_resolutions[bn]:
+                self.visual_resolutions[bn][0], self.visual_resolutions[bn][1] = resize[0], resize[1]
 
     def observation(self, observation):
 
-        for gn in self.group_names:
-            observation[gn].visual = self.func(observation[gn].visual)
-            observation[gn].corrected_visual = self.func(observation[gn].corrected_visual)
+        for bn in self.behavior_names:
+            observation[bn].visual = self.func(observation[bn].visual)
+            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
 
         return observation
 
@@ -379,9 +381,9 @@ class ScaleVisualWrapper(ObservationWrapper):
 
     def observation(self, observation):
 
-        for gn in self.group_names:
-            observation[gn].visual = self.func(observation[gn].visual)
-            observation[gn].corrected_visual = self.func(observation[gn].corrected_visual)
+        for bn in self.behavior_names:
+            observation[bn].visual = self.func(observation[bn].visual)
+            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
 
         return observation
 
@@ -401,8 +403,8 @@ class StackVisualWrapper(BasicWrapper):
     def __init__(self, env, stack_nums=4):
         super().__init__(env)
         self._stack_nums = stack_nums
-        self._stack_deque = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
-        self._stack_deque_corrected = {gn: deque([], maxlen=self._stack_nums) for gn in self.group_names}
+        self._stack_deque = {bn: deque([], maxlen=self._stack_nums) for bn in self.behavior_names}
+        self._stack_deque_corrected = {bn: deque([], maxlen=self._stack_nums) for bn in self.behavior_names}
         for v in self.visual_resolutions:
             if v:
                 if v[-1] > 3:
@@ -411,21 +413,21 @@ class StackVisualWrapper(BasicWrapper):
 
     def reset(self, **kwargs):
         rets = self.env.reset(**kwargs)
-        for gn in self.group_names:
+        for bn in self.behavior_names:
             for _ in range(self._stack_nums):
-                self._stack_deque[gn].append(rets[gn].visual)
-                self._stack_deque_corrected[gn].append(rets[gn].corrected_visual)
-            rets[gn].visual = np.concatenate(self._stack_deque[gn], axis=-1)
-            rets[gn].corrected_visual = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+                self._stack_deque[bn].append(rets[bn].visual)
+                self._stack_deque_corrected[bn].append(rets[bn].corrected_visual)
+            rets[bn].visual = np.concatenate(self._stack_deque[bn], axis=-1)
+            rets[bn].corrected_visual = np.concatenate(self._stack_deque_corrected[bn], axis=-1)
         return rets
 
     def step(self, actions):
         rets = self.env.step(actions)
-        for gn in enumerate(self.group_names):
-            self._stack_deque[gn].append(rets[gn].visual)
-            self._stack_deque_corrected[gn].append(rets[gn].corrected_visual)
-        rets[gn].visual = np.concatenate(self._stack_deque[gn], axis=-1)
-        rets[gn].corrected_visual = np.concatenate(self._stack_deque_corrected[gn], axis=-1)
+        for bn in enumerate(self.behavior_names):
+            self._stack_deque[bn].append(rets[bn].visual)
+            self._stack_deque_corrected[bn].append(rets[bn].corrected_visual)
+        rets[bn].visual = np.concatenate(self._stack_deque[bn], axis=-1)
+        rets[bn].corrected_visual = np.concatenate(self._stack_deque_corrected[bn], axis=-1)
         return rets
 
 
@@ -436,7 +438,7 @@ class BasicActionWrapper(ActionWrapper):
 
     def action(self, actions):
         actions = deepcopy(actions)
-        for gn in self.group_names:
-            if not self.is_continuous[gn]:
-                actions[gn] = self.discrete_action_lists[gn][actions[gn]]
+        for bn in self.behavior_names:
+            if not self.is_continuous[bn]:
+                actions[bn] = self.discrete_action_lists[bn][actions[bn]]
         return actions
