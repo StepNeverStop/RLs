@@ -52,8 +52,7 @@ class BasicUnityEnvironment(object):
                               base_port=kwargs['port'],
                               no_graphics=not kwargs['render'],
                               additional_args=[
-                '--scene', str(unity_env_dict.get(kwargs.get('env_name', '3DBall'), 'None')),
-                '--n_agents', str(kwargs.get('env_num', 1))
+                '--scene', str(unity_env_dict.get(kwargs.get('env_name', '3DBall'), 'None'))
             ])
         self.env = UnityEnvironment(**env_kwargs)
         self.env.reset()

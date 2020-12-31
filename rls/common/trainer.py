@@ -175,6 +175,7 @@ class Trainer:
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir,
         })
+
         self.model = self.MODEL(**self.algo_args)
         self.model.set_buffer(buffer)
         self.model.init_or_restore(self.train_args.load_model_path)
@@ -198,7 +199,7 @@ class Trainer:
         assert self.env.behavior_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
+            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num'] # TODO: 检查这里是否需要根据env_num设置
         buffer = get_buffer(self.buffer_args)
 
         self.algo_args.update({
