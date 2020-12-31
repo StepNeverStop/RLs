@@ -150,7 +150,7 @@ class BasicUnityEnvironment(object):
             else:
                 self.a_dim[gn] = int(np.asarray(self.discrete_branchess[gn]).prod())
                 self.discrete_action_lists[gn] = get_discrete_action_list(self.discrete_branchess[gn])
-                self.is_continuous[gn] = Flase
+                self.is_continuous[gn] = False
 
         self.group_agents, self.group_ids = self._get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
         self.predesigned_actiontuples = {}
