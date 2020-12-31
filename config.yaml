@@ -37,7 +37,7 @@ unity:
         obs_scale: false # change [0, 1] to [0, 255]
 
         initialize_config:
-            env_copys: 3 # if env_copys > 1. then using it, else using the number specified in command line argument `-c`.
+            env_copys: 1 # if env_copys > 1. then using it, else using the number specified in command line argument `-c`.
             change_vector: false
             vector_observation_stack: 1
             change_ray: false
