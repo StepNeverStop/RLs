@@ -162,12 +162,12 @@ class Trainer:
 
     def initialize_unity(self):
         # single agent with unity
-        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fgn)
+        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fbn)
         if self.train_args.load_model_path is not None:
-            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fgn)
+            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fbn)
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.group_agents[self.env.first_gn]
+            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.behavior_agents[self.env.first_bn]
         buffer = get_buffer(self.buffer_args)
 
         self.algo_args.update({
@@ -195,7 +195,7 @@ class Trainer:
 
     def initialize_multi_unity(self):
         # multi agents with unity
-        assert self.env.group_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
+        assert self.env.behavior_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
             self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']

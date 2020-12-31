@@ -12,7 +12,7 @@ SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
                                 ])
 
 MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
-                               SingleAgentEnvArgs._fields + ('group_controls',))
+                               SingleAgentEnvArgs._fields + ('behavior_controls',))
 
 UnitySingleAgentReturn = namedtuple('UnitySingleAgentReturn',
                                     [

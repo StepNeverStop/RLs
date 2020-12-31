@@ -23,7 +23,10 @@ unity:
         real_done: true
         pre_fill_steps: 10000   # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
-        file_path: *env
+        file_name: *env
+        worker_id: 0
+        timeout_wait: 60
+
         width: 84
         height: 84
         quality_level: 5
@@ -31,13 +34,17 @@ unity:
         target_frame_rate: -1
         capture_frame_rate: 60
 
-        obs_resize: false
-        resize: [84, 84]
-        obs_stack: false
-        stack_visual_nums: 4
-        obs_grayscale: false
         obs_scale: false # change [0, 1] to [0, 255]
-        reset_config: {}
+        initialize_config: 
+            change_vector: false
+            vector_observation_stack: 1
+            change_ray: false
+            ray_observation_stack: 1
+            change_image: false
+            image_observation_width: 84
+            image_observation_height: 84
+            image_observation_stack: 1
+            image_observation_grayscale: false
 
 gym:
     train:
