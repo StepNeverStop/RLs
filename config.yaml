@@ -21,7 +21,7 @@ train:
 unity:
     train:
         real_done: true
-        pre_fill_steps: 10000   # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
+        pre_fill_steps: 10000 # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
         file_name: *env
         worker_id: 0
@@ -35,7 +35,9 @@ unity:
         capture_frame_rate: 60
 
         obs_scale: false # change [0, 1] to [0, 255]
-        initialize_config: 
+
+        initialize_config:
+            env_copys: 3 # if env_copys > 1. then using it, else using the number specified in command line argument `-c`.
             change_vector: false
             vector_observation_stack: 1
             change_ray: false
