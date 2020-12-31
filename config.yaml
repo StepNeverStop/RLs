@@ -34,13 +34,17 @@ unity:
         target_frame_rate: -1
         capture_frame_rate: 60
 
-        obs_resize: false
-        resize: [84, 84]
-        obs_stack: false
-        stack_visual_nums: 4
-        obs_grayscale: false
         obs_scale: false # change [0, 1] to [0, 255]
-        reset_config: {}
+        initialize_config: 
+            change_vector: false
+            vector_observation_stack: 1
+            change_ray: false
+            ray_observation_stack: 1
+            change_image: false
+            image_observation_width: 84
+            image_observation_height: 84
+            image_observation_stack: 1
+            image_observation_grayscale: false
 
 gym:
     train:

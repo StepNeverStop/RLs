@@ -52,7 +52,7 @@ def unity_train(env, model,
 
     for episode in range(begin_episode, max_train_episode):
         model.reset()
-        ret = env.reset()[env.first_bn]
+        ret = env.reset(reset_config={})[env.first_bn]
         s = ret.corrected_vector
         visual_s = ret.corrected_visual
         dones_flag = np.zeros(n, dtype=float)
@@ -63,7 +63,7 @@ def unity_train(env, model,
         while True:
             step += 1
             action = model.choose_action(s=s, visual_s=visual_s)
-            ret = env.step({env.first_bn: action})[env.first_bn]
+            ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
 
             model.store_data(
                 s=s,
@@ -139,7 +139,7 @@ def unity_no_op(env, model,
     if pre_fill_steps == 0:
         return
     model.reset()
-    ret = env.reset()[env.first_bn]
+    ret = env.reset(reset_config={})[env.first_bn]
     s = ret.corrected_vector
     visual_s = ret.corrected_visual
 
@@ -148,7 +148,7 @@ def unity_no_op(env, model,
             action = model.choose_action(s=s, visual_s=visual_s)
         else:
             action = env.random_action()[env.first_bn]
-        ret = env.step({env.first_bn: action})[env.first_bn]
+        ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
         model.no_op_store(
             s=s,
             visual_s=visual_s,
@@ -171,13 +171,13 @@ def unity_inference(env, model,
 
     for episode in range(episodes):
         model.reset()
-        ret = env.reset()[env.first_bn]
+        ret = env.reset(reset_config={})[env.first_bn]
         while True:
             action = model.choose_action(s=ret.corrected_vector,
                                          visual_s=ret.corrected_visual,
                                          evaluation=True)
             model.partial_reset(ret.done)
-            ret = env.step({env.first_bn: action})[env.first_bn]
+            ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
 
 
 def ma_unity_no_op(env, model,
@@ -195,7 +195,7 @@ def ma_unity_no_op(env, model,
     model.reset()
 
     # [s(s_brain1(agent1, agent2, ...), s_brain2, ...), visual_s, r, done, info]
-    s, visual_s, _, _, _, _, _ = env.reset()
+    s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
     # [total_agents, batch, dimension]
     s, visual_s = map(data_change_func, [s, visual_s])
 
@@ -207,7 +207,7 @@ def ma_unity_no_op(env, model,
         else:
             actions = env.random_action()
             action = list(actions.values())
-        s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)
+        s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions, step_config={})
         if real_done:
             done = [g['real_done'] for g in info]
 
@@ -259,7 +259,7 @@ def ma_unity_train(env, model,
         rewards = np.zeros((agents_num_per_copy, env.env_copys))
 
         model.reset()
-        s, visual_s, _, _, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
         s, visual_s = map(data_change_func, [s, visual_s])
 
         step = 0
@@ -268,7 +268,7 @@ def ma_unity_train(env, model,
             action = model.choose_action(s=s, visual_s=visual_s)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
-            s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)    # [Brains, Agents, Dims]
+            s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions, step_config={})    # [Brains, Agents, Dims]
             step += 1
 
             if real_done:
@@ -341,9 +341,9 @@ def ma_unity_inference(env, model,
     action_reshape_func = multi_agents_action_reshape(env.env_copys, env.behavior_controls)
     for episode in range(episodes):
         model.reset()
-        s, visual_s, _, _, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
         while True:
             action = model.choose_action(s=s, visual_s=visual_s, evaluation=True)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
-            _, _, _, _, _, s, visual_s_ = env.step(actions)
+            _, _, _, _, _, s, visual_s_ = env.step(actions, step_config={})

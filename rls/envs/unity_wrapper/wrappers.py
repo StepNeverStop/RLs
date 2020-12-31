@@ -39,7 +39,6 @@ from rls.envs.unity_wrapper.core import (BasicWrapper,
 class BasicUnityEnvironment(object):
 
     def __init__(self, kwargs):
-        self.reset_config = kwargs['reset_config']
         self._side_channels = self.initialize_all_side_channels(kwargs)
 
         env_kwargs = dict(seed=int(kwargs['env_seed']),
@@ -53,7 +52,7 @@ class BasicUnityEnvironment(object):
                               base_port=kwargs['port'],
                               no_graphics=not kwargs['render'],
                               additional_args=[
-                '--scene', str(unity_env_dict.get(kwargs.get('env_name', 'Roller'), 'None')),
+                '--scene', str(unity_env_dict.get(kwargs.get('env_name', '3DBall'), 'None')),
                 '--n_agents', str(kwargs.get('env_num', 1))
             ])
         self.env = UnityEnvironment(**env_kwargs)
@@ -72,19 +71,20 @@ class BasicUnityEnvironment(object):
                                                                   target_frame_rate=kwargs['target_frame_rate'],
                                                                   capture_frame_rate=kwargs['capture_frame_rate'])
         float_properties_channel = EnvironmentParametersChannel()
+        for k, v in kwargs.get('initialize_config', {}).items():
+            float_properties_channel.set_float_parameter(k, v)
         return dict(engine_configuration_channel=engine_configuration_channel,
                     float_properties_channel=float_properties_channel)
 
     def reset(self, **kwargs):
-        # 如果注册了float_properties_channel，就使用其动态调整每个episode的环境参数
-        if 'float_properties_channel' in self._side_channels.keys():
-            reset_config = kwargs.get('reset_config', None) or self.reset_config
-            for k, v in reset_config.items():
-                self.float_properties_channel.set_float_parameter(k, v)
+        for k, v in kwargs.get('reset_config', {}).items():
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         self.env.reset()
         return self.get_obs()
 
-    def step(self, actions):
+    def step(self, actions, **kwargs):
+        for k, v in kwargs.get('step_config', {}).items():
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         for k, v in actions.items():
             if self.is_continuous[k]:
                 self.predesigned_actiontuples[k].add_continuous(v)
@@ -196,9 +196,9 @@ class BasicUnityEnvironment(object):
         for _ in range(10):
             for bn in self.behavior_names:
                 d, t = self.env.get_steps(bn)
-                behavior_agents[bn] = max(behavior_agents[bn], len(d.agent_id))
+                behavior_agents[bn] = max(behavior_agents[bn], len(d))
                 # TODO: 检查t是否影响
-                if len(d.agent_id) > len(behavior_ids[bn]):
+                if len(d) > len(behavior_ids[bn]):
                     behavior_ids[bn] = d.agent_id
                 self.env.set_actions(bn, self.env.behavior_specs[bn].action_spec.random_action(n_agents=len(d)))
             self.env.step()
@@ -318,65 +318,6 @@ class BasicUnityEnvironment(object):
         return getattr(self.env, name)
 
 
-class GrayVisualWrapper(ObservationWrapper):
-
-    def __init__(self, env):
-        super().__init__(env)
-        # TODO: 有待优化
-        for bn in self.behavior_names:
-            v = self.visual_resolutions[bn]
-            if v:
-                if v[-1] > 3:
-                    raise Exception('visual observations have been stacked in unity environment and number > 3. You cannot sepecify gray in python.')
-                self.visual_resolutions[bn][-1] = 1
-
-    def observation(self, observation):
-
-        for bn in self.behavior_names:
-            observation[bn].visual = self.func(observation[bn].visual)
-            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
-
-        return observation
-
-    def func(self, vis):
-        '''
-        vis: [智能体数量，摄像机数量，图像剩余维度]
-        '''
-        agents, cameras = vis.shape[:2]
-        for i in range(agents):
-            for j in range(cameras):
-                vis[i, j] = cv2.cvtColor(vis[i, j], cv2.COLOR_RGB2GRAY)
-        return np.asarray(vis)
-
-
-class ResizeVisualWrapper(ObservationWrapper):
-
-    def __init__(self, env, resize=[84, 84]):
-        super().__init__(env)
-        self.resize = resize
-        for bn in self.behavior_names:
-            if self.visual_resolutions[bn]:
-                self.visual_resolutions[bn][0], self.visual_resolutions[bn][1] = resize[0], resize[1]
-
-    def observation(self, observation):
-
-        for bn in self.behavior_names:
-            observation[bn].visual = self.func(observation[bn].visual)
-            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
-
-        return observation
-
-    def func(self, vis):
-        '''
-        vis: [智能体数量，摄像机数量，图像剩余维度]
-        '''
-        agents, cameras = vis.shape[:2]
-        for i in range(agents):
-            for j in range(cameras):
-                vis[i, j] = cv2.resize(vis[i, j], tuple(self.resize), interpolation=cv2.INTER_AREA).reshape(list(self.resize) + [-1])
-        return np.asarray(vis)
-
-
 class ScaleVisualWrapper(ObservationWrapper):
 
     def observation(self, observation):
@@ -396,39 +337,6 @@ class ScaleVisualWrapper(ObservationWrapper):
             for j in range(cameras):
                 vis[i, j] *= 255
         return np.asarray(vis).astype(np.uint8)
-
-
-class StackVisualWrapper(BasicWrapper):
-
-    def __init__(self, env, stack_nums=4):
-        super().__init__(env)
-        self._stack_nums = stack_nums
-        self._stack_deque = {bn: deque([], maxlen=self._stack_nums) for bn in self.behavior_names}
-        self._stack_deque_corrected = {bn: deque([], maxlen=self._stack_nums) for bn in self.behavior_names}
-        for v in self.visual_resolutions:
-            if v:
-                if v[-1] > 3:
-                    raise Exception('visual observations have been stacked in unity environment. You cannot sepecify stack in python.')
-                v[-1] *= stack_nums
-
-    def reset(self, **kwargs):
-        rets = self.env.reset(**kwargs)
-        for bn in self.behavior_names:
-            for _ in range(self._stack_nums):
-                self._stack_deque[bn].append(rets[bn].visual)
-                self._stack_deque_corrected[bn].append(rets[bn].corrected_visual)
-            rets[bn].visual = np.concatenate(self._stack_deque[bn], axis=-1)
-            rets[bn].corrected_visual = np.concatenate(self._stack_deque_corrected[bn], axis=-1)
-        return rets
-
-    def step(self, actions):
-        rets = self.env.step(actions)
-        for bn in enumerate(self.behavior_names):
-            self._stack_deque[bn].append(rets[bn].visual)
-            self._stack_deque_corrected[bn].append(rets[bn].corrected_visual)
-        rets[bn].visual = np.concatenate(self._stack_deque[bn], axis=-1)
-        rets[bn].corrected_visual = np.concatenate(self._stack_deque_corrected[bn], axis=-1)
-        return rets
 
 
 class BasicActionWrapper(ActionWrapper):
