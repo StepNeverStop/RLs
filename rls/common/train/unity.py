@@ -52,7 +52,7 @@ def unity_train(env, model,
 
     for episode in range(begin_episode, max_train_episode):
         model.reset()
-        ret = env.reset(reset_config={})[env.first_bn]
+        ret = env.reset(reset_config={})
         s = ret.corrected_vector
         visual_s = ret.corrected_visual
         dones_flag = np.zeros(n, dtype=float)
@@ -63,7 +63,7 @@ def unity_train(env, model,
         while True:
             step += 1
             action = model.choose_action(s=s, visual_s=visual_s)
-            ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
+            ret = env.step(action, step_config={})
 
             model.store_data(
                 s=s,
@@ -139,7 +139,7 @@ def unity_no_op(env, model,
     if pre_fill_steps == 0:
         return
     model.reset()
-    ret = env.reset(reset_config={})[env.first_bn]
+    ret = env.reset(reset_config={})
     s = ret.corrected_vector
     visual_s = ret.corrected_visual
 
@@ -147,8 +147,8 @@ def unity_no_op(env, model,
         if prefill_choose:
             action = model.choose_action(s=s, visual_s=visual_s)
         else:
-            action = env.random_action()[env.first_bn]
-        ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
+            action = env.random_action()
+        ret = env.step(action, step_config={})
         model.no_op_store(
             s=s,
             visual_s=visual_s,
@@ -171,13 +171,13 @@ def unity_inference(env, model,
 
     for episode in range(episodes):
         model.reset()
-        ret = env.reset(reset_config={})[env.first_bn]
+        ret = env.reset(reset_config={})
         while True:
             action = model.choose_action(s=ret.corrected_vector,
                                          visual_s=ret.corrected_visual,
                                          evaluation=True)
             model.partial_reset(ret.done)
-            ret = env.step({env.first_bn: action}, step_config={})[env.first_bn]
+            ret = env.step(action, step_config={})
 
 
 def ma_unity_no_op(env, model,

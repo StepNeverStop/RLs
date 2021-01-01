@@ -14,6 +14,13 @@ SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
 MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
                                SingleAgentEnvArgs._fields + ('behavior_controls',))
 
+UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
+                                    [
+                                        'behavior_name',
+                                        'n_agents_control',
+                                        'is_continuous'
+                                    ])
+
 UnitySingleAgentReturn = namedtuple('UnitySingleAgentReturn',
                                     [
                                         'vector',

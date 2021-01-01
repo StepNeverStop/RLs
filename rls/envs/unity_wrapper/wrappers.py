@@ -5,34 +5,22 @@ import os
 import numpy as np
 
 from copy import deepcopy
-from collections import (deque,
-                         defaultdict)
+from collections import defaultdict
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
-from mlagents_envs.base_env import (
-    ActionTuple,
-    ActionSpec  # TODO
-)
+from mlagents_envs.base_env import (ActionTuple,
+                                    ActionSpec)  # TODO
 
 from rls.utils.logging_utils import get_logger
-from rls.utils.display import colorize
 logger = get_logger(__name__)
-
-try:
-    import cv2
-    cv2.ocl.setUseOpenCL(False)
-except:
-    logger.warning(colorize('opencv-python is needed to train visual-based model.', color='yellow'))
-    pass
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.indexs import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs,
                               UnitySingleAgentReturn)
-from rls.envs.unity_wrapper.core import (BasicWrapper,
-                                         ObservationWrapper,
+from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
 
@@ -79,90 +67,94 @@ class BasicUnityEnvironment(object):
         for k, v in kwargs.get('reset_config', {}).items():
             self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         self.env.reset()
-        return self.get_obs()
+        obs = self.get_obs()
+        return obs if self.is_multi_agents else obs[self.first_bn]
 
     def step(self, actions, **kwargs):
+        '''
+        params: actions, type of dict or np.ndarray, if the type of actions is
+                not dict, then set those actions for the first behavior controller.
+        '''
         for k, v in kwargs.get('step_config', {}).items():
             self._side_channels['float_properties_channel'].set_float_parameter(k, v)
-        for k, v in actions.items():
-            if self.is_continuous[k]:
-                self.predesigned_actiontuples[k].add_continuous(v)
+
+        actions = deepcopy(actions)
+        if self.is_multi_agents:
+            assert isinstance(actions, dict)
+            for k, v in actions.items():
+                if self.is_continuous[k]:
+                    self.empty_actiontuples[k].add_continuous(v)
+                else:
+                    self.empty_actiontuples[k].add_discrete(self.discrete_action_lists[k][v])
+                self.env.set_actions(k, self.empty_actiontuples[k])
+        else:
+            # TODO:  优化
+            if self.is_continuous[self.first_bn]:
+                self.empty_actiontuples[self.first_bn].add_continuous(actions)
             else:
-                self.predesigned_actiontuples[k].add_discrete(v)
-            self.env.set_actions(k, self.predesigned_actiontuples[k])
+                self.empty_actiontuples[self.first_bn].add_discrete(self.discrete_action_lists[self.first_bn][actions])
+            self.env.set_actions(self.first_bn, self.empty_actiontuples[self.first_bn])
+
         self.env.step()
-        return self.get_obs()
+        obs = self.get_obs()
+        return obs if self.is_multi_agents else obs[self.first_bn]
 
     def initialize_environment(self):
         '''
         初始化环境，获取必要的信息，如状态、动作维度等等
         '''
 
-        # 获取所有behavior在Unity的名称
         self.behavior_names = list(self.env.behavior_specs.keys())
-        self.first_bn = first_bn = self.behavior_names[0]
-        # NOTE: 为了根据behavior名称建立文件夹，需要替换名称中的问号符号 TODO: 优化
-        self.fixed_behavior_names = list(map(lambda x: x.replace('?', '_'), self.behavior_names))
-        self.first_fbn = self.fixed_behavior_names[0]
-
-        self.behavior_num = len(self.behavior_names)
-        self.is_multi_agents = self.behavior_num > 1
-
-        self.vector_idxs = {}
-        self.vector_dims = {}
-        self.visual_idxs = {}
-        self.visual_sources = {}
-        self.visual_resolutions = {}
-        self.s_dim = {}
-        self.a_dim = {}
-        self.discrete_action_lists = {}
-        self.is_continuous = {}
-        self.continuous_sizes = {}
-        self.discrete_branchess = {}
-        self.discrete_sizes = {}
-
-        for bn, spec in self.env.behavior_specs.items():
-            # 向量输入
-            self.vector_idxs[bn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 1]
-            self.vector_dims[bn] = [g[0] for g in spec.observation_shapes if len(g) == 1]
-            self.s_dim[bn] = sum(self.vector_dims[bn])
-            # 图像输入
-            self.visual_idxs[bn] = [i for i, g in enumerate(spec.observation_shapes) if len(g) == 3]
-            self.visual_sources[bn] = len(self.visual_idxs[bn])
-            for g in spec.observation_shapes:
-                if len(g) == 3:
-                    self.visual_resolutions[bn] = list(g)
-                    break
-            else:
-                self.visual_resolutions[bn] = []
-            # 动作
-            # 连续
-            self.continuous_sizes[bn] = spec.action_spec.continuous_size
-            # 离散
-            self.discrete_branchess[bn] = spec.action_spec.discrete_branches
-            self.discrete_sizes[bn] = len(self.discrete_branchess[bn])
-
-            if self.continuous_sizes[bn] > 0 and self.discrete_sizes[bn] > 0:
-                raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
-            elif self.continuous_sizes[bn] > 0:
-                self.a_dim[bn] = int(np.asarray(self.continuous_sizes[bn]).prod())
-                self.discrete_action_lists[bn] = None
-                self.is_continuous[bn] = True
-            else:
-                self.a_dim[bn] = int(np.asarray(self.discrete_branchess[bn]).prod())
-                self.discrete_action_lists[bn] = get_discrete_action_list(self.discrete_branchess[bn])
-                self.is_continuous[bn] = False
+        self.is_multi_agents = len(self.behavior_names) > 1
+        self.first_bn = self.behavior_names[0]
+        self.first_fbn = self.first_bn.replace('?', '_')
 
         self.behavior_agents, self.behavior_ids = self._get_real_agent_numbers_and_ids()  # 得到每个环境控制几个智能体
-        self.predesigned_actiontuples = {}
-        for bn in self.behavior_names:
-            self.predesigned_actiontuples[bn] = self.env.behavior_specs[bn].action_spec.random_action(n_agents=self.behavior_agents[bn])
+
+        self.vector_idxs = defaultdict(list)
+        self.vector_dims = defaultdict(list)
+        self.visual_idxs = defaultdict(list)
+        self.visual_sources = defaultdict(int)
+        self.visual_resolutions = defaultdict(list)
+        self.s_dim = defaultdict(int)
+        self.a_dim = defaultdict(int)
+        self.discrete_action_lists = {}
+        self.is_continuous = {}
+        self.discrete_branchess = {}
+        self.empty_actiontuples = {}
+
+        for bn, spec in self.env.behavior_specs.items():
+            for i, shape in enumerate(spec.observation_shapes):
+                if len(shape) == 1:
+                    self.vector_idxs[bn].append(i)
+                    self.vector_dims[bn].append(shape[0])
+                elif len(shape) == 3:
+                    self.visual_idxs[bn].append(i)
+                    self.visual_resolutions[bn].append(list(shape)) # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
+                else:
+                    raise ValueError("shape of observation cannot be understood.")
+            self.s_dim[bn] = sum(self.vector_dims[bn])
+            self.visual_sources[bn] = len(self.visual_idxs[bn])
+
+            action_spec = spec.action_spec
+            if action_spec.is_continuous:
+                self.a_dim[bn] = action_spec.continuous_size
+                self.discrete_action_lists[bn] = None
+                self.is_continuous[bn] = True
+            elif action_spec.is_discrete:
+                self.a_dim[bn] = int(np.asarray(action_spec.discrete_branches).prod())
+                self.discrete_action_lists[bn] = get_discrete_action_list(action_spec.discrete_branches)
+                self.is_continuous[bn] = False
+            else:
+                raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
+
+            self.empty_actiontuples[bn] = action_spec.empty_action(n_agents=self.behavior_agents[bn])
 
         if self.is_multi_agents:
-            self.behavior_controls = {}
+            self.behavior_controls = defaultdict(int)
             for bn in self.behavior_names:
                 self.behavior_controls[bn] = int(bn.split('#')[0])
-            self.env_copys = self.behavior_agents[first_bn] // self.behavior_controls[first_bn]
+            self.env_copys = self.behavior_agents[self.first_bn] // self.behavior_controls[self.first_bn]
 
     @property
     def EnvSpec(self):
@@ -195,9 +187,9 @@ class BasicUnityEnvironment(object):
         for _ in range(10):
             for bn in self.behavior_names:
                 d, t = self.env.get_steps(bn)
-                behavior_agents[bn] = max(behavior_agents[bn], len(d))
                 # TODO: 检查t是否影响
                 if len(d) > len(behavior_ids[bn]):
+                    behavior_agents[bn] = len(d)
                     behavior_ids[bn] = d.agent_id
                 self.env.set_actions(bn, self.env.behavior_specs[bn].action_spec.random_action(n_agents=len(d)))
             self.env.step()
@@ -336,16 +328,3 @@ class ScaleVisualWrapper(ObservationWrapper):
             for j in range(cameras):
                 vis[i, j] *= 255
         return np.asarray(vis).astype(np.uint8)
-
-
-class BasicActionWrapper(ActionWrapper):
-
-    def __init__(self, env):
-        super().__init__(env)
-
-    def action(self, actions):
-        actions = deepcopy(actions)
-        for bn in self.behavior_names:
-            if not self.is_continuous[bn]:
-                actions[bn] = self.discrete_action_lists[bn][actions[bn]]
-        return actions

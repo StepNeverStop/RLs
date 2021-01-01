@@ -196,7 +196,7 @@ class Trainer:
 
     def initialize_multi_unity(self):
         # multi agents with unity
-        assert self.env.behavior_num > 1, 'if using ma* algorithms, number of brains must larger than 1'
+        assert self.env.is_multi_agents, 'assert self.env.is_multi_agents'
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
             self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num'] # TODO: 检查这里是否需要根据env_num设置
