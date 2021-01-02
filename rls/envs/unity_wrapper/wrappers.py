@@ -299,7 +299,10 @@ class BasicUnityEnvironment(object):
                 actions[bn] = np.random.random((self.behavior_agents[bn], self.a_dim[bn])) * 2 - 1  # [-1, 1]
             else:
                 actions[bn] = np.random.randint(self.a_dim[bn], size=(self.behavior_agents[bn],), dtype=np.int32)
-        return actions
+        if self.is_multi_agents:
+            return actions
+        else:
+            return actions[bn]
 
     def __getattr__(self, name):
         '''
