@@ -9,7 +9,7 @@ from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class BootstrappedDQN(Off_Policy):

@@ -3,7 +3,7 @@
 
 import tensorflow as tf
 
-# from rls.utils.indexs import DefaultActivationFuncType
+# from rls.utils.specs import DefaultActivationFuncType
 
 
 def swish(x):

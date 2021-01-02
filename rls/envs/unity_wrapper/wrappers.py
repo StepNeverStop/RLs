@@ -17,9 +17,10 @@ logger = get_logger(__name__)
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.indexs import (SingleAgentEnvArgs,
+from rls.utils.specs import (SingleAgentEnvArgs,
                               MultiAgentEnvArgs,
-                              UnitySingleAgentReturn)
+                              ModelObservations,
+                              SingleModelInformation)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
@@ -208,13 +209,13 @@ class BasicUnityEnvironment(object):
         rets = {}
         for bn in self.behavior_names:
             vector, visual, reward, done, corrected_vector, corrected_visual, info = self.coordinate_information(bn)
-            rets[bn] = UnitySingleAgentReturn(
-                vector=vector,
-                visual=visual,
+            rets[bn] = SingleModelInformation(
+                corrected_obs=ModelObservations(vector=corrected_vector,
+                                                visual=corrected_visual),
+                obs=ModelObservations(vector=vector,
+                                      visual=visual),
                 reward=reward,
                 done=done,
-                corrected_vector=corrected_vector,
-                corrected_visual=corrected_visual,
                 info=info
             )
         return rets

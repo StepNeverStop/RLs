@@ -12,7 +12,7 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_entropy,
                                  update_target_net_weights)
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class OC(Off_Policy):

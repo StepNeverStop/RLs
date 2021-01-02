@@ -10,7 +10,7 @@ from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ACNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class DDPG(Off_Policy):

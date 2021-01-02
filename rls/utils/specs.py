@@ -1,4 +1,8 @@
+import numpy as np
+
 from enum import Enum
+from typing import (Dict,
+                    NamedTuple)
 from collections import namedtuple
 
 SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
@@ -21,16 +25,32 @@ UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
                                         'is_continuous'
                                     ])
 
-UnitySingleAgentReturn = namedtuple('UnitySingleAgentReturn',
-                                    [
-                                        'vector',
-                                        'visual',
-                                        'reward',
-                                        'done',
-                                        'corrected_vector',
-                                        'corrected_visual',
-                                        'info'
-                                    ])
+class ModelObservations(NamedTuple):
+    '''
+        agent's observation
+    '''
+    vector: np.ndarray
+    visual: np.ndarray
+
+class Experience(NamedTuple):
+    '''
+        format of experience that needed to be stored in replay buffer.
+    '''
+    obs: ModelObservations
+    action: np.ndarray
+    reward: np.ndarray
+    obs_: ModelObservations
+    done: np.ndarray
+
+class SingleModelInformation(NamedTuple):
+    '''
+        format of information received after each environment timestep
+    '''
+    corrected_obs: ModelObservations
+    obs: ModelObservations
+    reward: np.ndarray
+    done: np.ndarray
+    info: Dict
 
 
 class GymVectorizedType(Enum):

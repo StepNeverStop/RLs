@@ -21,10 +21,10 @@ from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.nn.networks import get_visual_network_from_type
 from rls.nn.initializers import initKernelAndBias
-from rls.utils.indexs import VisualNetworkType
+from rls.utils.specs import VisualNetworkType
 from rls.utils.build_networks import (ValueNetwork,
                                       DoubleValueNetwork)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class VisualEncoder(M):

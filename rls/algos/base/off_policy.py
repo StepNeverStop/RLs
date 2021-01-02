@@ -12,7 +12,7 @@ from typing import (Dict,
 
 from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
-from rls.utils.indexs import MemoryNetworkType
+from rls.utils.specs import MemoryNetworkType
 
 
 class Off_Policy(Policy):

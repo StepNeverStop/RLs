@@ -16,7 +16,7 @@ from typing import (List,
 from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.list_utils import count_repeats
-from rls.utils.indexs import MultiAgentEnvArgs
+from rls.utils.specs import MultiAgentEnvArgs
 
 
 class MultiAgentPolicy(Base):

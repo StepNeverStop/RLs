@@ -13,7 +13,7 @@ from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.utils.build_networks import (ValueNetwork,
                                       DoubleValueNetwork)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class SAC(Off_Policy):

@@ -17,7 +17,7 @@ from rls.utils.tf2_utils import (show_graph,
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import (ValueNetwork,
                                       ACNetwork)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class PPO(On_Policy):

@@ -17,7 +17,7 @@ from tensorflow.keras.layers import (Conv2D,
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
 from rls.nn.initializers import initKernelAndBias
-from rls.utils.indexs import (VisualNetworkType,
+from rls.utils.specs import (VisualNetworkType,
                               MemoryNetworkType)
 
 

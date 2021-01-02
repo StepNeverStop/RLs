@@ -9,7 +9,7 @@ from tensorflow.keras.layers import Dense
 
 from rls.nn.layers import (Noisy,
                            mlp)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 def get_output_network_from_type(network_type: OutputNetworkType):

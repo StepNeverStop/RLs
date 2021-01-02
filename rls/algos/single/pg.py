@@ -10,7 +10,7 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class PG(On_Policy):

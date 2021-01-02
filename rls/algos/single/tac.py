@@ -13,7 +13,7 @@ from rls.utils.tf2_utils import (clip_nn_log_std,
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.utils.build_networks import (ValueNetwork,
                                       DoubleValueNetwork)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class TAC(Off_Policy):

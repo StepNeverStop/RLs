@@ -12,6 +12,7 @@ from rls.utils.np_utils import (SMA,
 from rls.utils.mlagents_utils import (multi_agents_data_preprocess,
                                       multi_agents_action_reshape)
 from rls.utils.logging_utils import get_logger
+from rls.utils.specs import Experience
 
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
@@ -53,8 +54,7 @@ def unity_train(env, model,
     for episode in range(begin_episode, max_train_episode):
         model.reset()
         ret = env.reset(reset_config={})
-        s = ret.corrected_vector
-        visual_s = ret.corrected_visual
+        obs = ret.corrected_obs
         dones_flag = np.zeros(n, dtype=float)
         rewards = np.zeros(n, dtype=float)
         step = 0
@@ -62,23 +62,22 @@ def unity_train(env, model,
 
         while True:
             step += 1
-            action = model.choose_action(s=s, visual_s=visual_s)
+            action = model.choose_action(s=obs.vector, visual_s=obs.visual)
             ret = env.step(action, step_config={})
 
             model.store_data(
-                s=s,
-                visual_s=visual_s,
+                s=obs.vector,
+                visual_s=obs.visual,
                 a=action,
                 r=ret.reward,
-                s_=ret.vector,
-                visual_s_=ret.visual,
+                s_=ret.obs.vector,
+                visual_s_=ret.obs.visual,
                 done=ret.info['real_done'] if real_done else ret.done
             )
             model.partial_reset(ret.done)
             rewards += (1 - dones_flag) * ret.reward
             dones_flag = np.sign(dones_flag + ret.done)
-            s = ret.corrected_vector
-            visual_s = ret.corrected_visual
+            obs = ret.corrected_obs
 
             if policy_mode == 'off-policy':
                 if train_step % off_policy_train_interval == 0:

@@ -7,7 +7,7 @@ from copy import deepcopy
 from abc import ABC, abstractmethod
 from tensorflow.keras import Model as M
 
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 from rls.nn.networks import get_visual_network_from_type
 from rls.nn.models import get_output_network_from_type
 from rls.nn.networks import (MultiVectorNetwork,

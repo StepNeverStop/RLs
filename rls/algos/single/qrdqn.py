@@ -9,7 +9,7 @@ from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.tf2_utils import (huber_loss,
                                  update_target_net_weights)
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class QRDQN(Off_Policy):
@@ -98,14 +98,14 @@ class QRDQN(Off_Policy):
         batch_size = tf.shape(a)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
+                specs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist, _ = self.q_dist_net(s, visual_s, cell_state=cell_state)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
 
                 target_q_dist, _ = self.q_target_dist_net(s_, visual_s_, cell_state=cell_state)  # [B, A, N]
                 target_q = tf.reduce_mean(target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
-                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
+                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([specs, a_], axis=-1))   # [B, N]
                 target = tf.tile(r, tf.constant([1, self.nums])) \
                     + self.gamma * tf.multiply(target_q_dist,   # [1, N]
                                                (1.0 - tf.tile(done, tf.constant([1, self.nums]))))  # [B, N], [B, N]* [B, N] = [B, N]

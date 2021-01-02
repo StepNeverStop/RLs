@@ -42,7 +42,7 @@ except ImportError:
 
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.indexs import (SingleAgentEnvArgs,
+from rls.utils.specs import (SingleAgentEnvArgs,
                               GymVectorizedType)
 
 
