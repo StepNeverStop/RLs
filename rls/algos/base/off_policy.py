@@ -123,7 +123,12 @@ class Off_Policy(Policy):
             # --------------------------------------如果使用RNN， 就将s和s‘状态进行拼接处理
             if _use_stack:
                 if self.use_rnn:
-                    obs = [tf.concat([o, o_[:, -1:]], axis=1) for o, o_ in zip(data.obs, data.obs_)] # [B, T, N], [B, T, N] => [B, T+1, N]
+                    # [B*T, N] => [B, T, N]
+                    obs = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [self.episode_batch_size, -1, *x.shape[1:]]), data.obs)
+                    obs_ = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [self.episode_batch_size, -1, *x.shape[1:]]), data.obs_)
+                    # TODO: 优化
+                    # [B, T, N], [B, T, N] => [B, T+1, N]
+                    obs = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(obs, obs_)] 
                 else:
                     obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)] # [B, N] => [2*B, N]
                 data = data._replace(obs=data.obs.__class__._make(obs))

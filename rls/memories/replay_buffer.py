@@ -388,9 +388,8 @@ class EpisodeExperienceReplay(ReplayBuffer):
         burn_in_data = NamedTupleStaticClass.data_convert(lambda x: x[:, :self.burn_in_time_step], sample_data)
         train_data = NamedTupleStaticClass.data_convert(lambda x: x[:, self.burn_in_time_step:], sample_data)
 
-        dim_reduce_keys = [x for x in sample_data._fields if x not in ['obs', 'obs_']]
-        self.burn_in_data = NamedTupleStaticClass.data_convert(lambda x: x.reshape(-1, x.shape[-1]), burn_in_data, dim_reduce_keys)
-        train_data = NamedTupleStaticClass.data_convert(lambda x: x.reshape(-1, x.shape[-1]), train_data, dim_reduce_keys)
+        self.burn_in_data = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [-1, *x.shape[2:]]), burn_in_data)
+        train_data = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [-1, *x.shape[2:]]), train_data)
 
         return train_data
 
