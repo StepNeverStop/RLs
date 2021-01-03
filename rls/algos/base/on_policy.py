@@ -12,6 +12,7 @@ from typing import (Dict,
 
 from rls.memories.on_policy_buffer import DataBuffer
 from rls.algos.base.policy import Policy
+from rls.utils.specs import BatchExperiences
 
 
 class On_Policy(Policy):
@@ -27,22 +28,12 @@ class On_Policy(Policy):
             dict_keys=data_name_list
         )
 
-    def store_data(self,
-                   s: Union[List, np.ndarray],
-                   visual_s: Union[List, np.ndarray],
-                   a: Union[List, np.ndarray],
-                   r: Union[List, np.ndarray],
-                   s_: Union[List, np.ndarray],
-                   visual_s_: Union[List, np.ndarray],
-                   done: Union[List, np.ndarray]) -> NoReturn:
+    def store_data(self, exps: BatchExperiences) -> NoReturn:
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
         """
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        self._running_average(s)
-        data = (s, visual_s, a, r, s_, visual_s_, done)
+        self._running_average(exps.obs.vector)
+        data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done)
         if self.use_rnn:
             data += tuple(cs.numpy() for cs in self.cell_state)
         self.data.add(*data)

@@ -5,13 +5,17 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.build_networks import ACNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
 
+ACBatchExperiences = namedtuple('ACBatchExperiences', BatchExperiences._fields + ('old_log_prob',))
 
 class AC(Off_Policy):
     # off-policy actor-critic
@@ -62,16 +66,16 @@ class AC(Off_Policy):
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        a, _lp, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        a, _lp, self.cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = output
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
@@ -83,21 +87,15 @@ class AC(Off_Policy):
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, log_prob, cell_state
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        self._running_average(s)
-        old_log_prob = self._log_prob
-        self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob)
+    def store_data(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
+        self.data.add(ACBatchExperiences(*exps, self._log_prob))
 
-    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        self._running_average(s)
-        old_log_prob = np.ones_like(r)
-        self.data.add(s, visual_s, a, r[:, np.newaxis], s_, visual_s_, done[:, np.newaxis], old_log_prob[:, np.newaxis])
+    def no_op_store(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
+        self.data.add(ACBatchExperiences(*exps, np.ones_like(exps.reward)[:, np.newaxis]))
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
@@ -107,19 +105,17 @@ class AC(Off_Policy):
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
                 ]),
-                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'old_log_prob'],
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 'old_log_prob']
+                'use_stack': True
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, old_log_prob = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     mu, log_std = self.net.policy_net(feat)
-                    log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    log_prob = gaussian_likelihood_sum(memories.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
 
                     next_mu, _ = self.net.policy_net(feat_)
@@ -127,17 +123,17 @@ class AC(Off_Policy):
                 else:
                     logits = self.net.policy_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    log_prob = tf.reduce_sum(tf.multiply(logp_all, a), axis=1, keepdims=True)
+                    log_prob = tf.reduce_sum(tf.multiply(logp_all, memories.action), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
 
                     logits = self.net.policy_net(feat_)
                     max_a = tf.argmax(logits, axis=1)
                     max_a_one_hot = tf.one_hot(max_a, self.a_dim)
                     max_q_next = tf.stop_gradient(self.net.value_net(feat_, max_a_one_hot))
-                q = self.net.value_net(feat, a)
-                ratio = tf.stop_gradient(tf.exp(log_prob - old_log_prob))
+                q = self.net.value_net(feat, memories.action)
+                ratio = tf.stop_gradient(tf.exp(log_prob - memories.old_log_prob))
                 q_value = tf.stop_gradient(q)
-                td_error = (r + self.gamma * (1 - done) * max_q_next) - q
+                td_error = (memories.reward + self.gamma * (1 - memories.done) * max_q_next) - q
                 critic_loss = tf.reduce_mean(tf.square(td_error) * isw)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.net.critic_trainable_variables)

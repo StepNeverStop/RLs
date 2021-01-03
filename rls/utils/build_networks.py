@@ -51,9 +51,9 @@ class RepresentationNetwork(ABC):
 
 class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
-    visual_s -> visual_net -> feat ↘
+      visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
-           s -> vector_net -> feat ↗                             -> memory_net ->
+      vector -> vector_net -> feat ↗                             -> memory_net ->
                                                       cell_state ↗                ↘ cell_state
     '''
 
@@ -96,16 +96,15 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
         else:
             return tf.split(data, num_or_size_splits=2, axis=0)
 
-    def __call__(self, s, visual_s, cell_state, *, need_split=False):
+    def __call__(self, obs, cell_state, *, need_split=False):
         '''
         params:
-            s: [B*T, x]
-            visual_s: [B*T, y]
             cell_state: Tuple([B, z],)
         return:
             feat: [B, a]
             cell_state: Tuple([B, z],)
         '''
+        s, visual_s = obs
         batch_size = tf.shape(s)[0]
         if self.memory_net.use_rnn:
             s = tf.reshape(s, [-1, tf.shape(s)[-1]])    # [B, T+1, N] => [B*(T+1), N]
@@ -226,10 +225,10 @@ class ValueNetwork:
             self.value_net = get_output_network_from_type(value_net_type)(
                 **value_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
         assert self.representation_net is not None, 'self.representation_net is not None'
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.value_net(feat, *args, **kwargs)
         return output, cell_state
 
@@ -283,9 +282,9 @@ class DoubleValueNetwork(ValueNetwork):
             self.value_net2 = get_output_network_from_type(value_net_type)(
                 **value_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.value_net(feat, *args, **kwargs)
         output2 = self.value_net2(feat, *args, **kwargs)
         return output, output2, cell_state
@@ -341,9 +340,9 @@ class ACNetwork(ValueNetwork):
             self.policy_net = get_output_network_from_type(policy_net_type)(
                 **policy_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.policy_net(feat, *args, **kwargs)
         return output, cell_state
 

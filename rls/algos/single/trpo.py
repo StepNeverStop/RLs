@@ -10,7 +10,8 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ACNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
 '''
 Stole this from OpenAI SpinningUp. https://github.com/openai/spinningup/blob/master/spinup/algos/trpo/trpo.py
 '''
@@ -102,8 +103,8 @@ class TRPO(On_Policy):
         self._all_params_dict.update(optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         self._value = np.squeeze(_v.numpy())
         self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
@@ -115,9 +116,9 @@ class TRPO(On_Policy):
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             value = self.net.value_net(feat)
             output = self.net.policy_net(feat)
             if self.is_continuous:
@@ -133,29 +134,28 @@ class TRPO(On_Policy):
                 log_prob = norm_dist.log_prob(sample_op)
                 return sample_op, value, log_prob, logp_all, cell_state
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        self._running_average(s)
+    def store_data(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
         if self.is_continuous:
-            data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._mu, self._log_std)
+            data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done,
+                    self._value, self._log_prob, self._mu, self._log_std)
         else:
-            data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._logp_all)
+            data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done, 
+                    self._value, self._log_prob, self._logp_all)
         if self.use_rnn:
             data += tuple(cs.numpy() for cs in self.cell_state)
         self.data.add(*data)
         self.cell_state = self.next_cell_state
 
     @tf.function
-    def _get_value(self, s, visual_s, cell_state):
+    def _get_value(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             value = self.net.value_net(feat)
             return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state)
+        init_value, self.cell_state = self._get_value(self.data.last_observation(), cell_state=self.cell_state)
         init_value = np.squeeze(init_value.numpy())
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
@@ -210,7 +210,7 @@ class TRPO(On_Policy):
         s, visual_s, a, old_log_prob, advantage, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, _ = self.net(s, visual_s, cell_state=cell_state)
+                output, _ = self.net(memories.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = output
                     new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
@@ -260,7 +260,7 @@ class TRPO(On_Policy):
         s, visual_s, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
+                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
                 value = self.net.value_net(feat)
                 td_error = dc_r - value
                 value_loss = tf.reduce_mean(tf.square(td_error))

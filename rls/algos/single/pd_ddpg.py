@@ -5,13 +5,17 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
                           NormalActionNoise)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ACCNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
 
+PD_DDPG_BatchExperiences = namedtuple('PD_DDPG_BatchExperiences', BatchExperiences._fields + ('cost',))
 
 class PD_DDPG(Off_Policy):
     '''
@@ -100,15 +104,15 @@ class PD_DDPG(Off_Policy):
         if self.is_continuous:
             self.action_noise.reset()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.ac_net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
                 pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
@@ -130,18 +134,15 @@ class PD_DDPG(Off_Policy):
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/reward_critic_lr', self.reward_critic_lr(self.train_step)],
                     ['LEARNING_RATE/cost_critic_lr', self.cost_critic_lr(self.train_step)]
-                ]),
-                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'cost'],
-                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'cost']
+                ])
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        s, visual_s, a, r, s_, visual_s_, done, cost = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
+                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(memories.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)
@@ -158,15 +159,15 @@ class PD_DDPG(Off_Policy):
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q_reward = self.ac_net.value_net(feat, a)
+                q_reward = self.ac_net.value_net(feat, memories.action)
                 q_target = self.ac_target_net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
                 td_error_reward = q_reward - dc_r
                 reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw)
 
-                q_cost = self.ac_net.value_net2(tf.stop_gradient(feat), a)
+                q_cost = self.ac_net.value_net2(tf.stop_gradient(feat), memories.action)
                 q_target = self.ac_target_net.value_net2(feat_, action_target)
-                dc_r = tf.stop_gradient(cost + self.gamma * q_target * (1 - done))
+                dc_r = tf.stop_gradient(memories.cost + self.gamma * q_target * (1 - memories.done))
                 td_error_cost = q_cost - dc_r
                 cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw)
 
@@ -209,42 +210,15 @@ class PD_DDPG(Off_Policy):
                 ['Statistics/lambda_update', lambda_update]
             ])
 
-    def get_cost(self, s, visual_s, a, r, s_, visual_s_, done):
-        return np.abs(s_)[:, :1]    # CartPole
+    def get_cost(self, exps: BatchExperiences):
+        return np.abs(exps.obs_.vector)[:, :1]    # CartPole
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        """
-        for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
-        """
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        self._running_average(s)
-        cost = self.get_cost(s, visual_s, a, r, s_, visual_s_, done)
-        self.data.add(
-            s,
-            visual_s,
-            a,
-            r[:, np.newaxis],   # 升维
-            s_,
-            visual_s_,
-            done[:, np.newaxis],  # 升维
-            cost
-        )
+    def store_data(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
+        self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
 
-    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "no_op_store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "no_op_store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "no_op_store need done type is np.ndarray"
-        self._running_average(s)
-        cost = self.get_cost(s, visual_s, a, r, s_, visual_s_, done)
-        self.data.add(
-            s,
-            visual_s,
-            a,
-            r[:, np.newaxis],
-            s_,
-            visual_s_,
-            done[:, np.newaxis],  # 升维
-            cost
-        )
+    def no_op_store(self, exps: BatchExperiences)
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
+        self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))

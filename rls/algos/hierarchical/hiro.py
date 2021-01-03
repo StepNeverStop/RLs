@@ -4,6 +4,7 @@
 import numpy as np
 import tensorflow as tf
 
+from collections import namedtuple
 from tensorflow_probability import distributions as tfd
 
 from rls.nn.noise import ClippedNormalActionNoise
@@ -12,8 +13,12 @@ from rls.memories.replay_buffer import ExperienceReplay
 from rls.utils.np_utils import int2one_hot
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ADoubleCNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences,
+                             NamedTupleStaticClass)
 
+LowBatchExperiences = namedtuple('LowBatchExperiences', BatchExperiences._fields + ('subgoal', 'next_subgoal'))
+HighBatchExperiences = namedtuple('HighBatchExperiences', 'obs, action, reward, done, subgoal, obs_')
 
 class HIRO(Off_Policy):
     '''
@@ -165,14 +170,15 @@ class HIRO(Off_Policy):
         g.append(self._subgoals[i][right])
         d.append(self._done[i][-1])
         s_.append(self._high_s_[i][-1])
-        self.data_high.add(
+        self.data_high.add(HighBatchExperiences(
             np.array(s),
-            np.array(r)[:, np.newaxis],
             np.array(a),
-            np.array(g),
+            np.array(r)[:, np.newaxis],
             np.array(d)[:, np.newaxis],
+            np.array(g),
             np.array(s_)
-        )
+
+        ))
 
     def reset(self):
         self.high_noise.reset()
@@ -204,9 +210,9 @@ class HIRO(Off_Policy):
             self._subgoals[i] = []
 
     @tf.function
-    def _get_action(self, s, visual_s, subgoal):
+    def _get_action(self, obs, subgoal):
         with tf.device(self.device):
-            feat = tf.concat([s, subgoal], axis=-1)
+            feat = tf.concat([obs.vector, subgoal], axis=-1)
             output = self.low_ac_net.policy_net(feat)
             if self.is_continuous:
                 mu = output
@@ -218,17 +224,15 @@ class HIRO(Off_Policy):
                 pi = cate_dist.sample()
             return mu, pi
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(s).numpy(), self._new_subgoal)
-        mu, pi = self._get_action(s, visual_s, self._subgoal)
+    def choose_action(self, obs, evaluation=False):
+        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.vector).numpy(), self._new_subgoal)
+        mu, pi = self._get_action(obs, self._subgoal)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
     def get_subgoal(self, s):
         '''
-        last_s 上一个隐状态
-        subgoal 上一个子目标
         s 当前隐状态
         '''
         new_subgoal = self.high_scale * self.high_ac_net.policy_net(s)
@@ -240,19 +244,16 @@ class HIRO(Off_Policy):
         for i in range(self.train_times_per_step):
             if self.data_low.is_lg_batch_size and self.data_high.is_lg_batch_size:
                 self.intermediate_variable_reset()
-                low_data = self.get_transitions(self.data_low, data_name_list=['s', 'a', 'r', 's_', 'done', 'g', 'g_'])
-                high_data = self.get_transitions(self.data_high, data_name_list=['s', 'r', 'a', 'g', 'done', 's_'])
+                low_data = self.get_transitions(self.data_low)
+                high_data = self.get_transitions(self.data_high)
 
-                # --------------------------------------获取需要传给train函数的参数
-                _low_training_data = self.get_value_from_dict(data_name_list=['s', 'a', 'r', 's_', 'done', 'g', 'g_'], data_dict=low_data)
-                _high_training_data = self.get_value_from_dict(data_name_list=['s', 'r', 'a', 'g', 'done', 's_'], data_dict=high_data)
-                summaries = self.train_low(_low_training_data)
+                summaries = self.train_low(low_data)
 
                 self.summaries.update(summaries)
                 update_target_net_weights(self.low_ac_target_net.weights, self.low_ac_net.weights, self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
-                    high_summaries = self.train_high(_high_training_data)
+                    high_summaries = self.train_high(high_data)
                     self.summaries.update(high_summaries)
                     update_target_net_weights(self.high_ac_target_net.weights, self.high_ac_net.weights, self.ployak)
                 self.counts += 1
@@ -265,12 +266,11 @@ class HIRO(Off_Policy):
                 self.write_training_summaries(self.global_step, self.summaries)
 
     @tf.function(experimental_relax_shapes=True)
-    def train_low(self, memories):
-        s, a, r, s_, done, g, g_ = memories
+    def train_low(self, memories: LowBatchExperiences):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = tf.concat([s, g], axis=-1)
-                feat_ = tf.concat([s_, g_], axis=-1)
+                feat = tf.concat([memories.obs.vector, memories.subgoal], axis=-1)
+                feat_ = tf.concat([memories.obs_.vector, memories.next_subgoal], axis=-1)
 
                 target_output = self.low_ac_target_net.policy_net(feat_)
                 if self.is_continuous:
@@ -281,10 +281,10 @@ class HIRO(Off_Policy):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.low_ac_net.get_value(feat, a)
+                q1, q2 = self.low_ac_net.get_value(feat, memories.action)
                 q = tf.minimum(q1, q2)
                 q_target = self.low_ac_target_net.get_min(feat_, action_target)
-                dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
@@ -300,7 +300,7 @@ class HIRO(Off_Policy):
                     mu = output
                 else:
                     logits = output
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(memories.action.shape), dtype=tf.float32)
                     logp_all = tf.nn.log_softmax(logits)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
@@ -323,25 +323,24 @@ class HIRO(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_high(self, memories):
-        # s_ : [B, N]
-        ss, r, aa, g, done, s_ = memories
-
-        batchs = tf.shape(ss)[0]
-        # ss, aa [B, T, *]
+    def train_high(self, memories: HighBatchExperiences):
+        # memories.obs_ : [B, N]
+        # memories.obs, memories.action [B, T, *]
+        batchs = tf.shape(memories.obs)[0]
+        
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                s = ss[:, 0]                                # [B, N]
-                true_end = (s_ - s)[:, self.fn_goal_dim:]
+                s = memories.obs[:, 0]                                # [B, N]
+                true_end = (memories.obs_ - s)[:, self.fn_goal_dim:]
                 g_dist = tfd.Normal(loc=true_end, scale=0.5 * self.high_scale[None, :])
-                ss = tf.expand_dims(ss, 0)  # [1, B, T, *]
+                ss = tf.expand_dims(memories.obs, 0)  # [1, B, T, *]
                 ss = tf.tile(ss, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
                 ss = tf.reshape(ss, [-1, tf.shape(ss)[-1]])  # [10*B*T, *]
-                aa = tf.expand_dims(aa, 0)  # [1, B, T, *]
+                aa = tf.expand_dims(memories.action, 0)  # [1, B, T, *]
                 aa = tf.tile(aa, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
                 aa = tf.reshape(aa, [-1, tf.shape(aa)[-1]])  # [10*B*T, *]
                 gs = tf.concat([
-                    tf.expand_dims(g, 0),
+                    tf.expand_dims(memories.subgoal, 0),
                     tf.expand_dims(true_end, 0),
                     tf.clip_by_value(g_dist.sample(self.sample_g_nums - 2), -self.high_scale, self.high_scale)
                 ], axis=0)  # [10, B, N]
@@ -366,10 +365,10 @@ class HIRO(Off_Policy):
                 q1, q2 = self.high_ac_net.get_value(s, g)
                 q = tf.minimum(q1, q2)
 
-                target_sub_goal = self.high_ac_target_net.policy_net(s_) * self.high_scale
-                q_target = self.high_ac_target_net.get_min(s_, target_sub_goal)
+                target_sub_goal = self.high_ac_target_net.policy_net(memories.obs_) * self.high_scale
+                q_target = self.high_ac_target_net.get_min(memories.obs_, target_sub_goal)
 
-                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * q_target)
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * q_target)
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
@@ -396,72 +395,54 @@ class HIRO(Off_Policy):
                 ['Statistics/high_q_max', tf.reduce_max(q)]
             ])
 
-    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        [o.append(_s) for o, _s in zip(self._high_s, s)]
-        [o.append(_a) for o, _a in zip(self._high_a, a)]
-        [o.append(_r) for o, _r in zip(self._high_r, r)]
-        [o.append(_s_) for o, _s_ in zip(self._high_s_, s_)]
-        [o.append(_d) for o, _d in zip(self._done, done)]
+    def no_op_store(self, exps: BatchExperiences):
+        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.vector)]
+        [o.append(_a) for o, _a in zip(self._high_a, exps.action)]
+        [o.append(_r) for o, _r in zip(self._high_r, exps.reward)]
+        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.vector)]
+        [o.append(_d) for o, _d in zip(self._done, exps.done)]
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._noop_subgoal)]
 
-        ir = self.get_ir(s[:, self.fn_goal_dim:], self._noop_subgoal, s_[:, self.fn_goal_dim:])
-        # subgoal = s[:, self.fn_goal_dim:] + self._noop_subgoal - s_[:, self.fn_goal_dim:]
+        ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._noop_subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
+        # subgoal = exps.obs.vector[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.vector[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
-        self.data_low.add(
-            s,
-            a,
-            ir,
-            s_,
-            done[:, np.newaxis],  # 升维
-            self._noop_subgoal,
-            subgoal
-        )
+        
+        exps = exps._replace(done=exps.done[:, np.newaxis])
+        dl = LowBatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
+        self.data_low.add(dl)
         self._noop_subgoal = subgoal
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+    def store_data(self, exps: BatchExperiences):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        [o.append(_s) for o, _s in zip(self._high_s, s)]
-        [o.append(_a) for o, _a in zip(self._high_a, a)]
-        [o.append(_r) for o, _r in zip(self._high_r, r)]
-        [o.append(_s_) for o, _s_ in zip(self._high_s_, s_)]
-        [o.append(_d) for o, _d in zip(self._done, done)]
+        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.vector)]
+        [o.append(_a) for o, _a in zip(self._high_a, exps.action)]
+        [o.append(_r) for o, _r in zip(self._high_r, exps.reward)]
+        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.vector)]
+        [o.append(_d) for o, _d in zip(self._done, exps.done)]
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._subgoal)]
 
-        ir = self.get_ir(s[:, self.fn_goal_dim:], self._subgoal, s_[:, self.fn_goal_dim:])
-        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(s_).numpy(), s[:, self.fn_goal_dim:] + self._subgoal - s_[:, self.fn_goal_dim:])
+        ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
+        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.vector).numpy(), exps.obs.vector[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.vector[:, self.fn_goal_dim:])
 
-        self.data_low.add(
-            s,
-            a,
-            ir,
-            s_,
-            done[:, np.newaxis],  # 升维
-            self._subgoal,
-            self._new_subgoal
-        )
+        exps = exps._replace(done=exps.done[:, np.newaxis])
+        dl = LowBatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
+        self.data_low.add(dl)
+
         self._c = np.where(self._c == 1, np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c - 1)
 
     def get_transitions(self, databuffer, data_name_list=['s', 'a', 'r', 's_', 'done']):
         '''
         TODO: Annotation
         '''
-        data = databuffer.sample()   # 经验池取数据
-        if not self.is_continuous and 'a' in data_name_list:
-            a_idx = data_name_list.index('a')
-            a = data[a_idx].astype(np.int32)
+        exps = databuffer.sample()   # 经验池取数据
+        if not self.is_continuous:
+            assert 'action' in exps._fields, "assert 'action' in exps._fields"
+            a = exps.action.astype(np.int32)
             pre_shape = a.shape
             a = a.reshape(-1)
             a = int2one_hot(a, self.a_dim)
             a = a.reshape(pre_shape + (-1,))
-            data[a_idx] = a
-        return dict([
-            [n, d] for n, d in zip(data_name_list, list(map(self.data_convert, data)))
-        ])
+            exps = exps._replace(action=a)
+        return NamedTupleStaticClass.data_convert(self.data_convert, exps)

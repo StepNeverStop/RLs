@@ -65,19 +65,19 @@ class BootstrappedDQN(Off_Policy):
         super().reset()
         self.now_head = np.random.randint(self.head_num)
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
-            q, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            q, self.cell_state = self._get_action(obs, self.cell_state)
             q = q.numpy()
             a = np.argmax(q[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_net(s, visual_s, cell_state=cell_state)  # [H, B, A]
+            q_values, cell_state = self.q_net(obs, cell_state=cell_state)  # [H, B, A]
         return q_values, cell_state
 
     def _target_params_update(self):
@@ -88,20 +88,18 @@ class BootstrappedDQN(Off_Policy):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        s, visual_s, a, r, s_, visual_s_, done = memories
-        batch_size = tf.shape(a)[0]
+        batch_size = tf.shape(memories.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q, _ = self.q_net(s, visual_s, cell_state=cell_state)    # [H, B, A]
-                q_next, _ = self.q_target_net(s_, visual_s_, cell_state=cell_state)   # [H, B, A]
-                q_eval = tf.reduce_sum(tf.multiply(q, a), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
-                q_target = tf.stop_gradient(r + self.gamma * (1 - done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
+                q, _ = self.q_net(memories.obs, cell_state=cell_state)    # [H, B, A]
+                q_next, _ = self.q_target_net(memories.obs_, cell_state=cell_state)   # [H, B, A]
+                q_eval = tf.reduce_sum(tf.multiply(q, memories.action), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
+                q_target = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
                 td_error = q_target - q_eval    # [H, B, 1]
                 td_error = tf.reduce_sum(td_error, axis=-1)  # [H, B]
 

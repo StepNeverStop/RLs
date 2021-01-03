@@ -64,7 +64,7 @@ class MultiAgentPolicy(Base):
         self.summaries = {}
 
     @abstractmethod
-    def choose_actions(self, s, visual_s, evaluation: bool = False) -> Any:
+    def choose_actions(self, obs, evaluation: bool = False) -> Any:
         '''
         choose actions while training.
         Input: 
@@ -76,7 +76,7 @@ class MultiAgentPolicy(Base):
         pass
 
     @tf.function
-    def _get_actions(self, s, visual_s, is_training: bool = True) -> Any:
+    def _get_actions(self, obs, is_training: bool = True) -> Any:
         '''
         TODO: Annotation
         '''

@@ -8,6 +8,8 @@ import tensorflow_probability as tfp
 from rls.nn import ActorDPG as ActorCts
 from rls.nn import ActorDct
 from rls.nn import CriticQvalueOne as Critic
+from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
+                          NormalActionNoise)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import OutputNetworkType
@@ -70,18 +72,18 @@ class DPG(Off_Policy):
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(), -1, 1)
+                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -96,18 +98,17 @@ class DPG(Off_Policy):
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
-                ])
+                ]),
+                'use_stack': True
             })
 
     @tf.function(experimental_relax_shapes=True)
     def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
-                    target_mu = self.net.policy_net(feat_)
-                    action_target = tf.clip_by_value(target_mu + self.action_noise(), -1, 1)
+                    action_target = self.net.policy_net(feat_)
                     mu = self.net.policy_net(feat)
                 else:
                     target_logits = self.net.policy_net(feat_)
@@ -122,8 +123,8 @@ class DPG(Off_Policy):
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q_target = self.net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
-                q = self.net.value_net(feat, a)
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
+                q = self.net.value_net(feat, memories.action)
                 td_error = dc_r - q
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
                 q_actor = self.net.value_net(feat, mu)

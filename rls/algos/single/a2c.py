@@ -66,15 +66,15 @@ class A2C(On_Policy):
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        a, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        a, self.next_cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = output
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
@@ -85,14 +85,14 @@ class A2C(On_Policy):
         return sample_op, cell_state
 
     @tf.function
-    def _get_value(self, s, visual_s, cell_state):
+    def _get_value(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             value = self.net.value_net(feat)
             return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_s(), self.data.last_visual_s(), cell_state=self.cell_state)
+        init_value, self.cell_state = self._get_value(self.data.last_observation(), cell_state=self.cell_state)
         init_value = np.squeeze(init_value.numpy())
         self.data.cal_dc_r(self.gamma, init_value)
 
@@ -125,7 +125,7 @@ class A2C(On_Policy):
         s, visual_s, a, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
+                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = self.net.policy_net(feat)
                     log_act_prob = gaussian_likelihood_sum(a, mu, log_std)

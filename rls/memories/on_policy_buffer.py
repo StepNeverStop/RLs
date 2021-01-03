@@ -10,6 +10,7 @@ from rls.utils.np_utils import (int2one_hot,
                                 calculate_td_error,
                                 normalization,
                                 standardization)
+from rls.utils.specs import ModelObservations
 
 
 class DataBuffer(object):
@@ -91,19 +92,13 @@ class DataBuffer(object):
             adv = standardization(adv)
         self.buffer['gae_adv'] = list(standardization(adv))
 
-    def last_s(self):
+    def last_observation(self):
         '''
         获取序列末尾的状态，即s_[-1]
         '''
         assert 's_' in self.buffer.keys()
-        return self.buffer['s_'][-1]
-
-    def last_visual_s(self):
-        '''
-        获取序列末尾的图像，即visual_s_[-1]
-        '''
         assert 'visual_s_' in self.buffer.keys()
-        return self.buffer['visual_s_'][-1]
+        return ModelObservations(vector=self.buffer['s_'][-1], visual=self.buffer['visual_s_'][-1])
 
     def get_curiosity_data(self):
         '''
@@ -282,9 +277,7 @@ if __name__ == "__main__":
         )
 
     # should be [[9, 9], [9, 9]]
-    print(db.last_s())
-    # shouble be np.full((2, 8, 8, 3), 9)
-    print(db.last_visual_s())
+    print(db.last_observation())
 
     # for d in db.sample_generater(batch_size=2, keys=['s', 'r']):
     #     print(d[0].shape, d[1].shape)

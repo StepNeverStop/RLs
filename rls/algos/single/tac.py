@@ -110,15 +110,15 @@ class TAC(Off_Policy):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -144,7 +144,7 @@ class TAC(Off_Policy):
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ]),
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 's_', 'visual_s_']
+                'use_stack': True
             })
 
     def _train(self, memories, isw, cell_state):
@@ -155,10 +155,9 @@ class TAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, s_, visual_s_ = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -170,7 +169,7 @@ class TAC(Off_Policy):
                 else:
                     logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(memories.action.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
@@ -183,12 +182,12 @@ class TAC(Off_Policy):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.critic_net.get_value(feat, a)
+                q1, q2 = self.critic_net.get_value(feat, memories.action)
                 q_s_pi = self.critic_net.get_min(feat, pi)
 
-                q1_target, q2_target, _ = self.critic_target_net(s_, visual_s_, target_pi, cell_state=cell_state)
+                q1_target, q2_target, _ = self.critic_target_net(memories.obs_, target_pi, cell_state=cell_state)
                 q_target = tf.minimum(q1_target, q2_target)
-                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * (q_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)

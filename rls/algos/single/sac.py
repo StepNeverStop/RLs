@@ -117,15 +117,15 @@ class SAC(Off_Policy):
                                           optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -151,7 +151,7 @@ class SAC(Off_Policy):
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
                 ]),
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 's_', 'visual_s_']
+                'use_stack': True
             })
 
     @property
@@ -169,10 +169,9 @@ class SAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_continuous(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, s_, visual_s_ = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
                     log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -184,7 +183,7 @@ class SAC(Off_Policy):
                 else:
                     logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(memories.action.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
@@ -197,11 +196,11 @@ class SAC(Off_Policy):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.critic_net.get_value(feat, a)
+                q1, q2 = self.critic_net.get_value(feat, memories.action)
                 q_s_pi = self.critic_net.get_min(feat, pi)
-                q1_target, q2_target, _ = self.critic_target_net(s_, visual_s_, target_pi, cell_state=cell_state)
+                q1_target, q2_target, _ = self.critic_target_net(memories.obs_, target_pi, cell_state=cell_state)
                 q_target = tf.minimum(q1_target, q2_target)
-                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * (q_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
@@ -244,10 +243,9 @@ class SAC(Off_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train_discrete(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, s_, visual_s_ = memories
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self.critic_net.getFeatAndCellstate(ss, vvss, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self.critic_net.getFeatAndCellstate(memories.obs.vector, memories.obs.visual, cell_state=cell_state, need_split=True)
                 q1_all, q2_all = self.critic_net.get_value(feat)  # [B, A]
 
                 logits = self.actor_net.value_net(feat)
@@ -255,17 +253,17 @@ class SAC(Off_Policy):
                 entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
                 q_all = tf.minimum(q1_all, q2_all)  # [B, A]
 
-                def q_function(x): return tf.reduce_sum(x * a, axis=-1, keepdims=True)  # [B, 1]
+                def q_function(x): return tf.reduce_sum(x * memories.action, axis=-1, keepdims=True)  # [B, 1]
                 q1 = q_function(q1_all)
                 q2 = q_function(q2_all)
                 target_logits = self.actor_net.value_net(feat_)  # [B, A]
                 target_log_probs = tf.nn.log_softmax(target_logits)  # [B, A]
-                q1_target, q2_target, _ = self.critic_target_net(s_, visual_s_, cell_state=cell_state)    # [B, A]
+                q1_target, q2_target, _ = self.critic_target_net(memories.obs_.vector, memories.obs_.visual, cell_state=cell_state)    # [B, A]
                 def v_target_function(x): return tf.reduce_sum(tf.exp(target_log_probs) * (x - self.alpha * target_log_probs), axis=-1, keepdims=True)  # [B, 1]
                 v1_target = v_target_function(q1_target)
                 v2_target = v_target_function(q2_target)
                 v_target = tf.minimum(v1_target, v2_target)
-                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * v_target)
+                dc_r = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * v_target)
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)

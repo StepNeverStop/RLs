@@ -12,7 +12,7 @@ from rls.utils.np_utils import (SMA,
 from rls.utils.mlagents_utils import (multi_agents_data_preprocess,
                                       multi_agents_action_reshape)
 from rls.utils.logging_utils import get_logger
-from rls.utils.specs import Experience
+from rls.utils.specs import BatchExperiences
 
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
@@ -54,30 +54,24 @@ def unity_train(env, model,
     for episode in range(begin_episode, max_train_episode):
         model.reset()
         ret = env.reset(reset_config={})
-        obs = ret.corrected_obs
         dones_flag = np.zeros(n, dtype=float)
         rewards = np.zeros(n, dtype=float)
         step = 0
         last_done_step = -1
 
         while True:
+            obs = ret.corrected_obs
             step += 1
-            action = model.choose_action(s=obs.vector, visual_s=obs.visual)
+            action = model.choose_action(obs=obs)
             ret = env.step(action, step_config={})
-
-            model.store_data(
-                s=obs.vector,
-                visual_s=obs.visual,
-                a=action,
-                r=ret.reward,
-                s_=ret.obs.vector,
-                visual_s_=ret.obs.visual,
-                done=ret.info['real_done'] if real_done else ret.done
-            )
+            model.store_data(BatchExperiences(obs=obs,
+                                        action=action,
+                                        reward=ret.reward,
+                                        obs_=ret.obs,
+                                        done=ret.info['real_done'] if real_done else ret.done))
             model.partial_reset(ret.done)
             rewards += (1 - dones_flag) * ret.reward
             dones_flag = np.sign(dones_flag + ret.done)
-            obs = ret.corrected_obs
 
             if policy_mode == 'off-policy':
                 if train_step % off_policy_train_interval == 0:
@@ -139,27 +133,20 @@ def unity_no_op(env, model,
         return
     model.reset()
     ret = env.reset(reset_config={})
-    s = ret.corrected_vector
-    visual_s = ret.corrected_visual
 
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
+        obs = ret.corrected_obs
         if prefill_choose:
-            action = model.choose_action(s=s, visual_s=visual_s)
+            action = model.choose_action(obs=obs)
         else:
             action = env.random_action()
         ret = env.step(action, step_config={})
-        model.no_op_store(
-            s=s,
-            visual_s=visual_s,
-            a=action,
-            r=ret.reward,
-            s_=ret.vector,
-            visual_s_=ret.visual,
-            done=ret.info['real_done'] if real_done else ret.done
-        )
+        model.no_op_store(BatchExperiences(obs=obs,
+                                     action=action,
+                                     reward=ret.reward,
+                                     obs_=ret.obs,
+                                     done=ret.info['real_done'] if real_done else ret.done))
         model.partial_reset(ret.done)
-        s = ret.corrected_vector
-        visual_s = ret.corrected_visual
 
 
 def unity_inference(env, model,
@@ -172,8 +159,7 @@ def unity_inference(env, model,
         model.reset()
         ret = env.reset(reset_config={})
         while True:
-            action = model.choose_action(s=ret.corrected_vector,
-                                         visual_s=ret.corrected_visual,
+            action = model.choose_action(obs=ret.corrected_obs,
                                          evaluation=True)
             model.partial_reset(ret.done)
             ret = env.step(action, step_config={})

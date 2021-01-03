@@ -81,13 +81,13 @@ class CuriosityModel(M):
         self.forward_net(tf.concat((feat, action), -1))
 
     @tf.function(experimental_relax_shapes=True)
-    def call(self, s, visual_s, a, s_, visual_s_, cell_state):
+    def call(self, memories, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                fs, _ = self.net(s, visual_s, cell_state=cell_state)
-                fs_, _ = self.net(s_, visual_s_, cell_state=cell_state)
+                fs, _ = self.net(memories.obs, cell_state=cell_state)
+                fs_, _ = self.net(memories.obs_, cell_state=cell_state)
 
-                fsa = tf.concat((fs, a), axis=-1)            # <S, A>
+                fsa = tf.concat((fs, memories.action), axis=-1)            # <S, A>
                 s_eval = self.forward_net(fsa)                  # <S, A> => S'
                 LF = 0.5 * tf.reduce_sum(tf.square(fs_ - s_eval), axis=-1, keepdims=True)    # [B, 1]
                 intrinsic_reward = self.eta * LF
@@ -96,9 +96,9 @@ class CuriosityModel(M):
                 f = tf.concat((fs, fs_), axis=-1)
                 a_eval = self.inverse_dynamic_net(f)
                 if self.is_continuous:
-                    loss_inverse = 0.5 * tf.reduce_mean(tf.reduce_sum(tf.square(a_eval - a), axis=-1))
+                    loss_inverse = 0.5 * tf.reduce_mean(tf.reduce_sum(tf.square(a_eval - memories.action), axis=-1))
                 else:
-                    idx = tf.argmax(a, axis=-1)  # [B, ]
+                    idx = tf.argmax(memories.action, axis=-1)  # [B, ]
                     loss_inverse = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=idx, logits=a_eval))
                 loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
 

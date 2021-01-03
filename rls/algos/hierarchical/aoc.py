@@ -10,7 +10,8 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
 
 
 class AOC(On_Policy):
@@ -106,14 +107,14 @@ class AOC(On_Policy):
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
 
-        a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs, self.cell_state, self.options)
         a = a.numpy()
         new_options = tf.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_agents, False)
@@ -125,9 +126,9 @@ class AOC(On_Policy):
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state, options):
+    def _get_action(self, obs, cell_state, options):
         with tf.device(self.device):
-            (q, pi, beta), cell_state = self.net(s, visual_s, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+            (q, pi, beta), cell_state = self.net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
@@ -149,13 +150,11 @@ class AOC(On_Policy):
             new_options = tf.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
         return sample_op, q_o, log_prob, beta_adv, new_options, max_options, cell_state
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        self._running_average(s)
-        r -= (1 - self.oc_mask) * self.dc
-        data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._beta_adv, self.last_options, self.options)
+    def store_data(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward-(1 - self.oc_mask) * self.dc)
+        data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done, 
+                self._value, self._log_prob, self._beta_adv, self.last_options, self.options)
         if self.use_rnn:
             data += tuple(cs.numpy() for cs in self.cell_state)
         self.data.add(*data)
@@ -163,16 +162,16 @@ class AOC(On_Policy):
         self.oc_mask = tf.zeros_like(self.oc_mask)
 
     @tf.function
-    def _get_value(self, s, visual_s, options, cell_state):
+    def _get_value(self, obs, options, cell_state):
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
-            (q, _, _), cell_state = self.net(s, visual_s, cell_state=cell_state)
+            (q, _, _), cell_state = self.net(obs, cell_state=cell_state)
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
             return q_o, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_s(), self.data.last_visual_s(), self.data.buffer['options'][-1], cell_state=self.cell_state)
+        init_value, self.cell_state = self._get_value(self.data.last_observation(), self.data.buffer['options'][-1], cell_state=self.cell_state)
         init_value = np.squeeze(init_value.numpy())
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
@@ -222,7 +221,7 @@ class AOC(On_Policy):
         options = tf.reshape(tf.cast(options, tf.int32), (-1,))
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (q, pi, beta), cell_state = self.net(s, visual_s, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+                (q, pi, beta), cell_state = self.net(memories.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
 
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]

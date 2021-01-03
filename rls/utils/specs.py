@@ -2,6 +2,8 @@ import numpy as np
 
 from enum import Enum
 from typing import (Dict,
+                    List,
+                    Iterator,
                     NamedTuple)
 from collections import namedtuple
 
@@ -25,6 +27,88 @@ UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
                                         'is_continuous'
                                     ])
 
+class NamedTupleStaticClass:
+
+    @staticmethod
+    def len(nt: NamedTuple) -> int:
+        for data in nt:
+            if isinstance(data, tuple):
+                return NamedTupleStaticClass.len(data)
+            elif isinstance(data, np.ndarray):
+                return data.shape[0]
+            elif isinstance(data, list):
+                return len(data)
+        else:
+            raise ValueError(f"cannot compute length of {nt.__class__}.")
+
+    @staticmethod
+    def getitem(nt: NamedTuple, i: int) -> NamedTuple:
+        if isinstance(nt, tuple):
+            x = []
+            for data in nt:
+                x.append(NamedTupleStaticClass.getitem(data, i))
+            return nt.__class__._make(x)
+        else:
+            return nt[i]
+
+    @staticmethod
+    def unpack(nt: NamedTuple) -> Iterator[NamedTuple]:
+        for i in range(NamedTupleStaticClass.len(nt)):
+            yield NamedTupleStaticClass.getitem(nt, i)
+    
+    @staticmethod
+    def pack(nts: List[NamedTuple]) -> NamedTuple:
+        x = []
+        for datas in zip(*nts):
+            if isinstance(datas[0], tuple):
+                x.append(NamedTupleStaticClass.pack(datas))
+            else:
+                x.append(np.asarray(datas))
+        return nts[0].__class__._make(x)
+
+    @staticmethod
+    def check_equal(x: NamedTuple, y: NamedTuple, k: str = None):
+        def _check(d1, d2):
+            if isinstance(d1, tuple) and isinstance(d2, tuple):
+                return NamedTupleStaticClass.check_equal(d1, d2)
+            elif isinstance(d1, np.ndarray) and isinstance(d2, np.ndarray):
+                return (d1 == d2).all()
+            else:
+                return False
+
+        if k is not None:
+            return _check(d1=getattr(x, k), d2=getattr(y, k))
+        else:
+            return all([_check(d1=getattr(x, k), d2=getattr(y, k)) for k in x._fields])
+
+    @staticmethod
+    def data_convert(func, nt, keys=None):
+        if keys is None:
+            x = []
+            for data in nt:
+                if isinstance(data, tuple):
+                    x.append(NamedTupleStaticClass.data_convert(func, data))
+                else:
+                    x.append(func(data))
+            return nt.__class__._make(x)
+        else:
+            x = {}
+            for k in keys:
+                data = getattr(nt, k)
+                if isinstance(data, tuple):
+                    x[k] = NamedTupleStaticClass.data_convert(func, data)
+                else:
+                    x[k] = func(data)
+            return nt._replace(**x)
+
+    @staticmethod
+    def show_shape(nt):
+        for k, v in nt._asdict().items():
+            if isinstance(v, tuple):
+                NamedTupleStaticClass.show_shape(v)
+            else:
+                print(k, v.shape)
+            
 class ModelObservations(NamedTuple):
     '''
         agent's observation
@@ -32,7 +116,7 @@ class ModelObservations(NamedTuple):
     vector: np.ndarray
     visual: np.ndarray
 
-class Experience(NamedTuple):
+class BatchExperiences(NamedTuple):
     '''
         format of experience that needed to be stored in replay buffer.
     '''

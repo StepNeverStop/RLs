@@ -55,15 +55,15 @@ class PG(On_Policy):
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        a, self.next_cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        a, self.next_cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = output
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
@@ -100,7 +100,7 @@ class PG(On_Policy):
         s, visual_s, a, dc_r, cell_state = memories
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, cell_state = self.net(s, visual_s, cell_state=cell_state)
+                output, cell_state = self.net(memories.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = output
                     log_act_prob = gaussian_likelihood_sum(a, mu, log_std)
