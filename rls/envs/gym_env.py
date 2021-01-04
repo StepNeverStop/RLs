@@ -43,7 +43,9 @@ except ImportError:
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.specs import (SingleAgentEnvArgs,
-                              GymVectorizedType)
+                             ModelObservations,
+                             SingleModelInformation,
+                             GymVectorizedType)
 
 
 def get_vectorized_env_class(t: GymVectorizedType):
@@ -185,7 +187,13 @@ class gym_envs(object):
         obs = np.asarray(self.envs.reset())
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
-        return obs
+
+        if self.obs_type == 'visual':
+            return ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
+                                     visual=obs)
+        else:
+            return ModelObservations(vector=obs,
+                                     visual=np.full((self.n, 0), [], dtype=np.float32))
 
     def step(self, actions):
         actions = np.array(actions)
@@ -208,7 +216,25 @@ class gym_envs(object):
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
             correct_new_obs = correct_new_obs[:, np.newaxis, ...]
-        return obs, reward, done, info, correct_new_obs
+
+        if self.obs_type == 'visual':
+            corrected_obs = ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
+                                              visual=correct_new_obs)
+            obs = ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
+                                    visual=obs)
+        else:
+            corrected_obs = ModelObservations(vector=correct_new_obs,
+                                              visual=np.full((self.n, 0), [], dtype=np.float32))
+            obs = ModelObservations(vector=obs,
+                                    visual=np.full((self.n, 0), [], dtype=np.float32))
+
+        return SingleModelInformation(
+            corrected_obs=corrected_obs,
+            obs=obs,
+            reward=reward,
+            done=done,
+            info=info
+        )
 
     def partial_reset(self, obs, dones_index):
         correct_new_obs = deepcopy(obs)

@@ -19,7 +19,6 @@ from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import (ValueNetwork,
                                       ACNetwork)
 from rls.utils.specs import (OutputNetworkType,
-                             ModelObservations,
                              BatchExperiences)
 
 PPO_Store_BatchExperiences = namedtuple('PPO_Store_BatchExperiences', BatchExperiences._fields + ('value', 'log_prob'))
@@ -176,7 +175,7 @@ class PPO(On_Policy):
                                     sample_data_type=PPO_Train_BatchExperiences)
         self._model_post_process()
 
-    def choose_action(self, obs: ModelObservations, evaluation: bool = False) -> np.ndarray:
+    def choose_action(self, obs, evaluation: bool = False) -> np.ndarray:
         a, value, log_prob, self.next_cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         self._value = value.numpy()
