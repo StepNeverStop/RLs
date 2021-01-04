@@ -127,6 +127,16 @@ class NamedTupleStaticClass:
             else:
                 print(k, v.shape)
 
+    @staticmethod
+    def check_len(nt: NamedTuple, l: int):
+        ret = []
+        for data in nt:
+            if isinstance(data, tuple):
+                ret.append(NamedTupleStaticClass.check_len(data, l))
+            else:
+                ret.append(data.shape[0] == l)
+        return all(ret)
+
 
 class ModelObservations(NamedTuple):
     '''

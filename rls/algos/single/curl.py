@@ -330,7 +330,6 @@ class CURL(Off_Policy):
                         logits = self.actor_net.value_net(feat)
                         norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                         log_pi = norm_dist.log_prob(cate_dist.sample())
-                        log_pi = tf.expand_dims(log_pi, -1)  # [B, ] => [B, 1]
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(

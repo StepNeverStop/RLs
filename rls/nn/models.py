@@ -100,6 +100,9 @@ class ActorMuLogstd(M):
         else:
             log_std = self.log_std
         log_std = tf.clip_by_value(log_std, self.log_std_min, self.log_std_max)
+        batch_size = mu.shape[0]
+        if batch_size:
+            log_std = tf.tile(log_std, [batch_size, 1]) # [1, N] => [B, N]
         return (mu, log_std)
 
 

@@ -128,8 +128,12 @@ class DataBuffer(object):
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
                 data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
+                assert NamedTupleStaticClass.check_len(data[k], l=self.n_agents * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
             else:
                 data[k] = func(self.data_buffer[k])
+                assert data[k].shape[0] == self.n_agents * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
         return BatchExperiences(**data)
 
     def update_reward(self, r: np.ndarray):
@@ -175,8 +179,12 @@ class DataBuffer(object):
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
                 buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
+                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_agents * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
+                assert buffer[k].shape[0] == self.n_agents * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
 
         idxs = np.arange(self.eps_len * self.n_agents)
         np.random.shuffle(idxs)

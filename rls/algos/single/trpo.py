@@ -119,7 +119,7 @@ class TRPO(On_Policy):
         self._log_prob = _lp.numpy() + 1e-10
         if self.is_continuous:
             self._mu = _morlpa[0].numpy()
-            self._log_std = np.tile(_morlpa[1].numpy(), [self._mu.shape[0], 1])
+            self._log_std = _morlpa[1].numpy()
         else:
             self._logp_all = _morlpa.numpy()
         return a
@@ -141,7 +141,6 @@ class TRPO(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits=logp_all)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-                log_prob = tf.expand_dims(log_prob, -1) # [B, ] => [B, 1]
                 return sample_op, value, log_prob, logp_all, cell_state
 
     def store_data(self, exps: BatchExperiences):

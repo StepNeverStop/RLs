@@ -147,7 +147,6 @@ class AOC(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-                log_prob = tf.expand_dims(log_prob, -1) # [B, ] => [B, 1]
             value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
             beta_adv = q_o - ((1 - self.eps) * tf.reduce_max(q, axis=-1, keepdims=True) + self.eps * tf.reduce_mean(q, axis=-1, keepdims=True))   # [B, 1]
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
@@ -160,7 +159,7 @@ class AOC(On_Policy):
         self._running_average(exps.obs.vector)
         exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
         self.data.add(AOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._beta_adv,
-                                                 tf.expand_dims(self.last_options, axis=-1), tf.expand_dims(self.options, axis=-1)))
+                                                 self.last_options, self.options))
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
@@ -168,7 +167,7 @@ class AOC(On_Policy):
 
     @tf.function
     def _get_value(self, obs, options, cell_state):
-        options = tf.reshape(tf.cast(options, tf.int32), (-1,))
+        options = tf.cast(options, tf.int32)
         with tf.device(self.device):
             (q, _, _), cell_state = self.net(obs, cell_state=cell_state)
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
@@ -220,8 +219,8 @@ class AOC(On_Policy):
 
     @tf.function(experimental_relax_shapes=True)
     def train(self, BATCH, cell_state, kl_coef):
-        last_options = tf.reshape(tf.cast(BATCH.last_options, tf.int32), (-1,))  # [B, 1] => [B,]
-        options = tf.reshape(tf.cast(BATCH.options, tf.int32), (-1,))
+        last_options = tf.cast(BATCH.last_options, tf.int32)  # [B,]
+        options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 (q, pi, beta), cell_state = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
