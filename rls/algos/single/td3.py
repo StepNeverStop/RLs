@@ -123,12 +123,12 @@ class TD3(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             for _ in range(self.delay_num):
                 with tf.GradientTape(persistent=True) as tape:
-                    feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
-                    feat_, _ = self._representation_target_net(memories.obs_, cell_state=cell_state)
+                    feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                    feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
                     if self.is_continuous:
                         action_target = self.ac_target_net.policy_net(feat_)
                         mu = self.ac_net.policy_net(feat)
@@ -139,17 +139,17 @@ class TD3(Off_Policy):
                         target_log_pi = target_cate_dist.log_prob(target_pi)
                         action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
 
-                        gumbel_noise = tf.cast(self.gumbel_dist.sample(memories.action.shape), dtype=tf.float32)
+                        gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
                         logits = self.ac_net.policy_net(feat)
                         logp_all = tf.nn.log_softmax(logits)
                         _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                         _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                         _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                         mu = _pi_diff + _pi
-                    q1, q2 = self.ac_net.get_value(feat, memories.action)
+                    q1, q2 = self.ac_net.get_value(feat, BATCH.action)
                     q1_actor = self.ac_net.value_net(feat, mu)
                     q_target = self.ac_target_net.get_min(feat_, action_target)
-                    dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
+                    dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
                     td_error1 = q1 - dc_r
                     td_error2 = q2 - dc_r
                     q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)

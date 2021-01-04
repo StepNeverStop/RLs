@@ -103,10 +103,10 @@ class DPG(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     action_target = self.net.policy_net(feat_)
                     mu = self.net.policy_net(feat)
@@ -123,8 +123,8 @@ class DPG(Off_Policy):
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q_target = self.net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
-                q = self.net.value_net(feat, memories.action)
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
+                q = self.net.value_net(feat, BATCH.action)
                 td_error = dc_r - q
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
                 q_actor = self.net.value_net(feat, mu)

@@ -206,11 +206,11 @@ class TRPO(On_Policy):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, memories):
-        s, visual_s, a, old_log_prob, advantage, cell_state = memories
+    def train_actor(self, BATCH):
+        s, visual_s, a, old_log_prob, advantage, cell_state = BATCH
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, _ = self.net(memories.obs, cell_state=cell_state)
+                output, _ = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = output
                     new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
@@ -256,11 +256,11 @@ class TRPO(On_Policy):
             return hvp
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, memories):
-        s, visual_s, dc_r, cell_state = memories
+    def train_critic(self, BATCH):
+        s, visual_s, dc_r, cell_state = BATCH
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
                 value = self.net.value_net(feat)
                 td_error = dc_r - value
                 value_loss = tf.reduce_mean(tf.square(td_error))

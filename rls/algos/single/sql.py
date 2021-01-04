@@ -84,14 +84,14 @@ class SQL(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q, _ = self.q_net(memories.obs, cell_state=cell_state)
-                q_next, _ = self.q_target_net(memories.obs_, cell_state=cell_state)
+                q, _ = self.q_net(BATCH.obs, cell_state=cell_state)
+                q_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
                 v_next = self.get_v(q_next)
-                q_eval = tf.reduce_sum(tf.multiply(q, memories.action), axis=1, keepdims=True)
-                q_target = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * v_next)
+                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
+                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * v_next)
                 td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.q_net.trainable_variables)

@@ -121,11 +121,11 @@ class A2C(On_Policy):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories):
-        s, visual_s, a, dc_r, cell_state = memories
+    def train(self, BATCH):
+        s, visual_s, a, dc_r, cell_state = BATCH
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = self.net.policy_net(feat)
                     log_act_prob = gaussian_likelihood_sum(a, mu, log_std)

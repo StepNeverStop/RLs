@@ -87,13 +87,13 @@ class DDDQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
-                q_target, _ = self.dueling_target_net(memories.obs_, cell_state=cell_state)
+                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
+                q_target, _ = self.dueling_target_net(BATCH.obs_, cell_state=cell_state)
                 q = self.dueling_net.value_net(feat)
-                q_eval = tf.reduce_sum(tf.multiply(q, memories.action), axis=1, keepdims=True)
+                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
                 next_q = self.dueling_net.value_net(feat_)
                 next_max_action = tf.argmax(next_q, axis=1, name='next_action_int')
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
@@ -102,7 +102,7 @@ class DDDQN(Off_Policy):
                 q_target_next_max = tf.reduce_sum(
                     tf.multiply(q_target, next_max_action_one_hot),
                     axis=1, keepdims=True)
-                q_target = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * q_target_next_max)
+                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * q_target_next_max)
                 td_error = q_target - q_eval
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)
             grads = tape.gradient(q_loss, self.dueling_net.trainable_variables)

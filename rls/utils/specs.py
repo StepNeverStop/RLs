@@ -21,16 +21,20 @@ MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
                                SingleAgentEnvArgs._fields + ('behavior_controls',))
 
 UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
-                                    [
-                                        'behavior_name',
-                                        'n_agents_control',
-                                        'is_continuous'
-                                    ])
+                                     [
+                                         'behavior_name',
+                                         'n_agents_control',
+                                         'is_continuous'
+                                     ])
+
 
 class NamedTupleStaticClass:
 
     @staticmethod
     def len(nt: NamedTuple) -> int:
+        '''
+        计算namedtuple的元素个数
+        '''
         for data in nt:
             if isinstance(data, tuple):
                 return NamedTupleStaticClass.len(data)
@@ -52,18 +56,31 @@ class NamedTupleStaticClass:
             return nt[i]
 
     @staticmethod
+    def getbatchitems(nt: NamedTuple, idxs: np.ndarray) -> NamedTuple:
+        if isinstance(nt, tuple):
+            x = []
+            for data in nt:
+                x.append(NamedTupleStaticClass.getbatchitems(data, idxs))
+            return nt.__class__._make(x)
+        else:
+            return nt[idxs]
+
+    @staticmethod
     def unpack(nt: NamedTuple) -> Iterator[NamedTuple]:
         for i in range(NamedTupleStaticClass.len(nt)):
             yield NamedTupleStaticClass.getitem(nt, i)
-    
+
     @staticmethod
-    def pack(nts: List[NamedTuple]) -> NamedTuple:
+    def pack(nts: List[NamedTuple], vstack=False) -> NamedTuple:
         x = []
         for datas in zip(*nts):
             if isinstance(datas[0], tuple):
-                x.append(NamedTupleStaticClass.pack(datas))
+                x.append(NamedTupleStaticClass.pack(datas, vstack))
             else:
-                x.append(np.asarray(datas))
+                if vstack:
+                    x.append(np.vstack(datas))
+                else:
+                    x.append(np.asarray(datas))
         return nts[0].__class__._make(x)
 
     @staticmethod
@@ -108,13 +125,15 @@ class NamedTupleStaticClass:
                 NamedTupleStaticClass.show_shape(v)
             else:
                 print(k, v.shape)
-            
+
+
 class ModelObservations(NamedTuple):
     '''
         agent's observation
     '''
     vector: np.ndarray
     visual: np.ndarray
+
 
 class BatchExperiences(NamedTuple):
     '''
@@ -125,6 +144,7 @@ class BatchExperiences(NamedTuple):
     reward: np.ndarray
     obs_: ModelObservations
     done: np.ndarray
+
 
 class SingleModelInformation(NamedTuple):
     '''

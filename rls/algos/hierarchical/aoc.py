@@ -215,13 +215,13 @@ class AOC(On_Policy):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, kl_coef):
-        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, beta_advantage, last_options, options, cell_state = memories
+    def train(self, BATCH, kl_coef):
+        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, beta_advantage, last_options, options, cell_state = BATCH
         last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,))  # [B, 1] => [B,]
         options = tf.reshape(tf.cast(options, tf.int32), (-1,))
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (q, pi, beta), cell_state = self.net(memories.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+                (q, pi, beta), cell_state = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
 
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]

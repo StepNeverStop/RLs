@@ -381,9 +381,9 @@ class EpisodeExperienceReplay(ReplayBuffer):
             data = NamedTupleStaticClass.pack(truncate(traj))
             datas.append(data)
 
-        sample_data = NamedTupleStaticClass.pack(datas) 
+        sample_data = NamedTupleStaticClass.pack(datas)
         sample_data = NamedTupleStaticClass.data_convert(f(v=1., l=self.timestep), sample_data, ['done'])   # [B, T, N]
-        sample_data = NamedTupleStaticClass.data_convert(f(v=0., l=self.timestep), sample_data) # [B, T, N]
+        sample_data = NamedTupleStaticClass.data_convert(f(v=0., l=self.timestep), sample_data)  # [B, T, N]
 
         burn_in_data = NamedTupleStaticClass.data_convert(lambda x: x[:, :self.burn_in_time_step], sample_data)
         train_data = NamedTupleStaticClass.data_convert(lambda x: x[:, self.burn_in_time_step:], sample_data)

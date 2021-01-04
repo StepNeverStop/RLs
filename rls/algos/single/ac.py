@@ -109,13 +109,13 @@ class AC(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(memories.obs, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     mu, log_std = self.net.policy_net(feat)
-                    log_prob = gaussian_likelihood_sum(memories.action, mu, log_std)
+                    log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
 
                     next_mu, _ = self.net.policy_net(feat_)
@@ -123,17 +123,17 @@ class AC(Off_Policy):
                 else:
                     logits = self.net.policy_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    log_prob = tf.reduce_sum(tf.multiply(logp_all, memories.action), axis=1, keepdims=True)
+                    log_prob = tf.reduce_sum(tf.multiply(logp_all, BATCH.action), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
 
                     logits = self.net.policy_net(feat_)
                     max_a = tf.argmax(logits, axis=1)
                     max_a_one_hot = tf.one_hot(max_a, self.a_dim)
                     max_q_next = tf.stop_gradient(self.net.value_net(feat_, max_a_one_hot))
-                q = self.net.value_net(feat, memories.action)
-                ratio = tf.stop_gradient(tf.exp(log_prob - memories.old_log_prob))
+                q = self.net.value_net(feat, BATCH.action)
+                ratio = tf.stop_gradient(tf.exp(log_prob - BATCH.old_log_prob))
                 q_value = tf.stop_gradient(q)
-                td_error = (memories.reward + self.gamma * (1 - memories.done) * max_q_next) - q
+                td_error = (BATCH.reward + self.gamma * (1 - BATCH.done) * max_q_next) - q
                 critic_loss = tf.reduce_mean(tf.square(td_error) * isw)
                 actor_loss = -tf.reduce_mean(ratio * log_prob * q_value)
             critic_grads = tape.gradient(critic_loss, self.net.critic_trainable_variables)

@@ -101,14 +101,14 @@ class MAXSQN(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                q1, q2, _ = self.critic_net(memories.obs, cell_state=cell_state)
-                q1_eval = tf.reduce_sum(tf.multiply(q1, memories.action), axis=1, keepdims=True)
-                q2_eval = tf.reduce_sum(tf.multiply(q2, memories.action), axis=1, keepdims=True)
+                q1, q2, _ = self.critic_net(BATCH.obs, cell_state=cell_state)
+                q1_eval = tf.reduce_sum(tf.multiply(q1, BATCH.action), axis=1, keepdims=True)
+                q2_eval = tf.reduce_sum(tf.multiply(q2, BATCH.action), axis=1, keepdims=True)
 
-                q1_target, q2_target, _ = self.critic_target_net(memories.obs_, cell_state=cell_state)
+                q1_target, q2_target, _ = self.critic_target_net(BATCH.obs_, cell_state=cell_state)
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
                 q1_target_log_probs = tf.nn.log_softmax(q1_target / (self.alpha + 1e-8), axis=1)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))
@@ -118,7 +118,7 @@ class MAXSQN(Off_Policy):
                 # q2_target_log_max = tf.reduce_max(q2_target_log_probs, axis=1, keepdims=True)
 
                 q_target = tf.minimum(q1_target_max, q2_target_max) + self.alpha * q1_target_entropy
-                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
                 td_error1 = q1_eval - dc_r
                 td_error2 = q2_eval - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)

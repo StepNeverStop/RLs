@@ -138,11 +138,11 @@ class PD_DDPG(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(memories.obs_, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)
@@ -159,15 +159,15 @@ class PD_DDPG(Off_Policy):
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q_reward = self.ac_net.value_net(feat, memories.action)
+                q_reward = self.ac_net.value_net(feat, BATCH.action)
                 q_target = self.ac_target_net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
                 td_error_reward = q_reward - dc_r
                 reward_loss = 0.5 * tf.reduce_mean(tf.square(td_error_reward) * isw)
 
-                q_cost = self.ac_net.value_net2(tf.stop_gradient(feat), memories.action)
+                q_cost = self.ac_net.value_net2(tf.stop_gradient(feat), BATCH.action)
                 q_target = self.ac_target_net.value_net2(feat_, action_target)
-                dc_r = tf.stop_gradient(memories.cost + self.gamma * q_target * (1 - memories.done))
+                dc_r = tf.stop_gradient(BATCH.cost + self.gamma * q_target * (1 - BATCH.done))
                 td_error_cost = q_cost - dc_r
                 cost_loss = 0.5 * tf.reduce_mean(tf.square(td_error_cost) * isw)
 

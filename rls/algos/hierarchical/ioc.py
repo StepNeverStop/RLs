@@ -169,13 +169,13 @@ class IOC(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
-        last_options = tf.cast(memories.last_options, tf.int32)
-        options = tf.cast(memories.options, tf.int32)
+    def _train(self, BATCH, isw, cell_state):
+        last_options = tf.cast(BATCH.last_options, tf.int32)
+        options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(memories.obs, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(memories.obs_, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
                 q = self.q_net.value_net(feat)  # [B, P]
                 pi = self.intra_option_net.value_net(feat)  # [B, P, A]
                 beta = self.termination_net.value_net(feat)   # [B, P]
@@ -194,7 +194,7 @@ class IOC(Off_Policy):
                 else:
                     q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
-                qu_target = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * u_target)
+                qu_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * u_target)
                 td_error = qu_target - qu_eval     # gradient : q
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)        # [B, 1] => 1
 
@@ -207,13 +207,13 @@ class IOC(Off_Policy):
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
                     mu = tf.math.tanh(pi)
-                    log_p = gaussian_likelihood_sum(memories.action, mu, log_std)
+                    log_p = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
                     log_pi = tf.nn.log_softmax(pi, axis=-1)  # [B, A]
                     entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
-                    log_p = tf.reduce_sum(memories.action * log_pi, axis=-1, keepdims=True)   # [B, 1]
+                    log_p = tf.reduce_sum(BATCH.action * log_pi, axis=-1, keepdims=True)   # [B, 1]
                 pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
 
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
@@ -225,7 +225,7 @@ class IOC(Off_Policy):
                 v_s = tf.reduce_sum(q * pi_op, axis=-1, keepdims=True)  # [B, P] * [B, P] => [B, 1]
                 beta_loss = beta_s * tf.stop_gradient(q_s - v_s)   # [B, 1]
                 if self.terminal_mask:
-                    beta_loss *= (1 - memories.done)
+                    beta_loss *= (1 - BATCH.done)
                 beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
 
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)

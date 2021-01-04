@@ -266,11 +266,11 @@ class HIRO(Off_Policy):
                 self.write_training_summaries(self.global_step, self.summaries)
 
     @tf.function(experimental_relax_shapes=True)
-    def train_low(self, memories: LowBatchExperiences):
+    def train_low(self, BATCH: LowBatchExperiences):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = tf.concat([memories.obs.vector, memories.subgoal], axis=-1)
-                feat_ = tf.concat([memories.obs_.vector, memories.next_subgoal], axis=-1)
+                feat = tf.concat([BATCH.obs.vector, BATCH.subgoal], axis=-1)
+                feat_ = tf.concat([BATCH.obs_.vector, BATCH.next_subgoal], axis=-1)
 
                 target_output = self.low_ac_target_net.policy_net(feat_)
                 if self.is_continuous:
@@ -281,10 +281,10 @@ class HIRO(Off_Policy):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.low_ac_net.get_value(feat, memories.action)
+                q1, q2 = self.low_ac_net.get_value(feat, BATCH.action)
                 q = tf.minimum(q1, q2)
                 q_target = self.low_ac_target_net.get_min(feat_, action_target)
-                dc_r = tf.stop_gradient(memories.reward + self.gamma * q_target * (1 - memories.done))
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))
@@ -300,7 +300,7 @@ class HIRO(Off_Policy):
                     mu = output
                 else:
                     logits = output
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(memories.action.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
                     logp_all = tf.nn.log_softmax(logits)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
@@ -323,24 +323,24 @@ class HIRO(Off_Policy):
             ])
 
     @tf.function(experimental_relax_shapes=True)
-    def train_high(self, memories: HighBatchExperiences):
-        # memories.obs_ : [B, N]
-        # memories.obs, memories.action [B, T, *]
-        batchs = tf.shape(memories.obs)[0]
+    def train_high(self, BATCH: HighBatchExperiences):
+        # BATCH.obs_ : [B, N]
+        # BATCH.obs, BATCH.action [B, T, *]
+        batchs = tf.shape(BATCH.obs)[0]
         
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                s = memories.obs[:, 0]                                # [B, N]
-                true_end = (memories.obs_ - s)[:, self.fn_goal_dim:]
+                s = BATCH.obs[:, 0]                                # [B, N]
+                true_end = (BATCH.obs_ - s)[:, self.fn_goal_dim:]
                 g_dist = tfd.Normal(loc=true_end, scale=0.5 * self.high_scale[None, :])
-                ss = tf.expand_dims(memories.obs, 0)  # [1, B, T, *]
+                ss = tf.expand_dims(BATCH.obs, 0)  # [1, B, T, *]
                 ss = tf.tile(ss, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
                 ss = tf.reshape(ss, [-1, tf.shape(ss)[-1]])  # [10*B*T, *]
-                aa = tf.expand_dims(memories.action, 0)  # [1, B, T, *]
+                aa = tf.expand_dims(BATCH.action, 0)  # [1, B, T, *]
                 aa = tf.tile(aa, [self.sample_g_nums, 1, 1, 1])    # [10, B, T, *]
                 aa = tf.reshape(aa, [-1, tf.shape(aa)[-1]])  # [10*B*T, *]
                 gs = tf.concat([
-                    tf.expand_dims(memories.subgoal, 0),
+                    tf.expand_dims(BATCH.subgoal, 0),
                     tf.expand_dims(true_end, 0),
                     tf.clip_by_value(g_dist.sample(self.sample_g_nums - 2), -self.high_scale, self.high_scale)
                 ], axis=0)  # [10, B, N]
@@ -365,10 +365,10 @@ class HIRO(Off_Policy):
                 q1, q2 = self.high_ac_net.get_value(s, g)
                 q = tf.minimum(q1, q2)
 
-                target_sub_goal = self.high_ac_target_net.policy_net(memories.obs_) * self.high_scale
-                q_target = self.high_ac_target_net.get_min(memories.obs_, target_sub_goal)
+                target_sub_goal = self.high_ac_target_net.policy_net(BATCH.obs_) * self.high_scale
+                q_target = self.high_ac_target_net.get_min(BATCH.obs_, target_sub_goal)
 
-                dc_r = tf.stop_gradient(memories.reward + self.gamma * (1 - memories.done) * q_target)
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * q_target)
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1))

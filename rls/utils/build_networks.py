@@ -100,7 +100,7 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
 
             if need_split:
                 # reshape feature from [B, T+1, x] to ([B*T, x], [B*T, x])
-                feat = (tf.reshape(feat[:, :-1], [-1, tf.shape(feat)[-1]]), 
+                feat = (tf.reshape(feat[:, :-1], [-1, tf.shape(feat)[-1]]),
                         tf.reshape(feat[:, 1:], [-1, tf.shape(feat)[-1]]))
             else:
                 # reshape feature from [B, T, x] to [B*T, x]

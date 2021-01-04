@@ -94,21 +94,21 @@ class C51(Off_Policy):
             })
 
     @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
-        batch_size = tf.shape(memories.action)[0]
+    def _train(self, BATCH, isw, cell_state):
+        batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist, _ = self.q_dist_net(memories.obs, cell_state=cell_state)  # [B, A, N]
-                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * memories.action, axis=-1), [1, 0])  # [B, N]
+                q_dist, _ = self.q_dist_net(BATCH.obs, cell_state=cell_state)  # [B, A, N]
+                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
                 q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)
-                target_q_dist, _ = self.q_target_dist_net(memories.obs_, cell_state=cell_state)  # [B, A, N]
+                target_q_dist, _ = self.q_target_dist_net(BATCH.obs_, cell_state=cell_state)  # [B, A, N]
                 target_q = tf.reduce_sum(self.zb * target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]
-                target = tf.tile(memories.reward, tf.constant([1, self.atoms])) \
+                target = tf.tile(BATCH.reward, tf.constant([1, self.atoms])) \
                     + self.gamma * tf.multiply(self.z,   # [1, N]
-                                               (1.0 - tf.tile(memories.done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
+                                               (1.0 - tf.tile(BATCH.done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
                 target = tf.clip_by_value(target, self.v_min, self.v_max)  # [B, N]
                 b = (target - self.v_min) / self.delta_z  # [B, N]
                 u, l = tf.math.ceil(b), tf.math.floor(b)  # [B, N]
