@@ -114,68 +114,20 @@ class Trainer:
             self.buffer_args['type'] = 'None'
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
 
-        if self.env_args['type'] == 'gym':
-            self.initialize_gym()
+        if self.env_args['type'] == 'unity':
+            self.initialize_unity()
         else:
-            # unity
-            if self.multi_agents_training:
-                assert self.env.is_multi_agents, 'assert self.env.is_multi_agents'
-                self.initialize_multi_unity()
-            else:
-                assert not self.env.is_multi_agents, 'assert not self.env.is_multi_agents'
-                self.initialize_unity()
-        pass
+            self.initialize_gym()
+        self.initialize()
 
-    def initialize_gym(self):
-        # gym
-
-        # buffer ------------------------------
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
+    def initialize(self):
         buffer = get_buffer(self.buffer_args)
-        # buffer ------------------------------
 
-        # model -------------------------------
         self.algo_args.update({
             'envspec': self.env.EnvSpec,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir
         })
-        self.model = self.MODEL(**self.algo_args)
-        self.model.set_buffer(buffer)
-        self.model.init_or_restore(self.train_args['load_model_path'])
-        # model -------------------------------
-
-        _train_info = self.model.get_init_training_info()
-        self.train_args['begin_train_step'] = _train_info['train_step']
-        self.train_args['begin_frame_step'] = _train_info['frame_step']
-        self.train_args['begin_episode'] = _train_info['episode']
-        if not self.train_args['inference'] and not self.train_args['no_save']:
-            self.algo_args['envspec'] = str(self.algo_args['envspec'])
-            records_dict = {
-                'env': self.env_args.to_dict,
-                'buffer': self.buffer_args.to_dict,
-                'train': self.train_args.to_dict,
-                'algo': self.algo_args
-            }
-            save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
-
-    def initialize_unity(self):
-        # single agent with unity
-        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fbn)
-        if self.train_args.load_model_path is not None:
-            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fbn)
-
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.behavior_agents[self.env.first_bn]
-        buffer = get_buffer(self.buffer_args)
-
-        self.algo_args.update({
-            'envspec': self.env.EnvSpec,
-            'max_train_step': self.train_args.max_train_step,
-            'base_dir': self.train_args.base_dir,
-        })
-
         self.model = self.MODEL(**self.algo_args)
         self.model.set_buffer(buffer)
         self.model.init_or_restore(self.train_args.load_model_path)
@@ -194,38 +146,19 @@ class Trainer:
             }
             save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
 
-    def initialize_multi_unity(self):
-        # multi agents with unity
-        assert self.env.is_multi_agents, 'assert self.env.is_multi_agents'
-        raise Exception('Under reconstruction')
+    def initialize_unity(self):
+        assert not self.multi_agents_training and not self.env.is_multi_agents, 'MA algorithms is under reconstruction.'
+        # single agent with unity
+        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fbn)
+        if self.train_args.load_model_path is not None:
+            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fbn)
 
         if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num'] # TODO: 检查这里是否需要根据env_num设置
-        buffer = get_buffer(self.buffer_args)
+            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.behavior_agents[self.env.first_bn]
 
-        self.algo_args.update({
-            'envspec': self.env.EnvSpec,
-            'max_train_step': self.train_args.max_train_step,
-            'base_dir': self.train_args.base_dir,
-        })
-
-        self.model = self.MODEL(**self.algo_args)
-        self.model.set_buffer(buffer)
-        self.model.init_or_restore(self.train_args['load_model_path'])
-
-        _train_info = self.model.get_init_training_info()
-        self.train_args['begin_train_step'] = _train_info['train_step']
-        self.train_args['begin_frame_step'] = _train_info['frame_step']
-        self.train_args['begin_episode'] = _train_info['episode']
-        if not self.train_args['inference'] and not self.train_args['no_save']:
-            self.algo_args['envspec'] = str(self.algo_args['envspec'])
-            records_dict = {
-                'env': self.env_args.to_dict,
-                'buffer': self.buffer_args.to_dict,
-                'train': self.train_args.to_dict,
-                'algo': self.algo_args
-            }
-            save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
+    def initialize_gym(self):
+        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
+            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self._allow_print:
