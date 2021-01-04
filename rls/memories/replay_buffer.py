@@ -100,7 +100,7 @@ class ExperienceReplay(ReplayBuffer):
     def show_rb(self) -> NoReturn:
         print('RB size: ', self._size)
         print('RB capacity: ', self.capacity)
-        print(self._buffer[:, np.newaxis])
+        print(self._buffer[:])
 
 
 class PrioritizedExperienceReplay(ReplayBuffer):

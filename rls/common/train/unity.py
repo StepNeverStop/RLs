@@ -65,10 +65,10 @@ def unity_train(env, model,
             action = model.choose_action(obs=obs)
             ret = env.step(action, step_config={})
             model.store_data(BatchExperiences(obs=obs,
-                                        action=action,
-                                        reward=ret.reward,
-                                        obs_=ret.obs,
-                                        done=ret.info['real_done'] if real_done else ret.done))
+                                              action=action,
+                                              reward=ret.reward[:, np.newaxis],  # [B, ] => [B, 1]
+                                              obs_=ret.obs,
+                                              done=(ret.info['real_done'] if real_done else ret.done)[:, np.newaxis]))  # [B, ] => [B, 1]
             model.partial_reset(ret.done)
             rewards += (1 - dones_flag) * ret.reward
             dones_flag = np.sign(dones_flag + ret.done)
@@ -142,10 +142,10 @@ def unity_no_op(env, model,
             action = env.random_action()
         ret = env.step(action, step_config={})
         model.no_op_store(BatchExperiences(obs=obs,
-                                     action=action,
-                                     reward=ret.reward,
-                                     obs_=ret.obs,
-                                     done=ret.info['real_done'] if real_done else ret.done))
+                                           action=action,
+                                           reward=ret.reward[:, np.newaxis],
+                                           obs_=ret.obs,
+                                           done=(ret.info['real_done'] if real_done else ret.done)[:, np.newaxis]))
         model.partial_reset(ret.done)
 
 

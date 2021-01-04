@@ -215,10 +215,8 @@ class PD_DDPG(Off_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
 
     def no_op_store(self, exps: BatchExperiences)
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))

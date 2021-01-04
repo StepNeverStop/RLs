@@ -263,7 +263,6 @@ class OC(Off_Policy):
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(OCBatchExperiences(*exps, self.last_options, self.options))
 
     def no_op_store(self, exps: BatchExperiences):

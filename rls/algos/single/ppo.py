@@ -208,7 +208,6 @@ class PPO(On_Policy):
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(PPO_Store_BatchExperiences(*exps, self._value, self._log_prob))
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))

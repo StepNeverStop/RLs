@@ -31,7 +31,6 @@ class On_Policy(Policy):
         for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
         """
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(exps)
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))

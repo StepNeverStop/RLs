@@ -157,7 +157,7 @@ class AOC(On_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis] - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1), done=exps.done[:, np.newaxis])
+        exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
         self.data.add(AOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._beta_adv,
                                                  tf.expand_dims(self.last_options, axis=-1), tf.expand_dims(self.options, axis=-1)))
         if self.use_rnn:

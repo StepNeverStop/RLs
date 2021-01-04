@@ -145,7 +145,6 @@ class TRPO(On_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
 
         if self.is_continuous:
             self.data.add(TRPO_Store_BatchExperiences_CTS(*exps, self._value, self._log_prob, self._mu, self._log_std))

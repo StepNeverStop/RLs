@@ -407,7 +407,7 @@ class HIRO(Off_Policy):
         # subgoal = exps.obs.vector[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.vector[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         
-        exps = exps._replace(done=exps.done[:, np.newaxis])
+        exps = exps._replace(done=exps.done)
         dl = LowBatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
         self.data_low.add(dl)
         self._noop_subgoal = subgoal
@@ -426,7 +426,7 @@ class HIRO(Off_Policy):
         ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
         self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.vector).numpy(), exps.obs.vector[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.vector[:, self.fn_goal_dim:])
 
-        exps = exps._replace(done=exps.done[:, np.newaxis])
+        exps = exps._replace(done=exps.done)
         dl = LowBatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
         self.data_low.add(dl)
 

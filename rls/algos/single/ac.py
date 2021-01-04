@@ -89,13 +89,11 @@ class AC(Off_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
         self.data.add(ACBatchExperiences(*exps, self._log_prob))
 
     def no_op_store(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
-        self.data.add(ACBatchExperiences(*exps, np.ones_like(exps.reward)[:, np.newaxis]))
+        self.data.add(ACBatchExperiences(*exps, np.ones_like(exps.reward)))
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

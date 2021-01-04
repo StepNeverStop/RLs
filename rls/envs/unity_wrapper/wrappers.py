@@ -18,9 +18,9 @@ logger = get_logger(__name__)
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.specs import (SingleAgentEnvArgs,
-                              MultiAgentEnvArgs,
-                              ModelObservations,
-                              SingleModelInformation)
+                             MultiAgentEnvArgs,
+                             ModelObservations,
+                             SingleModelInformation)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
@@ -131,7 +131,7 @@ class BasicUnityEnvironment(object):
                     self.vector_dims[bn].append(shape[0])
                 elif len(shape) == 3:
                     self.visual_idxs[bn].append(i)
-                    self.visual_resolutions[bn].append(list(shape)) # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
+                    self.visual_resolutions[bn].append(list(shape))  # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
                 else:
                     raise ValueError("shape of observation cannot be understood.")
             self.s_dim[bn] = sum(self.vector_dims[bn])
