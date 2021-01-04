@@ -5,6 +5,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
@@ -12,6 +14,13 @@ from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
+
+TRPO_Store_BatchExperiences_CTS = namedtuple('TRPO_Store_BatchExperiences_CTS', BatchExperiences._fields + ('value', 'log_prob', 'mu', 'log_std'))
+TRPO_Store_BatchExperiences_DCT = namedtuple('TRPO_Store_BatchExperiences_DCT', BatchExperiences._fields + ('value', 'log_prob', 'logp_all'))
+TRPO_Train_BatchExperiences_CTS = namedtuple('TRPO_Train_BatchExperiences_CTS', 'obs, action, log_prob, discounted_reward, gae_adv, mu, log_std')
+TRPO_Train_BatchExperiences_DCT = namedtuple('TRPO_Train_BatchExperiences_DCT', 'obs, action, log_prob, discounted_reward, gae_adv, logp_all')
+
+
 '''
 Stole this from OpenAI SpinningUp. https://github.com/openai/spinningup/blob/master/spinup/algos/trpo/trpo.py
 '''
@@ -91,11 +100,11 @@ class TRPO(On_Policy):
         self.optimizer_critic = self.init_optimizer(self.critic_lr)
 
         if self.is_continuous:
-            data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_mu', 'old_log_std']
+            self.initialize_data_buffer(store_data_type=TRPO_Store_BatchExperiences_CTS,
+                                        sample_data_type=TRPO_Train_BatchExperiences_CTS)
         else:
-            data_name_list = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'old_logp_all']
-        self.initialize_data_buffer(
-            data_name_list=data_name_list)
+            self.initialize_data_buffer(store_data_type=TRPO_Store_BatchExperiences_DCT,
+                                        sample_data_type=TRPO_Train_BatchExperiences_DCT)
 
         self._worker_params_dict.update(self.net._policy_models)
 
@@ -106,11 +115,11 @@ class TRPO(On_Policy):
     def choose_action(self, obs, evaluation=False):
         a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
-        self._value = np.squeeze(_v.numpy())
-        self._log_prob = np.squeeze(_lp.numpy()) + 1e-10
+        self._value = _v.numpy()
+        self._log_prob = _lp.numpy() + 1e-10
         if self.is_continuous:
             self._mu = _morlpa[0].numpy()
-            self._log_std = _morlpa[1].numpy()
+            self._log_std = np.tile(_morlpa[1].numpy(), [self._mu.shape[0], 1])
         else:
             self._logp_all = _morlpa.numpy()
         return a
@@ -136,15 +145,14 @@ class TRPO(On_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward[:, np.newaxis], done=exps.done[:, np.newaxis])
+
         if self.is_continuous:
-            data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done,
-                    self._value, self._log_prob, self._mu, self._log_std)
+            self.data.add(TRPO_Store_BatchExperiences_CTS(*exps, self._value, self._log_prob, self._mu, self._log_std))
         else:
-            data = (exps.obs.vector, exps.obs.visual, exps.action, exps.reward, exps.obs_.vector, exps.obs_.visual, exps.done, 
-                    self._value, self._log_prob, self._logp_all)
+            self.data.add(TRPO_Store_BatchExperiences_DCT(*exps, self._value, self._log_prob, self._logp_all))
         if self.use_rnn:
-            data += tuple(cs.numpy() for cs in self.cell_state)
-        self.data.add(*data)
+            self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
 
     @tf.function
@@ -155,8 +163,8 @@ class TRPO(On_Policy):
             return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_observation(), cell_state=self.cell_state)
-        init_value = np.squeeze(init_value.numpy())
+        init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
+        init_value = init_value.numpy()
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
@@ -164,25 +172,17 @@ class TRPO(On_Policy):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data):
-            if self.is_continuous:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_mu, old_log_std, cell_state = data
-                Hx_args = (s, visual_s, old_mu, old_log_std, cell_state)
-            else:
-                s, visual_s, a, dc_r, old_log_prob, advantage, old_logp_all, cell_state = data
-                Hx_args = (s, visual_s, old_logp_all, cell_state)
-            actor_loss, entropy, gradients = self.train_actor((s, visual_s, a, old_log_prob, advantage, cell_state))
+        def _train(data, cell_state):
+            actor_loss, entropy, gradients = self.train_actor(data, cell_state)
 
-            x = self.cg(self.Hx, gradients.numpy(), Hx_args)
+            x = self.cg(self.Hx, gradients.numpy(), data, cell_state)
             x = tf.convert_to_tensor(x)
-            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, *Hx_args)) + 1e-8))
+            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, data, cell_state)) + 1e-8))
             for i in range(self.backtrack_iters):
                 assign_params_from_flat(alpha * x * (self.backtrack_coeff ** i), self.net.actor_trainable_variables)
 
             for _ in range(self.train_v_iters):
-                critic_loss = self.train_critic(
-                    (s, visual_s, dc_r, cell_state)
-                )
+                critic_loss = self.train_critic(data, cell_state)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -191,61 +191,50 @@ class TRPO(On_Policy):
             ])
             return summaries
 
-        if self.is_continuous:
-            train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_mu', 'old_log_std']
-        else:
-            train_data_list = ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'old_logp_all']
-
         self._learn(function_dict={
             'calculate_statistics': self.calculate_statistics,
             'train_function': _train,
-            'train_data_list': train_data_list,
             'summary_dict': dict([
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
             ])
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train_actor(self, BATCH):
-        s, visual_s, a, old_log_prob, advantage, cell_state = BATCH
+    def train_actor(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 output, _ = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = output
-                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = output
                     logp_all = tf.nn.log_softmax(logits)
-                    new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                ratio = tf.exp(new_log_prob - old_log_prob)
-                actor_loss = -tf.reduce_mean(ratio * advantage)
+                ratio = tf.exp(new_log_prob - BATCH.log_prob)
+                actor_loss = -tf.reduce_mean(ratio * BATCH.gae_adv)
             actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
             gradients = flat_concat(actor_grads)
             self.global_step.assign_add(1)
             return actor_loss, entropy, gradients
 
     @tf.function(experimental_relax_shapes=True)
-    def Hx(self, x, *args):
-        if self.is_continuous:
-            s, visual_s, old_mu, old_log_std, cell_state = args
-        else:
-            s, visual_s, old_logp_all, cell_state = args
+    def Hx(self, x, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                output, _ = self.net(s, visual_s, cell_state=cell_state)
+                output, _ = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = output
-                    var0, var1 = tf.exp(2 * log_std), tf.exp(2 * old_log_std)
-                    pre_sum = 0.5 * (((old_mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + old_log_std - log_std
+                    var0, var1 = tf.exp(2 * log_std), tf.exp(2 * BATCH.log_std)
+                    pre_sum = 0.5 * (((BATCH.mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + BATCH.log_std - log_std
                     all_kls = tf.reduce_sum(pre_sum, axis=1)
                     kl = tf.reduce_mean(all_kls)
                 else:
                     logits = output
                     logp_all = tf.nn.log_softmax(logits)
-                    all_kls = tf.reduce_sum(tf.exp(old_logp_all) * (old_logp_all - logp_all), axis=1)
+                    all_kls = tf.reduce_sum(tf.exp(BATCH.logp_all) * (BATCH.logp_all - logp_all), axis=1)
                     kl = tf.reduce_mean(all_kls)
 
                 g = flat_concat(tape.gradient(kl, self.net.actor_trainable_variables))
@@ -256,13 +245,12 @@ class TRPO(On_Policy):
             return hvp
 
     @tf.function(experimental_relax_shapes=True)
-    def train_critic(self, BATCH):
-        s, visual_s, dc_r, cell_state = BATCH
+    def train_critic(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
                 value = self.net.value_net(feat)
-                td_error = dc_r - value
+                td_error = BATCH.discounted_reward - value
                 value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.net.critic_trainable_variables)
             self.optimizer_critic.apply_gradients(
@@ -270,7 +258,7 @@ class TRPO(On_Policy):
             )
             return value_loss
 
-    def cg(self, Ax, b, args):
+    def cg(self, Ax, b, BATCH, cell_state):
         """
         Conjugate gradient algorithm
         (see https://en.wikipedia.org/wiki/Conjugate_gradient_method)
@@ -280,7 +268,7 @@ class TRPO(On_Policy):
         p = r.copy()
         r_dot_old = np.dot(r, r)
         for _ in range(self.cg_iters):
-            z = Ax(tf.convert_to_tensor(p), *args)
+            z = Ax(tf.convert_to_tensor(p), BATCH, cell_state)
             alpha = r_dot_old / (np.dot(p, z) + 1e-8)
             x += alpha * p
             r -= alpha * z

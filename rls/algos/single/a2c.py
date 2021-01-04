@@ -5,12 +5,16 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import OutputNetworkType
+
+A2C_Train_BatchExperiences = namedtuple('A2C_Train_BatchExperiences', 'obs, action, discounted_reward')
 
 
 class A2C(On_Policy):
@@ -57,7 +61,7 @@ class A2C(On_Policy):
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
 
-        self.initialize_data_buffer()
+        self.initialize_data_buffer(sample_data_type=A2C_Train_BatchExperiences)
 
         self._worker_params_dict.update(self.net._policy_models)
 
@@ -92,16 +96,15 @@ class A2C(On_Policy):
             return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_observation(), cell_state=self.cell_state)
-        init_value = np.squeeze(init_value.numpy())
-        self.data.cal_dc_r(self.gamma, init_value)
+        init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
+        self.data.cal_dc_r(self.gamma, init_value.numpy())
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data):
+        def _train(data, cell_state):
             for _ in range(self.epoch):
-                actor_loss, critic_loss, entropy = self.train(data)
+                actor_loss, critic_loss, entropy = self.train(data, cell_state)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -113,7 +116,6 @@ class A2C(On_Policy):
         self._learn(function_dict={
             'calculate_statistics': self.calculate_statistics,
             'train_function': _train,
-            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward'],
             'summary_dict': dict([
                 ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                 ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
@@ -121,23 +123,22 @@ class A2C(On_Policy):
         })
 
     @tf.function(experimental_relax_shapes=True)
-    def train(self, BATCH):
-        s, visual_s, a, dc_r, cell_state = BATCH
+    def train(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = self.net.policy_net(feat)
-                    log_act_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    log_act_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = self.net.policy_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    log_act_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    log_act_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
                 v = self.net.value_net(feat)
-                advantage = tf.stop_gradient(dc_r - v)
-                td_error = dc_r - v
+                advantage = tf.stop_gradient(BATCH.discounted_reward - v)
+                td_error = BATCH.discounted_reward - v
                 critic_loss = tf.reduce_mean(tf.square(td_error))
                 actor_loss = -(tf.reduce_mean(log_act_prob * advantage) + self.beta * entropy)
             critic_grads = tape.gradient(critic_loss, self.net.critic_trainable_variables)

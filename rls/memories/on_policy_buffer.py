@@ -108,11 +108,12 @@ class DataBuffer(object):
             adv = standardization(adv)
         self.data_buffer['gae_adv'] = list(standardization(adv))
 
-    def last_observation(self):
+    def last_data(self, key):
         '''
-        获取序列末尾的状态
+        获取序列末尾的数据
         '''
-        return self.data_buffer['obs_'][-1]
+        assert key in self.data_buffer.keys(), f"assert {key} in self.data_buffer.keys()"
+        return self.data_buffer[key][-1]
 
     def get_curiosity_data(self):
         '''
@@ -124,7 +125,7 @@ class DataBuffer(object):
 
         data = {}
         for k in BatchExperiences._fields:
-            assert k in self.data_buffer.keys(), "assert k in self.data_buffer.keys()"
+            assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
                 data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
             else:
@@ -171,11 +172,11 @@ class DataBuffer(object):
         buffer = {}
         # T * [B, N] => [T*B, N]
         for k in self.sample_data_type._fields:
-            assert k in self.data_buffer.keys(), "assert k in self.data_buffer.keys()"
+            assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
-                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.vstack)
+                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
             else:
-                buffer[k] = np.vstack(self.data_buffer[k])
+                buffer[k] = np.concatenate(self.data_buffer[k])
 
         idxs = np.arange(self.eps_len * self.n_agents)
         np.random.shuffle(idxs)
@@ -232,7 +233,7 @@ class DataBuffer(object):
 
                 sample_exp = {}
                 for k in self.sample_data_type._fields:
-                    assert k in self.data_buffer.keys(), "assert k in self.data_buffer.keys()"
+                    assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
                     d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
                     if isinstance(self.data_buffer[k][0], tuple):
                         d = [NamedTupleStaticClass.getitem(_d, batch_idx) for _d in d]
@@ -244,7 +245,7 @@ class DataBuffer(object):
 
                 sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
             cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield NamedTupleStaticClass.pack(samples, func=np.vstack), cs    # [B*T, N]
+            yield NamedTupleStaticClass.pack(samples, func=np.concatenate), cs    # [B*T, N]
 
     def clear(self):
         '''

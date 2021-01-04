@@ -232,7 +232,7 @@ class PPO(On_Policy):
             return value, cell_state
 
     def calculate_statistics(self) -> NoReturn:
-        init_value, self.cell_state = self._get_value(self.data.last_observation(), cell_state=self.cell_state)
+        init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
         init_value = init_value.numpy()
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)

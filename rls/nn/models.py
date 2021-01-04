@@ -89,7 +89,7 @@ class ActorMuLogstd(M):
         if self.condition_sigma:
             self.log_std = mlp([], output_shape=output_shape, out_activation=None)
         else:
-            self.log_std = tf.Variable(initial_value=-0.5 * tf.ones(output_shape, dtype=tf.dtypes.float32), trainable=True)
+            self.log_std = tf.Variable(initial_value=-0.5 * tf.ones(shape=(1, output_shape), dtype=tf.dtypes.float32), trainable=True)
         self(I(shape=vector_dim))
 
     def call(self, x):
@@ -411,7 +411,7 @@ class C51Distributional(M):
 
     def call(self, x):
         feat = self.net(x)    # [B, A*N]
-        outputs = [output(feat) for output in self.outputs] # A * [B, N]
+        outputs = [output(feat) for output in self.outputs]  # A * [B, N]
         q_dist = tf.reshape(tf.concat(outputs, axis=-1), [-1, self.action_dim, self.atoms])   # A * [B, N] => [B, A*N] => [B, A, N]
         return q_dist
 
