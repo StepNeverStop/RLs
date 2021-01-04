@@ -111,7 +111,6 @@ class Sum_Tree(object):
         p = self.tree[tidx]
         d = self.data[didx]
         tidx, didx, p, d = map(np.asarray, [tidx, didx, p, d])
-        d = [np.asarray(e) for e in zip(*d)]    # [[s, a], [s, a]] => [[s, s], [a, a]]
         return (tidx, didx, p, d)
 
     def get_all(self):
@@ -121,7 +120,6 @@ class Sum_Tree(object):
         p = self.tree[tidx]
         d = self.data[didx]
         tidx, didx, p, d = map(np.asarray, [tidx, didx, p, d])
-        d = [np.asarray(e) for e in zip(*d)]    # [[s, a], [s, a]] => [[s, s], [a, a]]
         return (tidx, didx, p, d)
 
     def get_all_exps(self):

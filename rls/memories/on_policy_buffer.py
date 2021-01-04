@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import random
 import numpy as np
 
 from collections import defaultdict
@@ -10,6 +11,8 @@ from rls.utils.np_utils import (int2one_hot,
                                 calculate_td_error,
                                 normalization,
                                 standardization)
+from rls.utils.specs import (BatchExperiences,
+                             NamedTupleStaticClass)
 
 
 class DataBuffer(object):
@@ -18,31 +21,42 @@ class DataBuffer(object):
     '''
 
     def __init__(self,
-                 n_agents=1,
-                 rnn_cell_nums=0,
-                 dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'],
-                 rnn_3dim_keys=['s', 's_', 'visual_s', 'visual_s_']):
+                 n_agents: int = 1,
+                 rnn_cell_nums: int = 0,
+                 batch_size: int = 32,
+                 rnn_time_step: int = 8,
+                 store_data_type: BatchExperiences = BatchExperiences,
+                 sample_data_type: BatchExperiences = BatchExperiences):
         '''
         params:
-            dict_keys: 要存入buffer中元素的名称
             n_agents: 一个policy控制的智能体数量
-            rnn_3dim_keys: 如果使用rnn训练时，从经验池取出的数据中需要设置为[batchsize, timestep, dimension]的元素名称
         '''
-        assert n_agents > 0
+        assert n_agents > 0, "assert n_agents > 0"
+
+        self.data_buffer = defaultdict(list)
         self.n_agents = n_agents
         self.rnn_cell_nums = rnn_cell_nums
-        self.cell_state_keys = ['cell_state_' + str(i) for i in range(rnn_cell_nums)]
-        self.dict_keys = dict_keys + self.cell_state_keys
-        self.buffer = defaultdict(list)
-        self.rnn_3dim_keys = rnn_3dim_keys
+        self.cell_state_buffer = [[] for _ in range(self.rnn_cell_nums)]
         self.eps_len = 0
 
-    def add(self, *args):
+        self.batch_size = batch_size
+        self.rnn_time_step = rnn_time_step
+
+        self.store_data_type = store_data_type
+        self.sample_data_type = sample_data_type
+
+    def add(self, exps: BatchExperiences):
         '''
         添加数据
         '''
-        [self.buffer[k].append(arg) for k, arg in zip(self.dict_keys, args)]
+        for k, v in exps._asdict().items():
+            self.data_buffer[k].append(v)
         self.eps_len += 1
+
+    def add_cell_state(self, cell_states):
+        '''存储LSTM隐状态'''
+        for l, cs in zip(self.cell_state_buffer, cell_states):
+            l.append(cs)
 
     def cal_dc_r(self, gamma, init_value, normalize=False):
         '''
@@ -50,29 +64,32 @@ class DataBuffer(object):
         param gamma: 折扣因子 gamma \in [0, 1)
         param init_value: 序列最后状态的值
         '''
-        dc_r = discounted_sum(self.buffer['r'], gamma, init_value, self.buffer['done'])
+        discounted_reward = discounted_sum(self.data_buffer['reward'],
+                                           gamma,
+                                           init_value,
+                                           self.data_buffer['done'])
         if normalize:
-            dc_r = standardization(np.asarray(dc_r))
-        self.buffer['discounted_reward'] = list(dc_r)
+            discounted_reward = standardization(np.asarray(discounted_reward))
+        self.data_buffer['discounted_reward'] = list(discounted_reward)
 
     def cal_tr(self, init_value):
         '''
         计算总奖励
         '''
-        self.buffer['total_reward'] = self.cal_dc_r(1., init_value)
+        self.data_buffer['total_reward'] = self.cal_dc_r(1., init_value)
 
     def cal_td_error(self, gamma, init_value):
         '''
         计算td error
         TD = r + gamma * (1- done) * v(s') - v(s)
         '''
-        assert 'value' in self.buffer.keys()
-        self.buffer['td_error'] = list(calculate_td_error(
-            self.buffer['r'],
+        assert 'value' in self.data_buffer.keys(), "assert 'value' in self.data_buffer.keys()"
+        self.data_buffer['td_error'] = list(calculate_td_error(
+            self.data_buffer['reward'],
             gamma,
-            self.buffer['done'],
-            self.buffer['value'],
-            self.buffer['value'][1:] + [init_value],
+            self.data_buffer['done'],
+            self.data_buffer['value'],
+            self.data_buffer['value'][1:] + [init_value],
         ))
 
     def cal_gae_adv(self, lambda_, gamma, normalize=False):
@@ -80,108 +97,70 @@ class DataBuffer(object):
         计算GAE优势估计
         adv = td(s) + gamma * lambda * (1 - done) * td(s')
         '''
-        assert 'td_error' in self.buffer.keys()
+        assert 'td_error' in self.data_buffer.keys(), "assert 'td_error' in self.data_buffer.keys()"
         adv = np.asarray(discounted_sum(
-            self.buffer['td_error'],
+            self.data_buffer['td_error'],
             lambda_ * gamma,
             0,
-            self.buffer['done']
+            self.data_buffer['done']
         ))
         if normalize:
             adv = standardization(adv)
-        self.buffer['gae_adv'] = list(standardization(adv))
+        self.data_buffer['gae_adv'] = list(standardization(adv))
 
-    def last_s(self):
+    def last_data(self, key):
         '''
-        获取序列末尾的状态，即s_[-1]
+        获取序列末尾的数据
         '''
-        assert 's_' in self.buffer.keys()
-        return self.buffer['s_'][-1]
-
-    def last_visual_s(self):
-        '''
-        获取序列末尾的图像，即visual_s_[-1]
-        '''
-        assert 'visual_s_' in self.buffer.keys()
-        return self.buffer['visual_s_'][-1]
+        assert key in self.data_buffer.keys(), f"assert {key} in self.data_buffer.keys()"
+        return self.data_buffer[key][-1]
 
     def get_curiosity_data(self):
         '''
         返回用于好奇心机制的数据
         '''
-        keys = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_']
-        for k in keys:
-            if k not in self.buffer.keys():
-                raise Exception('Buffer does not has key {k}.')
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
-        return all_data
+
+        # T * [B, N] => [B, T, N] => [B*T, N]
+        def func(x): return np.stack(x, axis=1).reshape(self.n_agents * self.eps_len, -1)
+
+        data = {}
+        for k in BatchExperiences._fields:
+            assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
+            if isinstance(self.data_buffer[k][0], tuple):
+                data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
+                assert NamedTupleStaticClass.check_len(data[k], l=self.n_agents * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+            else:
+                data[k] = func(self.data_buffer[k])
+                assert data[k].shape[0] == self.n_agents * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+        return BatchExperiences(**data)
+
+    def update_reward(self, r: np.ndarray):
+        '''
+        r: [B*T, N]
+        '''
+        r = r.reshape(self.n_agents, self.eps_len, -1)
+        for i in range(self.eps_len):
+            self.data_buffer['reward'][i] += r[:, i]
 
     def convert_action2one_hot(self, a_counts):
         '''
         用于在训练前将buffer中的离散动作的索引转换为one_hot类型
         '''
-        if 'a' in self.buffer.keys():
-            self.buffer['a'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.buffer['a']]
+        assert 'action' in self.data_buffer.keys(), "assert 'action' in self.data_buffer.keys()"
+        self.data_buffer['action'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.data_buffer['action']]
 
     def normalize_vector_obs(self, func):
         '''
         TODO: Annotation
         '''
-        if 's' in self.buffer.keys():
-            self.buffer['s'] = [func(s) for s in self.buffer['s']]
-        if 's_' in self.buffer.keys():
-            self.buffer['s_'] = [func(s) for s in self.buffer['s_']]
+        assert 'obs' in self.data_buffer.keys(), "assert 'obs' in self.data_buffer.keys()"
+        assert 'obs_' in self.data_buffer.keys(), "assert 'obs_' in self.data_buffer.keys()"
+        self.data_buffer['obs'] = [NamedTupleStaticClass.data_convert(func, obs, keys=['vector']) for obs in self.data_buffer['obs']]
+        self.data_buffer['obs_'] = [NamedTupleStaticClass.data_convert(func, obs_, keys=['vector']) for obs_ in self.data_buffer['obs_']]
 
-    def calculate_dim_before_sample(self, keys=None):
-        '''
-        calculate the dimension of each items stored in data buffer. This will help to reshape the data.
-        For example, if the dimension of vector obs is 4, and the dimension of visual obs is (84, 84, 3),
-        you cannot just use tf.reshape(x, (batch_size, time_step, -1)) to get the correct shape of visual obs.
-        By recording the data dimension in this way, it is easy to reshape them.
-
-        params:
-            keys: the key of items in data buffer
-        return:
-            keys_shape: a dict that include all dimension info of each key in data buffer
-        '''
-        keys = keys or self.buffer.keys()
-        keys_shape = {k: self.buffer[k][0].shape[1:]
-                      if len(self.buffer[k][0].shape[1:]) > 0
-                      else (-1,) for k in keys}
-        return keys_shape
-
-    def split_data_by_timestep(self, time_step: int):
-        assert 'done' in self.buffer.keys()
-        assert time_step > 0
-        keys = self.buffer.keys()
-
-        # [eps_len, agents, dim]
-        buffer = defaultdict(list)
-        # [eps_len, agents, dim] to [agents, eps_len, dim]
-        for k in keys:
-            self.buffer[k] = list(np.transpose(
-                np.asarray(self.buffer[k]),
-                (1, 0) + tuple(np.arange(self.buffer[k][0][0].ndim) + 2)
-            ))
-        nums = 0
-        for ag, dones in enumerate(self.buffer['done']):
-            # dones: (eps_len,)
-            idxs = (np.where(dones == True)[0] + 1).tolist()
-            for i, j in zip([0] + idxs, idxs + [self.eps_len]):
-                count, remainder = divmod((j - i), time_step)
-                offset = np.random.randint(0, remainder + 1)
-                for c in range(count):
-                    l = c * time_step + offset
-                    r = l + time_step
-                    [buffer[k].append(self.buffer[k][ag][l:r]) for k in keys]
-                    nums += 1
-        self.clear()
-        del self.buffer
-        self.buffer = buffer
-        return nums
-
-    def sample_generater(self, batch_size, keys=None):
+    def sample_generater(self, batch_size: int = None):
         '''
         create sampling data iterator without using rnn.
 
@@ -191,116 +170,116 @@ class DataBuffer(object):
         return:
             sampled data.
         '''
-        keys = keys or self.buffer.keys()
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
+
+        batch_size = batch_size or self.batch_size
+
+        buffer = {}
+        # T * [B, N] => [T*B, N]
+        for k in self.sample_data_type._fields:
+            assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
+            if isinstance(self.data_buffer[k][0], tuple):
+                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
+                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_agents * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+            else:
+                buffer[k] = np.concatenate(self.data_buffer[k])
+                assert buffer[k].shape[0] == self.n_agents * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+
         idxs = np.arange(self.eps_len * self.n_agents)
         np.random.shuffle(idxs)
         for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
             _idxs = idxs[i:i + batch_size * self.n_agents]
-            yield [data[_idxs] for data in all_data] + [(None,)]
+            data = []
+            for k in self.sample_data_type._fields:
+                if isinstance(buffer[k], tuple):
+                    data.append(NamedTupleStaticClass.getbatchitems(buffer[k], _idxs))
+                else:
+                    data.append(buffer[k][_idxs])
+            yield self.sample_data_type._make(data), (None, )
 
-    def sample_generater_rnn(self, batch_size, time_step, keys=None):
+    def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
         '''
         create rnn sampling data iterator.
 
         params:
-            time_step: the length of time slide window
-            keys: the keys of data that should be sampled to train policies
+            rnn_time_step: the length of time slide window
         return:
             sampled data.
-            if key in self.rnn_3dim_keys, then return data with shape (agents_num, time_step, *)
-            else return with shape (agents_num*time_step, *)
         '''
-        # [agents, timestep, dim]
-        total_eps_num = self.split_data_by_timestep(time_step=time_step)
-        idxs = np.arange(total_eps_num)
-        np.random.shuffle(idxs)
+        batch_size = batch_size or self.batch_size
+        rnn_time_step = rnn_time_step or self.rnn_time_step
 
-        keys = keys or self.buffer.keys()
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = {k: np.asarray(self.buffer[k]).astype(np.float32) for k in self.buffer.keys()}
+        # TODO: 未done导致的episode切换需要严谨处理
+        # T * [B, 1] => [T, B] => [B, T]
+        done = np.asarray(self.data_buffer['done']).squeeze().transpose((1, 0))
+        B, T = done.shape
+        done_dict = defaultdict(list)
+        for i, j in zip(*np.where(done)):
+            done_dict[i].append(j)
+
+        available_sample_range = defaultdict(list)
+        count = 0   # 记录不交叉分割，最多有几段
+        for i in range(B):
+            idxs = [-1] + done_dict[i] + [T - 1]
+            for x, y in zip(idxs[:-1], idxs[1:]):
+                if y - rnn_time_step + 1 > x:
+                    available_sample_range[i].append([x + 1, y - rnn_time_step + 1])    # 左开右开
+                    count += (y - x) // 2
 
         # prevent total_eps_num is smaller than batch_size
-        while batch_size > total_eps_num:
+        while batch_size > count:
             batch_size //= 2
 
-        count, remainder = divmod(total_eps_num, batch_size)
-        offset = np.random.randint(0, remainder + 1)
-        for i in range(count):
-            l = i * batch_size + offset
-            r = l + batch_size
-            _idxs = idxs[l:r]
-            yield [all_data[k][_idxs]
-                   if k in self.rnn_3dim_keys
-                   else all_data[k][_idxs].reshape(batch_size * time_step, *keys_shape[k])
-                   for k in keys] \
-                + \
-                [
-                tuple(all_data[cell_k][_idxs, 0, :] for cell_k in self.cell_state_keys)
-            ]
+        for _ in range(count // batch_size):
+            samples = []
+            sample_cs = []
+            for i in range(batch_size):  # B
+                batch_idx = random.choice(list(available_sample_range.keys()))
+                sample_range = random.choice(available_sample_range[batch_idx])
+                time_idx = random.randint(*sample_range)
+
+                sample_exp = {}
+                for k in self.sample_data_type._fields:
+                    assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
+                    d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
+                    if isinstance(self.data_buffer[k][0], tuple):
+                        d = [NamedTupleStaticClass.getitem(_d, batch_idx) for _d in d]
+                        sample_exp[k] = NamedTupleStaticClass.pack(d)   # [T, N]
+                    else:
+                        d = [_d[batch_idx] for _d in d]
+                        sample_exp[k] = np.asarray(d)
+                samples.append(self.sample_data_type(**sample_exp))
+
+                sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
+            cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
+            yield NamedTupleStaticClass.pack(samples, func=np.concatenate), cs    # [B*T, N]
 
     def clear(self):
         '''
         清空临时存储经验池
         '''
         self.eps_len = 0
-        for k in self.buffer.keys():
-            self.buffer[k].clear()
+        for k in self.data_buffer.keys():
+            self.data_buffer[k].clear()
+        for l in self.cell_state_buffer:
+            l.clear()
 
     def __getattr__(self, name):
         '''
         TODO: Annotation
         '''
-        return self.buffer[name]
+        return self.data_buffer[name]
 
     def __getitem__(self, name):
         '''
         TODO: Annotation
         '''
-        return self.buffer[name]
+        return self.data_buffer[name]
 
     def __str__(self):
-        return str(self.buffer)
+        return str(self.data_buffer)
 
 
 if __name__ == "__main__":
-    db = DataBuffer(
-        dict_keys=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done'],
-        n_agents=2,
-        rnn_3dim_keys=['s', 's_', 'visual_s', 'visual_s_'])
-
-    for i in range(10):
-        db.add(
-            np.full((2, 2), i, dtype=np.float32),   # s
-            np.full((2, 8, 8, 3), i, dtype=np.float32),  # visual_s
-            np.full((2, 2), i, dtype=np.float32),   # a
-            np.full((2,), i, dtype=np.float32),  # r
-            np.full((2, 2), i, dtype=np.float32),   # s_
-            np.full((2, 8, 8, 3), i, dtype=np.float32),  # visual_s
-            np.full((2,), True, dtype=np.float32)  # done
-        )
-
-    # should be [[9, 9], [9, 9]]
-    print(db.last_s())
-    # shouble be np.full((2, 8, 8, 3), 9)
-    print(db.last_visual_s())
-
-    # for d in db.sample_generater(batch_size=2, keys=['s', 'r']):
-    #     print(d[0].shape, d[1].shape)
-
-    # for d in db.sample_generater_rnn(time_step=6, keys=['s', 'r']):
-    #     print(d[0].shape, d[1].shape)
-    # print(d[0])
-
-    # db.cal_dc_r(1., 1.)
-    # print(db.buffer['discounted_reward'])
-
-    # db.cal_dc_r(1., 1., normalize=True)
-    # print(db.buffer['discounted_reward'])
-
-    # db.clear()
-    # print(db)
-
-    db.split_data_by_timestep(time_step=1)
-    print(db)
+    pass

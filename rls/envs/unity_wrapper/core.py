@@ -12,8 +12,8 @@ class BasicWrapper:
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
-    def step(self, actions):
-        return self.env.step(actions)
+    def step(self, actions, **kwargs):
+        return self.env.step(actions, **kwargs)
 
 
 class ObservationWrapper(BasicWrapper):
@@ -21,8 +21,8 @@ class ObservationWrapper(BasicWrapper):
     def reset(self, **kwargs):
         return self.observation(self.env.reset(**kwargs))
 
-    def step(self, actions):
-        return self.observation(self.env.step(actions))
+    def step(self, actions, **kwargs):
+        return self.observation(self.env.step(actions, **kwargs))
 
     def observation(self, observation):
         raise NotImplementedError
@@ -30,8 +30,8 @@ class ObservationWrapper(BasicWrapper):
 
 class ActionWrapper(BasicWrapper):
 
-    def step(self, actions):
-        return self.env.step(self.action(actions))
+    def step(self, actions, **kwargs):
+        return self.env.step(self.action(actions), **kwargs)
 
     def action(self, actions):
         raise NotImplementedError

@@ -30,29 +30,13 @@ def make_gym_env(env_kargs: Dict):
 
 def make_unity_env(env_kargs: Dict):
     from rls.envs.unity_wrapper import (BasicUnityEnvironment,
-                                        GrayVisualWrapper,
-                                        ResizeVisualWrapper,
-                                        ScaleVisualWrapper,
-                                        BasicActionWrapper,
-                                        StackVisualWrapper)
+                                        ScaleVisualWrapper)
 
     copied_env_kargs = deepcopy(env_kargs)
     env = BasicUnityEnvironment(copied_env_kargs)
     logger.debug('Unity BasicUnityEnvironment success.')
 
-    if copied_env_kargs['obs_grayscale']:
-        env = GrayVisualWrapper(env)
-
-    if copied_env_kargs['obs_resize']:
-        env = ResizeVisualWrapper(env, resize=copied_env_kargs['resize'])
-
     if copied_env_kargs['obs_scale']:
         env = ScaleVisualWrapper(env)
-
-    if copied_env_kargs['obs_stack']:
-        env = StackVisualWrapper(env, stack_nums=env_kargs['stack_visual_nums'])
-
-    env = BasicActionWrapper(env)
-    logger.debug('Unity BasicActionWrapper success.')
 
     return env

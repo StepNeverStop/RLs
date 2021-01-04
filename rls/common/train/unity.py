@@ -12,6 +12,7 @@ from rls.utils.np_utils import (SMA,
 from rls.utils.mlagents_utils import (multi_agents_data_preprocess,
                                       multi_agents_action_reshape)
 from rls.utils.logging_utils import get_logger
+from rls.utils.specs import BatchExperiences
 
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
@@ -43,49 +44,34 @@ def unity_train(env, model,
         save_frequency:         how often to save checkpoints.
         max_step_per_episode:   maximum number of steps for an episode.
         resampling_interval:    how often to resample parameters for env reset.
-    Variables:
-        group_names:    a list of group names set in Unity.
-        state: store    a list of states for each group. each item contain a list of states for each agents that controlled by the same group.
-        visual_state:   store a list of visual state information for each group.
-        action:         store a list of actions for each group.
-        dones_flag:     store a list of 'done' for each group. use for judge whether an episode is finished for every agents.
-        rewards:        use to record rewards of agents for each group.
     """
 
     sma = SMA(moving_average_episode)
     frame_step = begin_frame_step
     train_step = begin_train_step
-    n = env.group_agents[env.first_gn]
+    n = env.behavior_agents[env.first_bn]
 
     for episode in range(begin_episode, max_train_episode):
         model.reset()
-        ret = env.reset()[env.first_gn]
-        s = ret.corrected_vector
-        visual_s = ret.corrected_visual
+        ret = env.reset(reset_config={})
         dones_flag = np.zeros(n, dtype=float)
         rewards = np.zeros(n, dtype=float)
         step = 0
         last_done_step = -1
 
         while True:
+            obs = ret.corrected_obs
             step += 1
-            action = model.choose_action(s=s, visual_s=visual_s)
-            ret = env.step({env.first_gn: action})[env.first_gn]
-
-            model.store_data(
-                s=s,
-                visual_s=visual_s,
-                a=action,
-                r=ret.reward,
-                s_=ret.vector,
-                visual_s_=ret.visual,
-                done=ret.info['real_done'] if real_done else ret.done
-            )
+            action = model.choose_action(obs=obs)
+            ret = env.step(action, step_config={})
+            model.store_data(BatchExperiences(obs=obs,
+                                              action=action,
+                                              reward=ret.reward[:, np.newaxis],  # [B, ] => [B, 1]
+                                              obs_=ret.obs,
+                                              done=(ret.info['real_done'] if real_done else ret.done)[:, np.newaxis]))  # [B, ] => [B, 1]
             model.partial_reset(ret.done)
             rewards += (1 - dones_flag) * ret.reward
             dones_flag = np.sign(dones_flag + ret.done)
-            s = ret.corrected_vector
-            visual_s = ret.corrected_visual
 
             if policy_mode == 'off-policy':
                 if train_step % off_policy_train_interval == 0:
@@ -124,7 +110,7 @@ def unity_train(env, model,
             **sma.rs
         )
         print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
-        print_func(f'{env.first_gn} R: {arrprint(rewards, 2)}')
+        print_func(f'{env.first_bn} R: {arrprint(rewards, 2)}')
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             unity_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
@@ -141,33 +127,26 @@ def unity_no_op(env, model,
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
     '''
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-    n = env.group_agents[env.first_gn]
+    n = env.behavior_agents[env.first_bn]
 
     if pre_fill_steps == 0:
         return
     model.reset()
-    ret = env.reset()[env.first_gn]
-    s = ret.corrected_vector
-    visual_s = ret.corrected_visual
+    ret = env.reset(reset_config={})
 
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
+        obs = ret.corrected_obs
         if prefill_choose:
-            action = model.choose_action(s=s, visual_s=visual_s)
+            action = model.choose_action(obs=obs)
         else:
-            action = env.random_action()[env.first_gn]
-        ret = env.step({env.first_gn: action})[env.first_gn]
-        model.no_op_store(
-            s=s,
-            visual_s=visual_s,
-            a=action,
-            r=ret.reward,
-            s_=ret.vector,
-            visual_s_=ret.visual,
-            done=ret.info['real_done'] if real_done else ret.done
-        )
+            action = env.random_action()
+        ret = env.step(action, step_config={})
+        model.no_op_store(BatchExperiences(obs=obs,
+                                           action=action,
+                                           reward=ret.reward[:, np.newaxis],
+                                           obs_=ret.obs,
+                                           done=(ret.info['real_done'] if real_done else ret.done)[:, np.newaxis]))
         model.partial_reset(ret.done)
-        s = ret.corrected_vector
-        visual_s = ret.corrected_visual
 
 
 def unity_inference(env, model,
@@ -178,13 +157,12 @@ def unity_inference(env, model,
 
     for episode in range(episodes):
         model.reset()
-        ret = env.reset()[env.first_gn]
+        ret = env.reset(reset_config={})
         while True:
-            action = model.choose_action(s=ret.corrected_vector,
-                                         visual_s=ret.corrected_visual,
+            action = model.choose_action(obs=ret.corrected_obs,
                                          evaluation=True)
             model.partial_reset(ret.done)
-            ret = env.step({env.first_gn: action})[env.first_gn]
+            ret = env.step(action, step_config={})
 
 
 def ma_unity_no_op(env, model,
@@ -197,12 +175,12 @@ def ma_unity_no_op(env, model,
     if pre_fill_steps == 0:
         return
 
-    data_change_func = multi_agents_data_preprocess(env.env_copys, env.group_controls)
-    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.group_controls)
+    data_change_func = multi_agents_data_preprocess(env.env_copys, env.behavior_controls)
+    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.behavior_controls)
     model.reset()
 
     # [s(s_brain1(agent1, agent2, ...), s_brain2, ...), visual_s, r, done, info]
-    s, visual_s, _, _, _, _, _ = env.reset()
+    s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
     # [total_agents, batch, dimension]
     s, visual_s = map(data_change_func, [s, visual_s])
 
@@ -210,11 +188,11 @@ def ma_unity_no_op(env, model,
         if prefill_choose:
             action = model.choose_action(s=s, visual_s=visual_s)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
         else:
             actions = env.random_action()
             action = list(actions.values())
-        s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)
+        s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions, step_config={})
         if real_done:
             done = [g['real_done'] for g in info]
 
@@ -254,9 +232,9 @@ def ma_unity_train(env, model,
     frame_step = begin_frame_step
     train_step = begin_train_step
 
-    data_change_func = multi_agents_data_preprocess(env.env_copys, env.group_controls)
-    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.group_controls)
-    agents_num_per_copy = sum(env.group_controls)
+    data_change_func = multi_agents_data_preprocess(env.env_copys, env.behavior_controls)
+    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.behavior_controls)
+    agents_num_per_copy = sum(env.behavior_controls)
 
     sma = [SMA(moving_average_episode) for _ in range(agents_num_per_copy)]
 
@@ -266,7 +244,7 @@ def ma_unity_train(env, model,
         rewards = np.zeros((agents_num_per_copy, env.env_copys))
 
         model.reset()
-        s, visual_s, _, _, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
         s, visual_s = map(data_change_func, [s, visual_s])
 
         step = 0
@@ -274,8 +252,8 @@ def ma_unity_train(env, model,
         while True:
             action = model.choose_action(s=s, visual_s=visual_s)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
-            s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions)    # [Brains, Agents, Dims]
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
+            s_, visual_s_, r, done, info, corrected_s_, corrected_visual_s_ = env.step(actions, step_config={})    # [Brains, Agents, Dims]
             step += 1
 
             if real_done:
@@ -344,13 +322,13 @@ def ma_unity_inference(env, model,
     """
     inference mode. algorithm model will not be train, only used to show agents' behavior
     """
-    data_change_func = multi_agents_data_preprocess(env.env_copys, env.group_controls)
-    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.group_controls)
+    data_change_func = multi_agents_data_preprocess(env.env_copys, env.behavior_controls)
+    action_reshape_func = multi_agents_action_reshape(env.env_copys, env.behavior_controls)
     for episode in range(episodes):
         model.reset()
-        s, visual_s, _, _, _, _, _ = env.reset()
+        s, visual_s, _, _, _, _, _ = env.reset(reset_config={})
         while True:
             action = model.choose_action(s=s, visual_s=visual_s, evaluation=True)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
-            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.group_names)}
-            _, _, _, _, _, s, visual_s_ = env.step(actions)
+            actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
+            _, _, _, _, _, s, visual_s_ = env.step(actions, step_config={})
