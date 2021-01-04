@@ -99,7 +99,7 @@ class AveragedDQN(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

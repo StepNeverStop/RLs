@@ -122,7 +122,7 @@ class A2C(On_Policy):
             ])
         })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:

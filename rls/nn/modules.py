@@ -80,7 +80,7 @@ class CuriosityModel(M):
         self.inverse_dynamic_net(tf.concat((feat, feat), -1))
         self.forward_net(tf.concat((feat, action), -1))
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def call(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

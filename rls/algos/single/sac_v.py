@@ -176,7 +176,7 @@ class SAC_V(Off_Policy):
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_continuous(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
@@ -247,7 +247,7 @@ class SAC_V(Off_Policy):
                 })
             return (td_error1 + td_error2) / 2, summaries
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_discrete(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:

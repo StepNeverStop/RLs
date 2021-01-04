@@ -19,8 +19,8 @@ from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
 from rls.utils.specs import (SingleAgentEnvArgs,
-                              VisualNetworkType,
-                              MemoryNetworkType)
+                             VisualNetworkType,
+                             MemoryNetworkType)
 from rls.utils.build_networks import DefaultRepresentationNetwork
 from rls.nn.modules import CuriosityModel
 

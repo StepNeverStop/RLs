@@ -97,7 +97,7 @@ class PG(On_Policy):
             'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
         })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

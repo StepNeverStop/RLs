@@ -265,7 +265,7 @@ class HIRO(Off_Policy):
                 ]))
                 self.write_training_summaries(self.global_step, self.summaries)
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_low(self, BATCH: LowBatchExperiences):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -322,7 +322,7 @@ class HIRO(Off_Policy):
                 ['Statistics/low_q_max', tf.reduce_max(q)]
             ])
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_high(self, BATCH: HighBatchExperiences):
         # BATCH.obs_ : [B, N]
         # BATCH.obs, BATCH.action [B, T, *]

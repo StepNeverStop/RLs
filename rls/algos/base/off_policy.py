@@ -101,12 +101,12 @@ class Off_Policy(Policy):
                 curiosity_data = data
                 if self.use_rnn:
                     # TODO check visual
-                    obs = [tf.reshape(o, [-1, o.shape[-1]]) for o in data.obs] # [B, T, N] => [B*T, N]
+                    obs = [tf.reshape(o, [-1, o.shape[-1]]) for o in data.obs]  # [B, T, N] => [B*T, N]
                     obs_ = [tf.reshape(o, [-1, o.shape[-1]]) for o in data.obs_]
-                    curiosity_data = data._replace(obs=data.obs.__class__._make(obs), 
+                    curiosity_data = data._replace(obs=data.obs.__class__._make(obs),
                                                    obs_=data.obs_.__class__._make(obs_))
                 crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_state)
-                data = data._replace(reward=data.reward+crsty_r)
+                data = data._replace(reward=data.reward + crsty_r)
                 _summary.update(crsty_summaries)
             # --------------------------------------
 
@@ -126,9 +126,9 @@ class Off_Policy(Policy):
                     obs_ = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [self.episode_batch_size, -1, *x.shape[1:]]), data.obs_)
                     # TODO: 优化
                     # [B, T, N], [B, T, N] => [B, T+1, N]
-                    obs = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(obs, obs_)] 
+                    obs = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(obs, obs_)]
                 else:
-                    obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)] # [B, N] => [2*B, N]
+                    obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
                 data = data._replace(obs=data.obs.__class__._make(obs))
             # --------------------------------------
 
@@ -169,14 +169,14 @@ class Off_Policy(Policy):
         data = self._data_process2dict(data=data)
 
         if _use_stack:
-            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)] # [B, N] => [2*B, N]
+            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
             data = data._replace(obs=data.obs.__class__._make(obs))
 
         cell_state = (None,)
-        
+
         if self.use_curiosity:
             crsty_r, crsty_summaries = self.curiosity_model(data, cell_state)
-            data = data._replace(reward=data.reward+crsty_r)
+            data = data._replace(reward=data.reward + crsty_r)
             _summary.update(crsty_summaries)
 
         _isw = self.data_convert(priorities)
@@ -199,7 +199,7 @@ class Off_Policy(Policy):
         data = self._data_process2dict(data=data)
 
         if _use_stack:
-            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)] # [B, N] => [2*B, N]
+            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
             data = data._replace(obs=data.obs.__class__._make(obs))
 
         cell_state = (None,)

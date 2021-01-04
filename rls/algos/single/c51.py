@@ -93,7 +93,7 @@ class C51(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):

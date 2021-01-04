@@ -174,7 +174,7 @@ class OC(Off_Policy):
                 ])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         last_options = tf.cast(BATCH.last_options, tf.int32)
         options = tf.cast(BATCH.options, tf.int32)

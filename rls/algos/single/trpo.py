@@ -198,7 +198,7 @@ class TRPO(On_Policy):
             ])
         })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_actor(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -219,7 +219,7 @@ class TRPO(On_Policy):
             self.global_step.assign_add(1)
             return actor_loss, entropy, gradients
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def Hx(self, x, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
@@ -243,7 +243,7 @@ class TRPO(On_Policy):
                 hvp += self.damping_coeff * x
             return hvp
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_critic(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

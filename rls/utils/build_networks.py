@@ -82,6 +82,7 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
 
         self.h_dim = self.memory_net.h_dim
 
+    @tf.function
     def __call__(self, obs, cell_state, *, need_split=False):
         '''
         params:
@@ -95,7 +96,7 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
         if self.memory_net.use_rnn:
             batch_size = tf.shape(cell_state[0])[0]
             # reshape feature from [B*T, x] to [B, T, x]
-            feat = tf.reshape(feat, (batch_size, -1, tf.shape(feat)[-1]))
+            feat = tf.reshape(feat, (batch_size, -1, feat.shape[-1]))
             feat, cell_state = self.memory_net(feat, *cell_state)
 
             if need_split:

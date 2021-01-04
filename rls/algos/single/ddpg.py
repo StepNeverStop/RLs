@@ -115,7 +115,7 @@ class DDPG(Off_Policy):
                 ])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:

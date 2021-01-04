@@ -86,7 +86,7 @@ class DQN(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -108,7 +108,7 @@ class DQN(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _cal_td(self, BATCH, cell_state):
         with tf.device(self.device):
             q = self.q_net(BATCH.obs, cell_state=cell_state)

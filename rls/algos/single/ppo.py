@@ -297,7 +297,7 @@ class PPO(On_Policy):
             'train_data_type': PPO_Train_BatchExperiences
         })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_share(self, BATCH, cell_state, kl_coef):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -358,7 +358,7 @@ class PPO(On_Policy):
             self.global_step.assign_add(1)
             return actor_loss, value_loss, entropy, kl
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_actor(self, BATCH, cell_state, kl_coef):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -401,7 +401,7 @@ class PPO(On_Policy):
             self.global_step.assign_add(1)
             return actor_loss, entropy, kl
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def train_critic(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:

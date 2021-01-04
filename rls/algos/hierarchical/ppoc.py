@@ -221,7 +221,7 @@ class PPOC(On_Policy):
             'summary_dict': summary_dict
         })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def share(self, BATCH, cell_state, kl_coef):
         last_options = tf.cast(BATCH.last_options, tf.int32)  # [B,]
         options = tf.cast(BATCH.options, tf.int32)

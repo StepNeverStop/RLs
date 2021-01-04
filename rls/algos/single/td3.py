@@ -122,7 +122,7 @@ class TD3(Off_Policy):
                 ])
             })
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             for _ in range(self.delay_num):

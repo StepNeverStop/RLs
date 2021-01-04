@@ -102,7 +102,7 @@ class MADDPG(MultiAgentOffPolicy):
         else:
             actor_net = self.actor_nets[model_idx]
 
-        # @tf.function(experimental_relax_shapes=True)
+        # @tf.function
         def _get_action_func(vector_input):
             vector_input = self._tf_data_cast(vector_input)[0]
             with tf.device(self.device):
@@ -182,7 +182,7 @@ class MADDPG(MultiAgentOffPolicy):
 
         s, a, s_, a_, r, done, s_i, al, ar = map(self.data_convert, (s, a, s_, a_, r, done, s_i, al, ar))
 
-        # @tf.function(experimental_relax_shapes=True)
+        # @tf.function
         def train_persistent(s, s_, a, a_, r, done, s_i, al, ar):
             with tf.device(self.device):
                 with tf.GradientTape(persistent=True) as tape:
