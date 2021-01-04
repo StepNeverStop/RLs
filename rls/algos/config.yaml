@@ -127,6 +127,10 @@ dqn: &dqn
 
 ddqn: *dqn
 
+averaged_dqn:
+    target_k: 4
+    <<: *dqn
+
 dddqn:
     network_settings:
         share: [64]

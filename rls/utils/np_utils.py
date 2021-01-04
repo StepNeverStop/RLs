@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import itertools
+import scipy.signal
 import numpy as np
 
 
@@ -10,24 +11,25 @@ def intprod(x):
 
 
 def discounted_sum(x, gamma, init_value, dones):
-    y = []
-    for _x, _d in zip(x[::-1], dones[::-1]):
-        init_value = gamma * (1 - _d) * init_value + _x
-        y.append(init_value)
-    return y[::-1]
+    l = len(x)
+    out = [0] * l
+    for i in reversed(range(l)):
+        out[i] = init_value = x[i] + init_value * gamma * (1 - dones[i])
+    return out
 
 
-def discounted_sum_minus(x, gamma, init_value, dones, z):
-    y = []
-    for _x, _d, _z in zip(x[::-1], dones[::-1], z[::-1]):
-        y.append(gamma * (1 - _d) * init_value + _x - _z)
-        init_value = _z
-    return y[::-1]
+def calculate_td_error(r, gamma, d, v, v_):
+    r = np.array(r)
+    v = np.array(v)
+    d = np.array(d)
+    v_ = np.array(v_)
+    td = r + gamma * (1 - d) * v_ - v
+    return td
 
 
-def int2action_index(x, action_dim_list):
+def get_discrete_action_list(action_dim_list):
     """
-    input: [0,1,2,3,4,5,6,7,8,9,10,11], [3, 2, 2]
+    input: [3, 2, 2]
     output: 
         [[0 0 0]
         [0 0 1]
@@ -42,13 +44,13 @@ def int2action_index(x, action_dim_list):
         [2 1 0]
         [2 1 1]]
     """
-    x = np.array(x)
-    index_list = list(itertools.product(*[list(range(l)) for l in action_dim_list]))
-    return np.asarray(index_list)[x]
+    return np.array(list(itertools.product(*[list(range(l)) for l in action_dim_list])))
 
 
-def int2one_hot(x, action_dim_prod):
+def int2one_hot(x, act_nums):
     '''
+    params:
+        x: 1D or 2D
     input: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12
     output: [[1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
             [0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
@@ -64,7 +66,7 @@ def int2one_hot(x, action_dim_prod):
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
     '''
     x = np.ravel(x)
-    a = np.eye(action_dim_prod)[x]
+    a = np.eye(act_nums)[x]
     return a
 
 

@@ -7,6 +7,7 @@ from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.plot import (ion,
                             ioff,
                             plot_heatmap)
+from rls.utils.specs import BatchExperiences
 
 
 class QS:
@@ -54,8 +55,8 @@ class QS:
     def partial_reset(self, done):
         self.mask = np.where(done)[0]
 
-    def choose_action(self, s, visual_s=None, evaluation=False):
-        s = self.one_hot2int(s)
+    def choose_action(self, obs, evaluation=False):
+        s = self.one_hot2int(obs.vector)
         if self.mode == 'q':
             return self._get_action(s, evaluation)
         elif self.mode == 'sarsa' or self.mode == 'expected_sarsa':
@@ -73,10 +74,10 @@ class QS:
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+    def store_data(self, exps: BatchExperiences):
         self.step += 1
-        s = self.one_hot2int(s)
-        s_ = self.one_hot2int(s_)
+        s = self.one_hot2int(exps.obs.vector)
+        s_ = self.one_hot2int(exps.obs_.vector)
         if self.mode == 'q':
             a_ = self._get_action(s_, _max=True)
             value = self.table[s_, a_]
@@ -86,14 +87,14 @@ class QS:
                 value = np.mean(self.table[s_, :], axis=-1)
             else:
                 value = self.table[s_, self.next_a]
-        self.table[s, a] = (1 - self.lr) * self.table[s, a] + self.lr * (r + self.gamma * (1 - done) * value)
+        self.table[s, exps.action] = (1 - self.lr) * self.table[s, exps.action] + self.lr * (exps.reward + self.gamma * (1 - exps.done) * value)
         if self.step % 1000 == 0:
             plot_heatmap(self.s_dim, self.a_dim, self.table)
 
     def close(self):
         ioff()
 
-    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
+    def no_op_store(self, exps: BatchExperiences):
         pass
 
     def __getattr__(self, x):

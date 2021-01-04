@@ -5,12 +5,18 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
+
+PPOC_Store_BatchExperiences = namedtuple('PPOC_Store_BatchExperiences', BatchExperiences._fields + ('value', 'log_prob', 'o_log_prob', 'beta_advantage', 'last_options', 'options'))
+PPOC_Train_BatchExperiences = namedtuple('PPOC_Train_BatchExperiences', 'obs, action, value, log_prob, o_log_prob, discounted_reward, gae_adv, beta_advantage, last_options, options')
 
 
 class PPOC(On_Policy):
@@ -84,8 +90,8 @@ class PPOC(On_Policy):
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        self.initialize_data_buffer(
-            data_name_list=['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'value', 'log_prob', 'o_log_prob', 'beta_adv', 'last_options', 'options'])
+        self.initialize_data_buffer(store_data_type=PPOC_Store_BatchExperiences,
+                                    sample_data_type=PPOC_Train_BatchExperiences)
 
         self._worker_params_dict.update(self.net._policy_models)
 
@@ -104,29 +110,29 @@ class PPOC(On_Policy):
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
 
-        a, value, log_prob, o_log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, value, log_prob, o_log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs, self.cell_state, self.options)
         a = a.numpy()
         new_options = tf.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_agents, False)
-        self._value = np.squeeze(value.numpy())
-        self._log_prob = np.squeeze(log_prob.numpy()) + 1e-10
-        self._o_log_prob = np.squeeze(o_log_prob.numpy()) + 1e-10
-        self._beta_adv = np.squeeze(beta_adv.numpy()) + self.dc
+        self._value = value.numpy()
+        self._log_prob = log_prob.numpy() + 1e-10
+        self._o_log_prob = o_log_prob.numpy() + 1e-10
+        self._beta_adv = beta_adv.numpy() + self.dc
         self.oc_mask = (new_options == self.options).numpy()  # equal means no change
         self.options = new_options
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state, options):
+    def _get_action(self, obs, cell_state, options):
         with tf.device(self.device):
-            (q, pi, beta, o), cell_state = self.net(s, visual_s, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+            (q, pi, beta, o), cell_state = self.net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
@@ -140,9 +146,9 @@ class PPOC(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-            o_log_prob = tf.reduce_sum(o * options_onehot, axis=-1)   # [B, ]
-            q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
-            beta_adv = q_o - tf.reduce_sum(q * tf.math.exp(o), axis=-1)   # [B, ]
+            o_log_prob = tf.reduce_sum(o * options_onehot, axis=-1, keepdims=True)   # [B, 1]
+            q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
+            beta_adv = q_o - tf.reduce_sum(q * tf.math.exp(o), axis=-1, keepdims=True)   # [B, 1]
             option_norm_dist = tfp.distributions.Categorical(logits=o)
             sample_options = option_norm_dist.sample()
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
@@ -151,33 +157,28 @@ class PPOC(On_Policy):
             new_options = tf.where(beta_dist.sample() < 1, options, sample_options)    # <1 则不改变op， =1 则改变op
         return sample_op, q_o, log_prob, o_log_prob, beta_adv, new_options, max_options, cell_state
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        assert isinstance(a, np.ndarray), "store_data need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store_data need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store_data need done type is np.ndarray"
-        self._running_average(s)
-        r -= (1 - self.oc_mask) * self.dc
-
-        data = (s, visual_s, a, r, s_, visual_s_, done, self._value, self._log_prob, self._o_log_prob, self._beta_adv, self.last_options, self.options)
+    def store_data(self, exps: BatchExperiences):
+        self._running_average(exps.obs.vector)
+        exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
+        self.data.add(PPOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._o_log_prob, self._beta_adv,
+                                                  self.last_options, self.options))
         if self.use_rnn:
-            data += tuple(cs.numpy() for cs in self.cell_state)
-        self.data.add(*data)
+            self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
-
         self.oc_mask = tf.zeros_like(self.oc_mask)
 
     @tf.function
-    def _get_value(self, s, visual_s, options, cell_state):
+    def _get_value(self, obs, options, cell_state):
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
-            (q, _, _, _), cell_state = self.net(s, visual_s, cell_state=cell_state)
+            (q, _, _, _), cell_state = self.net(obs, cell_state=cell_state)
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-            q_o = tf.reduce_sum(q * options_onehot, axis=-1)  # [B, ]
-            return q_o, cell_state
+            value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
+            return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_s(), self.data.last_visual_s(), self.data.buffer['options'][-1], cell_state=self.cell_state)
-        init_value = np.squeeze(init_value.numpy())
+        init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), self.data.last_data('options'), cell_state=self.cell_state)
+        init_value = init_value.numpy()
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
@@ -185,10 +186,10 @@ class PPOC(On_Policy):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
 
-        def _train(data):
+        def _train(data, cell_state):
             early_step = 0
             for i in range(self.epoch):
-                loss, pi_loss, q_loss, o_loss, beta_loss, entropy, o_entropy, kl = self.share(data, self.kl_coef)
+                loss, pi_loss, q_loss, o_loss, beta_loss, entropy, o_entropy, kl = self.share(data, cell_state, self.kl_coef)
                 if kl > self.kl_stop:
                     early_step = i
                     break
@@ -217,18 +218,16 @@ class PPOC(On_Policy):
         self._learn(function_dict={
             'calculate_statistics': self.calculate_statistics,
             'train_function': _train,
-            'train_data_list': ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv', 'value', 'o_log_prob', 'beta_adv', 'last_options', 'options'],
             'summary_dict': summary_dict
         })
 
-    @tf.function(experimental_relax_shapes=True)
-    def share(self, memories, kl_coef):
-        s, visual_s, a, dc_r, old_log_prob, advantage, old_value, old_o_log_prob, beta_advantage, last_options, options, cell_state = memories
-        last_options = tf.reshape(tf.cast(last_options, tf.int32), (-1,))  # [B, 1] => [B,]
-        options = tf.reshape(tf.cast(options, tf.int32), (-1,))
+    @tf.function
+    def share(self, BATCH, cell_state, kl_coef):
+        last_options = tf.cast(BATCH.last_options, tf.int32)  # [B,]
+        options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (q, pi, beta, o), cell_state = self.net(s, visual_s, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+                (q, pi, beta, o), cell_state = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
 
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
@@ -240,30 +239,30 @@ class PPOC(On_Policy):
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
                     mu = pi  # [B, A]
-                    new_log_prob = gaussian_likelihood_sum(a, mu, log_std)
+                    new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     logits = pi  # [B, A]
                     logp_all = tf.nn.log_softmax(logits)
-                    new_log_prob = tf.reduce_sum(a * logp_all, axis=1, keepdims=True)
+                    new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                ratio = tf.exp(new_log_prob - old_log_prob)
+                ratio = tf.exp(new_log_prob - BATCH.log_prob)
 
                 if self.kl_reverse:
-                    kl = tf.reduce_mean(new_log_prob - old_log_prob)
+                    kl = tf.reduce_mean(new_log_prob - BATCH.log_prob)
                 else:
-                    kl = tf.reduce_mean(old_log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
-                surrogate = ratio * advantage
+                    kl = tf.reduce_mean(BATCH.log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
+                surrogate = ratio * BATCH.gae_adv
 
-                value_clip = old_value + tf.clip_by_value(value - old_value, -self.value_epsilon, self.value_epsilon)
-                td_error = dc_r - value
-                td_error_clip = dc_r - value_clip
+                value_clip = BATCH.value + tf.clip_by_value(value - BATCH.value, -self.value_epsilon, self.value_epsilon)
+                td_error = BATCH.discounted_reward - value
+                td_error_clip = BATCH.discounted_reward - value_clip
                 td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
 
                 pi_loss = -tf.reduce_mean(
                     tf.minimum(
                         surrogate,
-                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
+                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
                     ))
                 kl_loss = kl_coef * kl
                 extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
@@ -271,17 +270,17 @@ class PPOC(On_Policy):
                 q_loss = 0.5 * tf.reduce_mean(td_square)
 
                 beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                beta_loss = tf.reduce_mean(beta_s * beta_advantage)
+                beta_loss = tf.reduce_mean(beta_s * BATCH.beta_advantage)
                 if self.terminal_mask:
                     beta_loss *= (1 - done)
 
                 o_log_prob = tf.reduce_sum(o * options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                o_ratio = tf.exp(o_log_prob - old_o_log_prob)
+                o_ratio = tf.exp(o_log_prob - BATCH.o_log_prob)
                 o_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(o) * o, axis=1, keepdims=True))
                 o_loss = -tf.reduce_mean(
                     tf.minimum(
-                        o_ratio * advantage,
-                        tf.clip_by_value(o_ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantage
+                        o_ratio * BATCH.gae_adv,
+                        tf.clip_by_value(o_ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
                     ))
 
                 loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - self.pi_beta * entropy - self.o_beta * o_entropy

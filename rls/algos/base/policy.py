@@ -18,9 +18,9 @@ from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.utils.indexs import (SingleAgentEnvArgs,
-                              VisualNetworkType,
-                              MemoryNetworkType)
+from rls.utils.specs import (SingleAgentEnvArgs,
+                             VisualNetworkType,
+                             MemoryNetworkType)
 from rls.utils.build_networks import DefaultRepresentationNetwork
 from rls.nn.modules import CuriosityModel
 
@@ -143,7 +143,7 @@ class Policy(Base):
         self.summaries = {}
 
     @abstractmethod
-    def choose_action(self, s, visual_s, evaluation=False) -> Any:
+    def choose_action(self, obs, evaluation=False) -> Any:
         '''
         choose actions while training.
         Input: 
@@ -155,7 +155,7 @@ class Policy(Base):
         pass
 
     @tf.function
-    def _get_action(self, s, visual_s, is_training: bool = True) -> Any:
+    def _get_action(self, obs, is_training: bool = True) -> Any:
         '''
         TODO: Annotation
         '''

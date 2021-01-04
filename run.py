@@ -65,11 +65,9 @@ Options:
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
                                 write another information that describe this training task [default: None]
-    --use-wandb                 是否上传数据到W&B
-                                whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
-    --no-save                 指定是否在训练中保存模型、日志及训练数据
+    --no-save                   指定是否在训练中保存模型、日志及训练数据
                                 specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
@@ -84,6 +82,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
 
 if sys.platform.startswith('win'):
+    import pywintypes   # necessary when using python 3.8+
     import win32api
     import win32con
     import _thread
@@ -127,38 +126,37 @@ def get_options(options: Dict) -> Config:
     def f(k, t): return None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
-        ['inference', bool(options['--inference'])],
-        ['algo', str(options['--algorithm'])],
-        ['use_rnn', bool(options['--rnn'])],
-        ['algo_config', f('--config-file', str)],
-        ['env', f('--env', str)],
-        ['port', int(options['--port'])],
-        ['unity', bool(options['--unity'])],
-        ['graphic', bool(options['--graphic'])],
-        ['name', f('--name', str)],
-        ['save_frequency', f('--save-frequency', int)],
-        ['models', int(options['--models'])],
-        ['store_dir', f('--store-dir', str)],
-        ['seed', int(options['--seed'])],
-        ['unity_env_seed', int(options['--unity-env-seed'])],
-        ['max_step_per_episode', f('--max-step', int)],
-        ['max_train_step', f('--train-step', int)],
-        ['max_train_frame', f('--train-frame', int)],
-        ['max_train_episode', f('--train-episode', int)],
-        ['load', f('--load', str)],
-        ['prefill_steps', f('--prefill-steps', int)],
-        ['prefill_choose', bool(options['--prefill-choose'])],
-        ['gym', bool(options['--gym'])],
-        ['n_copys', int(options['--copys'])],
-        ['gym_env', str(options['--gym-env'])],
-        ['gym_env_seed', int(options['--gym-env-seed'])],
-        ['render_episode', f('--render-episode', int)],
-        ['info', f('--info', str)],
-        ['use_wandb', bool(options['--use-wandb'])],
-        ['unity_env', f('--unity-env', str)],
-        ['apex', f('--apex', str)],
-        ['hostname', bool(options['--hostname'])],
-        ['no_save', bool(options['--no-save'])]
+        ['inference',               bool(options['--inference'])],
+        ['algo',                    str(options['--algorithm'])],
+        ['use_rnn',                 bool(options['--rnn'])],
+        ['algo_config',             f('--config-file', str)],
+        ['env',                     f('--env', str)],
+        ['port',                    int(options['--port'])],
+        ['unity',                   bool(options['--unity'])],
+        ['graphic',                 bool(options['--graphic'])],
+        ['name',                    f('--name', str)],
+        ['save_frequency',          f('--save-frequency', int)],
+        ['models',                  int(options['--models'])],
+        ['store_dir',               f('--store-dir', str)],
+        ['seed',                    int(options['--seed'])],
+        ['unity_env_seed',          int(options['--unity-env-seed'])],
+        ['max_step_per_episode',    f('--max-step', int)],
+        ['max_train_step',          f('--train-step', int)],
+        ['max_train_frame',         f('--train-frame', int)],
+        ['max_train_episode',       f('--train-episode', int)],
+        ['load',                    f('--load', str)],
+        ['prefill_steps',           f('--prefill-steps', int)],
+        ['prefill_choose',          bool(options['--prefill-choose'])],
+        ['gym',                     bool(options['--gym'])],
+        ['n_copys',                 int(options['--copys'])],
+        ['gym_env',                 str(options['--gym-env'])],
+        ['gym_env_seed',            int(options['--gym-env-seed'])],
+        ['render_episode',          f('--render-episode', int)],
+        ['info',                    f('--info', str)],
+        ['unity_env',               f('--unity-env', str)],
+        ['apex',                    f('--apex', str)],
+        ['hostname',                bool(options['--hostname'])],
+        ['no_save',                 bool(options['--no-save'])],
     ]))
     return op
 
@@ -198,7 +196,7 @@ def main():
                 _train_args.name += f'/{i}'
                 _train_args.allow_print = True  # NOTE: set this could block other processes' print function
                 if _env_args.type == 'unity':
-                    _env_args.port = env_args.port + i
+                    _env_args.worker_id = env_args.worker_id + i
                 p = Process(target=agent_run, args=(_env_args, _buffer_args, _train_args))
                 p.start()
                 time.sleep(10)

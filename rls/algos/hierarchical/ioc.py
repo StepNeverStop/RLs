@@ -5,14 +5,18 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
+
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy,
                                  update_target_net_weights)
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences)
 
+IOC_BatchExperiences = namedtuple('IOC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
 
 class IOC(Off_Policy):
     '''
@@ -116,19 +120,19 @@ class IOC(Off_Policy):
     def _generate_random_options(self):
         return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
 
-        a, self.options, self.cell_state = self._get_action(s, visual_s, self.cell_state, self.options)
+        a, self.options, self.cell_state = self._get_action(obs, self.cell_state, self.options)
         a = a.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state, options):
+    def _get_action(self, obs, cell_state, options):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(s, visual_s, cell_state=cell_state)
+            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             q = self.q_net.value_net(feat)  # [B, P]
             pi = self.intra_option_net.value_net(feat)  # [B, P, A]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
@@ -156,8 +160,6 @@ class IOC(Off_Policy):
 
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'sample_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
-                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'last_options', 'options'],
                 'summary_dict': dict([
                     ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
                     ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.train_step)],
@@ -166,15 +168,14 @@ class IOC(Off_Policy):
                 ])
             })
 
-    @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
-        s, visual_s, a, r, s_, visual_s_, done, last_options, options = memories
-        last_options = tf.cast(last_options, tf.int32)
-        options = tf.cast(options, tf.int32)
+    @tf.function
+    def _train(self, BATCH, isw, cell_state):
+        last_options = tf.cast(BATCH.last_options, tf.int32)
+        options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
                 q = self.q_net.value_net(feat)  # [B, P]
                 pi = self.intra_option_net.value_net(feat)  # [B, P, A]
                 beta = self.termination_net.value_net(feat)   # [B, P]
@@ -193,7 +194,7 @@ class IOC(Off_Policy):
                 else:
                     q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
                 u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
-                qu_target = tf.stop_gradient(r + self.gamma * (1 - done) * u_target)
+                qu_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * u_target)
                 td_error = qu_target - qu_eval     # gradient : q
                 q_loss = tf.reduce_mean(tf.square(td_error) * isw)        # [B, 1] => 1
 
@@ -206,13 +207,13 @@ class IOC(Off_Policy):
                 if self.is_continuous:
                     log_std = tf.gather(self.log_std, options)
                     mu = tf.math.tanh(pi)
-                    log_p = gaussian_likelihood_sum(a, mu, log_std)
+                    log_p = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
                     pi = pi / self.boltzmann_temperature
                     log_pi = tf.nn.log_softmax(pi, axis=-1)  # [B, A]
                     entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
-                    log_p = tf.reduce_sum(a * log_pi, axis=-1, keepdims=True)   # [B, 1]
+                    log_p = tf.reduce_sum(BATCH.action * log_pi, axis=-1, keepdims=True)   # [B, 1]
                 pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
 
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
@@ -224,7 +225,7 @@ class IOC(Off_Policy):
                 v_s = tf.reduce_sum(q * pi_op, axis=-1, keepdims=True)  # [B, P] * [B, P] => [B, 1]
                 beta_loss = beta_s * tf.stop_gradient(q_s - v_s)   # [B, 1]
                 if self.terminal_mask:
-                    beta_loss *= (1 - done)
+                    beta_loss *= (1 - BATCH.done)
                 beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
 
             q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
@@ -254,25 +255,12 @@ class IOC(Off_Policy):
                 ['Statistics/q_option_mean', tf.reduce_mean(q_s)]
             ])
 
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
+    def store_data(self, exps: BatchExperiences):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        self._running_average(s)
-        self.data.add(
-            s,
-            visual_s,
-            a,
-            r[:, np.newaxis],   # 升维
-            s_,
-            visual_s_,
-            done[:, np.newaxis],  # 升维
-            self.last_options,
-            self.options
-        )
+        self._running_average(exps.obs.vector)
+        self.data.add(IOC_BatchExperiences(*exps, self.last_options, self.options))
 
-    def no_op_store(self, s, visual_s, a, r, s_, visual_s_, done):
+    def no_op_store(self, exps: BatchExperiences):
         pass

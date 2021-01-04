@@ -10,7 +10,7 @@ from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ACNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class DDPG(Off_Policy):
@@ -83,15 +83,15 @@ class DDPG(Off_Policy):
         if self.is_continuous:
             self.action_noise.reset()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+    def choose_action(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.ac_net(s, visual_s, cell_state=cell_state)
+            output, cell_state = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
                 pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
@@ -112,17 +112,15 @@ class DDPG(Off_Policy):
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
-                ]),
-                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']
+                ])
             })
 
-    @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
-        s, visual_s, a, r, s_, visual_s_, done = memories
+    @tf.function
+    def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(s, visual_s, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(s_, visual_s_, cell_state=cell_state)
+                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)
@@ -134,17 +132,17 @@ class DDPG(Off_Policy):
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
 
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
                     logits = self.ac_net.policy_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q = self.ac_net.value_net(feat, a)
+                q = self.ac_net.value_net(feat, BATCH.action)
                 q_target = self.ac_target_net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(r + self.gamma * q_target * (1 - done))
-                td_error = q - dc_r
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
+                td_error = dc_r - q
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
 
                 q_actor = self.ac_net.value_net(feat, mu)

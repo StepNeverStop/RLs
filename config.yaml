@@ -15,30 +15,38 @@ train:
     add_noise2buffer_episode_interval: 10 # episode interval when adding noise into replay buffer while training
     add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
     info: None
-    wandb_project: RLs
     # off-policy
     off_policy_train_interval: 1 # train policy every interval times
 
 unity:
     train:
         real_done: true
-        pre_fill_steps: 10000
+        pre_fill_steps: 10000 # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
     env:
-        file_path: *env
-        train_time_scale: 100
-        width: 1028
-        height: 720
-        quality_level: 5
-        inference_time_scale: 0
-        target_frame_rate: 60
+        file_name: *env
+        worker_id: 0
+        timeout_wait: 60
 
-        obs_resize: false
-        resize: [84, 84]
-        obs_stack: false
-        stack_visual_nums: 4
-        obs_grayscale: false
+        width: 84
+        height: 84
+        quality_level: 5
+        time_scale: 20
+        target_frame_rate: -1
+        capture_frame_rate: 60
+
         obs_scale: false # change [0, 1] to [0, 255]
-        reset_config: {}
+
+        initialize_config:
+            env_copys: 1 # if env_copys > 1. then using it, else using the number specified in command line argument `-c`.
+            change_vector: false
+            vector_observation_stack: 1
+            change_ray: false
+            ray_observation_stack: 1
+            change_image: false
+            image_observation_width: 84
+            image_observation_height: 84
+            image_observation_stack: 1
+            image_observation_grayscale: false
 
 gym:
     train:
@@ -51,10 +59,7 @@ gym:
         off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
         off_policy_step_eval_episodes: 100
     env:
-        # 1. multiprocessing
-        # 2. threading
-        # 3. ray
-        # 4 vector
+        # refer to rls.utils.specs.py -> GymVectorizedType
         vector_env_type: multiprocessing
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false

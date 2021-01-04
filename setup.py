@@ -14,20 +14,26 @@ long_description += '\n\nFor more information see our [github repository](https:
 
 systembased_extras = {
     'windows': [
+        # 'swig',   # install it with conda.
+        # 'box2d-py',   # install it manually.
+        'cmake',
         'pywin32'
     ],
-    'non-windows': [
-        'pytest-runner',
-        'ray'
-    ]
+    'nowindows': []
 }
 extras = {
-    'unity': [
-        'mlagents-envs==0.21.0'
+    'ray': [
+        'pytest-runner',
+        'ray'
     ],
+    'unity': [
+        'mlagents-envs==0.23.0'
+    ],
+
     'atari': [
-        'gym[atari]==0.15.3',
-        'imageio'
+        'imageio',
+        'atari-py==0.2.6',
+        'opencv-python==4.4.0.46'
     ],
     'mujoco': [
         'mujoco_py'
@@ -37,19 +43,22 @@ extras = {
     ],
     'gym-minigrid': [
         'gym-minigrid'
+    ],
+    'gym_donkeycar': [
+        'gym_donkeycar'
     ]
 }
 
 all_deps = []
-for group_name in extras:
-    all_deps += extras[group_name]
+for name in extras:
+    all_deps += extras[name]
 
 if platform.system() == "Windows":
     extras['windows'] = systembased_extras['windows']
     all_deps += systembased_extras['windows']
 else:
-    extras['non-windows'] = systembased_extras['non-windows']
-    all_deps += systembased_extras['non-windows']
+    extras['nowindows'] = systembased_extras['nowindows']
+    all_deps += systembased_extras['nowindows']
 extras['all'] = all_deps
 
 setup(
@@ -91,6 +100,7 @@ setup(
         'numpy',
         'pyyaml',
         'tqdm',
+        'colored_traceback',
         'gym>=0.15.0, <=0.15.3',
         'tensorflow>=2.0.0, <=2.3.1',
         'tensorflow_probability>=0.8.0, <=0.11.1'

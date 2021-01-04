@@ -17,7 +17,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     # gym > unity > unity_env
     env_args = Config()
     env_args.env_num = options.n_copys  # Environmental copies of vectorized training.
-    env_args.inference = options.inference  # Environmental copies of vectorized training.
+    env_args.inference = options.inference
     if options.gym:
         env_args.type = 'gym'
         env_args.add_dict(default_config['gym']['env'])
@@ -26,24 +26,20 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     else:
         env_args.type = 'unity'
         env_args.add_dict(default_config['unity']['env'])
+        if env_args.initialize_config.env_copys <= 1:
+            env_args.initialize_config.env_copys = options.n_copys
         env_args.port = options.port
         env_args.env_seed = options.unity_env_seed
-
-        if options.inference:
-            env_args.train_mode = False
-            env_args.render = True
-        else:
-            env_args.train_mode = True
-            env_args.render = options.graphic
+        env_args.render = options.graphic or options.inference
 
         if options.unity:
-            env_args.file_path = None
+            env_args.file_name = None
             env_args.env_name = 'unity'
         else:
-            env_args.update({'file_path': options.env})
-            if os.path.exists(env_args.file_path):
+            env_args.update({'file_name': options.env})
+            if os.path.exists(env_args.file_name):
                 env_args.env_name = options.unity_env or os.path.join(
-                    *os.path.split(env_args.file_path)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
+                    *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
                 )
                 if 'visual' in env_args.env_name.lower():
                     # if traing with visual input but do not render the environment, all 0 obs will be passed.
@@ -71,7 +67,6 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     train_args.use_rnn = options.use_rnn
     train_args.algo_config = options.algo_config
     train_args.seed = options.seed
-    train_args.use_wandb = options.use_wandb
     train_args.inference = options.inference
     train_args.prefill_choose = options.prefill_choose
     train_args.load_model_path = options.load

@@ -12,6 +12,8 @@ from typing import (Dict,
 
 from rls.memories.on_policy_buffer import DataBuffer
 from rls.algos.base.policy import Policy
+from rls.utils.specs import (BatchExperiences,
+                             NamedTupleStaticClass)
 
 
 class On_Policy(Policy):
@@ -19,33 +21,19 @@ class On_Policy(Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
-    def initialize_data_buffer(self,
-                               data_name_list: List[str] = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done']) -> NoReturn:
-        self.data = DataBuffer(
-            n_agents=self.n_agents,
-            rnn_cell_nums=self.cell_nums,
-            dict_keys=data_name_list
-        )
+    def initialize_data_buffer(self, store_data_type=BatchExperiences, sample_data_type=BatchExperiences) -> NoReturn:
+        self.data = DataBuffer(n_agents=self.n_agents, rnn_cell_nums=self.cell_nums,
+                               batch_size=self.batch_size, rnn_time_step=self.rnn_time_step,
+                               store_data_type=store_data_type, sample_data_type=sample_data_type)
 
-    def store_data(self,
-                   s: Union[List, np.ndarray],
-                   visual_s: Union[List, np.ndarray],
-                   a: Union[List, np.ndarray],
-                   r: Union[List, np.ndarray],
-                   s_: Union[List, np.ndarray],
-                   visual_s_: Union[List, np.ndarray],
-                   done: Union[List, np.ndarray]) -> NoReturn:
+    def store_data(self, exps: BatchExperiences) -> NoReturn:
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
         """
-        assert isinstance(a, np.ndarray), "store need action type is np.ndarray"
-        assert isinstance(r, np.ndarray), "store need reward type is np.ndarray"
-        assert isinstance(done, np.ndarray), "store need done type is np.ndarray"
-        self._running_average(s)
-        data = (s, visual_s, a, r, s_, visual_s_, done)
+        self._running_average(exps.obs.vector)
+        self.data.add(exps)
         if self.use_rnn:
-            data += tuple(cs.numpy() for cs in self.cell_state)
-        self.data.add(*data)
+            self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
 
     def no_op_store(self, *args, **kwargs) -> Any:
@@ -63,7 +51,6 @@ class On_Policy(Policy):
         '''
         _cal_stics = function_dict.get('calculate_statistics', lambda *args: None)
         _train = function_dict.get('train_function', lambda *args: None)    # 训练过程
-        _train_data_list = function_dict.get('train_data_list', ['s', 'visual_s', 'a', 'discounted_reward', 'log_prob', 'gae_adv'])
         _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
 
         self.intermediate_variable_reset()
@@ -74,22 +61,25 @@ class On_Policy(Policy):
             self.data.convert_action2one_hot(self.a_dim)
 
         if self.use_curiosity and not self.use_rnn:
-            s, visual_s, a, r, s_, visual_s_ = self.data.get_curiosity_data()
-            cell_state = self.initial_cell_state(batch=s.shape[0])
-            crsty_r, crsty_summaries = self.curiosity_model(s, visual_s, a, s_, visual_s_, cell_state)
-            self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
+            curiosity_data = self.data.get_curiosity_data()
+            curiosity_data = NamedTupleStaticClass.data_convert(self.data_convert, curiosity_data)
+            cell_state = self.initial_cell_state(batch=self.n_agents)
+            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_state)
+            self.data.update_reward(crsty_r.numpy())
+            # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
             self.summaries.update(crsty_summaries)
 
         _cal_stics()
 
         if self.use_rnn:
-            all_data = self.data.sample_generater_rnn(self.batch_size, self.rnn_time_step, _train_data_list)
+            all_data = self.data.sample_generater_rnn()
         else:
-            all_data = self.data.sample_generater(self.batch_size, _train_data_list)
+            all_data = self.data.sample_generater()
 
-        for data in all_data:
-            data = list(map(self.data_convert, data))
-            summaries = _train(data)
+        for data, cell_state in all_data:
+            data = NamedTupleStaticClass.data_convert(self.data_convert, data)
+            cell_state = self.data_convert(cell_state)
+            summaries = _train(data, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)

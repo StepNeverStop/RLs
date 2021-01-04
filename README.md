@@ -4,7 +4,7 @@
 
 Reinforcement Learning Algorithm Based On TensorFlow 2.x.
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_8) Release 8 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_12) Release 12 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ![](./pics/framework.jpg)
 
@@ -52,6 +52,12 @@ This project supports:
 
 ## Installation
 
+method 1:
+```bash
+conda env create -f environment.yaml
+```
+
+method 2:
 ```bash
 $ git clone https://github.com/StepNeverStop/RLs.git
 $ cd RLs
@@ -73,7 +79,7 @@ If using atari:
 $ pip install -e .[atari]
 ```
 
-You can download builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
+You can download the builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
 ```bash
 $ docker pull keavnn/rls:latest
 ```
@@ -131,6 +137,7 @@ For now, these algorithms are available:
 |               DQN               |    √     |            |   √   |  √   |        dqn        |
 |           Double DQN            |    √     |            |   √   |  √   |       ddqn        |
 |       Dueling Double DQN        |    √     |            |   √   |  √   |       dddqn       |
+|          Averaged DQN           |    √     |            |   √   |  √   |    averaged_dqn   |
 |        Bootstrapped DQN         |    √     |            |   √   |  √   |  bootstrappeddqn  |
 |         Soft Q-Learning         |    √     |            |   √   |  √   |        sql        |
 |               C51               |    √     |            |   √   |  √   |        c51        |
@@ -220,11 +227,9 @@ Options:
                                 specify when to render the graphic interface of gym environment [default: None]
     --info=<str>                抒写该训练的描述，用双引号包裹
                                 write another information that describe this training task [default: None]
-    --use-wandb                 是否上传数据到W&B
-                                whether upload training log to WandB [default: False]
     --hostname                  是否在训练名称后附加上主机名称
                                 whether concatenate hostname with the training name [default: False]
-    --no-save                 指定是否在训练中保存模型、日志及训练数据
+    --no-save                   指定是否在训练中保存模型、日志及训练数据
                                 specify whether save models/logs/summaries while training or not [default: False]
 Example:
     gym:
@@ -241,7 +246,7 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 
 1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
 2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLData/Environment/Algorithm/Group name(for ml-agents)/Training name/config&log&model`
+3. record directory format is `RLData/Environment/Algorithm/Behavior name(for ml-agents)/Training name/config&log&model`
 4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
@@ -251,7 +256,7 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now. group name in training scene should be set like `{agents control nums of this group per environment copy}#{others}`, i.e. `2#Agents` means one group controls two same agents in one environment copy.
+10. MADDPG is only suitable for Unity3D ML-Agents for now. behavior name in training scene should be set like `{agents control nums of this group per environment copy}#{bahevior_name}`, i.e. `2#3DBallAgents` means one group/team controls two same agents in one environment copy.
 
 ## Ongoing things
 

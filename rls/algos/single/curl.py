@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
+from collections import namedtuple
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
@@ -21,10 +22,14 @@ from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.nn.networks import get_visual_network_from_type
 from rls.nn.initializers import initKernelAndBias
-from rls.utils.indexs import VisualNetworkType
+from rls.utils.specs import VisualNetworkType
 from rls.utils.build_networks import (ValueNetwork,
                                       DoubleValueNetwork)
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             BatchExperiences,
+                             NamedTupleStaticClass)
+
+CURL_BatchExperiences = namedtuple('CURL_BatchExperiences', BatchExperiences._fields + ('pos',))
 
 
 class VisualEncoder(M):
@@ -184,16 +189,17 @@ class CURL(Off_Policy):
                                      optimizer_curl=self.optimizer_curl)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        visual_s = center_crop_image(visual_s[:, 0], self.img_size)
-        mu, pi = self._get_action(s, visual_s)
+    def choose_action(self, obs, evaluation=False):
+        visual_s = center_crop_image(obs.visual[:, 0], self.img_size)
+        obs = obs._replace(visual=visual_s)
+        mu, pi = self._get_action(obs)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s):
+    def _get_action(self, obs):
         with tf.device(self.device):
-            feat = tf.concat([self.encoder(visual_s), s], axis=-1)
+            feat = tf.concat([self.encoder(obs.visual), obs.vector], axis=-1)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -206,19 +212,17 @@ class CURL(Off_Policy):
                 pi = cate_dist.sample()
             return mu, pi
 
-    def _process_before_train(self, data):
-        data['visual_s'] = np.transpose(data['visual_s'][:, 0].numpy(), (0, 3, 1, 2))
-        data['visual_s_'] = np.transpose(data['visual_s_'][:, 0].numpy(), (0, 3, 1, 2))
-        data['pos'] = self.data_convert(
-            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
+    def _process_before_train(self, data: BatchExperiences) -> CURL_BatchExperiences:
+        data = data._replace(
+            obs=data.obs._replace(visual=np.transpose(data.obs.visual[:, 0].numpy(), (0, 3, 1, 2))),
+            obs_=data.obs_._replace(visual=np.transpose(data.obs_.visual[:, 0].numpy(), (0, 3, 1, 2))))
+        pos = np.transpose(random_crop(data.obs.visual, self.img_size), (0, 2, 3, 1))
+        data = data._replace(
+            obs=data.obs._replace(visual=np.transpose(random_crop(data.obs.visual, self.img_size), (0, 2, 3, 1))),
+            obs_=data.obs_._replace(visual=np.transpose(random_crop(data.obs_.visual, self.img_size), (0, 2, 3, 1)))
         )
-        data['visual_s'] = self.data_convert(
-            np.transpose(random_crop(data['visual_s'], self.img_size), (0, 2, 3, 1))
-        )
-        data['visual_s_'] = self.data_convert(
-            np.transpose(random_crop(data['visual_s_'], self.img_size), (0, 2, 3, 1))
-        )
-        return (data,)
+        new_data = CURL_BatchExperiences(*data, pos)
+        return NamedTupleStaticClass.data_convert(self.data_convert, new_data)
 
     def _target_params_update(self):
         update_target_net_weights(self.critic_target_net.weights + self.encoder_target.trainable_variables,
@@ -234,23 +238,22 @@ class CURL(Off_Policy):
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
-                ]),
-                'train_data_list': ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_', 'done', 'pos'],
+                ])
             })
 
     @property
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def _train(self, memories, isw, cell_state):
-        td_error, summaries = self.train(memories, isw, cell_state)
+    def _train(self, BATCH: BatchExperiences, isw, cell_state):
+        BATCH = self._process_before_train(BATCH)
+        td_error, summaries = self.train(BATCH, isw, cell_state)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
-    return td_error, summaries
+        return td_error, summaries
 
-    @tf.function(experimental_relax_shapes=True)
-    def train(self, memories, isw, cell_state):
-        s, visual_s, a, r, s_, visual_s_, done, pos = memories
+    @tf.function
+    def train(self, BATCH: CURL_BatchExperiences, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 vis_feat = self.encoder(visual_s)
@@ -269,10 +272,10 @@ class CURL(Off_Policy):
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.critic_net.value_net(feat, a)
+                q1, q2 = self.critic_net.value_net(feat, BATCH.action)
                 q1_target, q2_target = self.critic_target_net.value_net(feat_, target_pi)
                 q_target = tf.minimum(q1_target, q2_target)
-                dc_r = tf.stop_gradient(r + self.gamma * (1 - done) * (q_target - self.alpha * target_log_pi))
+                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * (q_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r
                 td_error2 = q2 - dc_r
                 q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
@@ -280,7 +283,7 @@ class CURL(Off_Policy):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
 
                 z_a = vis_feat  # [B, N]
-                z_out = self.encoder_target(pos)
+                z_out = self.encoder_target(BATCH.pos)
                 logits = tf.matmul(z_a, tf.matmul(self.curl_w, tf.transpose(z_out, [1, 0])))
                 logits -= tf.reduce_max(logits, axis=-1, keepdims=True)
                 curl_loss = tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(tf.range(self.batch_size), logits))
@@ -302,7 +305,7 @@ class CURL(Off_Policy):
                 else:
                     logits = self.actor_net.value_net(feat)
                     logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(a.shape), dtype=tf.float32)
+                    gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
@@ -322,11 +325,11 @@ class CURL(Off_Policy):
                         mu, log_std = self.actor_net.value_net(feat)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
-                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
+                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
                     else:
                         logits = self.actor_net.value_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
-                        log_pi = cate_dist.log_prob(cate_dist.sample())
+                        norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                        log_pi = norm_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(
