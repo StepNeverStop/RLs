@@ -15,7 +15,7 @@ from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
-ACBatchExperiences = namedtuple('ACBatchExperiences', BatchExperiences._fields + ('old_log_prob',))
+AC_BatchExperiences = namedtuple('AC_BatchExperiences', BatchExperiences._fields + ('old_log_prob',))
 
 class AC(Off_Policy):
     # off-policy actor-critic
@@ -89,11 +89,11 @@ class AC(Off_Policy):
 
     def store_data(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        self.data.add(ACBatchExperiences(*exps, self._log_prob))
+        self.data.add(AC_BatchExperiences(*exps, self._log_prob))
 
     def no_op_store(self, exps: BatchExperiences):
         self._running_average(exps.obs.vector)
-        self.data.add(ACBatchExperiences(*exps, np.ones_like(exps.reward)))
+        self.data.add(AC_BatchExperiences(*exps, np.ones_like(exps.reward)))
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

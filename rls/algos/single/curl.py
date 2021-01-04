@@ -29,7 +29,7 @@ from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences,
                              NamedTupleStaticClass)
 
-CURLBatchExperiences = namedtuple('CURLBatchExperiences', BatchExperiences._fields + ('pos',))
+CURL_BatchExperiences = namedtuple('CURL_BatchExperiences', BatchExperiences._fields + ('pos',))
 
 
 class VisualEncoder(M):
@@ -212,7 +212,7 @@ class CURL(Off_Policy):
                 pi = cate_dist.sample()
             return mu, pi
 
-    def _process_before_train(self, data: BatchExperiences) -> CURLBatchExperiences:
+    def _process_before_train(self, data: BatchExperiences) -> CURL_BatchExperiences:
         data = data._replace(
             obs=data.obs._replace(visual=np.transpose(data.obs.visual[:, 0].numpy(), (0, 3, 1, 2))),
             obs_=data.obs_._replace(visual=np.transpose(data.obs_.visual[:, 0].numpy(), (0, 3, 1, 2))))
@@ -221,7 +221,7 @@ class CURL(Off_Policy):
             obs=data.obs._replace(visual=np.transpose(random_crop(data.obs.visual, self.img_size), (0, 2, 3, 1))),
             obs_=data.obs_._replace(visual=np.transpose(random_crop(data.obs_.visual, self.img_size), (0, 2, 3, 1)))
         )
-        new_data = CURLBatchExperiences(*data, pos)
+        new_data = CURL_BatchExperiences(*data, pos)
         return NamedTupleStaticClass.data_convert(self.data_convert, new_data)
 
     def _target_params_update(self):
@@ -253,7 +253,7 @@ class CURL(Off_Policy):
         return td_error, summaries
 
     @tf.function
-    def train(self, BATCH: CURLBatchExperiences, isw, cell_state):
+    def train(self, BATCH: CURL_BatchExperiences, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 vis_feat = self.encoder(visual_s)

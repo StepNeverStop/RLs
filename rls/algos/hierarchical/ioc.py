@@ -16,7 +16,7 @@ from rls.utils.build_networks import ValueNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
-IOCBatchExperiences = namedtuple('IOCBatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
+IOC_BatchExperiences = namedtuple('IOC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
 
 class IOC(Off_Policy):
     '''
@@ -260,7 +260,7 @@ class IOC(Off_Policy):
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
         self._running_average(exps.obs.vector)
-        self.data.add(IOCBatchExperiences(*exps, self.last_options, self.options))
+        self.data.add(IOC_BatchExperiences(*exps, self.last_options, self.options))
 
     def no_op_store(self, exps: BatchExperiences):
         pass

@@ -17,8 +17,8 @@ from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences,
                              NamedTupleStaticClass)
 
-LowBatchExperiences = namedtuple('LowBatchExperiences', BatchExperiences._fields + ('subgoal', 'next_subgoal'))
-HighBatchExperiences = namedtuple('HighBatchExperiences', 'obs, action, reward, done, subgoal, obs_')
+Low_BatchExperiences = namedtuple('Low_BatchExperiences', BatchExperiences._fields + ('subgoal', 'next_subgoal'))
+High_BatchExperiences = namedtuple('High_BatchExperiences', 'obs, action, reward, done, subgoal, obs_')
 
 class HIRO(Off_Policy):
     '''
@@ -170,14 +170,13 @@ class HIRO(Off_Policy):
         g.append(self._subgoals[i][right])
         d.append(self._done[i][-1])
         s_.append(self._high_s_[i][-1])
-        self.data_high.add(HighBatchExperiences(
+        self.data_high.add(High_BatchExperiences(
             np.array(s),
             np.array(a),
-            np.array(r)[:, np.newaxis],
-            np.array(d)[:, np.newaxis],
+            np.array(r),
+            np.array(d),
             np.array(g),
             np.array(s_)
-
         ))
 
     def reset(self):
@@ -266,7 +265,7 @@ class HIRO(Off_Policy):
                 self.write_training_summaries(self.global_step, self.summaries)
 
     @tf.function
-    def train_low(self, BATCH: LowBatchExperiences):
+    def train_low(self, BATCH: Low_BatchExperiences):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 feat = tf.concat([BATCH.obs.vector, BATCH.subgoal], axis=-1)
@@ -323,7 +322,7 @@ class HIRO(Off_Policy):
             ])
 
     @tf.function
-    def train_high(self, BATCH: HighBatchExperiences):
+    def train_high(self, BATCH: High_BatchExperiences):
         # BATCH.obs_ : [B, N]
         # BATCH.obs, BATCH.action [B, T, *]
         batchs = tf.shape(BATCH.obs)[0]
@@ -407,8 +406,7 @@ class HIRO(Off_Policy):
         # subgoal = exps.obs.vector[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.vector[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         
-        exps = exps._replace(done=exps.done)
-        dl = LowBatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
+        dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
         self.data_low.add(dl)
         self._noop_subgoal = subgoal
 
@@ -426,8 +424,7 @@ class HIRO(Off_Policy):
         ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
         self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.vector).numpy(), exps.obs.vector[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.vector[:, self.fn_goal_dim:])
 
-        exps = exps._replace(done=exps.done)
-        dl = LowBatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
+        dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
         self.data_low.add(dl)
 
         self._c = np.where(self._c == 1, np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c - 1)
