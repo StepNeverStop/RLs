@@ -4,6 +4,7 @@ from enum import Enum
 from typing import (Dict,
                     List,
                     Iterator,
+                    Callable,
                     NamedTuple)
 from collections import namedtuple
 
@@ -71,14 +72,14 @@ class NamedTupleStaticClass:
             yield NamedTupleStaticClass.getitem(nt, i)
 
     @staticmethod
-    def pack(nts: List[NamedTuple], vstack=False) -> NamedTuple:
+    def pack(nts: List[NamedTuple], func: Callable = None) -> NamedTuple:
         x = []
         for datas in zip(*nts):
             if isinstance(datas[0], tuple):
-                x.append(NamedTupleStaticClass.pack(datas, vstack))
+                x.append(NamedTupleStaticClass.pack(datas, func))
             else:
-                if vstack:
-                    x.append(np.vstack(datas))
+                if func:
+                    x.append(func(datas))
                 else:
                     x.append(np.asarray(datas))
         return nts[0].__class__._make(x)

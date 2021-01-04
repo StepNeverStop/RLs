@@ -118,13 +118,26 @@ class DataBuffer(object):
         '''
         返回用于好奇心机制的数据
         '''
-        keys = ['s', 'visual_s', 'a', 'r', 's_', 'visual_s_']
-        for k in keys:
-            if k not in self.data_buffer.keys():
-                raise Exception('Buffer does not has key {k}.')
-        keys_shape = self.calculate_dim_before_sample(keys)
-        all_data = [np.vstack(self.data_buffer[k]).reshape(self.eps_len * self.n_agents, *keys_shape[k]).astype(np.float32) for k in keys]
-        return all_data
+
+        # T * [B, N] => [B, T, N] => [B*T, N]
+        def func(x): return np.stack(x, axis=1).reshape(self.n_agents * self.eps_len, -1)
+
+        data = {}
+        for k in BatchExperiences._fields:
+            assert k in self.data_buffer.keys(), "assert k in self.data_buffer.keys()"
+            if isinstance(self.data_buffer[k][0], tuple):
+                data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
+            else:
+                data[k] = func(self.data_buffer[k])
+        return BatchExperiences(**data)
+
+    def update_reward(self, r: np.ndarray):
+        '''
+        r: [B*T, N]
+        '''
+        r = r.reshape(self.n_agents, self.eps_len, -1)
+        for i in range(self.eps_len):
+            self.data_buffer['reward'][i] += r[:, i]
 
     def convert_action2one_hot(self, a_counts):
         '''
@@ -160,7 +173,7 @@ class DataBuffer(object):
         for k in self.sample_data_type._fields:
             assert k in self.data_buffer.keys(), "assert k in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
-                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], vstack=True)
+                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.vstack)
             else:
                 buffer[k] = np.vstack(self.data_buffer[k])
 
@@ -231,7 +244,7 @@ class DataBuffer(object):
 
                 sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
             cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield NamedTupleStaticClass.pack(samples, vstack=True), cs    # [B*T, N]
+            yield NamedTupleStaticClass.pack(samples, func=np.vstack), cs    # [B*T, N]
 
     def clear(self):
         '''
