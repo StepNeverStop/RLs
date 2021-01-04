@@ -17,8 +17,8 @@ from tensorflow.keras.layers import (Conv2D,
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
 from rls.nn.initializers import initKernelAndBias
-from rls.utils.indexs import (VisualNetworkType,
-                              MemoryNetworkType)
+from rls.utils.specs import (VisualNetworkType,
+                             MemoryNetworkType)
 
 
 def get_visual_network_from_type(network_type: VisualNetworkType):
@@ -41,7 +41,7 @@ class DeepConvNetwork(Sequential):
                  padding='valid',
 
                  use_bn=False,
-                 
+
                  max_pooling=False,
                  avg_pooling=False,
                  pool_sizes=[[2, 2], [2, 2]],
@@ -49,20 +49,20 @@ class DeepConvNetwork(Sequential):
                  ):
         super().__init__()
         for i in range(conv_layers):
-            self.add(Conv2D(filters=filters[i], 
-                            kernel_size=kernel_sizes[i], 
-                            strides=strides[i], 
-                            padding=padding, 
-                            activation='relu', 
+            self.add(Conv2D(filters=filters[i],
+                            kernel_size=kernel_sizes[i],
+                            strides=strides[i],
+                            padding=padding,
+                            activation='relu',
                             **initKernelAndBias))
             if use_bn:
                 self.add(BatchNormalization())
 
             if max_pooling:
-                self.add(MaxPool2D(pool_size=pool_sizes[i], 
+                self.add(MaxPool2D(pool_size=pool_sizes[i],
                                    strides=pool_strides[i]))
             elif avg_pooling:
-                self.add(AveragePooling2D(pool_size=pool_sizes[i], 
+                self.add(AveragePooling2D(pool_size=pool_sizes[i],
                                           strides=pool_strides[i]))
         self.add(Flatten())
 
@@ -114,7 +114,7 @@ class MultiVectorNetwork(M):
         if vector_dim:
             self(*(I(shape=dim) for dim in vector_dim))
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def call(self, *args):
         output = []
         for net, s in zip(self.nets, args):
@@ -139,7 +139,7 @@ class MultiVisualNetwork(M):
         if visual_dim:
             self(*(I(shape=dim) for dim in visual_dim))
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def call(self, *args):
         output = []
         for net, dense_net, visual_s in zip(self.nets, self.dense_nets, args):
@@ -162,7 +162,7 @@ class EncoderNetwork(M):
         self.net = Dense(output_dim, default_activation, **initKernelAndBias) if use_encoder else lambda x: x
         self(I(shape=feat_dim))
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def call(self, feat):
         return self.net(feat)
 
@@ -194,7 +194,7 @@ class MemoryNetwork(M):
             self.cell_nums = 1
             self.rnn_net = lambda x, initial_state: (x, initial_state)
 
-    @tf.function(experimental_relax_shapes=True)
+    @tf.function
     def call(self, *args):
         # s = self.masking(s)
         output = self.rnn_net(args[0], initial_state=args[1:] if len(args) > 2 else args[1])

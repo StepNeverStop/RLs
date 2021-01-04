@@ -9,7 +9,7 @@ from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ValueNetwork
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 
 
 class RAINBOW(Off_Policy):
@@ -76,18 +76,18 @@ class RAINBOW(Off_Policy):
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
+    def choose_action(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_agents)
         else:
-            a, self.cell_state = self._get_action(s, visual_s, self.cell_state)
+            a, self.cell_state = self._get_action(obs, self.cell_state)
             a = a.numpy()
         return a
 
     @tf.function
-    def _get_action(self, s, visual_s, cell_state):
+    def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.rainbow_net(s, visual_s, cell_state=cell_state)
+            q_values, cell_state = self.rainbow_net(obs, cell_state=cell_state)
             q = tf.reduce_sum(self.zb * q_values, axis=-1)  # [B, A, N] => [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
@@ -100,35 +100,34 @@ class RAINBOW(Off_Policy):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'train_data_list': ['ss', 'vvss', 'a', 'r', 'done', 's_', 'visual_s_']
+                'use_stack': True
             })
 
-    @tf.function(experimental_relax_shapes=True)
-    def _train(self, memories, isw, cell_state):
-        ss, vvss, a, r, done, s_, visual_s_ = memories
-        batch_size = tf.shape(a)[0]
+    @tf.function
+    def _train(self, BATCH, isw, cell_state):
+        batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(ss, vvss, cell_state=cell_state, need_split=True)
-                indexs = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
+                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
+                indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
                 q_dist = self.rainbow_net.value_net(feat)  # [B, A, N]
-                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * a, axis=-1), [1, 0])  # [B, N]
+                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
                 q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)
                 target_q = self.rainbow_net.value_net(feat_)
                 target_q = tf.reduce_sum(self.zb * target_q, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
 
-                target_q_dist, _ = self.rainbow_target_net(s_, visual_s_, cell_state=cell_state)  # [B, A, N]
-                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexs, a_], axis=-1))   # [B, N]
-                target = tf.tile(r, tf.constant([1, self.atoms])) \
+                target_q_dist, _ = self.rainbow_target_net(BATCH.obs_, cell_state=cell_state)  # [B, A, N]
+                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]
+                target = tf.tile(BATCH.reward, tf.constant([1, self.atoms])) \
                     + self.gamma * tf.multiply(self.z,   # [1, N]
-                                               (1.0 - tf.tile(done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
+                                               (1.0 - tf.tile(BATCH.done, tf.constant([1, self.atoms]))))  # [B, N], [1, N]* [B, N] = [B, N]
                 target = tf.clip_by_value(target, self.v_min, self.v_max)  # [B, N]
                 b = (target - self.v_min) / self.delta_z  # [B, N]
                 u, l = tf.math.ceil(b), tf.math.floor(b)  # [B, N]
                 u_id, l_id = tf.cast(u, tf.int32), tf.cast(l, tf.int32)  # [B, N]
                 u_minus_b, b_minus_l = u - b, b - l  # [B, N]
-                index_help = tf.tile(indexs, tf.constant([1, self.atoms]))  # [B, N]
+                index_help = tf.tile(indexes, tf.constant([1, self.atoms]))  # [B, N]
                 index_help = tf.expand_dims(index_help, -1)  # [B, N, 1]
                 u_id = tf.concat([index_help, tf.expand_dims(u_id, -1)], axis=-1)    # [B, N, 2]
                 l_id = tf.concat([index_help, tf.expand_dims(l_id, -1)], axis=-1)    # [B, N, 2]

@@ -8,6 +8,7 @@ from tensorflow.keras import Model as M
 
 from rls.nn.layers import mlp
 from rls.algos.base.on_policy import On_Policy
+from rls.utils.specs import BatchExperiences
 
 
 class Model(M):
@@ -68,24 +69,18 @@ class CEM(On_Policy):
         
         self._model_post_process()
 
-    def choose_action(self, s, visual_s, evaluation=False):
-        self._check_agents(s)
-        a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(s, self.populations, axis=0))]
+    def choose_action(self, obs, evaluation=False):
+        self._check_agents(obs.vector)
+        a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.vector, self.populations, axis=0))]
         if self.is_continuous:
             a = np.vstack(a)
         else:
             a = np.hstack(a)
         return a
 
-    @tf.function
-    def _get_action(self, s, visual_s):
-        s, visual_s = self._tf_data_cast(s, visual_s)
-        with tf.device(self.device):
-            pass
-
-    def store_data(self, s, visual_s, a, r, s_, visual_s_, done):
-        self.returns += r * (1 - self.dones)
-        self.dones += done
+    def store_data(self, exps: BatchExperiences):
+        self.returns += exps.reward * (1 - self.dones)
+        self.dones += exps.done
         pass
 
     def learn(self, **kwargs):

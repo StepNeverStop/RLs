@@ -7,7 +7,7 @@ from copy import deepcopy
 from abc import ABC, abstractmethod
 from tensorflow.keras import Model as M
 
-from rls.utils.indexs import OutputNetworkType
+from rls.utils.specs import OutputNetworkType
 from rls.nn.networks import get_visual_network_from_type
 from rls.nn.models import get_output_network_from_type
 from rls.nn.networks import (MultiVectorNetwork,
@@ -51,9 +51,9 @@ class RepresentationNetwork(ABC):
 
 class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
-    visual_s -> visual_net -> feat ↘
+      visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
-           s -> vector_net -> feat ↗                             -> memory_net ->
+      vector -> vector_net -> feat ↗                             -> memory_net ->
                                                       cell_state ↗                ↘ cell_state
     '''
 
@@ -82,87 +82,73 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
 
         self.h_dim = self.memory_net.h_dim
 
-    def split(self, batch_size, data):
-        '''TODO: Annotation
-        params:
-            batch_size: int
-            data: [B, x]
-        '''
-        if self.memory_net.use_rnn:
-            data = tf.reshape(data, [batch_size, -1, tf.shape(data)[-1]])
-            d, d_ = data[:, :-1], data[:, 1:]
-            d, d_ = tf.reshape(d, [-1, tf.shape(d)[-1]]), tf.reshape(d_, [-1, tf.shape(d_)[-1]])
-            return d, d_
-        else:
-            return tf.split(data, num_or_size_splits=2, axis=0)
-
-    def __call__(self, s, visual_s, cell_state, *, need_split=False):
+    @tf.function
+    def __call__(self, obs, cell_state, *, need_split=False):
         '''
         params:
-            s: [B*T, x]
-            visual_s: [B*T, y]
             cell_state: Tuple([B, z],)
         return:
             feat: [B, a]
             cell_state: Tuple([B, z],)
         '''
-        batch_size = tf.shape(s)[0]
-        if self.memory_net.use_rnn:
-            s = tf.reshape(s, [-1, tf.shape(s)[-1]])    # [B, T+1, N] => [B*(T+1), N]
-            if self.visual_net.use_visual:
-                visual_s = tf.reshape(visual_s, [-1, *tf.shape(visual_s)[2:]])
+        feat = self.get_encoder_feature(obs)    # [B*T, X]
 
-        feat = self.get_encoder_feature(s, visual_s)
         if self.memory_net.use_rnn:
+            batch_size = tf.shape(cell_state[0])[0]
             # reshape feature from [B*T, x] to [B, T, x]
-            feat = tf.reshape(feat, (batch_size, -1, tf.shape(feat)[-1]))
+            feat = tf.reshape(feat, (batch_size, -1, feat.shape[-1]))
             feat, cell_state = self.memory_net(feat, *cell_state)
-            # reshape feature from [B, T, x] to [B*T, x]
-            feat = tf.reshape(feat, (-1, tf.shape(feat)[-1]))
 
-        if need_split:
-            feat = self.split(batch_size, feat)
+            if need_split:
+                # reshape feature from [B, T+1, x] to ([B*T, x], [B*T, x])
+                feat = (tf.reshape(feat[:, :-1], [-1, tf.shape(feat)[-1]]),
+                        tf.reshape(feat[:, 1:], [-1, tf.shape(feat)[-1]]))
+            else:
+                # reshape feature from [B, T, x] to [B*T, x]
+                feat = tf.reshape(feat, (-1, tf.shape(feat)[-1]))
+        else:
+            if need_split:
+                feat = tf.split(feat, num_or_size_splits=2, axis=0)
 
         return feat, cell_state
 
-    def get_vis_feature(self, visual_s):
+    def get_vis_feature(self, visual):
         '''
         params:
-            visual_s: [B, N, H, W, C]
+            visual: [B, N, H, W, C]
         return:
             feat: [B, x]
         '''
         # TODO
-        viss = [visual_s[:, i] for i in range(visual_s.shape[1])]
+        viss = [visual[:, i] for i in range(visual.shape[1])]
         return self.visual_net(*viss)
 
-    def get_vec_feature(self, s):
+    def get_vec_feature(self, vector):
         '''
         params:
-            s: [B, x]
+            vector: [B, x]
         return:
             feat: [B, y]
         '''
-        return self.vector_net(s)
+        return self.vector_net(vector)
 
-    def get_encoder_feature(self, s, visual_s):
+    def get_encoder_feature(self, obs):
         '''
         params:
-            s: [B, x]
-            visual_s: [B, y]
+            obs: 
         return:
             feat: [B, z]
         '''
 
         if self.vector_net.use_vector and self.visual_net.use_visual:
-            feat = self.get_vec_feature(s)
-            vis_feat = self.get_vis_feature(visual_s)
+            feat = self.get_vec_feature(obs.vector)
+            vis_feat = self.get_vis_feature(obs.visual)
             feat = tf.concat([feat, vis_feat], axis=-1)
         elif self.visual_net.use_visual:
-            vis_feat = self.get_vis_feature(visual_s)
+            vis_feat = self.get_vis_feature(obs.visual)
             feat = vis_feat
         else:
-            feat = self.get_vec_feature(s)
+            feat = self.get_vec_feature(obs.vector)
 
         encoder_feature = self.encoder_net(feat)
         return encoder_feature
@@ -226,10 +212,10 @@ class ValueNetwork:
             self.value_net = get_output_network_from_type(value_net_type)(
                 **value_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
         assert self.representation_net is not None, 'self.representation_net is not None'
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.value_net(feat, *args, **kwargs)
         return output, cell_state
 
@@ -283,9 +269,9 @@ class DoubleValueNetwork(ValueNetwork):
             self.value_net2 = get_output_network_from_type(value_net_type)(
                 **value_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.value_net(feat, *args, **kwargs)
         output2 = self.value_net2(feat, *args, **kwargs)
         return output, output2, cell_state
@@ -341,9 +327,9 @@ class ACNetwork(ValueNetwork):
             self.policy_net = get_output_network_from_type(policy_net_type)(
                 **policy_net_kwargs)
 
-    def __call__(self, s, visual_s, *args, cell_state=(None,), **kwargs):
+    def __call__(self, obs, *args, cell_state=(None,), **kwargs):
         # feature [B, x]
-        feat, cell_state = self.representation_net(s, visual_s, cell_state)
+        feat, cell_state = self.representation_net(obs, cell_state)
         output = self.policy_net(feat, *args, **kwargs)
         return output, cell_state
 

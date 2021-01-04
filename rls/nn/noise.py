@@ -63,7 +63,7 @@ class ClippedNormalActionNoise(NormalActionNoise):
         super().__init__(mu, sigma)
         self.bound = bound
 
-    def __call__(self):
+    def __call__(self, size):
         return np.clip(np.random.normal(self.mu, self.sigma, size), -self.bound, self.bound)
 
     def __repr__(self):

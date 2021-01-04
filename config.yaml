@@ -59,7 +59,7 @@ gym:
         off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
         off_policy_step_eval_episodes: 100
     env:
-        # refer to rls.nn.indexs.py -> GymVectorizedType
+        # refer to rls.utils.specs.py -> GymVectorizedType
         vector_env_type: multiprocessing
         render_mode: random_1 # first last [list] random_[num] or all.
         action_skip: false
