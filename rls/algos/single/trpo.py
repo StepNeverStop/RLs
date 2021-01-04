@@ -141,6 +141,7 @@ class TRPO(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits=logp_all)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
+                log_prob = tf.expand_dims(log_prob, -1) # [B, ] => [B, 1]
                 return sample_op, value, log_prob, logp_all, cell_state
 
     def store_data(self, exps: BatchExperiences):

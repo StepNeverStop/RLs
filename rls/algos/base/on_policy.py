@@ -55,7 +55,7 @@ class On_Policy(Policy):
 
         self.intermediate_variable_reset()
 
-        # self.data.normalize_vector_obs(self.normalize_vector_obs)
+        self.data.normalize_vector_obs(self.normalize_vector_obs)
 
         if not self.is_continuous:
             self.data.convert_action2one_hot(self.a_dim)

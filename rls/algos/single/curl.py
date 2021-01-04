@@ -31,6 +31,7 @@ from rls.utils.specs import (OutputNetworkType,
 
 CURLBatchExperiences = namedtuple('CURLBatchExperiences', BatchExperiences._fields + ('pos',))
 
+
 class VisualEncoder(M):
 
     def __init__(self, img_dim, fc_dim):
@@ -324,11 +325,12 @@ class CURL(Off_Policy):
                         mu, log_std = self.actor_net.value_net(feat)
                         log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
-                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1)
+                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
                     else:
                         logits = self.actor_net.value_net(feat)
-                        cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
-                        log_pi = cate_dist.log_prob(cate_dist.sample())
+                        norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                        log_pi = norm_dist.log_prob(cate_dist.sample())
+                        log_pi = tf.expand_dims(log_pi, -1)  # [B, ] => [B, 1]
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
                 self.optimizer_alpha.apply_gradients(

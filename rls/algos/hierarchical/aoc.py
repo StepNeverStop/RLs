@@ -147,6 +147,7 @@ class AOC(On_Policy):
                 norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
+                log_prob = tf.expand_dims(log_prob, -1) # [B, ] => [B, 1]
             value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
             beta_adv = q_o - ((1 - self.eps) * tf.reduce_max(q, axis=-1, keepdims=True) + self.eps * tf.reduce_mean(q, axis=-1, keepdims=True))   # [B, 1]
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]

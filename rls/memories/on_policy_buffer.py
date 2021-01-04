@@ -83,7 +83,7 @@ class DataBuffer(object):
         计算td error
         TD = r + gamma * (1- done) * v(s') - v(s)
         '''
-        assert 'value' in self.data_buffer.keys()
+        assert 'value' in self.data_buffer.keys(), "assert 'value' in self.data_buffer.keys()"
         self.data_buffer['td_error'] = list(calculate_td_error(
             self.data_buffer['reward'],
             gamma,
@@ -97,7 +97,7 @@ class DataBuffer(object):
         计算GAE优势估计
         adv = td(s) + gamma * lambda * (1 - done) * td(s')
         '''
-        assert 'td_error' in self.data_buffer.keys()
+        assert 'td_error' in self.data_buffer.keys(), "assert 'td_error' in self.data_buffer.keys()"
         adv = np.asarray(discounted_sum(
             self.data_buffer['td_error'],
             lambda_ * gamma,
@@ -144,17 +144,17 @@ class DataBuffer(object):
         '''
         用于在训练前将buffer中的离散动作的索引转换为one_hot类型
         '''
-        if 'action' in self.data_buffer.keys():
-            self.data_buffer['action'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.data_buffer['action']]
+        assert 'action' in self.data_buffer.keys(), "assert 'action' in self.data_buffer.keys()"
+        self.data_buffer['action'] = [int2one_hot(a.astype(np.int32), a_counts) for a in self.data_buffer['action']]
 
-    # def normalize_vector_obs(self, func):
-    #     '''
-    #     TODO: Annotation
-    #     '''
-    #     if 's' in self.data_buffer.keys():
-    #         self.data_buffer['s'] = [func(s) for s in self.data_buffer['s']]
-    #     if 's_' in self.data_buffer.keys():
-    #         self.data_buffer['s_'] = [func(s) for s in self.data_buffer['s_']]
+    def normalize_vector_obs(self, func):
+        '''
+        TODO: Annotation
+        '''
+        assert 'obs' in self.data_buffer.keys(), "assert 'obs' in self.data_buffer.keys()"
+        assert 'obs_' in self.data_buffer.keys(), "assert 'obs_' in self.data_buffer.keys()"
+        self.data_buffer['obs'] = [NamedTupleStaticClass.data_convert(func, obs, keys=['vector']) for obs in self.data_buffer['obs']]
+        self.data_buffer['obs_'] = [NamedTupleStaticClass.data_convert(func, obs_, keys=['vector']) for obs_ in self.data_buffer['obs_']]
 
     def sample_generater(self, batch_size: int = None):
         '''
