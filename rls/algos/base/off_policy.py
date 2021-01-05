@@ -39,11 +39,11 @@ class Off_Policy(Policy):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        self._running_average(exps.obs.vector)
+        # self._running_average(exps.obs.vector)
         self.data.add(exps)
 
     def no_op_store(self, exps: BatchExperiences) -> NoReturn:
-        self._running_average(exps.obs.vector)
+        # self._running_average(exps.obs.vector)
         self.data.add(exps)
 
     def get_transitions(self) -> BatchExperiences:
@@ -59,9 +59,9 @@ class Off_Policy(Policy):
             assert 'action' in exps._fields, "assert 'action' in exps._fields"
             exps = exps._replace(action=int2one_hot(exps.action.astype(np.int32), self.a_dim))
         assert 'obs' in exps._fields and 'obs_' in exps._fields, "'obs' in exps._fields and 'obs_' in exps._fields"
-        exps = exps._replace(
-            obs=exps.obs._replace(vector=self.normalize_vector_obs(exps.obs.vector)),
-            obs_=exps.obs_._replace(vector=self.normalize_vector_obs(exps.obs_.vector)))
+        # exps = exps._replace(
+        #     obs=exps.obs._replace(vector=self.normalize_vector_obs(exps.obs.vector)),
+        #     obs_=exps.obs_._replace(vector=self.normalize_vector_obs(exps.obs_.vector)))
         return NamedTupleStaticClass.data_convert(self.data_convert, exps)
 
     def _train(self, *args):

@@ -145,12 +145,6 @@ class Policy(Base):
     @abstractmethod
     def choose_action(self, obs, evaluation=False) -> Any:
         '''
-        choose actions while training.
-        Input: 
-            s: vector observation
-            visual_s: visual observation
-        Output: 
-            actions
         '''
         pass
 

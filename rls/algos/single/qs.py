@@ -25,16 +25,15 @@ class QS:
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  **kwargs):
-        assert not hasattr(s_dim, '__len__')
         assert not envspec.is_continuous
         self.mode = mode
-        self.s_dim = s_dim
-        self.a_dim = a_dim
+        self.s_dim = envspec.s_dim
+        self.a_dim = envspec.a_dim
+        self.n_agents = envspec.n_agents
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.step = 0
         self.train_step = 0
-        self.n_agents = int(kwargs.get('n_agents', 0))
         if self.n_agents <= 0:
             raise ValueError('agents num must larger than zero.')
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -56,7 +55,7 @@ class QS:
         self.mask = np.where(done)[0]
 
     def choose_action(self, obs, evaluation=False):
-        s = self.one_hot2int(obs.vector)
+        s = self.one_hot2int(obs.flatten_vector())
         if self.mode == 'q':
             return self._get_action(s, evaluation)
         elif self.mode == 'sarsa' or self.mode == 'expected_sarsa':
@@ -76,8 +75,8 @@ class QS:
 
     def store_data(self, exps: BatchExperiences):
         self.step += 1
-        s = self.one_hot2int(exps.obs.vector)
-        s_ = self.one_hot2int(exps.obs_.vector)
+        s = self.one_hot2int(exps.obs.flatten_vector())
+        s_ = self.one_hot2int(exps.obs_.flatten_vector())
         if self.mode == 'q':
             a_ = self._get_action(s_, _max=True)
             value = self.table[s_, a_]

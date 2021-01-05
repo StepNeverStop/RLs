@@ -5,7 +5,6 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
 from tensorflow.keras import Model as M
 from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
@@ -26,10 +25,7 @@ from rls.utils.specs import VisualNetworkType
 from rls.utils.build_networks import (ValueNetwork,
                                       DoubleValueNetwork)
 from rls.utils.specs import (OutputNetworkType,
-                             BatchExperiences,
-                             NamedTupleStaticClass)
-
-CURL_BatchExperiences = namedtuple('CURL_BatchExperiences', BatchExperiences._fields + ('pos',))
+                             BatchExperiences)
 
 
 class VisualEncoder(M):
@@ -120,7 +116,7 @@ class CURL(Off_Policy):
         self.auto_adaption = auto_adaption
         self.annealing = annealing
         self.img_size = img_size
-        self.img_dim = [img_size, img_size, self.visual_dim[-1]]
+        self.img_dim = [img_size, img_size, self.visual_dims[0][-1]]
         self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
@@ -190,16 +186,15 @@ class CURL(Off_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
-        visual_s = center_crop_image(obs.visual[:, 0], self.img_size)
-        obs = obs._replace(visual=visual_s)
-        mu, pi = self._get_action(obs)
+        visual = center_crop_image(obs.first_visual()[:, 0], self.img_size)
+        mu, pi = self._get_action(visual)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
     @tf.function
-    def _get_action(self, obs):
+    def _get_action(self, visual):
         with tf.device(self.device):
-            feat = tf.concat([self.encoder(obs.visual), obs.vector], axis=-1)
+            feat = tf.concat([self.encoder(visual), obs.flatten_vector()], axis=-1)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
@@ -212,17 +207,13 @@ class CURL(Off_Policy):
                 pi = cate_dist.sample()
             return mu, pi
 
-    def _process_before_train(self, data: BatchExperiences) -> CURL_BatchExperiences:
-        data = data._replace(
-            obs=data.obs._replace(visual=np.transpose(data.obs.visual[:, 0].numpy(), (0, 3, 1, 2))),
-            obs_=data.obs_._replace(visual=np.transpose(data.obs_.visual[:, 0].numpy(), (0, 3, 1, 2))))
-        pos = np.transpose(random_crop(data.obs.visual, self.img_size), (0, 2, 3, 1))
-        data = data._replace(
-            obs=data.obs._replace(visual=np.transpose(random_crop(data.obs.visual, self.img_size), (0, 2, 3, 1))),
-            obs_=data.obs_._replace(visual=np.transpose(random_crop(data.obs_.visual, self.img_size), (0, 2, 3, 1)))
-        )
-        new_data = CURL_BatchExperiences(*data, pos)
-        return NamedTupleStaticClass.data_convert(self.data_convert, new_data)
+    def _process_before_train(self, data: BatchExperiences):
+        visual = np.transpose(data.obs.first_visual()[:, 0].numpy(), (0, 3, 1, 2))
+        visual_ = np.transpose(data.obs_.first_visual()[:, 0].numpy(), (0, 3, 1, 2))
+        pos = np.transpose(random_crop(visual, self.img_size), (0, 2, 3, 1))
+        visual = np.transpose(random_crop(visual, self.img_size), (0, 2, 3, 1))
+        visual_ = np.transpose(random_crop(visual_, self.img_size), (0, 2, 3, 1))
+        return self.data_convert([visual, visual_, pos])
 
     def _target_params_update(self):
         update_target_net_weights(self.critic_target_net.weights + self.encoder_target.trainable_variables,
@@ -246,22 +237,22 @@ class CURL(Off_Policy):
         return tf.exp(self.log_alpha)
 
     def _train(self, BATCH: BatchExperiences, isw, cell_state):
-        BATCH = self._process_before_train(BATCH)
-        td_error, summaries = self.train(BATCH, isw, cell_state)
+        visual, visual_, pos = self._process_before_train(BATCH)
+        td_error, summaries = self.train(BATCH, isw, cell_state, visual, visual_, pos)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function
-    def train(self, BATCH: CURL_BatchExperiences, isw, cell_state):
+    def train(self, BATCH, isw, cell_state, visual, visual_, pos):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                vis_feat = self.encoder(visual_s)
-                vis_feat_ = self.encoder(visual_s_)
-                target_vis_feat_ = self.encoder_target(visual_s_)
-                feat = tf.concat([vis_feat, s], axis=-1)
-                feat_ = tf.concat([vis_feat_, s_], axis=-1)
-                target_feat_ = tf.concat([target_vis_feat_, s_], axis=-1)
+                vis_feat = self.encoder(visual)
+                vis_feat_ = self.encoder(visual_)
+                target_vis_feat_ = self.encoder_target(visual_)
+                feat = tf.concat([vis_feat, BATCH.obs.flatten_vector()], axis=-1)
+                feat_ = tf.concat([vis_feat_, BATCH.obs_.flatten_vector()], axis=-1)
+                target_feat_ = tf.concat([target_vis_feat_, BATCH.obs_.flatten_vector()], axis=-1)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net.value_net(feat_)
                     target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
@@ -283,7 +274,7 @@ class CURL(Off_Policy):
                 critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
 
                 z_a = vis_feat  # [B, N]
-                z_out = self.encoder_target(BATCH.pos)
+                z_out = self.encoder_target(pos)
                 logits = tf.matmul(z_a, tf.matmul(self.curl_w, tf.transpose(z_out, [1, 0])))
                 logits -= tf.reduce_max(logits, axis=-1, keepdims=True)
                 curl_loss = tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(tf.range(self.batch_size), logits))

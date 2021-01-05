@@ -211,7 +211,7 @@ class HIRO(Off_Policy):
     @tf.function
     def _get_action(self, obs, subgoal):
         with tf.device(self.device):
-            feat = tf.concat([obs.vector, subgoal], axis=-1)
+            feat = tf.concat([obs.flatten_vector(), subgoal], axis=-1)
             output = self.low_ac_net.policy_net(feat)
             if self.is_continuous:
                 mu = output
@@ -224,7 +224,7 @@ class HIRO(Off_Policy):
             return mu, pi
 
     def choose_action(self, obs, evaluation=False):
-        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.vector).numpy(), self._new_subgoal)
+        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.flatten_vector()).numpy(), self._new_subgoal)
         mu, pi = self._get_action(obs, self._subgoal)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
@@ -268,8 +268,8 @@ class HIRO(Off_Policy):
     def train_low(self, BATCH: Low_BatchExperiences):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat = tf.concat([BATCH.obs.vector, BATCH.subgoal], axis=-1)
-                feat_ = tf.concat([BATCH.obs_.vector, BATCH.next_subgoal], axis=-1)
+                feat = tf.concat([BATCH.obs.flatten_vector(), BATCH.subgoal], axis=-1)
+                feat_ = tf.concat([BATCH.obs_.flatten_vector(), BATCH.next_subgoal], axis=-1)
 
                 target_output = self.low_ac_target_net.policy_net(feat_)
                 if self.is_continuous:
@@ -395,15 +395,15 @@ class HIRO(Off_Policy):
             ])
 
     def no_op_store(self, exps: BatchExperiences):
-        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.vector)]
+        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.flatten_vector())]
         [o.append(_a) for o, _a in zip(self._high_a, exps.action)]
         [o.append(_r) for o, _r in zip(self._high_r, exps.reward)]
-        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.vector)]
+        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.flatten_vector())]
         [o.append(_d) for o, _d in zip(self._done, exps.done)]
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._noop_subgoal)]
 
-        ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._noop_subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
-        # subgoal = exps.obs.vector[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.vector[:, self.fn_goal_dim:]
+        ir = self.get_ir(exps.obs.flatten_vector()[:, self.fn_goal_dim:], self._noop_subgoal, exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
+        # subgoal = exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
         
         dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
@@ -414,15 +414,15 @@ class HIRO(Off_Policy):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.vector)]
+        [o.append(_s) for o, _s in zip(self._high_s, exps.obs.flatten_vector())]
         [o.append(_a) for o, _a in zip(self._high_a, exps.action)]
         [o.append(_r) for o, _r in zip(self._high_r, exps.reward)]
-        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.vector)]
+        [o.append(_s_) for o, _s_ in zip(self._high_s_, exps.obs_.flatten_vector())]
         [o.append(_d) for o, _d in zip(self._done, exps.done)]
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._subgoal)]
 
-        ir = self.get_ir(exps.obs.vector[:, self.fn_goal_dim:], self._subgoal, exps.obs_.vector[:, self.fn_goal_dim:])
-        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.vector).numpy(), exps.obs.vector[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.vector[:, self.fn_goal_dim:])
+        ir = self.get_ir(exps.obs.flatten_vector()[:, self.fn_goal_dim:], self._subgoal, exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
+        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.flatten_vector()).numpy(), exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
 
         dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
         self.data_low.add(dl)

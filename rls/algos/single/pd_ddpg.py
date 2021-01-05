@@ -211,12 +211,12 @@ class PD_DDPG(Off_Policy):
             ])
 
     def get_cost(self, exps: BatchExperiences):
-        return np.abs(exps.obs_.vector)[:, :1]    # CartPole
+        return np.abs(exps.obs_.first_vector())[:, :1]    # CartPole
 
     def store_data(self, exps: BatchExperiences):
-        self._running_average(exps.obs.vector)
+        # self._running_average(exps.obs.vector)
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
 
     def no_op_store(self, exps: BatchExperiences)
-        self._running_average(exps.obs.vector)
+        # self._running_average(exps.obs.vector)
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))

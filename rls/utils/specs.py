@@ -1,8 +1,10 @@
 import numpy as np
+import tensorflow as tf
 
 from enum import Enum
 from typing import (Dict,
                     List,
+                    Union,
                     Iterator,
                     Callable,
                     NamedTuple)
@@ -48,6 +50,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def getitem(nt: NamedTuple, i: int) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         if isinstance(nt, tuple):
             x = []
             for data in nt:
@@ -58,6 +63,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def getbatchitems(nt: NamedTuple, idxs: np.ndarray) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         if isinstance(nt, tuple):
             x = []
             for data in nt:
@@ -68,11 +76,17 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def unpack(nt: NamedTuple) -> Iterator[NamedTuple]:
+        '''
+        TODO: Annotation
+        '''
         for i in range(NamedTupleStaticClass.len(nt)):
             yield NamedTupleStaticClass.getitem(nt, i)
 
     @staticmethod
     def pack(nts: List[NamedTuple], func: Callable = None) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         x = []
         for datas in zip(*nts):
             if isinstance(datas[0], tuple):
@@ -86,6 +100,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def check_equal(x: NamedTuple, y: NamedTuple, k: str = None):
+        '''
+        TODO: Annotation
+        '''
         def _check(d1, d2):
             if isinstance(d1, tuple) and isinstance(d2, tuple):
                 return NamedTupleStaticClass.check_equal(d1, d2)
@@ -101,6 +118,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def data_convert(func, nt, keys=None):
+        '''
+        TODO: Annotation
+        '''
         if keys is None:
             x = []
             for data in nt:
@@ -121,6 +141,10 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def show_shape(nt):
+        '''
+        TODO: Annotation
+        '''
+        # TODO: 优化显示
         for k, v in nt._asdict().items():
             if isinstance(v, tuple):
                 NamedTupleStaticClass.show_shape(v)
@@ -129,6 +153,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def check_len(nt: NamedTuple, l: int):
+        '''
+        TODO: Annotation
+        '''
         ret = []
         for data in nt:
             if isinstance(data, tuple):
@@ -137,13 +164,50 @@ class NamedTupleStaticClass:
                 ret.append(data.shape[0] == l)
         return all(ret)
 
+    @staticmethod
+    def union(nt: Union[np.ndarray, NamedTuple], func: Callable = None):
+        '''
+        TODO: Annotation
+        '''
+        if isinstance(nt, tuple):
+            x = [NamedTupleStaticClass.union(data, func) for data in nt]
+            return func(x)
+        else:
+            return nt
+
 
 class ModelObservations(NamedTuple):
     '''
         agent's observation
     '''
-    vector: np.ndarray
-    visual: np.ndarray
+    vector: Union[np.ndarray, NamedTuple]
+    visual: Union[np.ndarray, NamedTuple]
+
+    def flatten_vector(self):
+        '''
+        TODO: Annotation
+        '''
+        _x = self.vector[0] if isinstance(self.vector, tuple) else self.vector
+        func = np.hstack if isinstance(_x, np.ndarray) else lambda x: tf.concat(x, axis=-1)
+        return NamedTupleStaticClass.union(self.vector, func=func)
+
+    def first_vector(self):
+        '''
+        TODO: Annotation
+        '''
+        if isinstance(self.vector, tuple):
+            return self.vector[0]
+        else:
+            return self.vector
+
+    def first_visual(self):
+        '''
+        TODO: Annotation
+        '''
+        if isinstance(self.visual, tuple):
+            return self.visual[0]
+        else:
+            return self.visual
 
 
 class BatchExperiences(NamedTuple):
@@ -208,7 +272,7 @@ class OutputNetworkType(Enum):
     AOC_SHARE = 'AocShare'
     PPOC_SHARE = 'PpocShare'
     ACTOR_CRITIC_VALUE_CTS = 'ActorCriticValueCts'
-    ACTOR_CRITIC_VALUE_DET = 'ActorCriticValueDct'
+    ACTOR_CRITIC_VALUE_DCT = 'ActorCriticValueDct'
     C51_DISTRIBUTIONAL = 'C51Distributional'
     QRDQN_DISTRIBUTIONAL = 'QrdqnDistributional'
     RAINBOW_DUELING = 'RainbowDueling'

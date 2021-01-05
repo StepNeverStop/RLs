@@ -138,11 +138,11 @@ class BasicUnityEnvironment(object):
             self.visual_sources[bn] = len(self.visual_idxs[bn])
 
             action_spec = spec.action_spec
-            if action_spec.is_continuous:
+            if action_spec.is_continuous():
                 self.a_dim[bn] = action_spec.continuous_size
                 self.discrete_action_lists[bn] = None
                 self.is_continuous[bn] = True
-            elif action_spec.is_discrete:
+            elif action_spec.is_discrete():
                 self.a_dim[bn] = int(np.asarray(action_spec.discrete_branches).prod())
                 self.discrete_action_lists[bn] = get_discrete_action_list(action_spec.discrete_branches)
                 self.is_continuous[bn] = False

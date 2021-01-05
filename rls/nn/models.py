@@ -30,7 +30,7 @@ def get_output_network_from_type(network_type: OutputNetworkType):
         OutputNetworkType.AOC_SHARE: AocShare,
         OutputNetworkType.PPOC_SHARE: PpocShare,
         OutputNetworkType.ACTOR_CRITIC_VALUE_CTS: ActorCriticValueCts,
-        OutputNetworkType.ACTOR_CRITIC_VALUE_DET: ActorCriticValueDct,
+        OutputNetworkType.ACTOR_CRITIC_VALUE_DCT: ActorCriticValueDct,
         OutputNetworkType.C51_DISTRIBUTIONAL: C51Distributional,
         OutputNetworkType.QRDQN_DISTRIBUTIONAL: QrdqnDistributional,
         OutputNetworkType.RAINBOW_DUELING: RainbowDueling,
@@ -360,7 +360,7 @@ class ActorCriticValueCts(M):
         if self.condition_sigma:
             self.log_std = mlp([], output_shape=output_shape, out_activation=None)
         else:
-            self.log_std = tf.Variable(initial_value=-0.5 * tf.ones(output_shape, dtype=tf.dtypes.float32), trainable=True)
+            self.log_std = tf.Variable(initial_value=-0.5 * tf.ones(shape=(1, output_shape), dtype=tf.dtypes.float32), trainable=True)
         self(I(shape=vector_dim))
 
     def call(self, x):
@@ -371,7 +371,8 @@ class ActorCriticValueCts(M):
         if self.condition_sigma:
             log_std = self.log_std(x_mu_logstd)
         else:
-            log_std = self.log_std
+            if batch_size:
+                log_std = tf.tile(self.log_std, [batch_size, 1])  # [1, N] => [B, N]
         log_std = tf.clip_by_value(log_std, self.log_std_min, self.log_std_max)
         return (mu, log_std, v)
 

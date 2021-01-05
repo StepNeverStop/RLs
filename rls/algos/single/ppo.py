@@ -125,7 +125,7 @@ class PPO(On_Policy):
                 self.net = ValueNetwork(
                     name='net',
                     representation_net=self._representation_net,
-                    value_net_type=OutputNetworkType.ACTOR_CRITIC_VALUE_DET,
+                    value_net_type=OutputNetworkType.ACTOR_CRITIC_VALUE_DCT,
                     value_net_kwargs=dict(output_shape=self.a_dim,
                                           network_settings=network_settings['share']['discrete'])
                 )
@@ -206,7 +206,7 @@ class PPO(On_Policy):
         return sample_op, value, log_prob, cell_state
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
-        self._running_average(exps.obs.vector)
+        # self._running_average(exps.obs.vector)
         self.data.add(PPO_Store_BatchExperiences(*exps, self._value, self._log_prob))
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
