@@ -245,7 +245,7 @@ class SAC(Off_Policy):
     def train_discrete(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self.critic_net.getFeatAndCellstate(BATCH.obs.vector, BATCH.obs.visual, cell_state=cell_state, need_split=True)
+                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 q1_all, q2_all = self.critic_net.get_value(feat)  # [B, A]
 
                 logits = self.actor_net.value_net(feat)
@@ -258,7 +258,7 @@ class SAC(Off_Policy):
                 q2 = q_function(q2_all)
                 target_logits = self.actor_net.value_net(feat_)  # [B, A]
                 target_log_probs = tf.nn.log_softmax(target_logits)  # [B, A]
-                q1_target, q2_target, _ = self.critic_target_net(BATCH.obs_.vector, BATCH.obs_.visual, cell_state=cell_state)    # [B, A]
+                q1_target, q2_target, _ = self.critic_target_net(BATCH.obs_, cell_state=cell_state)    # [B, A]
                 def v_target_function(x): return tf.reduce_sum(tf.exp(target_log_probs) * (x - self.alpha * target_log_probs), axis=-1, keepdims=True)  # [B, 1]
                 v1_target = v_target_function(q1_target)
                 v2_target = v_target_function(q2_target)

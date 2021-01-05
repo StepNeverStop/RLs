@@ -110,14 +110,13 @@ class MultiVectorNetwork(M):
             def net(x): return x
             self.nets.append(net)
         self.h_dim = sum(vector_dim)
-        self.use_vector = not self.h_dim == 0
         if vector_dim:
             self(*(I(shape=dim) for dim in vector_dim))
 
     @tf.function
-    def call(self, *args):
+    def call(self, *vector_inputs):
         output = []
-        for net, s in zip(self.nets, args):
+        for net, s in zip(self.nets, vector_inputs):
             output.append(net(s))
         if output:
             output = tf.concat(output, axis=-1)
@@ -135,14 +134,13 @@ class MultiVisualNetwork(M):
             self.nets.append(net)
             self.dense_nets.append(Dense(visual_feature, default_activation, **initKernelAndBias))
         self.h_dim = visual_feature * len(self.nets)
-        self.use_visual = not self.h_dim == 0
         if visual_dim:
             self(*(I(shape=dim) for dim in visual_dim))
 
     @tf.function
-    def call(self, *args):
+    def call(self, *visual_inputs):
         output = []
-        for net, dense_net, visual_s in zip(self.nets, self.dense_nets, args):
+        for net, dense_net, visual_s in zip(self.nets, self.dense_nets, visual_inputs):
             output.append(
                 dense_net(
                     net(visual_s)

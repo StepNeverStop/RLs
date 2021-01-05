@@ -66,12 +66,13 @@ class CEM(On_Policy):
         self.extra_decay_eps = extra_decay_eps
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
+        self.concat_vector_dim = self.obs_spec.total_vector_dim
         
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
-        self._check_agents(obs.vector)
-        a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.vector, self.populations, axis=0))]
+        self._check_agents()
+        a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
         if self.is_continuous:
             a = np.vstack(a)
         else:
@@ -104,8 +105,8 @@ class CEM(On_Policy):
         params : 状态列表S，一个环境下有多少个智能体就包含多少个状态向量
         '''
         if not hasattr(self, 'populations'):
-            assert s.shape[0] % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
-            self.populations = int(s.shape[0] / self.envs_per_popu)
+            assert self.n_agents % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
+            self.populations = int(self.n_agents / self.envs_per_popu)
             self._build()
 
     def _build(self):
@@ -113,7 +114,7 @@ class CEM(On_Policy):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations * self.frac)), 1)
-        self.cem_models = [Model(self.s_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums) * self.init_var
         self._update_models_weights()
