@@ -14,6 +14,7 @@ from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
 from rls.utils.specs import (MemoryNetworkType,
                              BatchExperiences,
+                             ModelObservations,
                              NamedTupleStaticClass)
 
 
@@ -39,11 +40,11 @@ class Off_Policy(Policy):
         """
         for off-policy training, use this function to store <s, a, r, s_, done> into ReplayBuffer.
         """
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(exps)
 
     def no_op_store(self, exps: BatchExperiences) -> NoReturn:
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(exps)
 
     def get_transitions(self) -> BatchExperiences:
@@ -60,8 +61,8 @@ class Off_Policy(Policy):
             exps = exps._replace(action=int2one_hot(exps.action.astype(np.int32), self.a_dim))
         assert 'obs' in exps._fields and 'obs_' in exps._fields, "'obs' in exps._fields and 'obs_' in exps._fields"
         # exps = exps._replace(
-        #     obs=exps.obs._replace(vector=self.normalize_vector_obs(exps.obs.vector)),
-        #     obs_=exps.obs_._replace(vector=self.normalize_vector_obs(exps.obs_.vector)))
+        #     obs=exps.obs._replace(vector=self.normalize_vector_obs()),
+        #     obs_=exps.obs_._replace(vector=self.normalize_vector_obs()))
         return NamedTupleStaticClass.data_convert(self.data_convert, exps)
 
     def _train(self, *args):
@@ -121,15 +122,10 @@ class Off_Policy(Policy):
             # --------------------------------------如果使用RNN， 就将s和s‘状态进行拼接处理
             if _use_stack:
                 if self.use_rnn:
-                    # [B*T, N] => [B, T, N]
-                    obs = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [self.episode_batch_size, -1, *x.shape[1:]]), data.obs)
-                    obs_ = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [self.episode_batch_size, -1, *x.shape[1:]]), data.obs_)
-                    # TODO: 优化
-                    # [B, T, N], [B, T, N] => [B, T+1, N]
-                    obs = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(obs, obs_)]
+                    obs = ModelObservations.stack_rnn(data.obs, data.obs_, episode_batch_size=self.episode_batch_size)
                 else:
-                    obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
-                data = data._replace(obs=data.obs.__class__._make(obs))
+                    obs = ModelObservations.stack(data.obs, data.obs_)
+                data = data._replace(obs=obs)
             # --------------------------------------
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息

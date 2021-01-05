@@ -206,7 +206,7 @@ class PPO(On_Policy):
         return sample_op, value, log_prob, cell_state
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(PPO_Store_BatchExperiences(*exps, self._value, self._log_prob))
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))

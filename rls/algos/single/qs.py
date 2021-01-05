@@ -27,7 +27,7 @@ class QS:
                  **kwargs):
         assert not envspec.is_continuous
         self.mode = mode
-        self.s_dim = envspec.s_dim
+        self.concat_vector_dim = envspec.obs_spec.total_vector_dim
         self.a_dim = envspec.a_dim
         self.n_agents = envspec.n_agents
         self.gamma = float(kwargs.get('gamma', 0.999))
@@ -41,7 +41,7 @@ class QS:
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
-        self.table = np.zeros(shape=(self.s_dim, self.a_dim))
+        self.table = np.zeros(shape=(self.concat_vector_dim, self.a_dim))
         self.lr = lr
         self.next_a = np.zeros(self.n_agents, dtype=np.int32)
         self.mask = []
@@ -88,7 +88,7 @@ class QS:
                 value = self.table[s_, self.next_a]
         self.table[s, exps.action] = (1 - self.lr) * self.table[s, exps.action] + self.lr * (exps.reward + self.gamma * (1 - exps.done) * value)
         if self.step % 1000 == 0:
-            plot_heatmap(self.s_dim, self.a_dim, self.table)
+            plot_heatmap(self.concat_vector_dim, self.a_dim, self.table)
 
     def close(self):
         ioff()

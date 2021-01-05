@@ -66,6 +66,7 @@ class CEM(On_Policy):
         self.extra_decay_eps = extra_decay_eps
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
+        self.concat_vector_dim = self.obs_spec.total_vector_dim
         
         self._model_post_process()
 
@@ -113,7 +114,7 @@ class CEM(On_Policy):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations * self.frac)), 1)
-        self.cem_models = [Model(self.s_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums) * self.init_var
         self._update_models_weights()

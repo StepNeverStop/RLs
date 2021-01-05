@@ -109,14 +109,14 @@ class CURL(Off_Policy):
                  img_size=64,
                  **kwargs):
         super().__init__(envspec=envspec, **kwargs)
-        assert self.visual_sources == 1
+        self.concat_vector_dim = self.obs_spec.total_vector_dim
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.log_std_min, self.log_std_max = log_std_bound[:]
         self.auto_adaption = auto_adaption
         self.annealing = annealing
         self.img_size = img_size
-        self.img_dim = [img_size, img_size, self.visual_dims[0][-1]]
+        self.img_dim = [img_size, img_size, self.obs_spec.visual_dims[0][-1]]
         self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
@@ -129,7 +129,7 @@ class CURL(Off_Policy):
         def _create_net(name): return DoubleValueNetwork(
             name=name,
             value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-            value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+            value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                   action_dim=self.a_dim,
                                   network_settings=network_settings['q'])
         )
@@ -141,7 +141,7 @@ class CURL(Off_Policy):
             self.actor_net = ValueNetwork(
                 name='actor_net',
                 value_net_type=OutputNetworkType.ACTOR_CTS,
-                value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                       output_shape=self.a_dim,
                                       network_settings=network_settings['actor_continuous'])
             )
@@ -149,7 +149,7 @@ class CURL(Off_Policy):
             self.actor_net = ValueNetwork(
                 name='actor_net',
                 value_net_type=OutputNetworkType.ACTOR_DCT,
-                value_net_kwargs=dict(vector_dim=self.s_dim + self.vis_feat_size,
+                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                       output_shape=self.a_dim,
                                       network_settings=network_settings['actor_discrete'])
             )

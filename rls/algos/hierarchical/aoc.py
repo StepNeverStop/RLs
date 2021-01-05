@@ -156,7 +156,7 @@ class AOC(On_Policy):
         return sample_op, value, log_prob, beta_adv, new_options, max_options, cell_state
 
     def store_data(self, exps: BatchExperiences):
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
         self.data.add(AOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._beta_adv,
                                                  self.last_options, self.options))

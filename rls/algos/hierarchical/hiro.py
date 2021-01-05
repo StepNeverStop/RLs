@@ -20,6 +20,7 @@ from rls.utils.specs import (OutputNetworkType,
 Low_BatchExperiences = namedtuple('Low_BatchExperiences', BatchExperiences._fields + ('subgoal', 'next_subgoal'))
 High_BatchExperiences = namedtuple('High_BatchExperiences', 'obs, action, reward, done, subgoal, obs_')
 
+
 class HIRO(Off_Policy):
     '''
     Data-Efficient Hierarchical Reinforcement Learning, http://arxiv.org/abs/1805.08296
@@ -50,8 +51,10 @@ class HIRO(Off_Policy):
                      'low_critic': [64, 64]
                  },
                  **kwargs):
-        assert envspec.visual_sources == 0, 'HIRO doesn\'t support visual inputs.'
+        assert not envspec.obs_spec.has_visual_observation, 'HIRO doesn\'t support visual inputs.'
         super().__init__(envspec=envspec, **kwargs)
+
+        self.concat_vector_dim = self.obs_spec.total_vector_dim
         self.data_high = ExperienceReplay(high_batch_size, high_buffer_size)
         self.data_low = ExperienceReplay(low_batch_size, low_buffer_size)
 
@@ -60,7 +63,7 @@ class HIRO(Off_Policy):
         self.fn_goal_dim = fn_goal_dim
         self.sample_g_nums = sample_g_nums
         self.sub_goal_steps = sub_goal_steps
-        self.sub_goal_dim = self.s_dim - self.fn_goal_dim
+        self.sub_goal_dim = self.concat_vector_dim - self.fn_goal_dim
         self.high_scale = np.array(
             high_scale if isinstance(high_scale, list) else [high_scale] * self.sub_goal_dim,
             dtype=np.float32)
@@ -71,11 +74,11 @@ class HIRO(Off_Policy):
         def _create_high_ac_net(name): return ADoubleCNetwork(
             name=name,
             policy_net_type=OutputNetworkType.ACTOR_DPG,
-            policy_net_kwargs=dict(vector_dim=self.s_dim,
+            policy_net_kwargs=dict(vector_dim=self.concat_vector_dim,
                                    output_shape=self.sub_goal_dim,
                                    network_settings=network_settings['high_actor']),
             value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-            value_net_kwargs=dict(vector_dim=self.s_dim,
+            value_net_kwargs=dict(vector_dim=self.concat_vector_dim,
                                   action_dim=self.sub_goal_dim,
                                   network_settings=network_settings['high_critic'])
         )
@@ -87,11 +90,11 @@ class HIRO(Off_Policy):
             def _create_low_ac_net(name): return ADoubleCNetwork(
                 name=name,
                 policy_net_type=OutputNetworkType.ACTOR_DPG,
-                policy_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                policy_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                        output_shape=self.a_dim,
                                        network_settings=network_settings['low_actor']),
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-                value_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['low_critic'])
             )
@@ -99,11 +102,11 @@ class HIRO(Off_Policy):
             def _create_low_ac_net(name): return ADoubleCNetwork(
                 name=name,
                 policy_net_type=OutputNetworkType.ACTOR_DCT,
-                policy_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                policy_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                        output_shape=self.a_dim,
                                        network_settings=network_settings['low_actor']),
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-                value_net_kwargs=dict(vector_dim=self.s_dim + self.sub_goal_dim,
+                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['low_critic'])
             )
@@ -326,7 +329,7 @@ class HIRO(Off_Policy):
         # BATCH.obs_ : [B, N]
         # BATCH.obs, BATCH.action [B, T, *]
         batchs = tf.shape(BATCH.obs)[0]
-        
+
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 s = BATCH.obs[:, 0]                                # [B, N]
@@ -405,7 +408,7 @@ class HIRO(Off_Policy):
         ir = self.get_ir(exps.obs.flatten_vector()[:, self.fn_goal_dim:], self._noop_subgoal, exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
         # subgoal = exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
-        
+
         dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
         self.data_low.add(dl)
         self._noop_subgoal = subgoal
@@ -422,7 +425,8 @@ class HIRO(Off_Policy):
         [o.append(_subgoal) for o, _subgoal in zip(self._subgoals, self._subgoal)]
 
         ir = self.get_ir(exps.obs.flatten_vector()[:, self.fn_goal_dim:], self._subgoal, exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
-        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.flatten_vector()).numpy(), exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
+        self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.flatten_vector()).numpy(), exps.obs.flatten_vector()
+                                     [:, self.fn_goal_dim:] + self._subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
 
         dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
         self.data_low.add(dl)

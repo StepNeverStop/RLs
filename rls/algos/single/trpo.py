@@ -144,7 +144,7 @@ class TRPO(On_Policy):
                 return sample_op, value, log_prob, logp_all, cell_state
 
     def store_data(self, exps: BatchExperiences):
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
 
         if self.is_continuous:
             self.data.add(TRPO_Store_BatchExperiences_CTS(*exps, self._value, self._log_prob, self._mu, self._log_std))

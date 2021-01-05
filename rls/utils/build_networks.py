@@ -15,6 +15,7 @@ from rls.nn.networks import (MultiVectorNetwork,
                              EncoderNetwork,
                              MemoryNetwork)
 from rls.utils.logging_utils import get_logger
+from rls.utils.specs import ObsSpec
 logger = get_logger(__name__)
 
 
@@ -58,18 +59,19 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
 
     def __init__(self,
+                 obs_spec: ObsSpec,
                  name: str = 'test',
-                 vec_dims=[],
-                 vis_dims=[],
-
                  vector_net_kwargs: dict = {},
                  visual_net_kwargs: dict = {},
                  encoder_net_kwargs: dict = {},
                  memory_net_kwargs: dict = {}):
         super().__init__(name)
-        self.vector_net = MultiVectorNetwork(vec_dims, **vector_net_kwargs)
+
+        self.obs_spec = obs_spec
+
+        self.vector_net = MultiVectorNetwork(obs_spec.vector_dims, **vector_net_kwargs)
         logger.debug('initialize vector network successfully.')
-        self.visual_net = MultiVisualNetwork(vis_dims, **visual_net_kwargs)
+        self.visual_net = MultiVisualNetwork(obs_spec.visual_dims, **visual_net_kwargs)
         logger.debug('initialize visual network successfully.')
 
         encoder_dim = self.vector_net.h_dim + self.visual_net.h_dim
@@ -112,46 +114,25 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
 
         return feat, cell_state
 
-    def get_vis_feature(self, visual):
-        '''
-        params:
-            visual: [B, N, H, W, C]
-        return:
-            feat: [B, x]
-        '''
-        # TODO
-        viss = [visual[:, i] for i in range(visual.shape[1])]
-        return self.visual_net(*viss)
-
-    def get_vec_feature(self, vector):
-        '''
-        params:
-            vector: [B, x]
-        return:
-            feat: [B, y]
-        '''
-        return self.vector_net(vector)
-
     def get_encoder_feature(self, obs):
         '''
         params:
-            obs: 
+            obs: xxx
         return:
             feat: [B, z]
         '''
-
-        if self.vector_net.use_vector and self.visual_net.use_visual:
-            feat = self.get_vec_feature(obs.vector)
-            vis_feat = self.get_vis_feature(obs.visual)
-            feat = tf.concat([feat, vis_feat], axis=-1)
-        elif self.visual_net.use_visual:
-            vis_feat = self.get_vis_feature(obs.visual)
-            feat = vis_feat
+        if self.obs_spec.has_vector_observation and self.obs_spec.has_visual_observation:
+            vec_feat = self.vector_net(*obs.vector)
+            vis_feat = self.visual_net(*obs.visual)
+            feat = tf.concat([vec_feat, vis_feat], axis=-1)
+        elif self.obs_spec.has_vector_observation:
+            feat = self.vector_net(*obs.vector)
+        elif self.obs_spec.has_visual_observation:
+            feat = self.visual_net(*obs.visual)
         else:
-            feat = self.get_vec_feature(obs.vector)
+            raise Exception("observation must not be empty.")
 
-        encoder_feature = self.encoder_net(feat)
-        return encoder_feature
+        return self.encoder_net(feat)
 
     @property
     def trainable_variables(self):

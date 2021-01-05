@@ -42,10 +42,12 @@ except ImportError:
 
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (SingleAgentEnvArgs,
+from rls.utils.specs import (ObsSpec,
+                             SingleAgentEnvArgs,
                              ModelObservations,
                              SingleModelInformation,
-                             GymVectorizedType)
+                             GymVectorizedType,
+                             NamedTupleStaticClass)
 
 
 def get_vectorized_env_class(t: GymVectorizedType):
@@ -91,19 +93,24 @@ class gym_envs(object):
         # process observation
         ObsSpace = env.observation_space
         if isinstance(ObsSpace, Box):
-            self.s_dim = ObsSpace.shape[0] if len(ObsSpace.shape) == 1 else 0
+            self.vector_dims = [ObsSpace.shape[0] if len(ObsSpace.shape) == 1 else 0]
             # self.obs_high = ObsSpace.high
             # self.obs_low = ObsSpace.low
         else:
-            self.s_dim = int(ObsSpace.n)
+            self.vector_dims = [int(ObsSpace.n)]
         if len(ObsSpace.shape) == 3:
             self.obs_type = 'visual'
-            self.visual_sources = 1
-            self.visual_resolutions = list(ObsSpace.shape)
+            self.visual_dims = [list(ObsSpace.shape)]
         else:
             self.obs_type = 'vector'
-            self.visual_sources = 0
-            self.visual_resolutions = []
+            self.visual_dims = []
+
+        self.vector_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
+                                                                              item_nums=1 if self.obs_type == 'vector' else 0,
+                                                                              name='vector')
+        self.visual_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
+                                                                              item_nums=1 if self.obs_type == 'visual' else 0,
+                                                                              name='vector')
 
         # process action
         ActSpace = env.action_space
@@ -128,10 +135,9 @@ class gym_envs(object):
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
         self.EnvSpec = SingleAgentEnvArgs(
-            s_dim=self.s_dim,
+            obs_spec=ObsSpec(vector_dims=self.vector_dims,
+                             visual_dims=self.visual_dims),
             a_dim=self.a_dim,
-            visual_sources=self.visual_sources,
-            visual_resolutions=self.visual_resolutions,
             is_continuous=self._is_continuous,
             n_agents=self.n
         )
@@ -188,12 +194,8 @@ class gym_envs(object):
         if self.obs_type == 'visual':
             obs = obs[:, np.newaxis, ...]
 
-        if self.obs_type == 'visual':
-            return ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
-                                     visual=obs)
-        else:
-            return ModelObservations(vector=obs,
-                                     visual=np.full((self.n, 0), [], dtype=np.float32))
+        return ModelObservations(vector=self.vector_info_type(*(obs,)),
+                                 visual=self.visual_info_type(*(obs,)))
 
     def step(self, actions):
         actions = np.array(actions)
@@ -217,16 +219,10 @@ class gym_envs(object):
             obs = obs[:, np.newaxis, ...]
             correct_new_obs = correct_new_obs[:, np.newaxis, ...]
 
-        if self.obs_type == 'visual':
-            corrected_obs = ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
-                                              visual=correct_new_obs)
-            obs = ModelObservations(vector=np.full((self.n, 0), [], dtype=np.float32),
-                                    visual=obs)
-        else:
-            corrected_obs = ModelObservations(vector=correct_new_obs,
-                                              visual=np.full((self.n, 0), [], dtype=np.float32))
-            obs = ModelObservations(vector=obs,
-                                    visual=np.full((self.n, 0), [], dtype=np.float32))
+        corrected_obs = ModelObservations(vector=self.vector_info_type(*(correct_new_obs,)),
+                                          visual=self.visual_info_type(*(correct_new_obs,)))
+        obs = ModelObservations(vector=self.vector_info_type(*(obs,)),
+                                visual=self.visual_info_type(*(obs,)))
 
         return SingleModelInformation(
             corrected_obs=corrected_obs,

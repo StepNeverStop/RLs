@@ -30,7 +30,7 @@ class On_Policy(Policy):
         """
         for on-policy training, use this function to store <s, a, r, s_, done> into DataBuffer.
         """
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(exps)
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
@@ -55,7 +55,7 @@ class On_Policy(Policy):
 
         self.intermediate_variable_reset()
 
-        self.data.normalize_vector_obs(self.normalize_vector_obs)
+        # self.data.normalize_vector_obs(self.normalize_vector_obs)
 
         if not self.is_continuous:
             self.data.convert_action2one_hot(self.a_dim)

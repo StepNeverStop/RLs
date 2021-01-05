@@ -371,8 +371,10 @@ class ActorCriticValueCts(M):
         if self.condition_sigma:
             log_std = self.log_std(x_mu_logstd)
         else:
+            log_std = self.log_std
+            batch_size = mu.shape[0]
             if batch_size:
-                log_std = tf.tile(self.log_std, [batch_size, 1])  # [1, N] => [B, N]
+                log_std = tf.tile(log_std, [batch_size, 1])  # [1, N] => [B, N]
         log_std = tf.clip_by_value(log_std, self.log_std_min, self.log_std_max)
         return (mu, log_std, v)
 

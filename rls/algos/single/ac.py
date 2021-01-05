@@ -88,11 +88,11 @@ class AC(Off_Policy):
         return sample_op, log_prob, cell_state
 
     def store_data(self, exps: BatchExperiences):
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(AC_BatchExperiences(*exps, self._log_prob))
 
     def no_op_store(self, exps: BatchExperiences):
-        # self._running_average(exps.obs.vector)
+        # self._running_average()
         self.data.add(AC_BatchExperiences(*exps, np.ones_like(exps.reward)))
 
     def learn(self, **kwargs):
