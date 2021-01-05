@@ -29,22 +29,15 @@ class Policy(Base):
     def __init__(self, envspec: SingleAgentEnvArgs, **kwargs):
         super().__init__(**kwargs)
 
-        # TODO: 分离状态输入
-        self.s_dim = envspec.s_dim
-        self.visual_sources = envspec.visual_sources
-        self.visual_resolutions = envspec.visual_resolutions
+        self.obs_spec = envspec.obs_spec
         self.is_continuous = envspec.is_continuous
         self.a_dim = envspec.a_dim
         self.n_agents = envspec.n_agents
         if self.n_agents <= 0:
             raise ValueError('agents num must larger than zero.')
 
-        # TODO: 分离向量输入
-        self.vector_dims = [self.s_dim] if self.s_dim > 0 else []
-        self.visual_dims = self.visual_sources * [self.visual_resolutions]
-
-        self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
-        self._running_average = SimpleRunningAverage(dim=self.s_dim) if self._normalize_vector_obs else DefaultRunningAverage()
+        # self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
+        # self._running_average = SimpleRunningAverage(dim=self.s_dim) if self._normalize_vector_obs else DefaultRunningAverage()
 
         self.batch_size = int(kwargs.get('batch_size', 128))
         self.gamma = float(kwargs.get('gamma', 0.999))
@@ -72,8 +65,7 @@ class Policy(Base):
             self.curiosity_lr = float(kwargs.get('curiosity_lr'))
             self.curiosity_beta = float(kwargs.get('curiosity_beta'))
             self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
-            self.curiosity_model = CuriosityModel(self.vector_dims,
-                                                  self.visual_dims,
+            self.curiosity_model = CuriosityModel(self.obs_spec,
                                                   self.vector_net_kwargs,
                                                   self.visual_net_kwargs,
                                                   self.encoder_net_kwargs,
@@ -88,9 +80,8 @@ class Policy(Base):
 
     def _create_representation_net(self, name: str = 'default'):
         # TODO: Added changeable command
-        return DefaultRepresentationNetwork(name=name,
-                                            vec_dims=self.vector_dims,
-                                            vis_dims=self.visual_dims,
+        return DefaultRepresentationNetwork(obs_spec=self.obs_spec,
+                                            name=name,
                                             vector_net_kwargs=self.vector_net_kwargs,
                                             visual_net_kwargs=self.visual_net_kwargs,
                                             encoder_net_kwargs=self.encoder_net_kwargs,
@@ -102,8 +93,8 @@ class Policy(Base):
         else:
             return ConsistentLearningRate(lr)
 
-    def normalize_vector_obs(self, x: np.ndarray) -> np.ndarray:
-        return self._running_average.normalize(x)
+    # def normalize_vector_obs(self, x: np.ndarray) -> np.ndarray:
+    #     return self._running_average.normalize(x)
 
     def init_optimizer(self, lr: Callable, *args, **kwargs) -> tf.keras.optimizers.Optimizer:
         return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
@@ -145,12 +136,6 @@ class Policy(Base):
     @abstractmethod
     def choose_action(self, obs, evaluation=False) -> Any:
         '''
-        choose actions while training.
-        Input: 
-            s: vector observation
-            visual_s: visual observation
-        Output: 
-            actions
         '''
         pass
 

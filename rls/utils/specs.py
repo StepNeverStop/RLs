@@ -1,32 +1,57 @@
 import numpy as np
+import tensorflow as tf
 
 from enum import Enum
 from typing import (Dict,
                     List,
+                    Union,
+                    Tuple,
                     Iterator,
                     Callable,
                     NamedTuple)
 from collections import namedtuple
 
-SingleAgentEnvArgs = namedtuple('SingleAgentEnvArgs',
+
+class ObsSpec(NamedTuple):
+    vector_dims: List[int]
+    visual_dims: List[Union[List[int], Tuple[int]]]
+
+    @property
+    def total_vector_dim(self):
+        return sum(self.vector_dims)
+
+    @property
+    def has_vector_observation(self):
+        return len(self.vector_dims) > 0
+
+    @property
+    def has_visual_observation(self):
+        return len(self.visual_dims) > 0
+
+
+SingleAgentEnvArgs = NamedTuple('SingleAgentEnvArgs',
                                 [
-                                    's_dim',
-                                    'visual_sources',
-                                    'visual_resolutions',
-                                    'a_dim',
-                                    'is_continuous',
-                                    'n_agents'
+                                    ('obs_spec', ObsSpec),
+                                    ('a_dim', int),
+                                    ('is_continuous', bool),
+                                    ('n_agents', int)
                                 ])
 
-MultiAgentEnvArgs = namedtuple('MultiAgentEnvArgs',
-                               SingleAgentEnvArgs._fields + ('behavior_controls',))
+MultiAgentEnvArgs = NamedTuple('SingleAgentEnvArgs',
+                               [
+                                   ('obs_spec', List[ObsSpec]),
+                                   ('a_dim', List[int]),
+                                   ('is_continuous', List[bool]),
+                                   ('n_agents', List[int]),
+                                   ('behavior_controls', List[int])
+                               ])
 
-UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
-                                     [
-                                         'behavior_name',
-                                         'n_agents_control',
-                                         'is_continuous'
-                                     ])
+# UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
+#                                      [
+#                                          'behavior_name',
+#                                          'n_agents_control',
+#                                          'is_continuous'
+#                                      ])
 
 
 class NamedTupleStaticClass:
@@ -48,6 +73,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def getitem(nt: NamedTuple, i: int) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         if isinstance(nt, tuple):
             x = []
             for data in nt:
@@ -58,6 +86,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def getbatchitems(nt: NamedTuple, idxs: np.ndarray) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         if isinstance(nt, tuple):
             x = []
             for data in nt:
@@ -68,11 +99,17 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def unpack(nt: NamedTuple) -> Iterator[NamedTuple]:
+        '''
+        TODO: Annotation
+        '''
         for i in range(NamedTupleStaticClass.len(nt)):
             yield NamedTupleStaticClass.getitem(nt, i)
 
     @staticmethod
     def pack(nts: List[NamedTuple], func: Callable = None) -> NamedTuple:
+        '''
+        TODO: Annotation
+        '''
         x = []
         for datas in zip(*nts):
             if isinstance(datas[0], tuple):
@@ -86,6 +123,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def check_equal(x: NamedTuple, y: NamedTuple, k: str = None):
+        '''
+        TODO: Annotation
+        '''
         def _check(d1, d2):
             if isinstance(d1, tuple) and isinstance(d2, tuple):
                 return NamedTupleStaticClass.check_equal(d1, d2)
@@ -101,6 +141,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def data_convert(func, nt, keys=None):
+        '''
+        TODO: Annotation
+        '''
         if keys is None:
             x = []
             for data in nt:
@@ -121,6 +164,10 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def show_shape(nt):
+        '''
+        TODO: Annotation
+        '''
+        # TODO: 优化显示
         for k, v in nt._asdict().items():
             if isinstance(v, tuple):
                 NamedTupleStaticClass.show_shape(v)
@@ -129,6 +176,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def check_len(nt: NamedTuple, l: int):
+        '''
+        TODO: Annotation
+        '''
         ret = []
         for data in nt:
             if isinstance(data, tuple):
@@ -137,13 +187,75 @@ class NamedTupleStaticClass:
                 ret.append(data.shape[0] == l)
         return all(ret)
 
+    @staticmethod
+    def union(nt: Union[np.ndarray, NamedTuple], func: Callable = None):
+        '''
+        TODO: Annotation
+        '''
+        if isinstance(nt, tuple):
+            x = [NamedTupleStaticClass.union(data, func) for data in nt]
+            return func(x)
+        else:
+            return nt
+
+    @staticmethod
+    def generate_obs_namedtuple(n_agents, item_nums, name='namedtuple'):
+        if item_nums == 0:
+            return lambda *args, **kwargs: NamedTuple('obs_namedtuple', [(f'{name}', np.ndarray)])(np.full((n_agents, 0), [], dtype=np.float32))
+        else:
+            return NamedTuple('obs_namedtuple', [(f'{name}_{str(i)}', np.ndarray) for i in range(item_nums)])
+
 
 class ModelObservations(NamedTuple):
     '''
         agent's observation
     '''
-    vector: np.ndarray
-    visual: np.ndarray
+    vector: NamedTuple  # NamedTupleStaticClass.generate_obs_namedtuple
+    visual: NamedTuple  # NamedTupleStaticClass.generate_obs_namedtuple
+
+    def flatten_vector(self):
+        '''
+        TODO: Annotation
+        '''
+        func = np.hstack if isinstance(self.first_vector(), np.ndarray) else lambda x: tf.concat(x, axis=-1)
+        return NamedTupleStaticClass.union(self.vector, func=func)
+
+    def first_vector(self):
+        '''
+        TODO: Annotation
+        '''
+        return self.vector[0]
+
+    def first_visual(self):
+        '''
+        TODO: Annotation
+        '''
+        return self.visual[0]
+
+    @staticmethod
+    def stack(obs: NamedTuple, obs_: NamedTuple):
+        '''
+        TODO: Annotation
+        '''
+        vector = [tf.concat([o, o_], axis=0) for o, o_ in zip(obs.vector, obs_.vector)]
+        visual = [tf.concat([o, o_], axis=0) for o, o_ in zip(obs.visual, obs_.visual)]
+        return ModelObservations(vector=obs.vector.__class__._make(vector),
+                                 visual=obs.visual.__class__._make(visual))
+
+    @staticmethod
+    def stack_rnn(obs: NamedTuple, obs_: NamedTuple, episode_batch_size: int):
+        '''
+        TODO: Annotation
+        '''
+        # [B*T, N] => [B, T, N]
+        _obs = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [episode_batch_size, -1, *x.shape[1:]]), obs)
+        _obs_ = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [episode_batch_size, -1, *x.shape[1:]]), obs_)
+        # TODO: 优化
+        # [B, T, N], [B, T, N] => [B, T+1, N] => [B*(T+1), N]
+        vector = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(_obs.vector, _obs_.vector)]
+        visual = [tf.reshape(tf.concat([o, o_[:, -1:]], axis=1), [-1, *o.shape[2:]]) for o, o_ in zip(_obs.visual, _obs_.visual)]
+        return ModelObservations(vector=obs.vector.__class__._make(vector),
+                                 visual=obs.visual.__class__._make(visual))
 
 
 class BatchExperiences(NamedTuple):
@@ -208,7 +320,7 @@ class OutputNetworkType(Enum):
     AOC_SHARE = 'AocShare'
     PPOC_SHARE = 'PpocShare'
     ACTOR_CRITIC_VALUE_CTS = 'ActorCriticValueCts'
-    ACTOR_CRITIC_VALUE_DET = 'ActorCriticValueDct'
+    ACTOR_CRITIC_VALUE_DCT = 'ActorCriticValueDct'
     C51_DISTRIBUTIONAL = 'C51Distributional'
     QRDQN_DISTRIBUTIONAL = 'QrdqnDistributional'
     RAINBOW_DUELING = 'RainbowDueling'

@@ -21,8 +21,7 @@ class CuriosityModel(M):
     '''
 
     def __init__(self,
-                 vector_dims,
-                 visual_dims,
+                 obs_spec,
                  vector_net_kwargs,
                  visual_net_kwargs,
                  encoder_net_kwargs,
@@ -34,9 +33,7 @@ class CuriosityModel(M):
         '''
         params:
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)
-            visual_dims: dimensions of vector state input
             action_dim: dimension of action
-            visual_dims: dimensions of visual state input
 
             eta: weight of intrinsic reward
             lr: the learning rate of curiosity model
@@ -52,9 +49,8 @@ class CuriosityModel(M):
         self.is_continuous = is_continuous
 
         self.net = DefaultRepresentationNetwork(
+            obs_spec=obs_spec,
             name='curiosity_model',
-            vec_dims=vector_dims,
-            vis_dims=visual_dims,
             vector_net_kwargs=vector_net_kwargs,
             visual_net_kwargs=visual_net_kwargs,
             encoder_net_kwargs=encoder_net_kwargs,

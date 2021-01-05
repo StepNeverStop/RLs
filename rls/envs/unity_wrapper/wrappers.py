@@ -5,6 +5,8 @@ import os
 import numpy as np
 
 from copy import deepcopy
+from typing import (List,
+                    NamedTuple)
 from collections import defaultdict
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
@@ -12,15 +14,14 @@ from mlagents_envs.side_channel.environment_parameters_channel import Environmen
 from mlagents_envs.base_env import (ActionTuple,
                                     ActionSpec)  # TODO
 
-from rls.utils.logging_utils import get_logger
-logger = get_logger(__name__)
-
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (SingleAgentEnvArgs,
+from rls.utils.specs import (ObsSpec,
+                             SingleAgentEnvArgs,
                              MultiAgentEnvArgs,
                              ModelObservations,
-                             SingleModelInformation)
+                             SingleModelInformation,
+                             NamedTupleStaticClass)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
@@ -115,14 +116,15 @@ class BasicUnityEnvironment(object):
         self.vector_idxs = defaultdict(list)
         self.vector_dims = defaultdict(list)
         self.visual_idxs = defaultdict(list)
-        self.visual_sources = defaultdict(int)
-        self.visual_resolutions = defaultdict(list)
-        self.s_dim = defaultdict(int)
+        self.visual_dims = defaultdict(list)
         self.a_dim = defaultdict(int)
         self.discrete_action_lists = {}
         self.is_continuous = {}
         self.discrete_branchess = {}
         self.empty_actiontuples = {}
+
+        self.vector_info_type = {}
+        self.visual_info_type = {}
 
         for bn, spec in self.env.behavior_specs.items():
             for i, shape in enumerate(spec.observation_shapes):
@@ -131,18 +133,22 @@ class BasicUnityEnvironment(object):
                     self.vector_dims[bn].append(shape[0])
                 elif len(shape) == 3:
                     self.visual_idxs[bn].append(i)
-                    self.visual_resolutions[bn].append(list(shape))  # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
+                    self.visual_dims[bn].append(list(shape))  # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
                 else:
                     raise ValueError("shape of observation cannot be understood.")
-            self.s_dim[bn] = sum(self.vector_dims[bn])
-            self.visual_sources[bn] = len(self.visual_idxs[bn])
+            self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
+                                                                                      item_nums=len(self.vector_idxs),
+                                                                                      name='vector')
+            self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
+                                                                                      item_nums=len(self.visual_idxs),
+                                                                                      name='visual')
 
             action_spec = spec.action_spec
-            if action_spec.is_continuous:
+            if action_spec.is_continuous():
                 self.a_dim[bn] = action_spec.continuous_size
                 self.discrete_action_lists[bn] = None
                 self.is_continuous[bn] = True
-            elif action_spec.is_discrete:
+            elif action_spec.is_discrete():
                 self.a_dim[bn] = int(np.asarray(action_spec.discrete_branches).prod())
                 self.discrete_action_lists[bn] = get_discrete_action_list(action_spec.discrete_branches)
                 self.is_continuous[bn] = False
@@ -161,20 +167,22 @@ class BasicUnityEnvironment(object):
     def EnvSpec(self):
         if self.is_multi_agents:
             return MultiAgentEnvArgs(
-                s_dim=self.s_dim.values(),
+                obs_spec=ObsSpec(
+                    vector_dims=self.vector_dims.values(),
+                    visual_dims=self.visual_dims.values()
+                ),
                 a_dim=self.a_dim.values(),
-                visual_sources=self.visual_sources.values(),
-                visual_resolutions=self.visual_resolutions.values(),
                 is_continuous=self.is_continuous.values(),
                 n_agents=self.behavior_agents.values(),
                 behavior_controls=self.behavior_controls.values()
             )
         else:
             return SingleAgentEnvArgs(
-                s_dim=self.s_dim[self.first_bn],
+                obs_spec=ObsSpec(
+                    vector_dims=self.vector_dims[self.first_bn],
+                    visual_dims=self.visual_dims[self.first_bn]
+                ),
                 a_dim=self.a_dim[self.first_bn],
-                visual_sources=self.visual_sources[self.first_bn],
-                visual_resolutions=self.visual_resolutions[self.first_bn],
                 is_continuous=self.is_continuous[self.first_bn],
                 n_agents=self.behavior_agents[self.first_bn]
             )
@@ -208,16 +216,7 @@ class BasicUnityEnvironment(object):
         '''
         rets = {}
         for bn in self.behavior_names:
-            vector, visual, reward, done, corrected_vector, corrected_visual, info = self.coordinate_information(bn)
-            rets[bn] = SingleModelInformation(
-                corrected_obs=ModelObservations(vector=corrected_vector,
-                                                visual=corrected_visual),
-                obs=ModelObservations(vector=vector,
-                                      visual=visual),
-                reward=reward,
-                done=done,
-                info=info
-            )
+            rets[bn] = self.coordinate_information(bn)
         return rets
 
     def coordinate_information(self, bn):
@@ -256,13 +255,15 @@ class BasicUnityEnvironment(object):
             for _obs, _tobs in zip(obs, t.obs):
                 _obs[_ids] = _tobs
 
-        return (self.deal_vector(n, [obs[vi] for vi in self.vector_idxs[bn]]),
-                self.deal_visual(n, [obs[vi] for vi in self.visual_idxs[bn]]),
-                np.asarray(reward),
-                np.asarray(done),
-                self.deal_vector(n, [corrected_obs[vi] for vi in self.vector_idxs[bn]]),
-                self.deal_visual(n, [corrected_obs[vi] for vi in self.visual_idxs[bn]]),
-                info)
+        return SingleModelInformation(
+            corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
+                                            visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
+            obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
+                                  visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
+            reward=np.asarray(reward),
+            done=np.asarray(done),
+            info=info
+        )
 
     def deal_vector(self, n, vecs):
         '''
@@ -315,20 +316,23 @@ class BasicUnityEnvironment(object):
 
 class ScaleVisualWrapper(ObservationWrapper):
 
-    def observation(self, observation):
+    def observation(self, observation: List[SingleModelInformation]):
+
+        def func(x): return np.asarray(x * 255).astype(np.uint8)
 
         for bn in self.behavior_names:
-            observation[bn].visual = self.func(observation[bn].visual)
-            observation[bn].corrected_visual = self.func(observation[bn].corrected_visual)
+            visual = observation[bn].obs.visual
+            if isinstance(visual, np.ndarray):
+                visual = func(visual)
+            else:
+                visual = NamedTupleStaticClass.data_convert(func, visual)
+            observation[bn] = observation[bn]._replace(obs=observation[bn].obs._replace(visual=visual))
+
+            visual = observation[bn].obs_.visual
+            if isinstance(visual, np.ndarray):
+                visual = func(visual)
+            else:
+                visual = NamedTupleStaticClass.data_convert(func, visual)
+            observation[bn] = observation[bn]._replace(obs_=observation[bn].obs_._replace(visual=visual))
 
         return observation
-
-    def func(self, vis):
-        '''
-        vis: [智能体数量，摄像机数量，图像剩余维度]
-        '''
-        agents, cameras = vis.shape[:2]
-        for i in range(agents):
-            for j in range(cameras):
-                vis[i, j] *= 255
-        return np.asarray(vis).astype(np.uint8)
