@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+# algorithms based on TF 2.x
+
 import importlib
 import tensorflow as tf
-assert tf.__version__[0] == '2'
-
-# algorithms based on TF 2.x
 
 from typing import (Tuple,
                     Callable,
@@ -14,6 +13,8 @@ from typing import (Tuple,
 from rls.common.yaml_ops import load_yaml
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
+assert tf.__version__[0] == '2'
 logger = get_logger(__name__)
 
 

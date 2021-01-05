@@ -112,9 +112,9 @@ class SAC(Off_Policy):
         self._all_params_dict.update(self.actor_net._all_models)
         self._all_params_dict.update(self.critic_net._all_models)
         self._all_params_dict.update(log_alpha=self.log_alpha,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha)
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):

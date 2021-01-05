@@ -18,6 +18,7 @@ from rls.utils.specs import (OutputNetworkType,
 
 IOC_BatchExperiences = namedtuple('IOC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
 
+
 class IOC(Off_Policy):
     '''
     Learning Options with Interest Functions, https://www.aaai.org/ojs/index.php/AAAI/article/view/5114/4987 

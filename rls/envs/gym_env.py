@@ -12,6 +12,14 @@ from typing import Dict
 from copy import deepcopy
 
 from rls.utils.display import colorize
+from rls.envs.gym_wrapper.utils import build_env
+from rls.utils.np_utils import get_discrete_action_list
+from rls.utils.specs import (ObsSpec,
+                             SingleAgentEnvArgs,
+                             ModelObservations,
+                             SingleModelInformation,
+                             GymVectorizedType,
+                             NamedTupleStaticClass)
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -39,15 +47,6 @@ try:
 except ImportError:
     logger.warning(colorize("import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
     pass
-
-from rls.envs.gym_wrapper.utils import build_env
-from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (ObsSpec,
-                             SingleAgentEnvArgs,
-                             ModelObservations,
-                             SingleModelInformation,
-                             GymVectorizedType,
-                             NamedTupleStaticClass)
 
 
 def get_vectorized_env_class(t: GymVectorizedType):
