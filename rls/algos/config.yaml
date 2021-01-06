@@ -457,6 +457,8 @@ trpo:
 
 dpg:
     gamma: 0.99
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -472,6 +474,9 @@ dpg:
 ddpg:
     gamma: 0.99
     ployak: 0.995
+    noise_type: 'ou'    # ou or gaussian
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -487,6 +492,8 @@ ddpg:
 pd_ddpg:
     gamma: 0.99
     ployak: 0.995
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     reward_critic_lr: 1.0e-3
     cost_critic_lr: 1.0e-3
@@ -506,9 +513,8 @@ td3:
     gamma: 0.99
     ployak: 0.995
     delay_num: 2
-    noise_type: gaussian # ou or gaussian
-    gaussian_noise_sigma: 0.2 # if using gaussian noise, specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.2 # if using gaussian noise, specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小

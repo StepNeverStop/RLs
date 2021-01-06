@@ -5,8 +5,8 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
-                          NormalActionNoise)
+from rls.nn.noise import (OrnsteinUhlenbeckNoisedAction,
+                          ClippedNormalNoisedAction)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ACNetwork
@@ -22,6 +22,9 @@ class DDPG(Off_Policy):
                  envspec,
 
                  ployak=0.995,
+                 noise_type='ou',
+                 gaussian_noise_sigma=0.2,
+                 gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
@@ -34,6 +37,9 @@ class DDPG(Off_Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
+        self.noise_type = noise_type
+        self.gaussian_noise_sigma = gaussian_noise_sigma
+        self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
             def _create_net(name, representation_net=None): return ACNetwork(
@@ -46,6 +52,13 @@ class DDPG(Off_Policy):
                 value_net_kwargs=dict(action_dim=self.a_dim,
                                       network_settings=network_settings['q'])
             )
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
+            if self.noise_type == 'ou':
+                self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
+            elif self.noise_type == 'gaussian':
+                self.noised_action = self.target_noised_action
+            else:
+                raise Exception(f'cannot use noised action type of {self.noise_type}')
         else:
             def _create_net(name, representation_net=None): return ACNetwork(
                 name=name,
@@ -57,16 +70,11 @@ class DDPG(Off_Policy):
                 value_net_kwargs=dict(action_dim=self.a_dim,
                                       network_settings=network_settings['q'])
             )
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
         self._representation_target_net = self._create_representation_net('_representation_target_net')
         self.ac_target_net = _create_net('ac_target_net', self._representation_target_net)
-        if self.is_continuous:
-            # self.action_noise = NormalActionNoise(mu=0., sigma=0.2)
-            self.action_noise = OrnsteinUhlenbeckActionNoise(sigma=0.2)
-        else:
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
-
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
         self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
@@ -81,7 +89,7 @@ class DDPG(Off_Policy):
     def reset(self):
         super().reset()
         if self.is_continuous:
-            self.action_noise.reset()
+            self.noised_action.reset()
 
     def choose_action(self, obs, evaluation=False):
         mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
@@ -94,7 +102,7 @@ class DDPG(Off_Policy):
             output, cell_state = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
+                pi = self.noised_action(mu)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -123,7 +131,7 @@ class DDPG(Off_Policy):
                 feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
-                    action_target = self.ac_target_net.policy_net(feat_)
+                    action_target = self.target_noised_action(self.ac_target_net.policy_net(feat_))
                     mu = self.ac_net.policy_net(feat)
                 else:
                     target_logits = self.ac_target_net.policy_net(feat_)

@@ -7,7 +7,7 @@ import tensorflow as tf
 from collections import namedtuple
 from tensorflow_probability import distributions as tfd
 
-from rls.nn.noise import ClippedNormalActionNoise
+from rls.nn.noise import ClippedNormalNoisedAction
 from rls.algos.base.off_policy import Off_Policy
 from rls.memories.replay_buffer import ExperienceReplay
 from rls.utils.np_utils import int2one_hot
@@ -68,8 +68,8 @@ class HIRO(Off_Policy):
             high_scale if isinstance(high_scale, list) else [high_scale] * self.sub_goal_dim,
             dtype=np.float32)
 
-        self.high_noise = ClippedNormalActionNoise(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), bound=self.high_scale / 2)
-        self.low_noise = ClippedNormalActionNoise(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), bound=0.5)
+        self.high_noised_action = ClippedNormalNoisedAction(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), action_bound=self.high_scale, noise_bound=self.high_scale / 2)
+        self.low_noised_action = ClippedNormalNoisedAction(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), noise_bound=0.5)
 
         def _create_high_ac_net(name): return ADoubleCNetwork(
             name=name,
@@ -183,8 +183,8 @@ class HIRO(Off_Policy):
         ))
 
     def reset(self):
-        self.high_noise.reset()
-        self.low_noise.reset()
+        self.high_noised_action.reset()
+        self.low_noised_action.reset()
 
         self._c = np.full((self.n_agents, 1), self.sub_goal_steps, np.int32)
 
@@ -218,7 +218,7 @@ class HIRO(Off_Policy):
             output = self.low_ac_net.policy_net(feat)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.low_noise(mu.shape), -1, 1)
+                pi = self.low_noised_action(mu)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -238,7 +238,7 @@ class HIRO(Off_Policy):
         s 当前隐状态
         '''
         new_subgoal = self.high_scale * self.high_ac_net.policy_net(s)
-        new_subgoal = tf.clip_by_value(new_subgoal + self.high_noise(new_subgoal.shape), -self.high_scale, self.high_scale)
+        new_subgoal = self.high_noised_action(new_subgoal)
         return new_subgoal
 
     def learn(self, **kwargs):
