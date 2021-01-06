@@ -23,6 +23,7 @@ class DDPG(Off_Policy):
 
                  ployak=0.995,
                  noise_type='ou',
+                 use_target_action_noise: False,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
@@ -38,6 +39,7 @@ class DDPG(Off_Policy):
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.noise_type = noise_type
+        self.use_target_action_noise = use_target_action_noise
         self.gaussian_noise_sigma = gaussian_noise_sigma
         self.gaussian_noise_bound = gaussian_noise_bound
 
@@ -131,7 +133,9 @@ class DDPG(Off_Policy):
                 feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
-                    action_target = self.target_noised_action(self.ac_target_net.policy_net(feat_))
+                    action_target = self.ac_target_net.policy_net(feat_)
+                    if self.use_target_action_noise:
+                        action_target = self.target_noised_action(action_target)
                     mu = self.ac_net.policy_net(feat)
                 else:
                     target_logits = self.ac_target_net.policy_net(feat_)

@@ -26,6 +26,7 @@ class DPG(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
+                 use_target_action_noise: False,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  discrete_tau=1.0,
@@ -37,6 +38,7 @@ class DPG(Off_Policy):
                  **kwargs):
         super().__init__(envspec=envspec, **kwargs)
         self.discrete_tau = discrete_tau
+        self.use_target_action_noise = use_target_action_noise
         self.gaussian_noise_sigma = gaussian_noise_sigma
         self.gaussian_noise_bound = gaussian_noise_bound
 
@@ -117,7 +119,9 @@ class DPG(Off_Policy):
             with tf.GradientTape(persistent=True) as tape:
                 (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
-                    action_target = self.target_noised_action(self.net.policy_net(feat_))
+                    action_target = self.ac_target_net.policy_net(feat_)
+                    if self.use_target_action_noise:
+                        action_target = self.target_noised_action(action_target)
                     mu = self.net.policy_net(feat)
                 else:
                     target_logits = self.net.policy_net(feat_)
