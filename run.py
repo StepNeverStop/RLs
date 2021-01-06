@@ -78,9 +78,24 @@ Example:
 """
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 import sys
+import time
+import logging
 
+from typing import Dict
+from copy import deepcopy
+from docopt import docopt
+from multiprocessing import Process
+
+from rls.common.trainer import Trainer
+from rls.common.config import Config
+from rls.common.yaml_ops import load_yaml
+from rls.parse.parse_op import parse_options
+from rls.utils.display import show_dict
+from rls.utils.logging_utils import set_log_level
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+set_log_level(logging.INFO)
 if sys.platform.startswith('win'):
     import pywintypes   # necessary when using python 3.8+
     import win32api
@@ -97,22 +112,6 @@ if sys.platform.startswith('win'):
         return 0
     # Add the _win_handler function to the windows console's handler function list
     win32api.SetConsoleCtrlHandler(_win_handler, 1)
-
-import time
-import logging
-
-from typing import Dict
-from copy import deepcopy
-from docopt import docopt
-from multiprocessing import Process
-
-from rls.common.trainer import Trainer
-from rls.common.config import Config
-from rls.common.yaml_ops import load_yaml
-from rls.parse.parse_op import parse_options
-from rls.utils.display import show_dict
-from rls.utils.logging_utils import set_log_level
-set_log_level(logging.INFO)
 
 
 def get_options(options: Dict) -> Config:

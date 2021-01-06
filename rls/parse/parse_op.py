@@ -5,12 +5,13 @@ import os
 import sys
 import time
 import platform
-BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 from typing import (Dict,
                     Tuple)
 
 from rls.common.config import Config
+
+BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 
 def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:

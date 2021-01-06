@@ -17,6 +17,7 @@ from rls.utils.specs import (OutputNetworkType,
 
 PD_DDPG_BatchExperiences = namedtuple('PD_DDPG_BatchExperiences', BatchExperiences._fields + ('cost',))
 
+
 class PD_DDPG(Off_Policy):
     '''
     Accelerated Primal-Dual Policy Optimization for Safe Reinforcement Learning, http://arxiv.org/abs/1802.06480
@@ -218,5 +219,5 @@ class PD_DDPG(Off_Policy):
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
 
     def no_op_store(self, exps: BatchExperiences)
-        # self._running_average()
-        self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
+    # self._running_average()
+    self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))

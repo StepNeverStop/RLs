@@ -42,6 +42,7 @@ def pwc(*args, color='red', bold=False, highlight=False):
     else:
         print(colorize(args, color, bold, highlight))
 
+
 def show_dict(data: Dict):
     '''
     print the dictionary of configurations

@@ -16,6 +16,7 @@ from rls.utils.specs import OutputNetworkType
 
 PG_Train_BatchExperiences = namedtuple('PG_Train_BatchExperiences', 'obs, action, discounted_reward')
 
+
 class PG(On_Policy):
     def __init__(self,
                  envspec,

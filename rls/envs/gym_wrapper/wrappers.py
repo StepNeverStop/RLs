@@ -3,6 +3,14 @@
 
 import gym
 
+import numpy as np
+
+from collections import deque
+from gym.spaces import (Box,
+                        Discrete,
+                        Tuple)
+
+from rls.utils.LazyFrames import LazyFrames
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
@@ -19,15 +27,6 @@ try:
 except:
     logger.warning(colorize('imageio should be installed to record vedio if needed.', color='yellow'))
     pass
-
-import numpy as np
-
-from collections import deque
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
-
-from rls.utils.LazyFrames import LazyFrames
 
 
 class BaseEnv(gym.Wrapper):

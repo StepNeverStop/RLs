@@ -76,7 +76,7 @@ class QRDQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_dist_net(obs, cell_state=cell_state) 
+            q_values, cell_state = self.q_dist_net(obs, cell_state=cell_state)
             q = tf.reduce_mean(q_values, axis=-1)  # [B, A, N] => [B, A]
         return tf.argmax(q, axis=-1), cell_state  # [B, 1]
 
