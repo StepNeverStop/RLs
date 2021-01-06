@@ -34,8 +34,7 @@ class BasicUnityEnvironment(object):
         env_kwargs = dict(seed=int(kwargs['env_seed']),
                           worker_id=int(kwargs['worker_id']),
                           timeout_wait=int(kwargs['timeout_wait']),
-                          side_channels=list(self._side_channels.values())    # 注册所有初始化后的通讯频道
-                          )
+                          side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
         if kwargs['file_name'] is not None:
             unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
             env_kwargs.update(file_name=kwargs['file_name'],
@@ -120,7 +119,6 @@ class BasicUnityEnvironment(object):
         self.a_dim = defaultdict(int)
         self.discrete_action_lists = {}
         self.is_continuous = {}
-        self.discrete_branchess = {}
         self.empty_actiontuples = {}
 
         self.vector_info_type = {}
@@ -133,7 +131,7 @@ class BasicUnityEnvironment(object):
                     self.vector_dims[bn].append(shape[0])
                 elif len(shape) == 3:
                     self.visual_idxs[bn].append(i)
-                    self.visual_dims[bn].append(list(shape))  # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
+                    self.visual_dims[bn].append(list(shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
             self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
@@ -264,29 +262,6 @@ class BasicUnityEnvironment(object):
             done=np.asarray(done),
             info=info
         )
-
-    def deal_vector(self, n, vecs):
-        '''
-        把向量观测信息 按每个智能体 拼接起来
-        '''
-        if len(vecs):
-            return np.hstack(vecs)
-        else:
-            return np.array([]).reshape(n, -1)
-
-    def deal_visual(self, n, viss):
-        '''
-        viss : [camera1, camera2, camera3, ...]
-        把图像观测信息 按每个智能体 组合起来
-        '''
-        ss = []
-        for j in range(n):
-            # 第j个智能体
-            s = []
-            for v in viss:
-                s.append(v[j])
-            ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss)  # [B, N, (H, W, C)]
 
     def random_action(self):
         '''
