@@ -18,10 +18,11 @@ general:
     normalize_vector_obs: false
     logger2file: false
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
-    vector_net_kwargs: {}
+    vector_net_kwargs:
+        network_type: adaptive    # rls.utils.specs.VectorNetworkType
     visual_net_kwargs:
         visual_feature: 128
-        network_type: simple
+        network_type: simple    # rls.utils.specs.VisualNetworkType
     encoder_net_kwargs:
         use_encoder: false
         output_dim: 16
@@ -124,6 +125,9 @@ dqn: &dqn
     use_priority: false
     n_step: true
     network_settings: [64, 64]
+    visual_net_kwargs:
+        visual_feature: 128
+        network_type: nature
 
 ddqn: *dqn
 
@@ -474,7 +478,7 @@ dpg:
 ddpg:
     gamma: 0.99
     ployak: 0.995
-    noise_type: 'ou'    # ou or gaussian
+    noise_type: "ou" # ou or gaussian
     gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
     gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4

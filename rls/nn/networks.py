@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import math
 import tensorflow as tf
 
 from typing import Tuple
@@ -17,8 +18,17 @@ from tensorflow.keras.layers import (Conv2D,
 from rls.nn.layers import ConvLayer
 from rls.nn.activations import default_activation
 from rls.nn.initializers import initKernelAndBias
-from rls.utils.specs import (VisualNetworkType,
+from rls.utils.specs import (VectorNetworkType,
+                             VisualNetworkType,
                              MemoryNetworkType)
+
+
+def get_vector_network_from_type(network_type: VectorNetworkType):
+    VECTOR_NETWORKS = {
+        VectorNetworkType.CONCAT: VectorConcatNetwork,
+        VectorNetworkType.ADAPTIVE: VectorAdaptiveNetwork
+    }
+    return VECTOR_NETWORKS.get(network_type, VECTOR_NETWORKS[VectorNetworkType.CONCAT])
 
 
 def get_visual_network_from_type(network_type: VisualNetworkType):
@@ -30,6 +40,34 @@ def get_visual_network_from_type(network_type: VisualNetworkType):
         VisualNetworkType.DEEPCONV: DeepConvNetwork
     }
     return VISUAL_NETWORKS.get(network_type, VISUAL_NETWORKS[VisualNetworkType.SIMPLE])
+
+
+class VectorConcatNetwork:
+
+    def __init__(self, *args, **kwargs):
+        assert 'in_dim' in kwargs.keys(), "assert dim in kwargs.keys()"
+        self.h_dim = self.in_dim = int(kwargs['in_dim'])
+        pass
+
+    def __call__(self, x):
+        return x
+
+
+class VectorAdaptiveNetwork(Sequential):
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        assert 'in_dim' in kwargs.keys(), "assert dim in kwargs.keys()"
+        self.in_dim = int(kwargs['in_dim'])
+        self.h_dim = self.out_dim = int(kwargs.get('out_dim', 16))
+        x = math.log2(self.out_dim)
+        y = math.log2(self.in_dim)
+        l = math.ceil(x) + 1 if math.ceil(x) == math.floor(x) else math.ceil(x)
+        r = math.floor(y) if math.ceil(y) == math.floor(y) else math.ceil(y)
+
+        for dim in range(l, r)[::-1]:
+            self.add(Dense(2**dim, default_activation, **initKernelAndBias))
+        self.add(Dense(self.out_dim, default_activation, **initKernelAndBias))
 
 
 class DeepConvNetwork(Sequential):
@@ -102,14 +140,12 @@ class ResnetNetwork(M):
 
 
 class MultiVectorNetwork(M):
-    def __init__(self, vector_dim=[]):
-        # TODO
+    def __init__(self, vector_dim=[], network_type=VectorNetworkType.CONCAT):
         super().__init__()
         self.nets = []
-        for _ in vector_dim:
-            def net(x): return x
-            self.nets.append(net)
-        self.h_dim = sum(vector_dim)
+        for in_dim in vector_dim:
+            self.nets.append(get_vector_network_from_type(network_type)(in_dim=in_dim))
+        self.h_dim = sum([net.h_dim for net in self.nets])
         if vector_dim:
             self(*(I(shape=dim) for dim in vector_dim))
 
@@ -118,8 +154,7 @@ class MultiVectorNetwork(M):
         output = []
         for net, s in zip(self.nets, vector_inputs):
             output.append(net(s))
-        if output:
-            output = tf.concat(output, axis=-1)
+        output = tf.concat(output, axis=-1)
         return output
 
 
@@ -146,8 +181,7 @@ class MultiVisualNetwork(M):
                     net(visual_s)
                 )
             )
-        if output:
-            output = tf.concat(output, axis=-1)
+        output = tf.concat(output, axis=-1)
         return output
 
 

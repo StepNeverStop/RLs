@@ -287,6 +287,11 @@ class GymVectorizedType(Enum):
     MULTIPROCESSING = 'multiprocessing'
 
 
+class VectorNetworkType(Enum):
+    CONCAT = 'concat'
+    ADAPTIVE = 'adaptive'
+
+
 class VisualNetworkType(Enum):
     MATCH3 = 'match3'
     SIMPLE = 'simple'
