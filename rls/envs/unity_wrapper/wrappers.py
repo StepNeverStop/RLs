@@ -137,10 +137,10 @@ class BasicUnityEnvironment(object):
                 else:
                     raise ValueError("shape of observation cannot be understood.")
             self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.vector_idxs),
+                                                                                      item_nums=len(self.vector_idxs[bn]),
                                                                                       name='vector')
             self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.visual_idxs),
+                                                                                      item_nums=len(self.visual_idxs[bn]),
                                                                                       name='visual')
 
             action_spec = spec.action_spec
