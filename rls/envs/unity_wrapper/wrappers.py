@@ -34,8 +34,7 @@ class BasicUnityEnvironment(object):
         env_kwargs = dict(seed=int(kwargs['env_seed']),
                           worker_id=int(kwargs['worker_id']),
                           timeout_wait=int(kwargs['timeout_wait']),
-                          side_channels=list(self._side_channels.values())    # 注册所有初始化后的通讯频道
-                          )
+                          side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
         if kwargs['file_name'] is not None:
             unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
             env_kwargs.update(file_name=kwargs['file_name'],
@@ -69,8 +68,7 @@ class BasicUnityEnvironment(object):
         for k, v in kwargs.get('reset_config', {}).items():
             self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         self.env.reset()
-        obs = self.get_obs()
-        return obs if self.is_multi_agents else obs[self.first_bn]
+        return self.get_obs()
 
     def step(self, actions, **kwargs):
         '''
@@ -98,8 +96,7 @@ class BasicUnityEnvironment(object):
             self.env.set_actions(self.first_bn, self.empty_actiontuples[self.first_bn])
 
         self.env.step()
-        obs = self.get_obs()
-        return obs if self.is_multi_agents else obs[self.first_bn]
+        return self.get_obs()
 
     def initialize_environment(self):
         '''
@@ -120,7 +117,6 @@ class BasicUnityEnvironment(object):
         self.a_dim = defaultdict(int)
         self.discrete_action_lists = {}
         self.is_continuous = {}
-        self.discrete_branchess = {}
         self.empty_actiontuples = {}
 
         self.vector_info_type = {}
@@ -133,14 +129,14 @@ class BasicUnityEnvironment(object):
                     self.vector_dims[bn].append(shape[0])
                 elif len(shape) == 3:
                     self.visual_idxs[bn].append(i)
-                    self.visual_dims[bn].append(list(shape))  # TODO:  适配多个不同size的图像输入，目前只支持1种类型的图像输入
+                    self.visual_dims[bn].append(list(shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
             self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.vector_idxs),
+                                                                                      item_nums=len(self.vector_idxs[bn]),
                                                                                       name='vector')
             self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.visual_idxs),
+                                                                                      item_nums=len(self.visual_idxs[bn]),
                                                                                       name='visual')
 
             action_spec = spec.action_spec
@@ -210,83 +206,58 @@ class BasicUnityEnvironment(object):
 
         return behavior_agents, behavior_ids
 
-    def get_obs(self):
+    def get_obs(self, behavior_names=None):
         '''
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
+        behavior_names = behavior_names or self.behavior_names
         rets = {}
-        for bn in self.behavior_names:
-            rets[bn] = self.coordinate_information(bn)
-        return rets
-
-    def coordinate_information(self, bn):
-        '''
-        TODO: Annotation
-        '''
-        n = self.behavior_agents[bn]
-        ids = self.behavior_ids[bn]
-        ps = []
-        d, t = self.env.get_steps(bn)
-        if len(t):
-            ps.append(t)
-
-        if len(d) != 0 and len(d) != n:
-            raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
-
-        # some of environments done, but some of not
-        while len(d) != n:
-            self.env.step()
+        for bn in behavior_names:
+            n = self.behavior_agents[bn]
+            ids = self.behavior_ids[bn]
+            ps = []
             d, t = self.env.get_steps(bn)
             if len(t):
                 ps.append(t)
 
-        corrected_obs, reward = d.obs, d.reward
-        obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
-        done = np.full(n, False)
-        info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
+            if len(d) != 0 and len(d) != n:
+                raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
 
-        for t in ps:    # TODO: 有待优化
-            _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
-            info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
-            info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-            reward[_ids] = t.reward
-            done[_ids] = True
-            # zip: vector, visual, ...
-            for _obs, _tobs in zip(obs, t.obs):
-                _obs[_ids] = _tobs
+            # some of environments done, but some of not
+            while len(d) != n:
+                self.env.step()
+                d, t = self.env.get_steps(bn)
+                if len(t):
+                    ps.append(t)
 
-        return SingleModelInformation(
-            corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
-                                            visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
-            obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
-                                  visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
-            reward=np.asarray(reward),
-            done=np.asarray(done),
-            info=info
-        )
+            corrected_obs, reward = d.obs, d.reward
+            obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
+            done = np.full(n, False)
+            info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
 
-    def deal_vector(self, n, vecs):
-        '''
-        把向量观测信息 按每个智能体 拼接起来
-        '''
-        if len(vecs):
-            return np.hstack(vecs)
+            for t in ps:    # TODO: 有待优化
+                _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
+                info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
+                info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                reward[_ids] = t.reward
+                done[_ids] = True
+                # zip: vector, visual, ...
+                for _obs, _tobs in zip(obs, t.obs):
+                    _obs[_ids] = _tobs
+
+            rets[bn] = SingleModelInformation(
+                corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
+                                                visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
+                obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
+                                      visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
+                reward=np.asarray(reward),
+                done=np.asarray(done),
+                info=info
+            )
+        if self.is_multi_agents:
+            return rets
         else:
-            return np.array([]).reshape(n, -1)
-
-    def deal_visual(self, n, viss):
-        '''
-        viss : [camera1, camera2, camera3, ...]
-        把图像观测信息 按每个智能体 组合起来
-        '''
-        ss = []
-        for j in range(n):
-            # 第j个智能体
-            s = []
-            for v in viss:
-                s.append(v[j])
-            ss.append(np.array(s))  # [agent1(camera1, camera2, camera3, ...), ...]
-        return np.array(ss)  # [B, N, (H, W, C)]
+            return rets[self.first_bn]
 
     def random_action(self):
         '''

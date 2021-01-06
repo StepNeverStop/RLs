@@ -122,9 +122,9 @@ class SAC_V(Off_Policy):
         self._all_params_dict.update(self.v_net._all_models)
         self._all_params_dict.update(self.q_net._all_models)
         self._all_params_dict.update(log_alpha=self.log_alpha,
-                                          optimizer_actor=self.optimizer_actor,
-                                          optimizer_critic=self.optimizer_critic,
-                                          optimizer_alpha=self.optimizer_alpha)
+                                     optimizer_actor=self.optimizer_actor,
+                                     optimizer_critic=self.optimizer_critic,
+                                     optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
 
     @property

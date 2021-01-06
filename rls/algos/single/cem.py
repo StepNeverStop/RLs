@@ -67,7 +67,7 @@ class CEM(On_Policy):
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
         self.concat_vector_dim = self.obs_spec.total_vector_dim
-        
+
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):

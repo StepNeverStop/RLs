@@ -19,6 +19,7 @@ from rls.utils.specs import (OutputNetworkType,
 
 OC_BatchExperiences = namedtuple('OC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
 
+
 class OC(Off_Policy):
     '''
     The Option-Critic Architecture. http://arxiv.org/abs/1609.05140

@@ -7,8 +7,8 @@ import tensorflow_probability as tfp
 
 from collections import namedtuple
 
-from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
-                          NormalActionNoise)
+from rls.nn.noise import (OrnsteinUhlenbeckNoisedAction,
+                          ClippedNormalNoisedAction)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ACCNetwork
@@ -16,6 +16,7 @@ from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
 PD_DDPG_BatchExperiences = namedtuple('PD_DDPG_BatchExperiences', BatchExperiences._fields + ('cost',))
+
 
 class PD_DDPG(Off_Policy):
     '''
@@ -27,6 +28,9 @@ class PD_DDPG(Off_Policy):
                  envspec,
 
                  ployak=0.995,
+                 use_target_action_noise=False,
+                 gaussian_noise_sigma=0.2,
+                 gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
                  reward_critic_lr=1.0e-3,
                  cost_critic_lr=1.0e-3,
@@ -45,6 +49,9 @@ class PD_DDPG(Off_Policy):
         self.discrete_tau = discrete_tau
         self._lambda = tf.Variable(0.0, dtype=tf.float32)
         self.cost_constraint = cost_constraint  # long tern cost <= d
+        self.use_target_action_noise = use_target_action_noise
+        self.gaussian_noise_sigma = gaussian_noise_sigma
+        self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
             # NOTE: value_net is reward net; value_net2 is cost net.
@@ -61,6 +68,8 @@ class PD_DDPG(Off_Policy):
                 value_net2_kwargs=dict(action_dim=self.a_dim,
                                        network_settings=network_settings['cost'])
             )
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
+            self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
         else:
             def _create_net(name, representation_net=None): return ACCNetwork(
                 name=name,
@@ -75,16 +84,11 @@ class PD_DDPG(Off_Policy):
                 value_net2_kwargs=dict(action_dim=self.a_dim,
                                        network_settings=network_settings['cost'])
             )
+            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
         self._representation_target_net = self._create_representation_net('_representation_target_net')
         self.ac_target_net = _create_net('ac_target_net', self._representation_target_net)
-
-        if self.is_continuous:
-            # self.action_noise = NormalActionNoise(sigma=0.2)
-            self.action_noise = OrnsteinUhlenbeckActionNoise(sigma=0.2)
-        else:
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
         self.lambda_lr = lambda_lr
@@ -102,7 +106,7 @@ class PD_DDPG(Off_Policy):
     def reset(self):
         super().reset()
         if self.is_continuous:
-            self.action_noise.reset()
+            self.noised_action.reset()
 
     def choose_action(self, obs, evaluation=False):
         mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
@@ -115,7 +119,7 @@ class PD_DDPG(Off_Policy):
             output, cell_state = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
+                pi = self.noised_action(mu)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -146,6 +150,8 @@ class PD_DDPG(Off_Policy):
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)
+                    if self.use_target_action_noise:
+                        action_target = self.target_noised_action(action_target)
                     mu = self.ac_net.policy_net(feat)
                 else:
                     target_logits = self.ac_target_net.policy_net(feat_)
@@ -218,5 +224,5 @@ class PD_DDPG(Off_Policy):
         self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
 
     def no_op_store(self, exps: BatchExperiences)
-        # self._running_average()
-        self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))
+    # self._running_average()
+    self.data.add(PD_DDPG_BatchExperiences(*exps, self.get_cost(exps)))

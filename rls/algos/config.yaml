@@ -18,10 +18,11 @@ general:
     normalize_vector_obs: false
     logger2file: false
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
-    vector_net_kwargs: {}
+    vector_net_kwargs:
+        network_type: adaptive    # rls.utils.specs.VectorNetworkType
     visual_net_kwargs:
         visual_feature: 128
-        network_type: simple
+        network_type: simple    # rls.utils.specs.VisualNetworkType
     encoder_net_kwargs:
         use_encoder: false
         output_dim: 16
@@ -124,6 +125,9 @@ dqn: &dqn
     use_priority: false
     n_step: true
     network_settings: [64, 64]
+    visual_net_kwargs:
+        visual_feature: 128
+        network_type: nature
 
 ddqn: *dqn
 
@@ -457,6 +461,9 @@ trpo:
 
 dpg:
     gamma: 0.99
+    use_target_action_noise: False
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -472,6 +479,10 @@ dpg:
 ddpg:
     gamma: 0.99
     ployak: 0.995
+    noise_type: "ou" # ou or gaussian
+    use_target_action_noise: False
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -487,6 +498,9 @@ ddpg:
 pd_ddpg:
     gamma: 0.99
     ployak: 0.995
+    use_target_action_noise: False
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     reward_critic_lr: 1.0e-3
     cost_critic_lr: 1.0e-3
@@ -506,9 +520,8 @@ td3:
     gamma: 0.99
     ployak: 0.995
     delay_num: 2
-    noise_type: gaussian # ou or gaussian
-    gaussian_noise_sigma: 0.2 # if using gaussian noise, specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.2 # if using gaussian noise, specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
+    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小

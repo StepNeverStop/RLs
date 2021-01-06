@@ -17,6 +17,7 @@ from rls.utils.specs import (OutputNetworkType,
 
 AC_BatchExperiences = namedtuple('AC_BatchExperiences', BatchExperiences._fields + ('old_log_prob',))
 
+
 class AC(Off_Policy):
     # off-policy actor-critic
     def __init__(self,

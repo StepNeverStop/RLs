@@ -11,8 +11,8 @@ from typing import (List,
 
 from rls.nn import ActorDPG as ActorCts
 from rls.nn import CriticQvalueOne as Critic
-from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
-                          NormalActionNoise)
+from rls.nn.noise import (OrnsteinUhlenbeckNoisedAction,
+                          NormalNoisedAction)
 from rls.algos.base.ma_off_policy import MultiAgentOffPolicy
 from rls.utils.tf2_utils import update_target_net_weights
 
@@ -41,8 +41,8 @@ class MADDPG(MultiAgentOffPolicy):
         super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
 
-        # self.action_noises = NormalActionNoise(sigma=1.0)
-        self.action_noises = {i: OrnsteinUhlenbeckActionNoise(sigma=0.2) for i in range(self.agent_sep_ctls)}
+        # self.noised_actions = NormalNoisedAction(sigma=1.0)
+        self.noised_actions = {i: OrnsteinUhlenbeckNoisedAction(sigma=0.2) for i in range(self.agent_sep_ctls)}
 
         def _actor_net(i): return ActorCts(self.s_dim[i], self.a_dim[i], network_settings['actor'])
         self.actor_nets = {i: _actor_net(i) for i in range(self.agent_sep_ctls)}
@@ -73,8 +73,8 @@ class MADDPG(MultiAgentOffPolicy):
 
     def reset(self):
         super().reset()
-        for action_noise in self.action_noises.values():
-            action_noise.reset()
+        for noised_action in self.noised_actions.values():
+            noised_action.reset()
 
     def choose_action(self,
                       s: List[np.ndarray],
@@ -111,7 +111,7 @@ class MADDPG(MultiAgentOffPolicy):
         action = _get_action_func(vector_input).numpy()
 
         if evaluation:
-            np.clip(action + self.action_noises[model_idx](action.shape), -1, 1, out=action)
+            action = self.noised_actions[model_idx](action)
 
         return action
 
