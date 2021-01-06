@@ -68,8 +68,7 @@ class BasicUnityEnvironment(object):
         for k, v in kwargs.get('reset_config', {}).items():
             self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         self.env.reset()
-        obs = self.get_obs()
-        return obs if self.is_multi_agents else obs[self.first_bn]
+        return self.get_obs()
 
     def step(self, actions, **kwargs):
         '''
@@ -97,8 +96,7 @@ class BasicUnityEnvironment(object):
             self.env.set_actions(self.first_bn, self.empty_actiontuples[self.first_bn])
 
         self.env.step()
-        obs = self.get_obs()
-        return obs if self.is_multi_agents else obs[self.first_bn]
+        return self.get_obs()
 
     def initialize_environment(self):
         '''
@@ -208,60 +206,58 @@ class BasicUnityEnvironment(object):
 
         return behavior_agents, behavior_ids
 
-    def get_obs(self):
+    def get_obs(self, behavior_names=None):
         '''
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
+        behavior_names = behavior_names or self.behavior_names
         rets = {}
-        for bn in self.behavior_names:
-            rets[bn] = self.coordinate_information(bn)
-        return rets
-
-    def coordinate_information(self, bn):
-        '''
-        TODO: Annotation
-        '''
-        n = self.behavior_agents[bn]
-        ids = self.behavior_ids[bn]
-        ps = []
-        d, t = self.env.get_steps(bn)
-        if len(t):
-            ps.append(t)
-
-        if len(d) != 0 and len(d) != n:
-            raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
-
-        # some of environments done, but some of not
-        while len(d) != n:
-            self.env.step()
+        for bn in behavior_names:
+            n = self.behavior_agents[bn]
+            ids = self.behavior_ids[bn]
+            ps = []
             d, t = self.env.get_steps(bn)
             if len(t):
                 ps.append(t)
 
-        corrected_obs, reward = d.obs, d.reward
-        obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
-        done = np.full(n, False)
-        info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
+            if len(d) != 0 and len(d) != n:
+                raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
 
-        for t in ps:    # TODO: 有待优化
-            _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
-            info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
-            info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-            reward[_ids] = t.reward
-            done[_ids] = True
-            # zip: vector, visual, ...
-            for _obs, _tobs in zip(obs, t.obs):
-                _obs[_ids] = _tobs
+            # some of environments done, but some of not
+            while len(d) != n:
+                self.env.step()
+                d, t = self.env.get_steps(bn)
+                if len(t):
+                    ps.append(t)
 
-        return SingleModelInformation(
-            corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
-                                            visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
-            obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
-                                  visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
-            reward=np.asarray(reward),
-            done=np.asarray(done),
-            info=info
-        )
+            corrected_obs, reward = d.obs, d.reward
+            obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
+            done = np.full(n, False)
+            info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
+
+            for t in ps:    # TODO: 有待优化
+                _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
+                info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
+                info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                reward[_ids] = t.reward
+                done[_ids] = True
+                # zip: vector, visual, ...
+                for _obs, _tobs in zip(obs, t.obs):
+                    _obs[_ids] = _tobs
+
+            rets[bn] = SingleModelInformation(
+                corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
+                                                visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
+                obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
+                                      visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
+                reward=np.asarray(reward),
+                done=np.asarray(done),
+                info=info
+            )
+        if self.is_multi_agents:
+            return rets
+        else:
+            return rets[self.first_bn]
 
     def random_action(self):
         '''

@@ -26,7 +26,7 @@ class DPG(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 use_target_action_noise: False,
+                 use_target_action_noise=False,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  discrete_tau=1.0,

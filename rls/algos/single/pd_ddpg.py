@@ -28,7 +28,7 @@ class PD_DDPG(Off_Policy):
                  envspec,
 
                  ployak=0.995,
-                 use_target_action_noise: False,
+                 use_target_action_noise=False,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,

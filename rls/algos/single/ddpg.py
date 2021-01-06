@@ -23,7 +23,7 @@ class DDPG(Off_Policy):
 
                  ployak=0.995,
                  noise_type='ou',
-                 use_target_action_noise: False,
+                 use_target_action_noise=False,
                  gaussian_noise_sigma=0.2,
                  gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
