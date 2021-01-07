@@ -13,8 +13,7 @@ from tensorflow.keras.layers import (Dense,
                                      Flatten,
                                      LayerNormalization)
 
-from rls.utils.tf2_utils import (clip_nn_log_std,
-                                 squash_rsample,
+from rls.utils.tf2_utils import (squash_rsample,
                                  gaussian_entropy,
                                  update_target_net_weights)
 from rls.algos.base.off_policy import Off_Policy
@@ -90,7 +89,6 @@ class CURL(Off_Policy):
                  last_alpha=0.01,
                  ployak=0.995,
                  discrete_tau=1.0,
-                 log_std_bound=[-20, 2],
                  network_settings={
                      'actor_continuous': {
                          'share': [128, 128],
@@ -112,7 +110,6 @@ class CURL(Off_Policy):
         self.concat_vector_dim = self.obs_spec.total_vector_dim
         self.ployak = ployak
         self.discrete_tau = discrete_tau
-        self.log_std_min, self.log_std_max = log_std_bound[:]
         self.auto_adaption = auto_adaption
         self.annealing = annealing
         self.img_size = img_size
@@ -197,7 +194,6 @@ class CURL(Off_Policy):
             feat = tf.concat([self.encoder(visual), obs.flatten_vector()], axis=-1)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
-                log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
                 mu = tf.tanh(mu)  # squash mu
             else:
@@ -255,7 +251,6 @@ class CURL(Off_Policy):
                 target_feat_ = tf.concat([target_vis_feat_, BATCH.obs_.flatten_vector()], axis=-1)
                 if self.is_continuous:
                     target_mu, target_log_std = self.actor_net.value_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net.value_net(feat_)
@@ -290,7 +285,6 @@ class CURL(Off_Policy):
             with tf.GradientTape() as tape:
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
-                    log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
@@ -314,7 +308,6 @@ class CURL(Off_Policy):
                 with tf.GradientTape() as tape:
                     if self.is_continuous:
                         mu, log_std = self.actor_net.value_net(feat)
-                        log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                         norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
                     else:
