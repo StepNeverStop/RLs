@@ -16,6 +16,7 @@ from typing import (Any,
 from rls.memories.sum_tree import Sum_Tree
 from rls.utils.specs import (BatchExperiences,
                              NamedTupleStaticClass)
+from rls.utils.hdf5_utils import *
 
 
 class ReplayBuffer(ABC):
@@ -101,6 +102,12 @@ class ExperienceReplay(ReplayBuffer):
         print('RB size: ', self._size)
         print('RB capacity: ', self.capacity)
         print(self._buffer[:])
+
+    def save2hdf5(self):
+        pass
+
+    def loadhdf5(self):
+        pass
 
 
 class PrioritizedExperienceReplay(ReplayBuffer):
