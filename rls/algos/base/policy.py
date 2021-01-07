@@ -19,6 +19,7 @@ from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
 from rls.utils.specs import (SingleAgentEnvArgs,
+                             VectorNetworkType,
                              VisualNetworkType,
                              MemoryNetworkType)
 from rls.utils.build_networks import DefaultRepresentationNetwork
@@ -46,6 +47,7 @@ class Policy(Base):
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
         self.vector_net_kwargs = dict(kwargs.get('vector_net_kwargs', {}))
+        self.vector_net_kwargs['network_type'] = VectorNetworkType(self.vector_net_kwargs['network_type'])
 
         self.visual_net_kwargs = dict(kwargs.get('visual_net_kwargs', {}))
         self.visual_net_kwargs['network_type'] = VisualNetworkType(self.visual_net_kwargs['network_type'])

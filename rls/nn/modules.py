@@ -7,7 +7,6 @@ from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
 
-from rls.utils.specs import VisualNetworkType
 from rls.utils.build_networks import DefaultRepresentationNetwork
 from rls.utils.tf2_utils import get_device
 from rls.nn.activations import default_activation
