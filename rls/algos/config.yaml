@@ -12,17 +12,16 @@ general:
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
     curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
-    curiosity_loss_weight: 5 # weight that scale the gradient loss and ICM loss
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
 
     normalize_vector_obs: false
     logger2file: false
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     vector_net_kwargs:
-        network_type: adaptive    # rls.utils.specs.VectorNetworkType
+        network_type: adaptive # rls.utils.specs.VectorNetworkType
     visual_net_kwargs:
         visual_feature: 128
-        network_type: simple    # rls.utils.specs.VisualNetworkType
+        network_type: simple # rls.utils.specs.VisualNetworkType
     encoder_net_kwargs:
         use_encoder: false
         output_dim: 16

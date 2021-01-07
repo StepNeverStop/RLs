@@ -64,7 +64,6 @@ class Policy(Base):
             self.curiosity_eta = float(kwargs.get('curiosity_reward_eta'))
             self.curiosity_lr = float(kwargs.get('curiosity_lr'))
             self.curiosity_beta = float(kwargs.get('curiosity_beta'))
-            self.curiosity_loss_weight = float(kwargs.get('curiosity_loss_weight'))
             self.curiosity_model = CuriosityModel(self.obs_spec,
                                                   self.vector_net_kwargs,
                                                   self.visual_net_kwargs,
@@ -74,8 +73,7 @@ class Policy(Base):
                                                   self.a_dim,
                                                   eta=self.curiosity_eta,
                                                   lr=self.curiosity_lr,
-                                                  beta=self.curiosity_beta,
-                                                  loss_weight=self.curiosity_loss_weight)
+                                                  beta=self.curiosity_beta)
             self._all_params_dict.update(curiosity_model=self.curiosity_model)
 
     def _create_representation_net(self, name: str = 'default'):
