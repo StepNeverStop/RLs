@@ -6,8 +6,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 from rls.algos.base.off_policy import Off_Policy
-from rls.utils.tf2_utils import (clip_nn_log_std,
-                                 tsallis_squash_rsample,
+from rls.utils.tf2_utils import (tsallis_squash_rsample,
                                  gaussian_entropy,
                                  update_target_net_weights)
 from rls.utils.sundry_utils import LinearAnnealing
@@ -29,7 +28,6 @@ class TAC(Off_Policy):
                  ployak=0.995,
                  entropic_index=1.5,
                  discrete_tau=1.0,
-                 log_std_bound=[-20, 2],
                  network_settings={
                      'actor_continuous': {
                          'share': [128, 128],
@@ -48,7 +46,6 @@ class TAC(Off_Policy):
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.entropic_index = 2 - entropic_index
-        self.log_std_min, self.log_std_max = log_std_bound[:]
         self.auto_adaption = auto_adaption
         self.annealing = annealing
 
@@ -121,7 +118,6 @@ class TAC(Off_Policy):
             feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
-                log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                 mu = tf.tanh(mu)  # squash mu
             else:
@@ -160,11 +156,9 @@ class TAC(Off_Policy):
                 (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
-                    log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
                     entropy = gaussian_entropy(log_std)
                     target_mu, target_log_std = self.actor_net.value_net(feat_)
-                    target_log_std = clip_nn_log_std(target_log_std, self.log_std_min, self.log_std_max)
                     target_pi, target_log_pi = tsallis_squash_rsample(target_mu, target_log_std, self.entropic_index)
                 else:
                     logits = self.actor_net.value_net(feat)

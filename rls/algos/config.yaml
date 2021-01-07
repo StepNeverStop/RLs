@@ -73,7 +73,6 @@ curl:
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    log_std_bound: [-20, 2]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
@@ -91,6 +90,8 @@ curl:
             share: [64, 64]
             mu: [64]
             log_std: [64]
+            soft_clip: False
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
         encoder: 128
@@ -539,7 +540,6 @@ sac:
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    log_std_bound: [-20, 2]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
@@ -556,6 +556,8 @@ sac:
             share: [64, 64]
             mu: [64]
             log_std: [64]
+            soft_clip: False
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
 
@@ -564,7 +566,6 @@ sac_v:
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    log_std_bound: [-20, 2]
     gamma: 0.99
     ployak: 0.995
     use_gumbel: true
@@ -581,6 +582,8 @@ sac_v:
             share: [64, 64]
             mu: [64]
             log_std: [64]
+            soft_clip: False
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
         v: [64, 64]
@@ -590,7 +593,6 @@ tac:
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    log_std_bound: [-20, 2]
     # maybe equal or greater than 0. We realize that the proposed method performs better when 1 ≤ q < 2 than
     # when 0 < q < 1 and q ≥ 2, in terms of stable convergence and final total average returns.
     # q -> 0, more exploration, 2<= q -> +∞, more exploitation.
@@ -611,6 +613,8 @@ tac:
             share: [64, 64]
             mu: [64]
             log_std: [64]
+            soft_clip: False
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
 
