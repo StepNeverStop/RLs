@@ -8,8 +8,8 @@ import tensorflow_probability as tfp
 from rls.nn import ActorDPG as ActorCts
 from rls.nn import ActorDct
 from rls.nn import CriticQvalueOne as Critic
-from rls.nn.noise import (OrnsteinUhlenbeckActionNoise,
-                          NormalActionNoise)
+from rls.nn.noise import (OrnsteinUhlenbeckNoisedAction,
+                          ClippedNormalNoisedAction)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import OutputNetworkType
@@ -26,6 +26,9 @@ class DPG(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
+                 use_target_action_noise=False,
+                 gaussian_noise_sigma=0.2,
+                 gaussian_noise_bound=0.2,
                  discrete_tau=1.0,
                  network_settings={
                      'actor_continuous': [32, 32],
@@ -35,10 +38,13 @@ class DPG(Off_Policy):
                  **kwargs):
         super().__init__(envspec=envspec, **kwargs)
         self.discrete_tau = discrete_tau
+        self.use_target_action_noise = use_target_action_noise
+        self.gaussian_noise_sigma = gaussian_noise_sigma
+        self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
-            # self.action_noise = NormalActionNoise(mu=np.zeros(self.a_dim), sigma=1 * np.ones(self.a_dim))
-            self.action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(self.a_dim), sigma=0.2 * np.ones(self.a_dim))
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
+            self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
             self.net = ACNetwork(
                 name='net',
                 representation_net=self._representation_net,
@@ -72,6 +78,11 @@ class DPG(Off_Policy):
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
 
+    def reset(self):
+        super().reset()
+        if self.is_continuous:
+            self.noised_action.reset()
+
     def choose_action(self, obs, evaluation=False):
         mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
@@ -83,7 +94,7 @@ class DPG(Off_Policy):
             output, cell_state = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu = output
-                pi = tf.clip_by_value(mu + self.action_noise(mu.shape), -1, 1)
+                pi = self.noised_action(mu)
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
@@ -108,7 +119,9 @@ class DPG(Off_Policy):
             with tf.GradientTape(persistent=True) as tape:
                 (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 if self.is_continuous:
-                    action_target = self.net.policy_net(feat_)
+                    action_target = self.ac_target_net.policy_net(feat_)
+                    if self.use_target_action_noise:
+                        action_target = self.target_noised_action(action_target)
                     mu = self.net.policy_net(feat)
                 else:
                     target_logits = self.net.policy_net(feat_)

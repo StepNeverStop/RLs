@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import numpy as np
+import tensorflow as tf
 from abc import ABC, abstractmethod
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 
@@ -33,7 +34,7 @@ class AdaptiveParamNoiseSpec(object):
         return fmt.format(self.initial_stddev, self.desired_action_stddev, self.adoption_coefficient)
 
 
-class ActionNoise(ABC, object):
+class NoisedAction(ABC, object):
 
     def __init__(self):
         super().__init__()
@@ -46,46 +47,48 @@ class ActionNoise(ABC, object):
         raise NotImplementedError
 
 
-class NormalActionNoise(ActionNoise):
-    def __init__(self, mu=0.0, sigma=1.0):
+class NormalNoisedAction(NoisedAction):
+    def __init__(self, mu=0.0, sigma=1.0, action_bound=1.0):
         self.mu = mu
         self.sigma = sigma
+        self.action_bound = action_bound
 
-    def __call__(self, size):
-        return np.random.normal(self.mu, self.sigma, size)
-
-    def __repr__(self):
-        return 'NormalActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
-
-
-class ClippedNormalActionNoise(NormalActionNoise):
-    def __init__(self, mu=0.0, sigma=1.0, bound=0.2):
-        super().__init__(mu, sigma)
-        self.bound = bound
-
-    def __call__(self, size):
-        return np.clip(np.random.normal(self.mu, self.sigma, size), -self.bound, self.bound)
+    def __call__(self, action):
+        return tf.clip_by_value(action + tf.random.normal(action.shape, self.mu, self.sigma), -self.action_bound, self.action_bound)
 
     def __repr__(self):
-        return 'ClippedNormalActionNoise(mu={}, sigma={}, bound={})'.format(self.mu, self.sigma, self.bound)
+        return 'NormalNoisedAction(mu={}, sigma={}, action_bound={})'.format(self.mu, self.sigma, self.action_bound)
+
+
+class ClippedNormalNoisedAction(NormalNoisedAction):
+    def __init__(self, mu=0.0, sigma=1.0, action_bound=1.0, noise_bound=0.2):
+        super().__init__(mu, sigma, action_bound)
+        self.noise_bound = noise_bound
+
+    def __call__(self, action):
+        return tf.clip_by_value(
+            action + tf.clip_by_value(tf.random.normal(action.shape, self.mu, self.sigma), -self.noise_bound, self.noise_bound),
+            -self.action_bound, self.action_bound)
+
+    def __repr__(self):
+        return 'ClippedNormalNoisedAction(mu={}, sigma={}, action_bound={}, noise_bound={})'.format(self.mu, self.sigma, self.action_bound, self.noise_bound)
 
 
 # Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
-class OrnsteinUhlenbeckActionNoise(ActionNoise):
-    def __init__(self, mu=0.0, sigma=0.2, theta=.15, dt=1e-2, x0=None):
+class OrnsteinUhlenbeckNoisedAction(NormalNoisedAction):
+    def __init__(self, mu=0.0, sigma=0.2, action_bound=1.0, theta=.15, dt=1e-2, x0=None):
+        super().__init__(mu, sigma, action_bound)
         self.theta = theta
-        self.mu = mu
-        self.sigma = sigma
         self.dt = dt
         self.x0 = x0
         self.reset()
 
-    def __call__(self, size):
-        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * np.sqrt(self.dt) * np.random.normal(size=size)
-        return self.x_prev
+    def __call__(self, action):
+        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * tf.math.sqrt(self.dt) * tf.random.normal(action.shape)
+        return tf.clip_by_value(action + self.x_prev, -self.action_bound, self.action_bound)
 
     def reset(self):
         self.x_prev = self.x0 if self.x0 is not None else 0.
 
     def __repr__(self):
-        return 'OrnsteinUhlenbeckActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
+        return 'OrnsteinUhlenbeckNoisedAction(mu={}, sigma={}, action_bound={}, theta={}, dt={})'.format(self.mu, self.sigma, self.action_bound, self.theta, self.dt)
