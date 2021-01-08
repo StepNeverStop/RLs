@@ -2,9 +2,12 @@
 	<a href="https://github.com/StepNeverStop/RLs">
 		<img width="auto" height="200px" src="./pics/logo.png">
 	</a>
+	<br/>
+	<br/>
+	<a href="https://github.com/StepNeverStop/RLs">
+		<img width="auto" height="20px" src="./pics/font.png">
+	</a>
 </div>
-
-<br/>
 
 <div align="center">
 <p><strong>RLs:</strong> Reinforcement Learning Algorithm Based On TensorFlow 2.x.</p> 
