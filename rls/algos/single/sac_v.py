@@ -6,8 +6,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 from rls.algos.base.off_policy import Off_Policy
-from rls.utils.tf2_utils import (clip_nn_log_std,
-                                 squash_rsample,
+from rls.utils.tf2_utils import (squash_rsample,
                                  gaussian_entropy,
                                  update_target_net_weights)
 from rls.utils.sundry_utils import LinearAnnealing
@@ -31,12 +30,13 @@ class SAC_V(Off_Policy):
                  ployak=0.995,
                  use_gumbel=True,
                  discrete_tau=1.0,
-                 log_std_bound=[-20, 2],
                  network_settings={
                      'actor_continuous': {
                          'share': [128, 128],
                          'mu': [64],
-                         'log_std': [64]
+                         'log_std': [64],
+                         'soft_clip': False,
+                         'log_std_bound': [-20, 2]
                      },
                      'actor_discrete': [64, 32],
                      'q': [128, 128],
@@ -51,7 +51,6 @@ class SAC_V(Off_Policy):
         self.ployak = ployak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
-        self.log_std_min, self.log_std_max = log_std_bound[:]
         self.auto_adaption = auto_adaption
         self.annealing = annealing
 
@@ -142,7 +141,6 @@ class SAC_V(Off_Policy):
             feat, cell_state = self._representation_net(obs, cell_state=cell_state)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
-                log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                 pi, _ = squash_rsample(mu, log_std)
                 mu = tf.tanh(mu)    # squash mu
             else:
@@ -186,7 +184,6 @@ class SAC_V(Off_Policy):
 
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
-                    log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:

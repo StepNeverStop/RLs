@@ -7,7 +7,6 @@ from tensorflow.keras import Input as I
 from tensorflow.keras import Sequential
 from tensorflow.keras.layers import Dense
 
-from rls.utils.specs import VisualNetworkType
 from rls.utils.build_networks import DefaultRepresentationNetwork
 from rls.utils.tf2_utils import get_device
 from rls.nn.activations import default_activation
@@ -29,7 +28,7 @@ class CuriosityModel(M):
                  is_continuous,
                  action_dim,
                  *,
-                 eta=0.2, lr=1.0e-3, beta=0.2, loss_weight=10., network_type=VisualNetworkType.SIMPLE):
+                 eta=0.2, lr=1.0e-3, beta=0.2):
         '''
         params:
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)
@@ -38,17 +37,15 @@ class CuriosityModel(M):
             eta: weight of intrinsic reward
             lr: the learning rate of curiosity model
             beta: weight factor of loss between inverse_dynamic_net and forward_net
-            loss_weight: weight factor of loss between policy gradient and curiosity model
         '''
         super().__init__()
         self.device = get_device()
         self.eta = eta
         self.beta = beta
-        self.loss_weight = loss_weight
         self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
         self.is_continuous = is_continuous
 
-        self.net = DefaultRepresentationNetwork(
+        self.repre_net = DefaultRepresentationNetwork(
             obs_spec=obs_spec,
             name='curiosity_model',
             vector_net_kwargs=vector_net_kwargs,
@@ -57,7 +54,7 @@ class CuriosityModel(M):
             memory_net_kwargs=memory_net_kwargs
         )
 
-        self.feat_dim = self.net.h_dim
+        self.feat_dim = self.repre_net.h_dim
 
         # S, S' => A
         self.inverse_dynamic_net = Sequential([
@@ -80,8 +77,8 @@ class CuriosityModel(M):
     def call(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                fs, _ = self.net(BATCH.obs, cell_state=cell_state)
-                fs_, _ = self.net(BATCH.obs_, cell_state=cell_state)
+                fs, _ = self.repre_net(BATCH.obs, cell_state=cell_state)
+                fs_, _ = self.repre_net(BATCH.obs_, cell_state=cell_state)
 
                 fsa = tf.concat((fs, BATCH.action), axis=-1)            # <S, A>
                 s_eval = self.forward_net(fsa)                  # <S, A> => S'
@@ -98,12 +95,11 @@ class CuriosityModel(M):
                     loss_inverse = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=idx, logits=a_eval))
                 loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
 
-            grads = tape.gradient(loss, self.net.trainable_variables)
-            self.optimizer.apply_gradients(zip(grads, self.net.trainable_variables))
+            grads = tape.gradient(loss, self.repre_net.trainable_variables)
+            self.optimizer.apply_gradients(zip(grads, self.repre_net.trainable_variables))
             summaries = dict([
                 ['LOSS/curiosity_loss', loss],
                 ['LOSS/forward_loss', loss_forward],
                 ['LOSS/inverse_loss', loss_inverse]
             ])
-            # crsty_loss = loss * self.loss_weight
             return intrinsic_reward, summaries

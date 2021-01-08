@@ -98,6 +98,9 @@ class DataBuffer(object):
         adv = td(s) + gamma * lambda * (1 - done) * td(s')
         '''
         assert 'td_error' in self.data_buffer.keys(), "assert 'td_error' in self.data_buffer.keys()"
+        # "Generalized Advantage Estimation": https://arxiv.org/abs/1506.02438
+        # Eq (10): delta_t = Rt + gamma*V_{t+1} - V_t
+        # Eq (16): batch_adv_t = delta_t + gamma*delta_{t+1} + gamma^2*delta_{t+2} + ...
         adv = np.asarray(discounted_sum(
             self.data_buffer['td_error'],
             lambda_ * gamma,

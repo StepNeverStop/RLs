@@ -1,8 +1,17 @@
-# RLs
+<div align="center">
+	<a href="https://github.com/StepNeverStop/RLs">
+		<img width="auto" height="200px" src="./pics/logo.png">
+	</a>
+	<br/>
+	<br/>
+	<a href="https://github.com/StepNeverStop/RLs">
+		<img width="auto" height="20px" src="./pics/font.png">
+	</a>
+</div>
 
-:evergreen_tree::evergreen_tree::evergreen_tree:
-
-Reinforcement Learning Algorithm Based On TensorFlow 2.x.
+<div align="center">
+<p><strong>RLs:</strong> Reinforcement Learning Algorithm Based On TensorFlow 2.x.</p> 
+</div>
 
 This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_12) Release 12 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
@@ -94,10 +103,10 @@ For now, these algorithms are available:
     - :bug:Actor Critic, AC
     - Advantage Actor Critic, A2C
     - [Trust Region Policy Optimization, TRPO](https://arxiv.org/abs/1502.05477)
-    - :boom:[Proximal Policy Optimization, PPO](https://arxiv.org/abs/1707.06347)
+    - :boom:Proximal Policy Optimization, [PPO](https://arxiv.org/abs/1707.06347), [DPPO](http://arxiv.org/abs/1707.02286,)
     - [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
     - [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
-    - :fire:[Soft Actor Critic, SAC](https://arxiv.org/abs/1812.05905)
+    - :fire:Soft Actor Critic, [SAC](https://arxiv.org/abs/1812.05905), [Discrete SAC](https://arxiv.org/abs/1910.07207)
     - [Tsallis Actor Critic, TAC](https://arxiv.org/abs/1902.00137)
     - :fire:[Twin Delayed Deep Deterministic Policy Gradient, TD3](https://arxiv.org/abs/1802.09477)
     - Deep Q-learning Network, DQN, [2013](https://arxiv.org/pdf/1312.5602.pdf), [2015](https://storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf)
@@ -112,6 +121,7 @@ For now, these algorithms are available:
     - [MaxSQN](https://github.com/createamind/DRL/blob/master/spinup/algos/maxsqn/maxsqn.py)
     - [Soft Q-Learning, SQL](https://arxiv.org/abs/1702.08165)
     - [Bootstrapped DQN](http://arxiv.org/abs/1602.04621)
+    - [Averaged DQN](http://arxiv.org/abs/1611.01929)
     - [Contrastive Unsupervised RL, CURL](http://arxiv.org/abs/2004.04136)
 - Hierachical training algorithms:
     - [Option-Critic, OC](http://arxiv.org/abs/1609.05140)

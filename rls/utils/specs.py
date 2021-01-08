@@ -205,6 +205,16 @@ class NamedTupleStaticClass:
         else:
             return NamedTuple('obs_namedtuple', [(f'{name}_{str(i)}', np.ndarray) for i in range(item_nums)])
 
+    @staticmethod
+    def dict2namedtuple(data: dict, data_type: type):
+        x = {}
+        for k, v in data.items():
+            if isinstance(v, dict):
+                x[k] = NamedTupleStaticClass.dict2namedtuple(v, data_type._field_types.get(k))
+            else:
+                x[k] = v
+        return data_type(**x)
+
 
 class ModelObservations(NamedTuple):
     '''

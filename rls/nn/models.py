@@ -10,6 +10,7 @@ from tensorflow.keras.layers import Dense
 from rls.nn.layers import (Noisy,
                            mlp)
 from rls.utils.specs import OutputNetworkType
+from rls.utils.tf2_utils import clip_nn_log_std
 
 
 def get_output_network_from_type(network_type: OutputNetworkType):
@@ -115,15 +116,22 @@ class ActorCts(M):
 
     def __init__(self, vector_dim, output_shape, network_settings):
         super().__init__()
+        self.soft_clip = network_settings['soft_clip']
+        self.log_std_min, self.log_std_max = network_settings['log_std_bound']
         self.share = mlp(network_settings['share'], out_layer=False)
         self.mu = mlp(network_settings['mu'], output_shape=output_shape, out_activation=None)
-        self.log_std = mlp(network_settings['log_std'], output_shape=output_shape, out_activation='tanh')
+        self.log_std = mlp(network_settings['log_std'], output_shape=output_shape, out_activation=None)
         self(I(shape=vector_dim))
 
     def call(self, x):
         x = self.share(x)
         mu = self.mu(x)
         log_std = self.log_std(x)
+        if self.soft_clip:
+            log_std = tf.tanh(log_std)
+            log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)
+        else:
+            log_std = tf.clip_by_value(log_std, self.log_std_min, self.log_std_max)
         return (mu, log_std)
 
 
