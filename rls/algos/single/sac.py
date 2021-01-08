@@ -34,7 +34,9 @@ class SAC(Off_Policy):
                      'actor_continuous': {
                          'share': [128, 128],
                          'mu': [64],
-                         'log_std': [64]
+                         'log_std': [64],
+                         'soft_clip': False,
+                         'log_std_bound': [-20, 2]
                      },
                      'actor_discrete': [64, 32],
                      'q': [128, 128]
