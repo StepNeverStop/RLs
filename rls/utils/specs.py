@@ -314,8 +314,8 @@ class DefaultActivationFuncType(Enum):
     TANH = 'tanh'
     RELU = 'relu'
     ELU = 'elu'
-    SWISH = 'swish'
-    MISH = 'mish'
+    SWISH = 'swish' # https://arxiv.org/abs/1710.05941
+    MISH = 'mish'   # https://arxiv.org/abs/1908.08681
 
 
 class OutputNetworkType(Enum):
