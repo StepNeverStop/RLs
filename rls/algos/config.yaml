@@ -47,6 +47,7 @@ hiro:
     gamma: 0.99
     intrinsic_reward_mode: os # os or cos
     ployak: 0.995
+    discrete_tau: 1.0
     high_scale: 1.0
     reward_scale: 1.0
     sample_g_nums: 100

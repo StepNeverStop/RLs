@@ -3,6 +3,7 @@
 
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 
 from collections import namedtuple
 from tensorflow_probability import distributions as tfd
@@ -30,6 +31,7 @@ class HIRO(Off_Policy):
                  envspec,
 
                  ployak=0.995,
+                 discrete_tau=1.0,
                  high_scale=1.0,
                  reward_scale=1.0,
                  sample_g_nums=100,
@@ -59,6 +61,7 @@ class HIRO(Off_Policy):
         self.data_low = ExperienceReplay(low_batch_size, low_buffer_size)
 
         self.ployak = ployak
+        self.discrete_tau = discrete_tau
         self.reward_scale = reward_scale
         self.fn_goal_dim = fn_goal_dim
         self.sample_g_nums = sample_g_nums
