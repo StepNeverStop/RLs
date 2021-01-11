@@ -25,7 +25,6 @@ class AC(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 condition_sigma: bool = False,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -40,7 +39,6 @@ class AC(Off_Policy):
                 representation_net=self._representation_net,
                 policy_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       condition_sigma=condition_sigma,
                                        network_settings=network_settings['actor_continuous']),
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
                 value_net_kwargs=dict(action_dim=self.a_dim,

@@ -49,7 +49,6 @@ class PPO(On_Policy):
                  actor_lr: float = 3e-4,
                  critic_lr: float = 1e-3,
                  max_grad_norm: float = 0.5,
-                 condition_sigma: bool = False,
                  kl_reverse: bool = False,
                  kl_target: float = 0.02,
                  kl_target_cutoff: float = 2,
@@ -118,7 +117,6 @@ class PPO(On_Policy):
                     representation_net=self._representation_net,
                     value_net_type=OutputNetworkType.ACTOR_CRITIC_VALUE_CTS,
                     value_net_kwargs=dict(output_shape=self.a_dim,
-                                          condition_sigma=condition_sigma,
                                           network_settings=network_settings['share']['continuous'])
                 )
             else:
@@ -142,7 +140,6 @@ class PPO(On_Policy):
                     representation_net=self._representation_net,
                     policy_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                     policy_net_kwargs=dict(output_shape=self.a_dim,
-                                           condition_sigma=condition_sigma,
                                            network_settings=network_settings['actor_continuous']),
                     value_net_type=OutputNetworkType.CRITIC_VALUE,
                     value_net_kwargs=dict(network_settings=network_settings['critic'])
