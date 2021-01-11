@@ -145,15 +145,9 @@ class A2C(On_Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.net.critic_trainable_variables)
             )
-            if self.is_continuous:
-                actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.net.actor_trainable_variables)
-                )
-            else:
-                actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.net.actor_trainable_variables)
-                )
+            actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.net.actor_trainable_variables)
+            )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy
