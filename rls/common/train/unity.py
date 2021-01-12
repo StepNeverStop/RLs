@@ -7,8 +7,7 @@ from tqdm import trange
 from typing import (Callable,
                     NoReturn)
 
-from rls.utils.np_utils import (SMA,
-                                arrprint)
+from rls.common.recoder import SimpleMovingAverageRecoder
 from rls.utils.mlagents_utils import (multi_agents_data_preprocess,
                                       multi_agents_action_reshape)
 from rls.utils.logging_utils import get_logger
@@ -45,23 +44,19 @@ def unity_train(env, model,
         max_step_per_episode:   maximum number of steps for an episode.
         resampling_interval:    how often to resample parameters for env reset.
     """
-
-    sma = SMA(moving_average_episode)
     frame_step = begin_frame_step
     train_step = begin_train_step
     n = env.behavior_agents[env.first_bn]
+    recoder = SimpleMovingAverageRecoder(n_agents=n, gamma=0.99, verbose=True,
+                                         length=moving_average_episode)
 
     for episode in range(begin_episode, max_train_episode):
         model.reset()
         ret = env.reset(reset_config={})
-        dones_flag = np.zeros(n, dtype=float)
-        rewards = np.zeros(n, dtype=float)
-        step = 0
-        last_done_step = -1
+        recoder.episode_reset(episode=episode)
 
         while True:
             obs = ret.corrected_obs
-            step += 1
             action = model.choose_action(obs=obs)
             ret = env.step(action, step_config={})
             model.store_data(BatchExperiences(obs=obs,
@@ -70,13 +65,12 @@ def unity_train(env, model,
                                               obs_=ret.obs,
                                               done=(ret.info['real_done'] if real_done else ret.done)[:, np.newaxis]))  # [B, ] => [B, 1]
             model.partial_reset(ret.done)
-            rewards += (1 - dones_flag) * ret.reward
-            dones_flag = np.sign(dones_flag + ret.done)
+            recoder.step_update(rewards=ret.reward, dones=ret.done)
 
             if policy_mode == 'off-policy':
-                if train_step % off_policy_train_interval == 0:
+                if recoder.total_step % off_policy_train_interval == 0:
                     model.learn(episode=episode, train_step=train_step)
-                train_step += 1
+                    train_step += 1
                 if train_step % save_frequency == 0:
                     model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
 
@@ -86,31 +80,20 @@ def unity_train(env, model,
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
-            if all(dones_flag):
-                if last_done_step == -1:
-                    last_done_step = step
-                if policy_mode == 'off-policy':
-                    break
-
-            if step >= max_step_per_episode:
+            if recoder.is_all_done and policy_mode == 'off-policy':
+                break
+            if recoder.is_time_over(max_step=max_step_per_episode):
                 break
 
-        sma.update(rewards)
+        recoder.episode_end()
         if policy_mode == 'on-policy':
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(
-            episode,
-            reward_mean=rewards.mean(),
-            reward_min=rewards.min(),
-            reward_max=rewards.max(),
-            step=last_done_step,
-            **sma.rs
-        )
-        print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
-        print_func(f'{env.first_bn} R: {arrprint(rewards, 2)}')
+        model.writer_summary(episode,
+                             **recoder.summary_dict)
+        print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             unity_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, real_done=real_done,
@@ -236,7 +219,7 @@ def ma_unity_train(env, model,
     action_reshape_func = multi_agents_action_reshape(env.env_copys, env.behavior_controls)
     agents_num_per_copy = sum(env.behavior_controls)
 
-    sma = [SMA(moving_average_episode) for _ in range(agents_num_per_copy)]
+    # sma = [SMA(moving_average_episode) for _ in range(agents_num_per_copy)]
 
     for episode in range(begin_episode, max_train_episode):
 
@@ -301,7 +284,7 @@ def ma_unity_train(env, model,
                 break
 
         for i in range(agents_num_per_copy):
-            sma[i].update(rewards[i])
+            # sma[i].update(rewards[i])
             model.writer_summary(
                 episode,
                 agent_idx=i,
@@ -309,12 +292,12 @@ def ma_unity_train(env, model,
                 reward_min=rewards[i].min(),
                 reward_max=rewards[i].max(),
                 # step=last_done_step,
-                **sma[i].rs
+                # **sma[i].rs
             )
 
         print_func(f'Eps {episode:3d} | S {step:4d} | LDS {last_done_step:4d}', out_time=True)
-        for i in range(agents_num_per_copy):
-            print_func(f'Agent {i} R: {arrprint(rewards[i], 2)}')
+        # for i in range(agents_num_per_copy):
+        #     print_func(f'Agent {i} R: {arrprint(rewards[i], 2)}')
 
 
 def ma_unity_inference(env, model,
