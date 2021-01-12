@@ -197,7 +197,7 @@ class PPO(On_Policy):
                 else:
                     logits = self.net.policy_net(feat)
                     value = self.net.value_net(feat)
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, value, log_prob, cell_state

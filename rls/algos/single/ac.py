@@ -86,7 +86,7 @@ class AC(Off_Policy):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = output
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, log_prob, cell_state

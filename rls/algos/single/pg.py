@@ -71,7 +71,7 @@ class PG(On_Policy):
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 logits = output
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
         return sample_op, cell_state
 
