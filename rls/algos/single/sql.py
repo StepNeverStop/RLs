@@ -63,7 +63,7 @@ class SQL(Off_Policy):
             q_values, cell_state = self.q_net(obs, cell_state=cell_state)
             logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
             logits /= tf.reduce_sum(logits)
-            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+            cate_dist = tfp.distributions.Categorical(logits=logits)
             pi = cate_dist.sample()
         return pi, cell_state
 

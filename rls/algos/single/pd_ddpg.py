@@ -123,7 +123,7 @@ class PD_DDPG(Off_Policy):
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 

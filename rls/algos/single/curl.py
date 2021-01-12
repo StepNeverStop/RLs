@@ -201,7 +201,7 @@ class CURL(Off_Policy):
             else:
                 logits = self.actor_net.value_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi
 
@@ -314,7 +314,7 @@ class CURL(Off_Policy):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
                     else:
                         logits = self.actor_net.value_net(feat)
-                        norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                        norm_dist = tfp.distributions.Categorical(logits=logits)
                         log_pi = norm_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

@@ -146,7 +146,7 @@ class SAC_V(Off_Policy):
             else:
                 logits = self.actor_net.value_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
