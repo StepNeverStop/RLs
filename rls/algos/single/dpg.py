@@ -98,7 +98,7 @@ class DPG(Off_Policy):
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
@@ -125,7 +125,7 @@ class DPG(Off_Policy):
                     mu = self.net.policy_net(feat)
                 else:
                     target_logits = self.net.policy_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)

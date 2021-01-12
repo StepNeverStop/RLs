@@ -80,9 +80,9 @@ class ActorMuLogstd(M):
     output: [stochastic action(mu), log of std]
     '''
 
-    def __init__(self, vector_dim, output_shape, condition_sigma, network_settings):
+    def __init__(self, vector_dim, output_shape, network_settings):
         super().__init__()
-        self.condition_sigma = condition_sigma
+        self.condition_sigma = network_settings['condition_sigma']
         self.log_std_min, self.log_std_max = network_settings['log_std_bound']
 
         self.share = mlp(network_settings['hidden_units'], out_layer=False)
@@ -356,9 +356,9 @@ class ActorCriticValueCts(M):
     output: mean(mu) of Gaussian Distribution of actions given a state, v(s)
     '''
 
-    def __init__(self, vector_dim, output_shape, condition_sigma, network_settings):
+    def __init__(self, vector_dim, output_shape, network_settings):
         super().__init__()
-        self.condition_sigma = condition_sigma
+        self.condition_sigma = network_settings['condition_sigma']
         self.log_std_min, self.log_std_max = network_settings['log_std_bound']
 
         self.share = mlp(network_settings['share'], out_layer=False)

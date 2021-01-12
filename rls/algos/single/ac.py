@@ -25,7 +25,6 @@ class AC(Off_Policy):
 
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 condition_sigma: bool = False,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -40,7 +39,6 @@ class AC(Off_Policy):
                 representation_net=self._representation_net,
                 policy_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       condition_sigma=condition_sigma,
                                        network_settings=network_settings['actor_continuous']),
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
                 value_net_kwargs=dict(action_dim=self.a_dim,
@@ -68,6 +66,11 @@ class AC(Off_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
+        """
+        choose an action according to a given observation
+        :param obs: 
+        :param evaluation:
+        """
         a, _lp, self.cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
@@ -83,7 +86,7 @@ class AC(Off_Policy):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = output
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
         return sample_op, log_prob, cell_state

@@ -23,7 +23,6 @@ class PG(On_Policy):
 
                  lr=5.0e-4,
                  epoch=5,
-                 condition_sigma: bool = False,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32]
@@ -37,7 +36,6 @@ class PG(On_Policy):
                 representation_net=self._representation_net,
                 value_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 value_net_kwargs=dict(output_shape=self.a_dim,
-                                      condition_sigma=condition_sigma,
                                       network_settings=network_settings['actor_continuous'])
             )
         else:
@@ -73,7 +71,7 @@ class PG(On_Policy):
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 logits = output
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
         return sample_op, cell_state
 

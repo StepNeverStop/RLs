@@ -143,7 +143,7 @@ class PPOC(On_Policy):
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 logits = pi
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
             o_log_prob = tf.reduce_sum(o * options_onehot, axis=-1, keepdims=True)   # [B, 1]

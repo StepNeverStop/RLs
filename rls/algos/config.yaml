@@ -47,6 +47,7 @@ hiro:
     gamma: 0.99
     intrinsic_reward_mode: os # os or cos
     ployak: 0.995
+    discrete_tau: 1.0
     high_scale: 1.0
     reward_scale: 1.0
     sample_g_nums: 100
@@ -340,18 +341,17 @@ pg:
     lr: 5.0e-4
     gamma: 0.99
     batch_size: 64
-    condition_sigma: false
     epoch: 1 # very important
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
+            condition_sigma: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
 
 ac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    condition_sigma: false
     gamma: 0.99
     batch_size: 256
     buffer_size: 100000
@@ -360,6 +360,7 @@ ac:
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
+            condition_sigma: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
@@ -367,7 +368,6 @@ ac:
 a2c:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    condition_sigma: false
     gamma: 0.99
     beta: 1.0e-3
     batch_size: 64
@@ -375,6 +375,7 @@ a2c:
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
+            condition_sigma: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
@@ -393,7 +394,6 @@ ppo:
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
     max_grad_norm: null
-    condition_sigma: false # not recommended
 
     # duel clip
     use_duel_clip: false
@@ -423,6 +423,7 @@ ppo:
     network_settings:
         share:
             continuous:
+                condition_sigma: false # not recommended
                 log_std_bound: [-20, 2]
                 share: [64, 64]
                 mu: [64, 64]
@@ -433,6 +434,7 @@ ppo:
                 v: [64, 64]
         actor_continuous:
             hidden_units: [64, 64]
+            condition_sigma: false # not recommended
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
@@ -451,10 +453,10 @@ trpo:
     train_v_iters: 10
     batch_size: 64
     critic_lr: 1.0e-3
-    condition_sigma: false
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
+            condition_sigma: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]

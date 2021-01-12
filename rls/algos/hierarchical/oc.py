@@ -147,7 +147,7 @@ class OC(Off_Policy):
                 a, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(pi))  # [B, ]
+                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
                 a = dist.sample()
             max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
             if self.use_eps_greedy:

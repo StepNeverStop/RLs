@@ -25,7 +25,6 @@ class A2C(On_Policy):
                  beta=1.0e-3,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
-                 condition_sigma: bool = False,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -42,7 +41,6 @@ class A2C(On_Policy):
                 representation_net=self._representation_net,
                 policy_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       condition_sigma=condition_sigma,
                                        network_settings=network_settings['actor_continuous']),
                 value_net_type=OutputNetworkType.CRITIC_VALUE,
                 value_net_kwargs=dict(network_settings=network_settings['critic'])
@@ -84,7 +82,7 @@ class A2C(On_Policy):
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
                 logits = output
-                norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
         return sample_op, cell_state
 
@@ -145,15 +143,9 @@ class A2C(On_Policy):
             self.optimizer_critic.apply_gradients(
                 zip(critic_grads, self.net.critic_trainable_variables)
             )
-            if self.is_continuous:
-                actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.net.actor_trainable_variables)
-                )
-            else:
-                actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
-                self.optimizer_actor.apply_gradients(
-                    zip(actor_grads, self.net.actor_trainable_variables)
-                )
+            actor_grads = tape.gradient(actor_loss, self.net.actor_trainable_variables)
+            self.optimizer_actor.apply_gradients(
+                zip(actor_grads, self.net.actor_trainable_variables)
+            )
             self.global_step.assign_add(1)
             return actor_loss, critic_loss, entropy
