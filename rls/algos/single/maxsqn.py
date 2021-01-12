@@ -83,7 +83,7 @@ class MAXSQN(Off_Policy):
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
             q, _, cell_state = self.critic_net(obs, cell_state=cell_state)
-            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(q / self.alpha))
+            cate_dist = tfp.distributions.Categorical(logits=(q / self.alpha))
             pi = cate_dist.sample()
         return tf.argmax(q, axis=1), pi, cell_state
 
