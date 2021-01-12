@@ -66,6 +66,11 @@ class AC(Off_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
+        """
+        choose an action according to a given observation
+        :param obs: 
+        :param evaluation:
+        """
         a, _lp, self.cell_state = self._get_action(obs, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
