@@ -52,7 +52,7 @@ def gym_train(env, model,
         model.reset()
         obs = env.reset()
         recoder.episode_reset(episode=episode)
-        while True:
+        for _ in range(max_step_per_episode):
             if render or episode > render_episode:
                 env.render(record=False)
             action = model.choose_action(obs=obs)
@@ -83,8 +83,6 @@ def gym_train(env, model,
 
             if recoder.is_all_done and policy_mode == 'off-policy':
                 break
-            if recoder.is_time_over(max_step=max_step_per_episode):
-                break
 
         recoder.episode_end()
         if policy_mode == 'on-policy':
@@ -92,8 +90,7 @@ def gym_train(env, model,
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(episode,
-                             **recoder.summary_dict)
+        model.writer_summary(episode, **recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
@@ -121,17 +118,17 @@ def gym_step_eval(env, model,
         obs = env.reset()
         returns = 0.
         step = 0
-        while True:
+        for _ in range(max_step_per_episode):
             action = model.choose_action(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += ret.reward[0]
             step += 1
-            if ret.done[0] or step > max_step_per_episode:
-                sum_ret += returns
-                ave_steps += step
+            if ret.done[0]:
                 break
             obs = ret.corrected_obs
+        sum_ret += returns
+        ave_steps += step
 
     model.writer_summary(
         step,
@@ -155,14 +152,14 @@ def gym_evaluate(env, model,
         dones_flag = np.zeros(env.n)
         steps = np.zeros(env.n)
         returns = np.zeros(env.n)
-        while True:
+        for _ in range(max_step_per_episode):
             action = model.choose_action(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += (1 - dones_flag) * ret.reward
             steps += (1 - dones_flag)
             dones_flag = np.sign(dones_flag + ret.done)
-            if all(dones_flag) or any(steps >= max_step_per_episode):
+            if all(dones_flag):
                 break
             obs = ret.corrected_obs
         total_r += returns

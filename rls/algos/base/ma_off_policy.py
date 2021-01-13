@@ -18,14 +18,8 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         self.total_a_dim = sum(self.a_dim)
 
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
-        self.n_step = kwargs.get('n_step', False)
+        self.n_step = int(kwargs.get('n_step', 1))
         self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
-
-    def set_buffer(self, buffer) -> NoReturn:
-        '''
-        TODO: Annotation
-        '''
-        self.data = buffer
 
     def store_data(self, *args) -> NoReturn:
         """

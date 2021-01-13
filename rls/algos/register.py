@@ -57,18 +57,10 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     LOGO = algo_info.get('logo', '')
     logger.info(colorize(LOGO, color='green'))
 
-    model = getattr(
-        importlib.import_module(f'rls.algos.{policy_type}.{name}'),
-        class_name)
+    model = getattr(importlib.import_module(f'rls.algos.{policy_type}.{name}'), class_name)
 
     algo_config = {}
-    algo_config.update(
-        load_yaml(f'rls/algos/config.yaml')['general']
-    )
-    algo_config.update(
-        load_yaml(f'rls/algos/config.yaml')[policy_mode.replace('-', '_')]
-    )
-    algo_config.update(
-        load_yaml(f'rls/algos/config.yaml')[name]
-    )
+    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')['general'])
+    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[policy_mode.replace('-', '_')])
+    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[name])
     return model, algo_config, policy_mode, policy_type
