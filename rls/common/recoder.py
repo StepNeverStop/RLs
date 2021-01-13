@@ -1,11 +1,32 @@
 import numpy as np
 
+from abc import ABC, abstractmethod
+
 from rls.utils.np_utils import arrprint
 
 
-class Recoder:
+class Recoder(ABC):
+
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def episode_reset(self, episode):
+        pass
+
+    @abstractmethod
+    def step_update(self, rewards, dones):
+        pass
+
+    @abstractmethod
+    def episode_end(self):
+        pass
+
+
+class BasicRecoder(Recoder):
 
     def __init__(self, n_agents, gamma=0.99, verbose=False):
+        super().__init__()
         self.n_agents = n_agents
         self.gamma = gamma
         self.verbose = verbose
@@ -32,9 +53,6 @@ class Recoder:
     @property
     def is_all_done(self):
         return all(self.already_dones)
-
-    def is_time_over(self, max_step):
-        return self.steps.max() >= max_step
 
     @property
     def has_done(self):
@@ -67,7 +85,7 @@ class Recoder:
         return _str
 
 
-class SimpleMovingAverageRecoder(Recoder):
+class SimpleMovingAverageRecoder(BasicRecoder):
 
     def __init__(self, n_agents, gamma=0.99, verbose=False,
                  length=10):

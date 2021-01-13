@@ -82,12 +82,6 @@ class MultiAgentPolicy(Base):
         '''
         raise NotImplementedError
 
-    def set_buffer(self, buffer) -> Any:
-        '''
-        TODO: Annotation
-        '''
-        pass
-
     def writer_summary(self, global_step: Union[int, tf.Variable], agent_idx: int = 0, **kargs) -> NoReturn:
         """
         record the data used to show in the tensorboard

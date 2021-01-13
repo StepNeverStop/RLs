@@ -139,15 +139,16 @@ class Policy(Base):
         '''
         pass
 
+    @abstractmethod
+    def initialize_data_buffer(self, buffer) -> Any:
+        '''
+        TODO: Annotation
+        '''
+        pass
+
     @tf.function
     def _get_action(self, obs, is_training: bool = True) -> Any:
         '''
         TODO: Annotation
         '''
         raise NotImplementedError
-
-    def set_buffer(self, buffer) -> Any:
-        '''
-        TODO: Annotation
-        '''
-        pass

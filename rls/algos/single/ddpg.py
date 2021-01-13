@@ -87,6 +87,7 @@ class DDPG(Off_Policy):
         self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def reset(self):
         super().reset()

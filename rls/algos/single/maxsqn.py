@@ -66,6 +66,7 @@ class MAXSQN(Off_Policy):
         self._all_params_dict.update(optimizer_critic=self.optimizer_critic,
                                      optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     @property
     def alpha(self):

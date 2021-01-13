@@ -175,22 +175,22 @@ def main():
     trails = options.models
     assert trails > 0, '--models must greater than 0.'
 
-    env_args, buffer_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
+    env_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
 
     if options.inference:
-        Trainer(env_args, buffer_args, train_args).evaluate()
+        Trainer(env_args, train_args).evaluate()
         return
 
     if options.apex is not None:
         train_args.update(load_yaml(f'./rls/distribute/apex/config.yaml'))
-        Trainer(env_args, buffer_args, train_args).apex()
+        Trainer(env_args, train_args).apex()
     else:
         if trails == 1:
-            agent_run(env_args, buffer_args, train_args)
+            agent_run(env_args, train_args)
         elif trails > 1:
             processes = []
             for i in range(trails):
-                _env_args, _buffer_args, _train_args = map(deepcopy, [env_args, buffer_args, train_args])
+                _env_args, _buffer_args, _train_args = map(deepcopy, [env_args, train_args])
                 _train_args.seed += i * 10
                 _train_args.name += f'/{i}'
                 _train_args.allow_print = True  # NOTE: set this could block other processes' print function

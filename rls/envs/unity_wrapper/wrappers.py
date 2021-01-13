@@ -36,7 +36,7 @@ class BasicUnityEnvironment(object):
                           timeout_wait=int(kwargs['timeout_wait']),
                           side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
         if kwargs['file_name'] is not None:
-            unity_env_dict = load_yaml('/'.join([os.getcwd(), 'rls', 'envs', 'unity_env_dict.yaml']))
+            unity_env_dict = load_yaml('rls/envs/unity_env_dict.yaml')
             env_kwargs.update(file_name=kwargs['file_name'],
                               base_port=kwargs['port'],
                               no_graphics=not kwargs['render'],

@@ -60,6 +60,7 @@ class BootstrappedDQN(Off_Policy):
         self._all_params_dict.update(self.q_net._all_models)
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def reset(self):
         super().reset()

@@ -13,7 +13,6 @@ from typing import (Dict,
 from rls.utils.display import show_dict
 from rls.utils.sundry_utils import (check_or_create,
                                     set_global_seeds)
-from rls.parse.parse_buffer import get_buffer
 from rls.utils.time import get_time_hhmmss
 from rls.algos import get_model_info
 from rls.common.train.unity import (unity_train,
@@ -55,23 +54,20 @@ def UpdateConfig(config: Dict, file_path: str, key_name: str = 'algo') -> Dict:
 
 
 class Trainer:
-    def __init__(self, env_args: Config, buffer_args: Config, train_args: Config):
+    def __init__(self, env_args: Config, train_args: Config):
         '''
-        Initilize an agent that consists of training environments, algorithm model, replay buffer.
+        Initilize an agent that consists of training environments, algorithm model.
         params:
             env_args: configurations of training environments
-            buffer_args: configurations of replay buffer
             train_args: configurations of training
         '''
         self.env_args = env_args
-        self.buffer_args = buffer_args
         self.train_args = train_args
         set_global_seeds(int(self.train_args.seed))
 
         self._name = self.train_args['name']
         self.train_args['base_dir'] = os.path.join(self.train_args['base_dir'], self.train_args['name'])  # train_args['base_dir'] DIR/ENV_NAME/ALGORITHM_NAME
 
-        self.start_time = time.time()
         self._allow_print = bool(self.train_args.get('allow_print', False))
 
         # ENV
@@ -87,49 +83,22 @@ class Trainer:
         self.algo_args['no_save'] = self.train_args['no_save']
         show_dict(self.algo_args)
 
-        # BUFFER
-        if self.train_args['policy_mode'] == 'off-policy':
-            if self.algo_args['memory_net_kwargs']['use_rnn'] == True:
-                self.buffer_args['type'] = 'EpisodeER'
-                self.buffer_args['batch_size'] = self.algo_args.get('episode_batch_size', 0)
-                self.buffer_args['buffer_size'] = self.algo_args.get('episode_buffer_size', 0)
-
-                self.buffer_args['EpisodeER']['burn_in_time_step'] = self.algo_args.get('burn_in_time_step', 0)
-                self.buffer_args['EpisodeER']['train_time_step'] = self.algo_args.get('train_time_step', 0)
-            else:
-                self.buffer_args['type'] = 'ER'
-                self.buffer_args['batch_size'] = self.algo_args.get('batch_size', 0)
-                self.buffer_args['buffer_size'] = self.algo_args.get('buffer_size', 0)
-
-                _buffer_args = {}
-                if self.algo_args.get('use_priority', False):
-                    self.buffer_args['type'] = 'P' + self.buffer_args['type']
-                    _buffer_args.update({'max_train_step': self.train_args['max_train_step']})
-                if self.algo_args.get('n_step', False):
-                    self.buffer_args['type'] = 'Nstep' + self.buffer_args['type']
-                    self.algo_args['gamma'] = pow(self.algo_args['gamma'], self.buffer_args['NstepPER']['n'])  # update gamma for n-step training.
-                    _buffer_args.update({'gamma': self.algo_args['gamma']})
-                self.buffer_args[self.buffer_args['type']].update(_buffer_args)
-        else:
-            self.buffer_args['type'] = 'None'
+        if self.train_args['policy_mode'] == 'on-policy':
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
 
         if self.env_args['type'] == 'unity':
             self.initialize_unity()
-        else:
-            self.initialize_gym()
+
         self.initialize()
+        self.start_time = time.time()
 
     def initialize(self):
-        buffer = get_buffer(self.buffer_args)
-
         self.algo_args.update({
             'envspec': self.env.EnvSpec,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir
         })
         self.model = self.MODEL(**self.algo_args)
-        self.model.set_buffer(buffer)
         self.model.init_or_restore(self.train_args.load_model_path)
 
         _train_info = self.model.get_init_training_info()
@@ -140,7 +109,6 @@ class Trainer:
             self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
-                'buffer': self.buffer_args.to_dict,
                 'train': self.train_args.to_dict,
                 'algo': self.algo_args
             }
@@ -152,13 +120,6 @@ class Trainer:
         self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fbn)
         if self.train_args.load_model_path is not None:
             self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fbn)
-
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env.behavior_agents[self.env.first_bn]
-
-    def initialize_gym(self):
-        if 'Nstep' in self.buffer_args['type'] or 'Episode' in self.buffer_args['type']:
-            self.buffer_args[self.buffer_args['type']]['agents_num'] = self.env_args['env_num']
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self._allow_print:

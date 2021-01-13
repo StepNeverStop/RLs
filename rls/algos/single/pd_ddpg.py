@@ -102,6 +102,7 @@ class PD_DDPG(Off_Policy):
                                      optimizer_reward_critic=self.optimizer_reward_critic,
                                      optimizer_cost_critic=self.optimizer_cost_critic)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def reset(self):
         super().reset()

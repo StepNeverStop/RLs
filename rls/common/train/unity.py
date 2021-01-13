@@ -55,7 +55,7 @@ def unity_train(env, model,
         ret = env.reset(reset_config={})
         recoder.episode_reset(episode=episode)
 
-        while True:
+        for _ in range(max_step_per_episode):
             obs = ret.corrected_obs
             action = model.choose_action(obs=obs)
             ret = env.step(action, step_config={})
@@ -82,8 +82,6 @@ def unity_train(env, model,
 
             if recoder.is_all_done and policy_mode == 'off-policy':
                 break
-            if recoder.is_time_over(max_step=max_step_per_episode):
-                break
 
         recoder.episode_end()
         if policy_mode == 'on-policy':
@@ -91,8 +89,7 @@ def unity_train(env, model,
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(episode,
-                             **recoder.summary_dict)
+        model.writer_summary(episode, **recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
@@ -232,7 +229,7 @@ def ma_unity_train(env, model,
 
         step = 0
         last_done_step = -1
-        while True:
+        for _ in range(max_step_per_episode):
             action = model.choose_action(s=s, visual_s=visual_s)    # [total_agents, batch, dimension]
             action = action_reshape_func(action)
             actions = {f'{brain_name}': action[i] for i, brain_name in enumerate(env.behavior_names)}
@@ -279,9 +276,6 @@ def ma_unity_train(env, model,
                     last_done_step = step
                 if policy_mode == 'off-policy':
                     break
-
-            if step >= max_step_per_episode:
-                break
 
         for i in range(agents_num_per_copy):
             # sma[i].update(rewards[i])

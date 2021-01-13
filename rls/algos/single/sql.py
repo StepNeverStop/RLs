@@ -51,6 +51,7 @@ class SQL(Off_Policy):
         self._all_params_dict.update(self.q_net._all_models)
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
         a, self.cell_state = self._get_action(obs, self.cell_state)
