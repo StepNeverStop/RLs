@@ -190,13 +190,13 @@ def main():
         elif trails > 1:
             processes = []
             for i in range(trails):
-                _env_args, _buffer_args, _train_args = map(deepcopy, [env_args, train_args])
+                _env_args, _train_args = map(deepcopy, [env_args, train_args])
                 _train_args.seed += i * 10
                 _train_args.name += f'/{i}'
                 _train_args.allow_print = True  # NOTE: set this could block other processes' print function
                 if _env_args.type == 'unity':
                     _env_args.worker_id = env_args.worker_id + i
-                p = Process(target=agent_run, args=(_env_args, _buffer_args, _train_args))
+                p = Process(target=agent_run, args=(_env_args, _train_args))
                 p.start()
                 time.sleep(10)
                 processes.append(p)
