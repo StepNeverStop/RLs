@@ -128,7 +128,8 @@ class BasicUnityEnvironment(object):
             self.behavior_agents[bn] = len(d)
             self.behavior_ids[bn] = d.agent_id_to_index
 
-            for i, shape in enumerate(spec.observation_shapes):
+            for i, observation_spec in enumerate(spec.observation_specs):
+                shape = observation_spec.shape
                 if len(shape) == 1:
                     self.vector_idxs[bn].append(i)
                     self.vector_dims[bn].append(shape[0])
