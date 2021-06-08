@@ -103,7 +103,7 @@ def gym_train(env, model,
 
 
 def gym_step_eval(env, model,
-                  step: int,
+                  train_step: int,
                   episodes_num: int,
                   max_step_per_episode: int) -> NoReturn:
     '''
@@ -131,7 +131,7 @@ def gym_step_eval(env, model,
         ave_steps += step
 
     model.writer_summary(
-        step,
+        train_step,
         eval_return=sum_ret / episodes_num,
         eval_ave_step=ave_steps // episodes_num,
     )
