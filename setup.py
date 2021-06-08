@@ -27,7 +27,7 @@ extras = {
         'ray'
     ],
     'unity': [
-        'mlagents-envs==0.25.0'
+        'mlagents-envs==0.26.0'
     ],
 
     'atari': [
@@ -101,6 +101,7 @@ setup(
         'pyyaml',
         'tqdm',
         'colored_traceback',
+        'pyglet==1.5.11',
         'gym>=0.15.0, <=0.15.3',
         'tensorflow>=2.0.0, <=2.3.1',
         'tensorflow_probability>=0.8.0, <=0.11.1'
