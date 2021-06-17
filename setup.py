@@ -27,7 +27,7 @@ extras = {
         'ray'
     ],
     'unity': [
-        'mlagents-envs==0.26.0'
+        'mlagents-envs==0.27.0'
     ],
 
     'atari': [
