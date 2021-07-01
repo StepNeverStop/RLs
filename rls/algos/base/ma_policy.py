@@ -19,14 +19,15 @@ from rls.utils.specs import (EnvGroupArgs,
                              VectorNetworkType,
                              VisualNetworkType,
                              MemoryNetworkType)
+from rls.utils.sundry_utils import check_or_create
 
 
 class MultiAgentPolicy(Base):
     def __init__(self, envspecs: List[EnvGroupArgs], **kwargs):
+        self.n_agents_percopy = len(envspecs)
         super().__init__(**kwargs)
 
         self.envspecs = envspecs
-        self.n_agents_percopy = len(envspecs)
         self.n_copys = envspecs[0].n_copys
 
         self.batch_size = int(kwargs.get('batch_size', 128))
@@ -46,7 +47,7 @@ class MultiAgentPolicy(Base):
         self.memory_net_kwargs = dict(kwargs.get('memory_net_kwargs', {}))
         self.memory_net_kwargs['network_type'] = MemoryNetworkType(self.memory_net_kwargs['network_type'])
 
-        self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.n_agents_percopy)]
+        self.writers = self.writer  # NOTE
 
     def init_lr(self, lr: float) -> Callable:
         if self.delay_lr:
@@ -93,7 +94,7 @@ class MultiAgentPolicy(Base):
         record the data used to show in the tensorboard
         """
         for i, summary in enumerate(summaries):
-            super().writer_summary(global_step, writer=self.writers[i], summaries=summary)
+            super().writer_summary(global_step, summaries=summary, writer=self.writers[i])
 
     def write_training_summaries(self,
                                  global_step: Union[int, tf.Variable],
@@ -103,4 +104,12 @@ class MultiAgentPolicy(Base):
         write tf summaries showing in tensorboard.
         '''
         for i, summary in enumerate(summaries):
-            super().write_training_summaries(global_step, writer=self.writers[i], summaries=summary)
+            super().write_training_summaries(global_step, summaries=summary, writer=self.writers[i])
+
+    def _create_writer(self, log_dir: str) -> List[tf.summary.SummaryWriter]:
+        if not self.no_save:
+            writers = []
+            for i in range(self.n_agents_percopy):
+                check_or_create(log_dir + f'_{i}', 'logs(summaries)')
+                writers.append(tf.summary.create_file_writer(log_dir + f'_{i}'))
+            return writers

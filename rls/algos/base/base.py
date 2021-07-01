@@ -147,8 +147,8 @@ class Base:
 
     def writer_summary(self,
                        global_step: Union[int, tf.Variable],
-                       writer: Optional[tf.summary.SummaryWriter] = None,
-                       summaries: Dict = {}) -> NoReturn:
+                       summaries: Dict = {},
+                       writer: Optional[tf.summary.SummaryWriter] = None) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """

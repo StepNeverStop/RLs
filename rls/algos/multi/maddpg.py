@@ -202,8 +202,11 @@ class MADDPG(MultiAgentOffPolicy):
                         self.actor_nets[i].trainable_variables)
                 )
                 summaries.append(dict([
-                    [f'LOSS/actor_loss_{i}', actor_loss],
-                    [f'LOSS/critic_loss_{i}', q_loss]
+                    ['LOSS/actor_loss', actor_loss],
+                    ['LOSS/critic_loss', q_loss],
+                    ['Statistics/q_min', tf.reduce_min(q)],
+                    ['Statistics/q_mean', tf.reduce_mean(q)],
+                    ['Statistics/q_max', tf.reduce_max(q)]
                 ]))
-
+        self.global_step.assign_add(1)
         return summaries

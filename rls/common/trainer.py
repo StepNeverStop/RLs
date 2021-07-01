@@ -107,7 +107,10 @@ class Trainer:
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
         if not self.train_args['inference'] and not self.train_args['no_save']:
-            self.algo_args['envspec'] = str(self.algo_args['envspec'])
+            if self.multi_agents_training:  # TODO: Optimization
+                self.algo_args['envspecs'] = str(self.algo_args['envspecs'])
+            else:
+                self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
                 'train': self.train_args.to_dict,
