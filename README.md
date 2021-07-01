@@ -162,13 +162,14 @@ For now, these algorithms are available:
 |               SAC               |    √     |     √      |   √   |  √   |        sac        |
 |               TAC               |   sac    |     √      |   √   |  √   |        tac        |
 |             MaxSQN              |    √     |            |   √   |  √   |      maxsqn       |
-|             MADDPG              |          |     √      |       |  √   |      maddpg       |
 |               OC                |    √     |     √      |   √   |  √   |        oc         |
 |               AOC               |    √     |     √      |   √   |  √   |        aoc        |
 |              PPOC               |    √     |     √      |   √   |  √   |       ppoc        |
 |               IOC               |    √     |     √      |   √   |  √   |        ioc        |
 |              HIRO               |    √     |     √      |       |      |       hiro        |
 |              CURL               |    √     |     √      |   √   |      |       curl        |
+|             MADDPG              |    √     |     √      |   √   |      |      maddpg       |
+|               VDN               |    √     |            |   √   |      |        vdn        |
 
 ## Getting started
 
