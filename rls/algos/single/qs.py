@@ -29,7 +29,7 @@ class QS:
         self.mode = mode
         self.concat_vector_dim = envspec.obs_spec.total_vector_dim
         self.a_dim = envspec.a_dim
-        self.n_agents = envspec.n_agents
+        self.n_agents = envspec.n_copys
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.step = 0

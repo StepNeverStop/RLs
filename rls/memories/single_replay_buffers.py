@@ -5,7 +5,6 @@ import sys
 import numpy as np
 import tensorflow as tf
 
-from abc import ABC, abstractmethod
 from typing import (Any,
                     NoReturn,
                     Union,
@@ -14,37 +13,10 @@ from typing import (Any,
                     Optional)
 
 from rls.memories.sum_tree import Sum_Tree
+from rls.memories.base_replay_buffer import ReplayBuffer
 from rls.utils.specs import (BatchExperiences,
                              NamedTupleStaticClass)
 from rls.utils.hdf5_utils import *
-
-
-class ReplayBuffer(ABC):
-    def __init__(self,
-                 batch_size: int,
-                 capacity: int):
-        assert isinstance(batch_size, int) and batch_size >= 0, 'batch_size must be int and larger than 0'
-        assert isinstance(capacity, int) and capacity >= 0, 'capacity must be int and larger than 0'
-        self.batch_size = batch_size
-        self.capacity = capacity
-        self._size = 0
-
-    def reset(self):
-        self._size = 0
-
-    @abstractmethod
-    def sample(self) -> Any:
-        pass
-
-    @abstractmethod
-    def add(self, exps: BatchExperiences) -> Any:
-        pass
-
-    def is_empty(self) -> bool:
-        return self._size == 0
-
-    def update(self, *args) -> Any:
-        pass
 
 
 class ExperienceReplay(ReplayBuffer):
@@ -237,15 +209,15 @@ class NStepWrapper:
     def __init__(self,
                  buffer: ReplayBuffer,
                  gamma: float,
-                 n: int,
+                 n_step: int,
                  agents_num: int):
         '''
         gamma: discount factor
-        n: n step
+        n_step: N time steps
         agents_num: batch experience
         '''
         self.buffer = buffer
-        self.n = n
+        self.n_step = n_step
         self.gamma = gamma
         self.agents_num = agents_num
         self.queue = [[] for _ in range(agents_num)]
@@ -261,7 +233,7 @@ class NStepWrapper:
             q.append(data)
             return
 
-        if len(q) == self.n:
+        if len(q) == self.n_step:
             self._store_op(q.pop(0))
         if not NamedTupleStaticClass.check_equal(q[-1].obs_, data.obs):    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             q.clear()   # 保证经验池中不存在不足N长度的序列，有done的除外，因为（1-done）为0，导致gamma的次方计算不准确也没有关系。
@@ -290,11 +262,11 @@ class NStepExperienceReplay(NStepWrapper):
                  batch_size: int,
                  capacity: int,
                  gamma: float,
-                 n: int,
+                 n_step: int,
                  agents_num: int):
         super().__init__(
             buffer=ExperienceReplay(batch_size, capacity),
-            gamma=gamma, n=n, agents_num=agents_num
+            gamma=gamma, n_step=n_step, agents_num=agents_num
         )
 
 
@@ -312,11 +284,11 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
                  epsilon: float,
                  global_v: bool,
                  gamma: float,
-                 n: int,
+                 n_step: int,
                  agents_num: int):
         super().__init__(
             buffer=PrioritizedExperienceReplay(batch_size, capacity, max_train_step, alpha, beta, epsilon, global_v),
-            gamma=gamma, n=n, agents_num=agents_num
+            gamma=gamma, n_step=n_step, agents_num=agents_num
         )
 
 

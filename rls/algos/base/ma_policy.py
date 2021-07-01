@@ -15,32 +15,38 @@ from typing import (List,
 
 from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
-from rls.utils.list_utils import count_repeats
-from rls.utils.specs import MultiAgentEnvArgs
+from rls.utils.specs import (EnvGroupArgs,
+                             VectorNetworkType,
+                             VisualNetworkType,
+                             MemoryNetworkType)
 
 
 class MultiAgentPolicy(Base):
-    def __init__(self, envspec: MultiAgentEnvArgs, **kwargs):
+    def __init__(self, envspecs: List[EnvGroupArgs], **kwargs):
         super().__init__(**kwargs)
-        self.behavior_controls = envspec.behavior_controls
-        self.s_dim = count_repeats(envspec.s_dim, self.behavior_controls)
-        self.visual_sources = count_repeats(envspec.visual_sources, self.behavior_controls)    # not use yet
-        # self.visual_resolutions = envspec.visual_resolutions
-        self.a_dim = count_repeats(envspec.a_dim, self.behavior_controls)
-        self.is_continuous = count_repeats(envspec.is_continuous, self.behavior_controls)
-        self.n_agents = envspec.n_agents
-        if not self.n_agents:
-            raise ValueError('agents num is None.')
+
+        self.envspecs = envspecs
+        self.n_agents_percopy = len(envspecs)
+        self.n_copys = envspecs[0].n_copys
 
         self.batch_size = int(kwargs.get('batch_size', 128))
-
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.train_step = 0
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
-        self.agent_sep_ctls = sum(self.behavior_controls)
-        self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.agent_sep_ctls)]
+        self.vector_net_kwargs = dict(kwargs.get('vector_net_kwargs', {}))
+        self.vector_net_kwargs['network_type'] = VectorNetworkType(self.vector_net_kwargs['network_type'])
+
+        self.visual_net_kwargs = dict(kwargs.get('visual_net_kwargs', {}))
+        self.visual_net_kwargs['network_type'] = VisualNetworkType(self.visual_net_kwargs['network_type'])
+
+        self.encoder_net_kwargs = dict(kwargs.get('encoder_net_kwargs', {}))
+
+        self.memory_net_kwargs = dict(kwargs.get('memory_net_kwargs', {}))
+        self.memory_net_kwargs['network_type'] = MemoryNetworkType(self.memory_net_kwargs['network_type'])
+
+        self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.n_agents_percopy)]
 
     def init_lr(self, lr: float) -> Callable:
         if self.delay_lr:
@@ -82,14 +88,19 @@ class MultiAgentPolicy(Base):
         '''
         raise NotImplementedError
 
-    def set_buffer(self, buffer) -> Any:
-        '''
-        TODO: Annotation
-        '''
-        pass
-
-    def writer_summary(self, global_step: Union[int, tf.Variable], agent_idx: int = 0, **kargs) -> NoReturn:
+    def writer_summary(self, global_step: Union[int, tf.Variable], summaries) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """
-        super().writer_summary(global_step, writer=self.writers[agent_idx], **kargs)
+        for i, summary in enumerate(summaries):
+            super().writer_summary(global_step, writer=self.writers[i], summaries=summary)
+
+    def write_training_summaries(self,
+                                 global_step: Union[int, tf.Variable],
+                                 summaries: Dict,
+                                 writer: Optional[tf.summary.SummaryWriter] = None) -> NoReturn:
+        '''
+        write tf summaries showing in tensorboard.
+        '''
+        for i, summary in enumerate(summaries):
+            super().write_training_summaries(global_step, writer=self.writers[i], summaries=summary)

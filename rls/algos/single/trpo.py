@@ -56,7 +56,6 @@ class TRPO(On_Policy):
                  backtrack_coeff=0.8,
                  epsilon=0.2,
                  critic_lr=1e-3,
-                 condition_sigma: bool = False,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -80,7 +79,6 @@ class TRPO(On_Policy):
                 representation_net=self._representation_net,
                 policy_net_type=OutputNetworkType.ACTOR_MU_LOGSTD,
                 policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       condition_sigma=condition_sigma,
                                        network_settings=network_settings['actor_continuous']),
                 value_net_type=OutputNetworkType.CRITIC_VALUE,
                 value_net_kwargs=dict(network_settings=network_settings['critic'])

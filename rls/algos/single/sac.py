@@ -115,6 +115,7 @@ class SAC(Off_Policy):
                                      optimizer_critic=self.optimizer_critic,
                                      optimizer_alpha=self.optimizer_alpha)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
         mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
@@ -132,7 +133,7 @@ class SAC(Off_Policy):
             else:
                 logits = self.actor_net.value_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
@@ -188,7 +189,7 @@ class SAC(Off_Policy):
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
 
                     target_logits = self.actor_net.value_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)

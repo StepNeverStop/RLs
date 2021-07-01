@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import importlib
 import numpy as np
 import tensorflow as tf
 
@@ -12,6 +13,7 @@ from typing import (Dict,
 
 from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
+from rls.common.yaml_ops import load_yaml
 from rls.utils.specs import (MemoryNetworkType,
                              BatchExperiences,
                              ModelObservations,
@@ -23,18 +25,54 @@ class Off_Policy(Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
         self.use_priority = kwargs.get('use_priority', False)
-        self.n_step = kwargs.get('n_step', False)
+        self.n_step = int(kwargs.get('n_step', 1))
+        self.gamma = self.gamma ** self.n_step
         self.use_isw = bool(kwargs.get('use_isw', False))
         self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
 
-        self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 20))
+        self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 10))
+        self.train_time_step = int(kwargs.get('train_time_step', 10))
         self.episode_batch_size = int(kwargs.get('episode_batch_size', 32))
+        self.episode_buffer_size = int(kwargs.get('episode_buffer_size', 10000))
 
-    def set_buffer(self, buffer) -> NoReturn:
+    def initialize_data_buffer(self) -> NoReturn:
         '''
         TODO: Annotation
         '''
-        self.data = buffer
+        _buffer_args = {}
+        if self.use_rnn:
+            _type = 'EpisodeExperienceReplay'
+            _buffer_args.update(
+                batch_size=self.episode_batch_size,
+                capacity=self.episode_buffer_size,
+                burn_in_time_step=self.burn_in_time_step,
+                train_time_step=self.train_time_step,
+                agents_num=self.n_agents
+            )
+        else:
+            _type = 'ExperienceReplay'
+            _buffer_args.update(
+                batch_size=self.batch_size,
+                capacity=self.buffer_size
+            )
+            if self.use_priority:
+                _type = 'Prioritized' + _type
+                _buffer_args.update(
+                    max_train_step=self.max_train_step
+                )
+            if self.n_step > 1:
+                _type = 'NStep' + _type
+                _buffer_args.update(
+                    n_step=self.n_step,
+                    gamma=self.gamma,
+                    agents_num=self.n_agents
+                )
+
+        default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
+        default_buffer_args.update(_buffer_args)
+
+        Buffer = getattr(importlib.import_module(f'rls.memories.single_replay_buffers'), _type)
+        self.data = Buffer(**default_buffer_args)
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         """
@@ -79,7 +117,7 @@ class Off_Policy(Policy):
         '''
         return None
 
-    def _learn(self, function_dict: Dict) -> NoReturn:
+    def _learn(self, function_dict: Dict = {}) -> NoReturn:
         '''
         TODO: Annotation
         '''

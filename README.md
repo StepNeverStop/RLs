@@ -13,7 +13,7 @@
 <p><strong>RLs:</strong> Reinforcement Learning Algorithm Based On TensorFlow 2.x.</p> 
 </div>
 
-This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_12) Release 12 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
+This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_18) Release 18 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
 
 ![](./pics/framework.jpg)
 
@@ -261,12 +261,12 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 5. multi-agents algorithms doesn't support visual input and PER for now
 6. **need 3 steps to implement a new algorithm**
     1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy`, `Off_Policy` or other super-class defined in `rls/algos/base`
-    2. write default configuration in `rls/algos/config.yaml`
+    2. write default configuration in `rls/configs/algorithms.yaml`
     3. register new algorithm at dictionary *algos* in `rls/algos/__init__.py`, make sure the class name matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [rls/algos/config.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/algos/config.yaml)
+7. set algorithms' hyper-parameters in [rls/configs/algorithms.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/configs/algorithms.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now. behavior name in training scene should be set like `{agents control nums of this group per environment copy}#{bahevior_name}`, i.e. `2#3DBallAgents` means one group/team controls two same agents in one environment copy.
+10. MADDPG is only suitable for Unity3D ML-Agents for now.
 
 ## Ongoing things
 

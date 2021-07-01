@@ -2,13 +2,16 @@
 # encoding: utf-8
 
 import tensorflow as tf
+from tensorflow.keras.layers import Activation
+from tensorflow.keras.utils import get_custom_objects
 
 # from rls.utils.specs import DefaultActivationFuncType
 
+class Mish(Activation):
 
-def swish(x):
-    """Swish activation function. For more info: https://arxiv.org/abs/1710.05941"""
-    return tf.multiply(x, tf.nn.sigmoid(x))
+    def __init__(self, activation, **kwargs):
+        super().__init__(activation, **kwargs)
+        self.__name__ = 'mish'
 
 
 def mish(x):
@@ -18,5 +21,9 @@ def mish(x):
     """
     return tf.multiply(x, tf.nn.tanh(tf.nn.softplus(x)))
 
+get_custom_objects().update({
+    'mish': Mish(mish)
+    })
 
-default_activation = swish  # 'tanh', 'relu', swish, mish
+
+default_activation = 'swish'  # 'tanh', 'relu', 'swish', 'mish'

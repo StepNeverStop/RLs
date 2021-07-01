@@ -15,7 +15,7 @@ from rls.utils.display import colorize
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.specs import (ObsSpec,
-                             SingleAgentEnvArgs,
+                             EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,
                              GymVectorizedType,
@@ -109,7 +109,7 @@ class gym_envs(object):
                                                                               name='vector')
         self.visual_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
                                                                               item_nums=1 if self.obs_type == 'visual' else 0,
-                                                                              name='vector')
+                                                                              name='visual')
 
         # process action
         ActSpace = env.action_space
@@ -133,13 +133,14 @@ class gym_envs(object):
             self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
 
         self.reward_threshold = env.env.spec.reward_threshold  # reward threshold refer to solved
-        self.EnvSpec = SingleAgentEnvArgs(
+        self.GroupSpec = EnvGroupArgs(
             obs_spec=ObsSpec(vector_dims=self.vector_dims,
                              visual_dims=self.visual_dims),
             a_dim=self.a_dim,
             is_continuous=self._is_continuous,
-            n_agents=self.n
+            n_copys=self.n
         )
+        self.GroupsSpec = [self.GroupSpec]
 
     @property
     def is_continuous(self):

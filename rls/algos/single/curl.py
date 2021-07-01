@@ -183,6 +183,7 @@ class CURL(Off_Policy):
                                      optimizer_alpha=self.optimizer_alpha,
                                      optimizer_curl=self.optimizer_curl)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
         visual = center_crop_image(obs.first_visual()[:, 0], self.img_size)
@@ -201,7 +202,7 @@ class CURL(Off_Policy):
             else:
                 logits = self.actor_net.value_net(feat)
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi
 
@@ -256,7 +257,7 @@ class CURL(Off_Policy):
                     target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
                 else:
                     target_logits = self.actor_net.value_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
@@ -314,7 +315,7 @@ class CURL(Off_Policy):
                         log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
                     else:
                         logits = self.actor_net.value_net(feat)
-                        norm_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                        norm_dist = tfp.distributions.Categorical(logits=logits)
                         log_pi = norm_dist.log_prob(cate_dist.sample())
                     alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
                 alpha_grad = tape.gradient(alpha_loss, self.log_alpha)

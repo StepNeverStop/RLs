@@ -10,8 +10,7 @@ from typing import (Tuple,
                     Callable,
                     NoReturn)
 
-from rls.utils.np_utils import (SMA,
-                                arrprint)
+from rls.common.recoder import SimpleMovingAverageRecoder
 from rls.utils.specs import BatchExperiences
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
@@ -44,20 +43,16 @@ def gym_train(env, model,
     TODO: Annotation
     """
 
-    sma = SMA(moving_average_episode)
+    recoder = SimpleMovingAverageRecoder(n_agents=env.n, gamma=0.99, verbose=True,
+                                         length=moving_average_episode)
     frame_step = begin_frame_step
     train_step = begin_train_step
-    total_step = 0
 
     for episode in range(begin_episode, max_train_episode):
         model.reset()
         obs = env.reset()
-        dones_flag = np.zeros(env.n)
-        step = 0
-        returns = np.zeros(env.n)
-        last_done_step = -1
-        while True:
-            step += 1
+        recoder.episode_reset(episode=episode)
+        for _ in range(max_step_per_episode):
             if render or episode > render_episode:
                 env.render(record=False)
             action = model.choose_action(obs=obs)
@@ -68,12 +63,11 @@ def gym_train(env, model,
                                               obs_=ret.obs,
                                               done=ret.done[:, np.newaxis]))
             model.partial_reset(ret.done)
-            returns += (1 - dones_flag) * ret.reward
-            dones_flag = np.sign(dones_flag + ret.done)
+            recoder.step_update(rewards=ret.reward, dones=ret.done)
             obs = ret.corrected_obs
 
             if policy_mode == 'off-policy':
-                if total_step % off_policy_train_interval == 0:
+                if recoder.total_step % off_policy_train_interval == 0:
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
                 if train_step % save_frequency == 0:
@@ -82,48 +76,34 @@ def gym_train(env, model,
                     gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, max_step_per_episode)
 
             frame_step += env.n
-            total_step += 1
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
-            if all(dones_flag):
-                if last_done_step == -1:
-                    last_done_step = step
-                if policy_mode == 'off-policy':
-                    break
-
-            if step >= max_step_per_episode:
+            if recoder.is_all_done and policy_mode == 'off-policy':
                 break
 
-        sma.update(returns)
+        recoder.episode_end()
         if policy_mode == 'on-policy':
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(
-            episode,
-            reward_mean=returns.mean(),
-            reward_min=returns.min(),
-            reward_max=returns.max(),
-            step=last_done_step,
-            **sma.rs
-        )
-        print_func(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(returns, 2)}', out_time=True)
+        model.writer_summary(episode, recoder.summary_dict)
+        print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
             gym_no_op(env, model, pre_fill_steps=add_noise2buffer_steps, prefill_choose=False, desc='adding noise')
 
         if eval_while_train and env.reward_threshold is not None:
-            if returns.max() >= env.reward_threshold:
+            if recoder.total_returns.max() >= env.reward_threshold:
                 print_func(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
                 gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
 
 
 def gym_step_eval(env, model,
-                  step: int,
+                  train_step: int,
                   episodes_num: int,
                   max_step_per_episode: int) -> NoReturn:
     '''
@@ -138,22 +118,24 @@ def gym_step_eval(env, model,
         obs = env.reset()
         returns = 0.
         step = 0
-        while True:
+        for _ in range(max_step_per_episode):
             action = model.choose_action(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += ret.reward[0]
             step += 1
-            if ret.done[0] or step > max_step_per_episode:
-                sum_ret += returns
-                ave_steps += step
+            if ret.done[0]:
                 break
             obs = ret.corrected_obs
+        sum_ret += returns
+        ave_steps += step
 
     model.writer_summary(
-        step,
-        eval_return=sum_ret / episodes_num,
-        eval_ave_step=ave_steps // episodes_num,
+        train_step,
+        dict(
+            eval_return=sum_ret / episodes_num,
+            eval_ave_step=ave_steps // episodes_num
+        )
     )
     model.set_cell_state(cs)
     del env
@@ -172,14 +154,14 @@ def gym_evaluate(env, model,
         dones_flag = np.zeros(env.n)
         steps = np.zeros(env.n)
         returns = np.zeros(env.n)
-        while True:
+        for _ in range(max_step_per_episode):
             action = model.choose_action(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += (1 - dones_flag) * ret.reward
             steps += (1 - dones_flag)
             dones_flag = np.sign(dones_flag + ret.done)
-            if all(dones_flag) or any(steps >= max_step_per_episode):
+            if all(dones_flag):
                 break
             obs = ret.corrected_obs
         total_r += returns

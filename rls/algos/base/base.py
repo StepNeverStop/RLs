@@ -148,7 +148,7 @@ class Base:
     def writer_summary(self,
                        global_step: Union[int, tf.Variable],
                        writer: Optional[tf.summary.SummaryWriter] = None,
-                       **kargs) -> NoReturn:
+                       summaries: Dict = {}) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """
@@ -156,13 +156,13 @@ class Base:
             writer = writer or self.writer
             writer.set_as_default()
             tf.summary.experimental.set_step(global_step)
-            for i in [{'tag': 'AGENT/' + key, 'value': kargs[key]} for key in kargs]:
-                tf.summary.scalar(i['tag'], i['value'])
+            for k, v in summaries.items():
+                tf.summary.scalar('AGENT/' + k, v)
             writer.flush()
 
     def write_training_summaries(self,
                                  global_step: Union[int, tf.Variable],
-                                 summaries: Dict,
+                                 summaries: Dict = {},
                                  writer: Optional[tf.summary.SummaryWriter] = None) -> NoReturn:
         '''
         write tf summaries showing in tensorboard.

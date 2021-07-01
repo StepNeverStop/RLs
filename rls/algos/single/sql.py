@@ -51,6 +51,7 @@ class SQL(Off_Policy):
         self._all_params_dict.update(self.q_net._all_models)
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
         a, self.cell_state = self._get_action(obs, self.cell_state)
@@ -63,7 +64,7 @@ class SQL(Off_Policy):
             q_values, cell_state = self.q_net(obs, cell_state=cell_state)
             logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
             logits /= tf.reduce_sum(logits)
-            cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+            cate_dist = tfp.distributions.Categorical(logits=logits)
             pi = cate_dist.sample()
         return pi, cell_state
 

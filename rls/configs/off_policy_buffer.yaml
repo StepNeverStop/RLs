@@ -1,0 +1,24 @@
+ExperienceReplay: {}
+
+PrioritizedExperienceReplay:
+  alpha: 0.6 # priority
+  beta: 0.4 # importance sampling ratio
+  epsilon: 0.01
+  global_v: false
+
+NStepExperienceReplay:
+  n_step: 4
+
+NStepPrioritizedExperienceReplay:
+  alpha: 0.6
+  beta: 0.4
+  epsilon: 0.01
+  global_v: false
+  n_step: 4
+
+# off-policy with rnn
+EpisodeExperienceReplay:
+  burn_in_time_step: 20
+  train_time_step: 40 # null
+
+MultiAgentExperienceReplay: {}

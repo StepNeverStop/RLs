@@ -60,6 +60,7 @@ class DQN(Off_Policy):
         self._all_params_dict.update(self.q_net._all_models)
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation: bool = False) -> np.ndarray:
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
@@ -108,21 +109,21 @@ class DQN(Off_Policy):
                 ['Statistics/q_mean', tf.reduce_mean(q_eval)]
             ])
 
-    @tf.function
-    def _cal_td(self, BATCH, cell_state):
-        with tf.device(self.device):
-            q = self.q_net(BATCH.obs, cell_state=cell_state)
-            q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)
-            q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
-            q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
-            td_error = q_target - q_eval
-        return td_error
+    # @tf.function
+    # def _cal_td(self, BATCH, cell_state):
+    #     with tf.device(self.device):
+    #         q = self.q_net(BATCH.obs, cell_state=cell_state)
+    #         q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+    #         q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
+    #         q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
+    #         td_error = q_target - q_eval
+    #     return td_error
 
-    def apex_learn(self, train_step, data, priorities):
-        self.train_step = train_step
-        return self._apex_learn(function_dict={
-            'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
-        }, data=data, priorities=priorities)
+    # def apex_learn(self, train_step, data, priorities):
+    #     self.train_step = train_step
+    #     return self._apex_learn(function_dict={
+    #         'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+    #     }, data=data, priorities=priorities)
 
-    def apex_cal_td(self, data):
-        return self._apex_cal_td(data=data)
+    # def apex_cal_td(self, data):
+    #     return self._apex_cal_td(data=data)

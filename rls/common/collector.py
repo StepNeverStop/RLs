@@ -53,11 +53,13 @@ class GymCollector(object):
             sma.update(rets)
             model.writer_summary(
                 episode,
-                reward_mean=rets.mean(),
-                reward_min=rets.min(),
-                reward_max=rets.max(),
-                step=last_done_step,
-                **sma.rs
+                dict(
+                    reward_mean=rets.mean(),
+                    reward_min=rets.min(),
+                    reward_max=rets.max(),
+                    step=last_done_step,
+                    **sma.rs
+                )
             )
             print(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
             time.sleep(5)

@@ -75,6 +75,7 @@ class RAINBOW(Off_Policy):
         self._all_params_dict.update(self.rainbow_net._all_models)
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):

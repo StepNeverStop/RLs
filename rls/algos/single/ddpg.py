@@ -38,7 +38,6 @@ class DDPG(Off_Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
-        self.noise_type = noise_type
         self.use_target_action_noise = use_target_action_noise
         self.gaussian_noise_sigma = gaussian_noise_sigma
         self.gaussian_noise_bound = gaussian_noise_bound
@@ -55,12 +54,12 @@ class DDPG(Off_Policy):
                                       network_settings=network_settings['q'])
             )
             self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
-            if self.noise_type == 'ou':
+            if noise_type == 'ou':
                 self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
-            elif self.noise_type == 'gaussian':
+            elif noise_type == 'gaussian':
                 self.noised_action = self.target_noised_action
             else:
-                raise Exception(f'cannot use noised action type of {self.noise_type}')
+                raise Exception(f'cannot use noised action type of {noise_type}')
         else:
             def _create_net(name, representation_net=None): return ACNetwork(
                 name=name,
@@ -87,6 +86,7 @@ class DDPG(Off_Policy):
         self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
                                      optimizer_critic=self.optimizer_critic)
         self._model_post_process()
+        self.initialize_data_buffer()
 
     def reset(self):
         super().reset()
@@ -108,7 +108,7 @@ class DDPG(Off_Policy):
             else:
                 logits = output
                 mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(logits))
+                cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
             return mu, pi, cell_state
 
@@ -139,7 +139,7 @@ class DDPG(Off_Policy):
                     mu = self.ac_net.policy_net(feat)
                 else:
                     target_logits = self.ac_target_net.policy_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=tf.nn.log_softmax(target_logits))
+                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
                     target_pi = target_cate_dist.sample()
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)

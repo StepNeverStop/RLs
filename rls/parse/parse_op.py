@@ -91,5 +91,4 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
         import socket
         train_args.name += ('-' + str(socket.gethostname()))
 
-    buffer_args = Config(**default_config['buffer'])
-    return env_args, buffer_args, train_args
+    return env_args, train_args
