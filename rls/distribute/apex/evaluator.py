@@ -64,11 +64,13 @@ class EvalProc(object):
             sma.update(rets)
             self.model.writer_summary(
                 episode,
-                reward_mean=rets.mean(),
-                reward_min=rets.min(),
-                reward_max=rets.max(),
-                step=last_done_step,
-                **sma.rs
+                dict(
+                    reward_mean=rets.mean(),
+                    reward_min=rets.min(),
+                    reward_max=rets.max(),
+                    step=last_done_step,
+                    **sma.rs
+                )
             )
             logger.info(f'Eps: {episode:3d} | S: {step:4d} | LDS {last_done_step:4d} | R: {arrprint(rets, 2)}')
             time.sleep(self.episode_sleep)

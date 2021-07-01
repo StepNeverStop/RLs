@@ -71,7 +71,7 @@ class Off_Policy(Policy):
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
         default_buffer_args.update(_buffer_args)
 
-        Buffer = getattr(importlib.import_module(f'rls.memories.replay_buffer'), _type)
+        Buffer = getattr(importlib.import_module(f'rls.memories.single_replay_buffers'), _type)
         self.data = Buffer(**default_buffer_args)
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
@@ -117,7 +117,7 @@ class Off_Policy(Policy):
         '''
         return None
 
-    def _learn(self, function_dict: Dict) -> NoReturn:
+    def _learn(self, function_dict: Dict = {}) -> NoReturn:
         '''
         TODO: Annotation
         '''

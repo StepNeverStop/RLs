@@ -3,6 +3,7 @@
 import numpy as np
 import tensorflow as tf
 
+from typing import List
 from copy import deepcopy
 from abc import ABC, abstractmethod
 from tensorflow.keras import Model as M
@@ -168,6 +169,74 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
         models.update({self.name + '/' + 'visual_net': self.visual_net})
         models.update({self.name + '/' + 'encoder_net': self.encoder_net})
         models.update({self.name + '/' + 'memory_net': self.memory_net})
+        return models
+
+
+class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
+    '''
+      visual -> visual_net -> feat ↘
+                                     feat -> encoder_net -> feat ↘                ↗ feat
+      vector -> vector_net -> feat ↗                             -> memory_net ->
+                                                      cell_state ↗                ↘ cell_state
+    '''
+
+    def __init__(self,
+                 obs_spec_list: List[ObsSpec],
+                 name: str = 'test',
+                 vector_net_kwargs: dict = {},
+                 visual_net_kwargs: dict = {},
+                 encoder_net_kwargs: dict = {},
+                 memory_net_kwargs: dict = {}):
+        super().__init__(name)
+
+        self.obs_spec_list = obs_spec_list
+        self.representation_nets = []
+        for i, obs_spec in enumerate(self.obs_spec_list):
+            self.representation_nets.append(
+                DefaultRepresentationNetwork(obs_spec=obs_spec,
+                                             name=name+f'_{i}',
+                                             vector_net_kwargs=vector_net_kwargs,
+                                             visual_net_kwargs=visual_net_kwargs,
+                                             encoder_net_kwargs=encoder_net_kwargs,
+                                             memory_net_kwargs=memory_net_kwargs)
+            )
+        self.h_dim = sum([rep_net.h_dim for rep_net in self.representation_nets])
+
+    @tf.function
+    def __call__(self, obss, cell_state):
+        # TODO: cell_state
+        output = []
+        for obs, rep_net in zip(obss, self.representation_nets):
+            output.append(rep_net(obs, cell_state=cell_state)[0])
+        feats = tf.concat(output, axis=-1)
+        return feats, cell_state
+
+    @property
+    def trainable_variables(self):
+        tv = []
+        for rep_net in self.representation_nets:
+            tv += rep_net.trainable_variables
+        return tv
+
+    @property
+    def weights(self):
+        ws = []
+        for rep_net in self.representation_nets:
+            ws += rep_net.weights
+        return ws
+
+    @property
+    def _policy_models(self):
+        models = {}
+        for rep_net in self.representation_nets:
+            models.update(rep_net._policy_models)
+        return models
+
+    @property
+    def _all_models(self):
+        models = {}
+        for rep_net in self.representation_nets:
+            models.update(rep_net._all_models)
         return models
 
 

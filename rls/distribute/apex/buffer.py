@@ -13,7 +13,7 @@ from rls.distribute.utils.apex_utils import (proto2numpy,
                                              exps_and_prios2proto,
                                              proto2exps_and_tderror)
 from rls.distribute.utils.check import check_port_in_use
-from rls.memories.replay_buffer import PrioritizedExperienceReplay
+from rls.memories.single_replay_buffers import PrioritizedExperienceReplay
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)

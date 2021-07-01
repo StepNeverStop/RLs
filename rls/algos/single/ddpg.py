@@ -38,7 +38,6 @@ class DDPG(Off_Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
-        self.noise_type = noise_type
         self.use_target_action_noise = use_target_action_noise
         self.gaussian_noise_sigma = gaussian_noise_sigma
         self.gaussian_noise_bound = gaussian_noise_bound
@@ -55,12 +54,12 @@ class DDPG(Off_Policy):
                                       network_settings=network_settings['q'])
             )
             self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
-            if self.noise_type == 'ou':
+            if noise_type == 'ou':
                 self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
-            elif self.noise_type == 'gaussian':
+            elif noise_type == 'gaussian':
                 self.noised_action = self.target_noised_action
             else:
-                raise Exception(f'cannot use noised action type of {self.noise_type}')
+                raise Exception(f'cannot use noised action type of {noise_type}')
         else:
             def _create_net(name, representation_net=None): return ACNetwork(
                 name=name,

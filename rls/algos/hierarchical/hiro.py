@@ -10,7 +10,7 @@ from tensorflow_probability import distributions as tfd
 
 from rls.nn.noise import ClippedNormalNoisedAction
 from rls.algos.base.off_policy import Off_Policy
-from rls.memories.replay_buffer import ExperienceReplay
+from rls.memories.single_replay_buffers import ExperienceReplay
 from rls.utils.np_utils import int2one_hot
 from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ADoubleCNetwork

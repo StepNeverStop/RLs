@@ -90,7 +90,7 @@ def gym_train(env, model,
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(episode, **recoder.summary_dict)
+        model.writer_summary(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
@@ -132,8 +132,10 @@ def gym_step_eval(env, model,
 
     model.writer_summary(
         train_step,
-        eval_return=sum_ret / episodes_num,
-        eval_ave_step=ave_steps // episodes_num,
+        dict(
+            eval_return=sum_ret / episodes_num,
+            eval_ave_step=ave_steps // episodes_num
+        )
     )
     model.set_cell_state(cs)
     del env

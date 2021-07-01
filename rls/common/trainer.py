@@ -86,15 +86,16 @@ class Trainer:
         if self.train_args['policy_mode'] == 'on-policy':
             self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
 
-        if self.env_args['type'] == 'unity':
-            self.initialize_unity()
-
         self.initialize()
         self.start_time = time.time()
 
     def initialize(self):
+        if self.multi_agents_training:  # TODO: Optimization
+            self.algo_args.update({'envspecs': self.env.GroupsSpec})
+        else:
+            self.algo_args.update({'envspec': self.env.GroupSpec})
+
         self.algo_args.update({
-            'envspec': self.env.EnvSpec,
             'max_train_step': self.train_args.max_train_step,
             'base_dir': self.train_args.base_dir
         })
@@ -113,13 +114,6 @@ class Trainer:
                 'algo': self.algo_args
             }
             save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
-
-    def initialize_unity(self):
-        assert not self.multi_agents_training and not self.env.is_multi_agents, 'MA algorithms is under reconstruction.'
-        # single agent with unity
-        self.train_args.base_dir = os.path.join(self.train_args.base_dir, self.env.first_fbn)
-        if self.train_args.load_model_path is not None:
-            self.train_args.load_model_path = os.path.join(self.train_args.load_model_path, self.env.first_fbn)
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self._allow_print:

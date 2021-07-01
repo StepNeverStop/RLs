@@ -28,30 +28,22 @@ class ObsSpec(NamedTuple):
     def has_visual_observation(self):
         return len(self.visual_dims) > 0
 
+    @staticmethod
+    def construct_same_concat(obs_spec, n: int):
+        # TODO: 优化，检查所有维度是否匹配
+        return ObsSpec(
+            vector_dims=[vec_dim * n for vec_dim in obs_spec.vector_dims],
+            visual_dims=[[vis_dim[0], vis_dim[1], vis_dim[-1] * n] if len(vis_dim) == 3 else [] for vis_dim in obs_spec.visual_dims],
+        )
 
-SingleAgentEnvArgs = NamedTuple('SingleAgentEnvArgs',
-                                [
-                                    ('obs_spec', ObsSpec),
-                                    ('a_dim', int),
-                                    ('is_continuous', bool),
-                                    ('n_agents', int)
-                                ])
 
-MultiAgentEnvArgs = NamedTuple('SingleAgentEnvArgs',
-                               [
-                                   ('obs_spec', List[ObsSpec]),
-                                   ('a_dim', List[int]),
-                                   ('is_continuous', List[bool]),
-                                   ('n_agents', List[int]),
-                                   ('behavior_controls', List[int])
-                               ])
-
-# UnitySingleBehaviorInfo = namedtuple('UnitySingleBehaviorInfo',
-#                                      [
-#                                          'behavior_name',
-#                                          'n_agents_control',
-#                                          'is_continuous'
-#                                      ])
+EnvGroupArgs = NamedTuple('EnvGroupArgs',
+                          [
+                              ('obs_spec', ObsSpec),
+                              ('a_dim', int),
+                              ('is_continuous', bool),
+                              ('n_copys', int)
+                          ])
 
 
 class NamedTupleStaticClass:
@@ -200,6 +192,9 @@ class NamedTupleStaticClass:
 
     @staticmethod
     def generate_obs_namedtuple(n_agents, item_nums, name='namedtuple'):
+        '''
+        TODO: 待优化删除
+        '''
         if item_nums == 0:
             return lambda *args, **kwargs: NamedTuple('obs_namedtuple', [(f'{name}', np.ndarray)])(np.full((n_agents, 0), [], dtype=np.float32))
         else:
@@ -310,11 +305,16 @@ class VisualNetworkType(Enum):
     DEEPCONV = 'deepconv'
 
 
+class MemoryNetworkType(Enum):
+    GRU = 'gru'
+    LSTM = 'lstm'
+
+
 class DefaultActivationFuncType(Enum):
     TANH = 'tanh'
     RELU = 'relu'
     ELU = 'elu'
-    SWISH = 'swish' # https://arxiv.org/abs/1710.05941
+    SWISH = 'swish'  # https://arxiv.org/abs/1710.05941
     MISH = 'mish'   # https://arxiv.org/abs/1908.08681
 
 
@@ -340,8 +340,3 @@ class OutputNetworkType(Enum):
     QRDQN_DISTRIBUTIONAL = 'QrdqnDistributional'
     RAINBOW_DUELING = 'RainbowDueling'
     IQN_NET = 'IqnNet'
-
-
-class MemoryNetworkType(Enum):
-    GRU = 'gru'
-    LSTM = 'lstm'

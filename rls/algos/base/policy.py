@@ -18,7 +18,7 @@ from rls.algos.base.base import Base
 from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.utils.specs import (SingleAgentEnvArgs,
+from rls.utils.specs import (EnvGroupArgs,
                              VectorNetworkType,
                              VisualNetworkType,
                              MemoryNetworkType)
@@ -27,18 +27,19 @@ from rls.nn.modules import CuriosityModel
 
 
 class Policy(Base):
-    def __init__(self, envspec: SingleAgentEnvArgs, **kwargs):
+    def __init__(self, envspec: EnvGroupArgs, **kwargs):
         super().__init__(**kwargs)
 
+        self.envspec = envspec
         self.obs_spec = envspec.obs_spec
         self.is_continuous = envspec.is_continuous
         self.a_dim = envspec.a_dim
-        self.n_agents = envspec.n_agents
+        self.n_agents = envspec.n_copys
         if self.n_agents <= 0:
             raise ValueError('agents num must larger than zero.')
 
         # self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
-        # self._running_average = SimpleRunningAverage(dim=self.s_dim) if self._normalize_vector_obs else DefaultRunningAverage()
+        # self._running_average = SimpleRunningAverage(dim=self.obs_spec.total_vector_dim) if self._normalize_vector_obs else DefaultRunningAverage()
 
         self.batch_size = int(kwargs.get('batch_size', 128))
         self.gamma = float(kwargs.get('gamma', 0.999))

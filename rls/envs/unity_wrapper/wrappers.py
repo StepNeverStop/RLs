@@ -11,14 +11,13 @@ from collections import defaultdict
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
 from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
-from mlagents_envs.base_env import (ActionTuple,
-                                    ActionSpec)  # TODO
+# from mlagents_envs.base_env import (ActionTuple,
+#                                     ActionSpec)  # TODO
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
 from rls.utils.specs import (ObsSpec,
-                             SingleAgentEnvArgs,
-                             MultiAgentEnvArgs,
+                             EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,
                              NamedTupleStaticClass)
@@ -29,6 +28,9 @@ from rls.envs.unity_wrapper.core import (ObservationWrapper,
 class BasicUnityEnvironment(object):
 
     def __init__(self, kwargs):
+        # TODO: optimize
+        self._n_copys = kwargs.get('initialize_config', {}).get('env_copys', 1)
+
         self._side_channels = self.initialize_all_side_channels(kwargs)
 
         env_kwargs = dict(seed=int(kwargs['env_seed']),
@@ -64,49 +66,13 @@ class BasicUnityEnvironment(object):
         return dict(engine_configuration_channel=engine_configuration_channel,
                     float_properties_channel=float_properties_channel)
 
-    def reset(self, **kwargs):
-        for k, v in kwargs.get('reset_config', {}).items():
-            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
-        self.env.reset()
-        return self.get_obs()
-
-    def step(self, actions, **kwargs):
-        '''
-        params: actions, type of dict or np.ndarray, if the type of actions is
-                not dict, then set those actions for the first behavior controller.
-        '''
-        for k, v in kwargs.get('step_config', {}).items():
-            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
-
-        actions = deepcopy(actions)
-        if self.is_multi_agents:
-            assert isinstance(actions, dict)
-            for k, v in actions.items():
-                if self.is_continuous[k]:
-                    self.empty_actiontuples[k].add_continuous(v)
-                else:
-                    self.empty_actiontuples[k].add_discrete(self.discrete_action_lists[k][v])
-                self.env.set_actions(k, self.empty_actiontuples[k])
-        else:
-            # TODO:  优化
-            if self.is_continuous[self.first_bn]:
-                self.empty_actiontuples[self.first_bn].add_continuous(actions)
-            else:
-                self.empty_actiontuples[self.first_bn].add_discrete(self.discrete_action_lists[self.first_bn][actions])
-            self.env.set_actions(self.first_bn, self.empty_actiontuples[self.first_bn])
-
-        self.env.step()
-        return self.get_obs()
-
     def initialize_environment(self):
         '''
         初始化环境，获取必要的信息，如状态、动作维度等等
         '''
 
         self.behavior_names = list(self.env.behavior_specs.keys())
-        self.is_multi_agents = len(self.behavior_names) > 1
-        self.first_bn = self.behavior_names[0]
-        self.first_fbn = self.first_bn.replace('?', '_')
+        self.fixed_behavior_names = [_str.replace('?', '_') for _str in self.behavior_names]
 
         self.behavior_agents = defaultdict(int)
         self.behavior_ids = defaultdict(dict)
@@ -157,43 +123,82 @@ class BasicUnityEnvironment(object):
                 raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
 
             self.empty_actiontuples[bn] = action_spec.empty_action(n_agents=self.behavior_agents[bn])
+        self.behavior_agents_percopy = {k: v//self._n_copys for k, v in self.behavior_agents.items()}
+        # 拆分同一个behavior下的多个Agent状态，提前计算好序号
+        self.batch_idx_for_behaviors = {k: np.arange(v*self._n_copys).reshape(self._n_copys, -1).T for k, v in self.behavior_agents_percopy.items()}
 
-        if self.is_multi_agents:
-            self.behavior_controls = defaultdict(int)
-            for bn in self.behavior_names:
-                self.behavior_controls[bn] = int(bn.split('#')[0])
-            self.env_copys = self.behavior_agents[self.first_bn] // self.behavior_controls[self.first_bn]
+    def reset(self, is_single=True, **kwargs):
+        for k, v in kwargs.get('reset_config', {}).items():
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
+        self.env.reset()
+
+        if is_single:
+            return self.get_obs()[0]
+        else:
+            return self.get_obs()
+
+    def step(self, actions, is_single=True, **kwargs):
+        '''
+        params: actions, type of dict or np.ndarray, if the type of actions is
+                not dict, then set those actions for the first behavior controller.
+        '''
+        for k, v in kwargs.get('step_config', {}).items():
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
+
+        actions = deepcopy(actions)
+        if is_single:
+            self.empty_actiontuples[self.behavior_names[0]].add_continuous(actions)
+            self.env.set_actions(self.behavior_names[0], self.empty_actiontuples[k])
+        else:
+            idx = 0
+            for k, v in self.behavior_agents_percopy.items():
+                if self.is_continuous[k]:
+                    self.empty_actiontuples[k].add_continuous(np.hstack(actions[idx:idx+v]).reshape(-1, self.a_dim[k]))
+                else:
+                    self.empty_actiontuples[k].add_discrete(self.discrete_action_lists[k][np.stack(actions[idx:idx+v]).T.flatten()])
+                idx += v
+                self.env.set_actions(k, self.empty_actiontuples[k])
+
+        self.env.step()
+
+        if is_single:
+            return self.get_obs()[0]
+        else:
+            return self.get_obs()
 
     @property
-    def EnvSpec(self):
-        if self.is_multi_agents:
-            return MultiAgentEnvArgs(
-                obs_spec=ObsSpec(
-                    vector_dims=self.vector_dims.values(),
-                    visual_dims=self.visual_dims.values()
-                ),
-                a_dim=self.a_dim.values(),
-                is_continuous=self.is_continuous.values(),
-                n_agents=self.behavior_agents.values(),
-                behavior_controls=self.behavior_controls.values()
-            )
-        else:
-            return SingleAgentEnvArgs(
-                obs_spec=ObsSpec(
-                    vector_dims=self.vector_dims[self.first_bn],
-                    visual_dims=self.visual_dims[self.first_bn]
-                ),
-                a_dim=self.a_dim[self.first_bn],
-                is_continuous=self.is_continuous[self.first_bn],
-                n_agents=self.behavior_agents[self.first_bn]
-            )
+    def GroupsSpec(self):
+        ret = []
+        for bn in self.behavior_names:
+            ret.extend([
+                EnvGroupArgs(
+                    obs_spec=ObsSpec(
+                       vector_dims=self.vector_dims[bn],
+                       visual_dims=self.visual_dims[bn]),
+                    a_dim=self.a_dim[bn],
+                    is_continuous=self.is_continuous[bn],
+                    n_copys=self._n_copys
+                ) for i in range(self.behavior_agents_percopy[bn])
+            ])
+        return ret
+
+    @property
+    def GroupSpec(self):
+        return self.GroupsSpec[0]
+
+    @property
+    def n_agents(self):
+        '''
+        返回需要控制几个智能体
+        '''
+        return sum(self.behavior_agents_percopy.values())
 
     def get_obs(self, behavior_names=None):
         '''
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
         behavior_names = behavior_names or self.behavior_names
-        rets = {}
+        rets = []
         for bn in behavior_names:
             n = self.behavior_agents[bn]
             ids = self.behavior_ids[bn]
@@ -214,48 +219,57 @@ class BasicUnityEnvironment(object):
             corrected_obs, reward = d.obs, d.reward
             obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
             done = np.full(n, False)
-            info = dict(max_step=np.full(n, False), real_done=np.full(n, False))
+            info_max_step = np.full(n, False)
+            info_real_done = np.full(n, False)
 
             for t in ps:    # TODO: 有待优化
                 _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
-                info['max_step'][_ids] = t.interrupted    # 因为达到episode最大步数而终止的
-                info['real_done'][_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                info_max_step[_ids] = t.interrupted    # 因为达到episode最大步数而终止的
+                info_real_done[_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
                 reward[_ids] = t.reward
                 done[_ids] = True
                 # zip: vector, visual, ...
                 for _obs, _tobs in zip(obs, t.obs):
                     _obs[_ids] = _tobs
 
-            rets[bn] = SingleModelInformation(
-                corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi] for vi in self.vector_idxs[bn]]),
-                                                visual=self.visual_info_type[bn](*[corrected_obs[vi] for vi in self.visual_idxs[bn]])),
-                obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi] for vi in self.vector_idxs[bn]]),
-                                      visual=self.visual_info_type[bn](*[obs[vi] for vi in self.visual_idxs[bn]])),
-                reward=np.asarray(reward),
-                done=np.asarray(done),
-                info=info
-            )
-        if self.is_multi_agents:
-            return rets
-        else:
-            return rets[self.first_bn]
+            reward = np.asarray(reward)
+            done = np.asarray(done)
 
-    def random_action(self):
+            rets.extend([
+                SingleModelInformation(
+                    corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                                    visual=self.visual_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.visual_idxs[bn]])),
+                    obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                          visual=self.visual_info_type[bn](*[obs[vi][idxs] for vi in self.visual_idxs[bn]])),
+                    reward=reward[idxs],
+                    done=done[idxs],
+                    info=dict(max_step=info_max_step[idxs], real_done=info_real_done[idxs])
+                ) for idxs in self.batch_idx_for_behaviors[bn]
+            ])
+        return rets
+
+    def random_action(self, is_single=True):
         '''
         choose random action for each group and each agent.
         continuous: [-1, 1]
         discrete: [0-max, 0-max, ...] i.e. action dim = [2, 3] => action range from [0, 0] to [1, 2].
         '''
-        actions = {}
-        for bn in self.behavior_names:
-            if self.is_continuous[bn]:
-                actions[bn] = np.random.random((self.behavior_agents[bn], self.a_dim[bn])) * 2 - 1  # [-1, 1]
+        actions = []
+        for k, v in self.behavior_agents_percopy.items():
+            if self.is_continuous[k]:
+                actions.extend([
+                    np.random.random((self._n_copys, self.a_dim[k])) * 2 - 1  # [-1, 1]
+                    for _ in range(v)
+                ])
             else:
-                actions[bn] = np.random.randint(self.a_dim[bn], size=(self.behavior_agents[bn],), dtype=np.int32)
-        if self.is_multi_agents:
-            return actions
+                actions.extend([
+                    np.random.randint(self.a_dim[k], size=(self._n_copys,), dtype=np.int32)
+                    for _ in range(v)
+                ])
+        if is_single:
+            return actions[0]
         else:
-            return actions[bn]
+            return actions
 
     def __getattr__(self, name):
         '''
