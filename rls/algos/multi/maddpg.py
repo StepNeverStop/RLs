@@ -79,11 +79,7 @@ class MADDPG(MultiAgentOffPolicy):
         self.critic_nets = [_create_critic_net(name='critic_net', i=i) for i in range(self.n_agents_percopy)]
         self.critic_target_nets = [_create_critic_net(name='critic_target_net', i=i) for i in range(self.n_agents_percopy)]
 
-        for i in range(self.n_agents_percopy):
-            update_target_net_weights(
-                self.actor_target_nets[i].weights + self.critic_target_nets[i].weights,
-                self.actor_nets[i].weights + self.critic_nets[i].weights
-            )
+        self._target_params_update()
 
         self.actor_lrs = [self.init_lr(actor_lr) for i in range(self.n_agents_percopy)]
         self.critic_lrs = [self.init_lr(critic_lr) for i in range(self.n_agents_percopy)]
@@ -154,7 +150,7 @@ class MADDPG(MultiAgentOffPolicy):
                 if self.envspecs[i].is_continuous:
                     target_actions.append(self.actor_target_nets[i](BATCHs[i].obs_)[0])
                 else:
-                    target_logits = self.actor_target_nets[i](self.actor_target_nets[i](BATCHs[i].obs_))[0]
+                    target_logits = self.actor_target_nets[i](BATCHs[i].obs_)[0]
                     target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
                     target_pi = target_cate_dist.sample()
                     action_target = tf.one_hot(target_pi, self.envspecs[i].a_dim, dtype=tf.float32)
