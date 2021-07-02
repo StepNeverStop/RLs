@@ -94,6 +94,9 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             self._target_params_update()
             # --------------------------------------
 
+            for k, v in summaries.items():
+                self.summaries[k].update(v)
+
             # --------------------------------------写summary到tensorboard
-            self.write_training_summaries(self.global_step, summaries)
+            self.write_training_summaries(self.global_step, self.summaries)
             # --------------------------------------

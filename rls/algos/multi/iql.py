@@ -88,6 +88,7 @@ class IQL(MultiAgentOffPolicy):
 
     @tf.function
     def _train(self, BATCHs):
+        summaries = {}
         with tf.device(self.device):
             for i in range(self.n_agents_percopy):
                 with tf.GradientTape() as tape:
@@ -101,10 +102,11 @@ class IQL(MultiAgentOffPolicy):
                 self.optimizer[i].apply_gradients(
                     zip(grads, self.q_nets[i].trainable_variables)
                 )
+                summaries[i] = dict([
+                    ['LOSS/loss', q_loss],
+                    ['Statistics/q_max', tf.reduce_max(q_eval)],
+                    ['Statistics/q_min', tf.reduce_min(q_eval)],
+                    ['Statistics/q_mean', tf.reduce_mean(q_eval)]
+                ])
             self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/loss', q_loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+            return summaries

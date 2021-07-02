@@ -143,7 +143,7 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         TODO: Annotation
         '''
-        summaries = []
+        summaries = {}
         with tf.device(self.device):
             target_actions = []
             for i in range(self.n_agents_percopy):
@@ -197,12 +197,12 @@ class MADDPG(MultiAgentOffPolicy):
                     zip(tape.gradient(actor_loss, self.actor_nets[i].trainable_variables),
                         self.actor_nets[i].trainable_variables)
                 )
-                summaries.append(dict([
+                summaries[i] = dict([
                     ['LOSS/actor_loss', actor_loss],
                     ['LOSS/critic_loss', q_loss],
                     ['Statistics/q_min', tf.reduce_min(q)],
                     ['Statistics/q_mean', tf.reduce_mean(q)],
                     ['Statistics/q_max', tf.reduce_max(q)]
-                ]))
+                ])
         self.global_step.assign_add(1)
         return summaries

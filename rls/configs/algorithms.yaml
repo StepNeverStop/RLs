@@ -137,11 +137,11 @@ averaged_dqn:
     <<: *dqn
 
 dddqn:
+    <<: *dqn
     network_settings:
         share: [64]
         v: [64]
         adv: [64]
-    <<: *dqn
 
 bootstrappeddqn:
     head_num: 4
@@ -664,8 +664,8 @@ iql: &iql
     network_settings: [64, 64]
 
 vdn:
+    <<: *iql
     network_settings:
         share: [64]
         v: [64]
         adv: [64]
-    <<: *iql

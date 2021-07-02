@@ -15,7 +15,7 @@ from rls.utils.specs import OutputNetworkType
 class VDN(MultiAgentOffPolicy):
     '''
     Value-Decomposition Networks For Cooperative Multi-Agent Learning, http://arxiv.org/abs/1706.05296
-    TODO: RNN, multi-step, summaries, done problem
+    TODO: RNN, multi-step
     '''
 
     def __init__(self,
@@ -103,13 +103,16 @@ class VDN(MultiAgentOffPolicy):
 
     @tf.function
     def _train(self, BATCHs):
+        summaries = {}
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 q_target_all = 0
                 q_target_next_max_all = 0
-                reward = 0
+                reward = tf.zeros_like(BATCHs[0].reward)
+                done = tf.zeros_like(BATCHs[0].done)
                 for i in range(self.n_agents_percopy):
                     reward += BATCHs[i].reward
+                    done += BATCHs[i].done
                     q = self.dueling_nets[i](BATCHs[i].obs)[0]
                     next_q = self.dueling_nets[i](BATCHs[i].obs_)[0]
                     q_target = self.dueling_target_nets[i](BATCHs[i].obs_)[0]
@@ -125,7 +128,7 @@ class VDN(MultiAgentOffPolicy):
                         axis=1, keepdims=True)
                     q_target_next_max_all += q_target_next_max
 
-                q_target_all = tf.stop_gradient(reward + self.gamma * q_target_next_max_all)
+                q_target_all = tf.stop_gradient(reward + self.gamma * q_target_next_max_all * (1 - done > 0))
                 td_error = q_target_all - q_eval_all
                 q_loss = tf.reduce_mean(tf.square(td_error))
             grads = tape.gradient(q_loss, self._training_variables)
@@ -133,9 +136,10 @@ class VDN(MultiAgentOffPolicy):
                 zip(grads, self._training_variables)
             )
             self.global_step.assign_add(1)
-            return dict([
+            summaries['model'] = dict([
                 ['LOSS/loss', q_loss],
                 ['Statistics/q_max', tf.reduce_max(q_eval_all)],
                 ['Statistics/q_min', tf.reduce_min(q_eval_all)],
                 ['Statistics/q_mean', tf.reduce_mean(q_eval_all)]
             ])
+            return summaries
