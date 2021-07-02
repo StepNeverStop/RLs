@@ -168,8 +168,9 @@ For now, these algorithms are available:
 |               IOC               |    √     |     √      |   √   |  √   |        ioc        |
 |              HIRO               |    √     |     √      |       |      |       hiro        |
 |              CURL               |    √     |     √      |   √   |      |       curl        |
-|             MADDPG              |    √     |     √      |   √   |      |      maddpg       |
+|               IQL               |    √     |            |   √   |      |        iql        |
 |               VDN               |    √     |            |   √   |      |        vdn        |
+|             MADDPG              |    √     |     √      |   √   |      |      maddpg       |
 
 ## Getting started
 
