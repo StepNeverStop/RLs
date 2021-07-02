@@ -25,7 +25,7 @@ class IQL(MultiAgentOffPolicy):
                  assign_interval=2,
                  network_settings: List[int] = [32, 32],
                  **kwargs):
-        assert not any([envspec.is_continuous for envspec in envspecs]), 'VDN only support discrete action space'
+        assert not any([envspec.is_continuous for envspec in envspecs]), 'IQL only support discrete action space'
         super().__init__(envspecs=envspecs, **kwargs)
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
