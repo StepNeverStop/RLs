@@ -2,14 +2,39 @@
 import numpy as np
 
 from typing import (List,
+                    Dict,
                     NoReturn)
 
-from rls.memories.base_replay_buffer import ReplayBuffer
+from rls.memories.base_replay_buffer import (ReplayBuffer,
+                                             MultiAgentReplayBuffer)
 from rls.utils.specs import (BatchExperiences,
                              NamedTupleStaticClass)
 
 
-class MultiAgentExperienceReplay(ReplayBuffer):
+class MultiAgentExperienceReplay(MultiAgentReplayBuffer):
+
+    def __init__(self,
+                 n_agents: int,
+                 single_agent_buffer_class: ReplayBuffer,
+                 buffer_config: Dict = {}):
+        super().__init__(n_agents)
+        self._buffers = [single_agent_buffer_class(**buffer_config) for _ in range(self._n_agents)]
+
+    def add(self, expss: List[BatchExperiences]) -> NoReturn:
+        for exps, buffer in zip(expss, self._buffers):
+            buffer.add(exps)
+
+    def sample(self) -> List[BatchExperiences]:
+        idxs_info = self._buffers[0].generate_random_sample_idxs()
+        expss = [buffer.sample_from_idxs(idxs_info) for buffer in self._buffers]
+        return expss
+
+    @property
+    def can_sample(self):
+        return self._buffers[0].can_sample
+
+
+class MultiAgentCentralExperienceReplay(ReplayBuffer):
     def __init__(self,
                  n_agents: int,
                  batch_size: int,
@@ -28,10 +53,6 @@ class MultiAgentExperienceReplay(ReplayBuffer):
                 self._store_op(i, exp)
             self.update_rb_after_add()
 
-        # for i, exps in enumerate(expss):
-        #     for exp in NamedTupleStaticClass.unpack(exps):
-        #         self._store_op(i, exp)
-
     def _store_op(self, i, exp: BatchExperiences) -> NoReturn:
         self._buffers[i, self._data_pointer] = exp
         # self.update_rb_after_add()
@@ -40,7 +61,7 @@ class MultiAgentExperienceReplay(ReplayBuffer):
         '''
         change [[s, a, r],[s, a, r]] to [[s, s],[a, a],[r, r]]
         '''
-        n_sample = self.batch_size if self.is_lg_batch_size else self._size
+        n_sample = self.batch_size if self.can_sample else self._size
         idx = np.random.randint(0, self._size, n_sample)
         t = self._buffers[:, idx]
         return [NamedTupleStaticClass.pack(_t.tolist()) for _t in t]
@@ -64,7 +85,7 @@ class MultiAgentExperienceReplay(ReplayBuffer):
         return self._size
 
     @property
-    def is_lg_batch_size(self) -> bool:
+    def can_sample(self) -> bool:
         return self._size > self.batch_size
 
     @property

@@ -247,7 +247,7 @@ class HIRO(Off_Policy):
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
-            if self.data_low.is_lg_batch_size and self.data_high.is_lg_batch_size:
+            if self.data_low.can_sample and self.data_high.can_sample:
                 self.intermediate_variable_reset()
                 low_data = self.get_transitions(self.data_low)
                 high_data = self.get_transitions(self.data_high)

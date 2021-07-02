@@ -146,8 +146,8 @@ def unity_inference(env, model,
 def ma_unity_no_op(env, model,
                    pre_fill_steps: int,
                    prefill_choose: bool,
-                   desc: str = 'Pre-filling',
-                   real_done: bool = True) -> NoReturn:
+                   real_done: bool,
+                   desc: str = 'Pre-filling') -> NoReturn:
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
     n = env._n_copys
 

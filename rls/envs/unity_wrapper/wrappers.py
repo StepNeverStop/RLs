@@ -198,7 +198,15 @@ class BasicUnityEnvironment(object):
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
         behavior_names = behavior_names or self.behavior_names
-        rets = []
+
+        # TODO: optimization
+        whole_done = np.full(self._n_copys, False)
+        whole_info_max_step = np.full(self._n_copys, False)
+        whole_info_real_done = np.full(self._n_copys, False)
+        all_corrected_obs = []
+        all_obs = []
+        all_reward = []
+
         for bn in behavior_names:
             n = self.behavior_agents[bn]
             ids = self.behavior_ids[bn]
@@ -235,17 +243,30 @@ class BasicUnityEnvironment(object):
             reward = np.asarray(reward)
             done = np.asarray(done)
 
-            rets.extend([
+            for idxs in self.batch_idx_for_behaviors[bn]:
+                whole_done = np.logical_or(whole_done, done[idxs])
+                whole_info_max_step = np.logical_or(whole_info_max_step, info_max_step[idxs])
+                whole_info_real_done = np.logical_or(whole_info_real_done, info_real_done[idxs])
+
+                all_corrected_obs.append(ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                                           visual=self.visual_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.visual_idxs[bn]])))
+                all_obs.append(ModelObservations(vector=self.vector_info_type[bn](*[obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                                 visual=self.visual_info_type[bn](*[obs[vi][idxs] for vi in self.visual_idxs[bn]])))
+                all_reward.append(reward[idxs])
+                # all_info.append(dict(max_step=info_max_step[idxs], real_done=info_real_done[idxs]))
+
+        rets = []
+        for corrected_obs, obs, reward in zip(all_corrected_obs, all_obs, all_reward):
+            rets.append(
                 SingleModelInformation(
-                    corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.vector_idxs[bn]]),
-                                                    visual=self.visual_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.visual_idxs[bn]])),
-                    obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi][idxs] for vi in self.vector_idxs[bn]]),
-                                          visual=self.visual_info_type[bn](*[obs[vi][idxs] for vi in self.visual_idxs[bn]])),
-                    reward=reward[idxs],
-                    done=done[idxs],
-                    info=dict(max_step=info_max_step[idxs], real_done=info_real_done[idxs])
-                ) for idxs in self.batch_idx_for_behaviors[bn]
-            ])
+                    corrected_obs=corrected_obs,
+                    obs=obs,
+                    reward=reward,
+                    done=whole_done,
+                    info=dict(max_step=whole_info_max_step,
+                              real_done=whole_info_real_done)
+                )
+            )
         return rets
 
     def random_action(self, is_single=True):

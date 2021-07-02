@@ -45,6 +45,7 @@ class MultiAgentPolicy(Base):
 
         self.memory_net_kwargs = dict(kwargs.get('memory_net_kwargs', {}))
         self.memory_net_kwargs['network_type'] = MemoryNetworkType(self.memory_net_kwargs['network_type'])
+        self.use_rnn = bool(self.memory_net_kwargs.get('use_rnn', False))
 
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.n_agents_percopy)]
 
@@ -110,4 +111,5 @@ class MultiAgentPolicy(Base):
         '''
         super().write_training_summaries(global_step, summaries=summaries.get('model', {}), writer=self.writer)
         for i, summary in summaries.items():
-            super().write_training_summaries(global_step, summaries=summary, writer=self.writers[i])
+            if i != 'model':  # TODO: Optimization
+                super().write_training_summaries(global_step, summaries=summary, writer=self.writers[i])

@@ -30,7 +30,7 @@ class LearnThread(threading.Thread):
 
     def run(self):
         while True:
-            if self.buffer.is_lg_batch_size:
+            if self.buffer.can_sample:
                 with self.lock:
                     exps, idxs = self.buffer.sample(return_index=True)
                     prios = self.buffer.get_IS_w().reshape(-1, 1)
