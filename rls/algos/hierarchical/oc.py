@@ -118,7 +118,7 @@ class OC(Off_Policy):
         self.initialize_data_buffer()
 
     def _generate_random_options(self):
-        return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
+        return tf.constant(np.random.randint(0, self.options_num, self.n_copys), dtype=tf.int32)
 
     def choose_action(self, obs, evaluation=False):
         if not hasattr(self, 'options'):

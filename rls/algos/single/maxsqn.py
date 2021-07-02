@@ -74,7 +74,7 @@ class MAXSQN(Off_Policy):
 
     def choose_action(self, obs, evaluation=False):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
             a = pi.numpy()

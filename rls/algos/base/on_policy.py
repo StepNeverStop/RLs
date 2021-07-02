@@ -22,7 +22,7 @@ class On_Policy(Policy):
         self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
     def initialize_data_buffer(self, store_data_type=BatchExperiences, sample_data_type=BatchExperiences) -> NoReturn:
-        self.data = DataBuffer(n_agents=self.n_agents, rnn_cell_nums=self.cell_nums,
+        self.data = DataBuffer(n_copys=self.n_copys, rnn_cell_nums=self.cell_nums,
                                batch_size=self.batch_size, rnn_time_step=self.rnn_time_step,
                                store_data_type=store_data_type, sample_data_type=sample_data_type)
 
@@ -63,7 +63,7 @@ class On_Policy(Policy):
         if self.use_curiosity and not self.use_rnn:
             curiosity_data = self.data.get_curiosity_data()
             curiosity_data = NamedTupleStaticClass.data_convert(self.data_convert, curiosity_data)
-            cell_state = self.initial_cell_state(batch=self.n_agents)
+            cell_state = self.initial_cell_state(batch=self.n_copys)
             crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_state)
             self.data.update_reward(crsty_r.numpy())
             # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])

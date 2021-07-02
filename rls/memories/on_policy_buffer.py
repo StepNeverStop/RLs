@@ -21,7 +21,7 @@ class DataBuffer(object):
     '''
 
     def __init__(self,
-                 n_agents: int = 1,
+                 n_copys: int = 1,
                  rnn_cell_nums: int = 0,
                  batch_size: int = 32,
                  rnn_time_step: int = 8,
@@ -29,12 +29,12 @@ class DataBuffer(object):
                  sample_data_type: BatchExperiences = BatchExperiences):
         '''
         params:
-            n_agents: 一个policy控制的智能体数量
+            n_copys: 一个policy控制的智能体数量
         '''
-        assert n_agents > 0, "assert n_agents > 0"
+        assert n_copys > 0, "assert n_copys > 0"
 
         self.data_buffer = defaultdict(list)
-        self.n_agents = n_agents
+        self.n_copys = n_copys
         self.rnn_cell_nums = rnn_cell_nums
         self.cell_state_buffer = [[] for _ in range(self.rnn_cell_nums)]
         self.eps_len = 0
@@ -124,26 +124,26 @@ class DataBuffer(object):
         '''
 
         # T * [B, N] => [B, T, N] => [B*T, N]
-        def func(x): return np.stack(x, axis=1).reshape(self.n_agents * self.eps_len, -1)
+        def func(x): return np.stack(x, axis=1).reshape(self.n_copys * self.eps_len, -1)
 
         data = {}
         for k in BatchExperiences._fields:
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
                 data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
-                assert NamedTupleStaticClass.check_len(data[k], l=self.n_agents * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+                assert NamedTupleStaticClass.check_len(data[k], l=self.n_copys * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 data[k] = func(self.data_buffer[k])
-                assert data[k].shape[0] == self.n_agents * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+                assert data[k].shape[0] == self.n_copys * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
         return BatchExperiences(**data)
 
     def update_reward(self, r: np.ndarray):
         '''
         r: [B*T, N]
         '''
-        r = r.reshape(self.n_agents, self.eps_len, -1)
+        r = r.reshape(self.n_copys, self.eps_len, -1)
         for i in range(self.eps_len):
             self.data_buffer['reward'][i] += r[:, i]
 
@@ -182,17 +182,17 @@ class DataBuffer(object):
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], tuple):
                 buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
-                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_agents * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_copys * self.eps_len), \
+                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
-                assert buffer[k].shape[0] == self.n_agents * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+                assert buffer[k].shape[0] == self.n_copys * self.eps_len, \
+                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
 
-        idxs = np.arange(self.eps_len * self.n_agents)
+        idxs = np.arange(self.eps_len * self.n_copys)
         np.random.shuffle(idxs)
-        for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
-            _idxs = idxs[i:i + batch_size * self.n_agents]
+        for i in range(0, self.eps_len * self.n_copys, batch_size * self.n_copys):
+            _idxs = idxs[i:i + batch_size * self.n_copys]
             data = []
             for k in self.sample_data_type._fields:
                 if isinstance(buffer[k], tuple):

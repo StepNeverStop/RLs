@@ -103,26 +103,26 @@ class AOC(On_Policy):
 
     def reset(self):
         super().reset()
-        self._done_mask = np.full(self.n_agents, True)
+        self._done_mask = np.full(self.n_copys, True)
 
     def partial_reset(self, done):
         super().partial_reset(done)
         self._done_mask = done
 
     def _generate_random_options(self):
-        return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
+        return tf.constant(np.random.randint(0, self.options_num, self.n_copys), dtype=tf.int32)
 
     def choose_action(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
         if not hasattr(self, 'oc_mask'):
-            self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
+            self.oc_mask = tf.constant(np.zeros(self.n_copys), dtype=tf.int32)
 
         a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs, self.cell_state, self.options)
         a = a.numpy()
         new_options = tf.where(self._done_mask, max_options, new_options)
-        self._done_mask = np.full(self.n_agents, False)
+        self._done_mask = np.full(self.n_copys, False)
         self._value = value.numpy()
         self._log_prob = log_prob.numpy() + 1e-10
         self._beta_adv = beta_adv.numpy() + self.dc

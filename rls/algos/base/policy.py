@@ -34,8 +34,8 @@ class Policy(Base):
         self.obs_spec = envspec.obs_spec
         self.is_continuous = envspec.is_continuous
         self.a_dim = envspec.a_dim
-        self.n_agents = envspec.n_copys
-        if self.n_agents <= 0:
+        self.n_copys = envspec.n_copys
+        if self.n_copys <= 0:
             raise ValueError('agents num must larger than zero.')
 
         # self._normalize_vector_obs = bool(kwargs.get('normalize_vector_obs', False))
@@ -102,7 +102,7 @@ class Policy(Base):
 
     def reset(self) -> NoReturn:
         '''reset model for each new episode.'''
-        self.cell_state = self.next_cell_state = self.initial_cell_state(batch=self.n_agents)
+        self.cell_state = self.next_cell_state = self.initial_cell_state(batch=self.n_copys)
 
     def initial_cell_state(self, batch: int) -> Tuple[tf.Tensor]:
         if self.use_rnn:

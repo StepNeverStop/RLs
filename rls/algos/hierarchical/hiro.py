@@ -127,8 +127,8 @@ class HIRO(Off_Policy):
         self.high_actor_optimizer, self.high_critic_optimizer = map(self.init_optimizer, [self.high_actor_lr, self.high_critic_lr])
 
         self.counts = 0
-        self._high_s = [[] for _ in range(self.n_agents)]
-        self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
+        self._high_s = [[] for _ in range(self.n_copys)]
+        self._noop_subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_copys, self.sub_goal_dim))
         self.get_ir = self.generate_ir_func(mode=intrinsic_reward_mode)
 
         self._worker_params_dict.update(self.high_ac_net._policy_models)
@@ -189,21 +189,21 @@ class HIRO(Off_Policy):
         self.high_noised_action.reset()
         self.low_noised_action.reset()
 
-        self._c = np.full((self.n_agents, 1), self.sub_goal_steps, np.int32)
+        self._c = np.full((self.n_copys, 1), self.sub_goal_steps, np.int32)
 
-        for i in range(self.n_agents):
+        for i in range(self.n_copys):
             self.store_high_buffer(i)
-        self._high_r = [[] for _ in range(self.n_agents)]
-        self._high_a = [[] for _ in range(self.n_agents)]
-        self._high_s = [[] for _ in range(self.n_agents)]
-        self._subgoals = [[] for _ in range(self.n_agents)]
-        self._done = [[] for _ in range(self.n_agents)]
-        self._high_s_ = [[] for _ in range(self.n_agents)]
+        self._high_r = [[] for _ in range(self.n_copys)]
+        self._high_a = [[] for _ in range(self.n_copys)]
+        self._high_s = [[] for _ in range(self.n_copys)]
+        self._subgoals = [[] for _ in range(self.n_copys)]
+        self._done = [[] for _ in range(self.n_copys)]
+        self._high_s_ = [[] for _ in range(self.n_copys)]
 
-        self._new_subgoal = np.zeros((self.n_agents, self.sub_goal_dim), dtype=np.float32)
+        self._new_subgoal = np.zeros((self.n_copys, self.sub_goal_dim), dtype=np.float32)
 
     def partial_reset(self, done):
-        self._c = np.where(done[:, np.newaxis], np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c)
+        self._c = np.where(done[:, np.newaxis], np.full((self.n_copys, 1), self.sub_goal_steps, np.int32), self._c)
         idx = np.where(done)[0]
         for i in idx:
             self.store_high_buffer(i)
@@ -410,7 +410,7 @@ class HIRO(Off_Policy):
 
         ir = self.get_ir(exps.obs.flatten_vector()[:, self.fn_goal_dim:], self._noop_subgoal, exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
         # subgoal = exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:]
-        subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_agents, self.sub_goal_dim))
+        subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_copys, self.sub_goal_dim))
 
         dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
         self.data_low.add(dl)
@@ -434,7 +434,7 @@ class HIRO(Off_Policy):
         dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
         self.data_low.add(dl)
 
-        self._c = np.where(self._c == 1, np.full((self.n_agents, 1), self.sub_goal_steps, np.int32), self._c - 1)
+        self._c = np.where(self._c == 1, np.full((self.n_copys, 1), self.sub_goal_steps, np.int32), self._c - 1)
 
     def get_transitions(self, databuffer, data_name_list=['s', 'a', 'r', 's_', 'done']):
         '''

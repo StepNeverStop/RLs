@@ -20,6 +20,7 @@ from rls.utils.hdf5_utils import *
 
 
 class ExperienceReplay(ReplayBuffer):
+
     def __init__(self,
                  batch_size: int,
                  capacity: int):

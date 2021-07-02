@@ -43,7 +43,7 @@ def gym_train(env, model,
     TODO: Annotation
     """
 
-    recoder = SimpleMovingAverageRecoder(n_agents=env.n, gamma=0.99, verbose=True,
+    recoder = SimpleMovingAverageRecoder(n_copys=env.n, gamma=0.99, verbose=True,
                                          length=moving_average_episode)
     frame_step = begin_frame_step
     train_step = begin_train_step

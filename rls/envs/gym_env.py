@@ -104,10 +104,10 @@ class gym_envs(object):
             self.obs_type = 'vector'
             self.visual_dims = []
 
-        self.vector_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
+        self.vector_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.n,
                                                                               item_nums=1 if self.obs_type == 'vector' else 0,
                                                                               name='vector')
-        self.visual_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
+        self.visual_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.n,
                                                                               item_nums=1 if self.obs_type == 'visual' else 0,
                                                                               name='visual')
 

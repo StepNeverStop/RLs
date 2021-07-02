@@ -105,8 +105,8 @@ class CEM(On_Policy):
         params : 状态列表S，一个环境下有多少个智能体就包含多少个状态向量
         '''
         if not hasattr(self, 'populations'):
-            assert self.n_agents % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
-            self.populations = int(self.n_agents / self.envs_per_popu)
+            assert self.n_copys % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
+            self.populations = int(self.n_copys / self.envs_per_popu)
             self._build()
 
     def _build(self):

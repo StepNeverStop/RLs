@@ -103,10 +103,10 @@ class BasicUnityEnvironment(object):
                     self.visual_dims[bn].append(list(shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
-            self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
+            self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.behavior_agents[bn],
                                                                                       item_nums=len(self.vector_idxs[bn]),
                                                                                       name='vector')
-            self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
+            self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.behavior_agents[bn],
                                                                                       item_nums=len(self.visual_idxs[bn]),
                                                                                       name='visual')
 

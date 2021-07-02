@@ -191,12 +191,12 @@ class NamedTupleStaticClass:
             return nt
 
     @staticmethod
-    def generate_obs_namedtuple(n_agents, item_nums, name='namedtuple'):
+    def generate_obs_namedtuple(n_copys, item_nums, name='namedtuple'):
         '''
         TODO: 待优化删除
         '''
         if item_nums == 0:
-            return lambda *args, **kwargs: NamedTuple('obs_namedtuple', [(f'{name}', np.ndarray)])(np.full((n_agents, 0), [], dtype=np.float32))
+            return lambda *args, **kwargs: NamedTuple('obs_namedtuple', [(f'{name}', np.ndarray)])(np.full((n_copys, 0), [], dtype=np.float32))
         else:
             return NamedTuple('obs_namedtuple', [(f'{name}_{str(i)}', np.ndarray) for i in range(item_nums)])
 

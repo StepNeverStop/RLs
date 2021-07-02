@@ -26,12 +26,12 @@ class Recoder(ABC):
 class SimpleMovingAverageRecoder(Recoder):
 
     def __init__(self,
-                 n_agents,
+                 n_copys,
                  gamma=0.99,
                  verbose=False,
                  length=10):
         super().__init__()
-        self.n_agents = n_agents
+        self.n_copys = n_copys
         self.gamma = gamma
         self.verbose = verbose
         self.total_step = 0
@@ -43,10 +43,10 @@ class SimpleMovingAverageRecoder(Recoder):
 
     def episode_reset(self, episode=0):
         self.episode = episode
-        self.steps = np.zeros(self.n_agents, dtype=int)
-        self.total_returns = np.zeros(self.n_agents, dtype=float)
-        self.discounted_returns = np.zeros(self.n_agents, dtype=float)
-        self.already_dones = np.zeros(self.n_agents)
+        self.steps = np.zeros(self.n_copys, dtype=int)
+        self.total_returns = np.zeros(self.n_copys, dtype=float)
+        self.discounted_returns = np.zeros(self.n_copys, dtype=float)
+        self.already_dones = np.zeros(self.n_copys)
 
     def step_update(self, rewards, dones):
         self.discounted_returns += (self.gamma ** self.steps) * (1 - self.already_dones) * np.asarray(rewards)

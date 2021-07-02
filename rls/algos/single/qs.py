@@ -29,12 +29,12 @@ class QS:
         self.mode = mode
         self.concat_vector_dim = envspec.obs_spec.total_vector_dim
         self.a_dim = envspec.a_dim
-        self.n_agents = envspec.n_copys
+        self.n_copys = envspec.n_copys
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.step = 0
         self.train_step = 0
-        if self.n_agents <= 0:
+        if self.n_copys <= 0:
             raise ValueError('agents num must larger than zero.')
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
@@ -43,7 +43,7 @@ class QS:
                                                           max_step=self.max_train_step)
         self.table = np.zeros(shape=(self.concat_vector_dim, self.a_dim))
         self.lr = lr
-        self.next_a = np.zeros(self.n_agents, dtype=np.int32)
+        self.next_a = np.zeros(self.n_copys, dtype=np.int32)
         self.mask = []
         ion()
 
@@ -67,7 +67,7 @@ class QS:
         a = np.array([np.argmax(self.table[i, :]) for i in s])
         if not _max:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-                a = np.random.randint(0, self.a_dim, self.n_agents)
+                a = np.random.randint(0, self.a_dim, self.n_copys)
         return a
 
     def learn(self, **kwargs):

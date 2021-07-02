@@ -47,7 +47,7 @@ class Off_Policy(Policy):
                 capacity=self.episode_buffer_size,
                 burn_in_time_step=self.burn_in_time_step,
                 train_time_step=self.train_time_step,
-                agents_num=self.n_agents
+                agents_num=self.n_copys
             )
         else:
             _type = 'ExperienceReplay'
@@ -65,7 +65,7 @@ class Off_Policy(Policy):
                 _buffer_args.update(
                     n_step=self.n_step,
                     gamma=self.gamma,
-                    agents_num=self.n_agents
+                    agents_num=self.n_copys
                 )
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]

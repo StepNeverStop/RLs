@@ -45,7 +45,7 @@ def unity_train(env, model,
     """
     frame_step = begin_frame_step
     train_step = begin_train_step
-    recoder = SimpleMovingAverageRecoder(n_agents=env._n_copys, gamma=0.99, verbose=True,
+    recoder = SimpleMovingAverageRecoder(n_copys=env._n_copys, gamma=0.99, verbose=True,
                                          length=moving_average_episode)
 
     for episode in range(begin_episode, max_train_episode):

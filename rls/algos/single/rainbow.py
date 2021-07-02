@@ -79,7 +79,7 @@ class RAINBOW(Off_Policy):
 
     def choose_action(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             a, self.cell_state = self._get_action(obs, self.cell_state)
             a = a.numpy()
