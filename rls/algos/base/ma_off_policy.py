@@ -39,30 +39,30 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         TODO: Annotation
         '''
         _buffer_args = {}
-        if self.use_rnn:
-            _type = 'EpisodeExperienceReplay'
+        # if self.use_rnn:
+        #     _type = 'EpisodeExperienceReplay'
+        #     _buffer_args.update(
+        #         batch_size=self.episode_batch_size,
+        #         capacity=self.episode_buffer_size,
+        #         burn_in_time_step=self.burn_in_time_step,
+        #         train_time_step=self.train_time_step,
+        #         n_copys=self.n_copys
+        #     )
+        # else:
+        _type = 'ExperienceReplay'
+        _buffer_args.update(
+            batch_size=self.batch_size,
+            capacity=self.buffer_size
+        )
+        # if self.use_priority:
+        #     raise NotImplementedError("multi agent algorithms now not support prioritized experience replay.")
+        if self.n_step > 1:
+            _type = 'NStep' + _type
             _buffer_args.update(
-                batch_size=self.episode_batch_size,
-                capacity=self.episode_buffer_size,
-                burn_in_time_step=self.burn_in_time_step,
-                train_time_step=self.train_time_step,
+                n_step=self.n_step,
+                gamma=self.gamma,
                 n_copys=self.n_copys
             )
-        else:
-            _type = 'ExperienceReplay'
-            _buffer_args.update(
-                batch_size=self.batch_size,
-                capacity=self.buffer_size
-            )
-            # if self.use_priority:
-            #     raise NotImplementedError("multi agent algorithms now not support prioritized experience replay.")
-            if self.n_step > 1:
-                _type = 'NStep' + _type
-                _buffer_args.update(
-                    n_step=self.n_step,
-                    gamma=self.gamma,
-                    n_copys=self.n_copys
-                )
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')['MultiAgentExperienceReplay'][_type]
         default_buffer_args.update(_buffer_args)

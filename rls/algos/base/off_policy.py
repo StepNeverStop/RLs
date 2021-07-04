@@ -50,7 +50,7 @@ class Off_Policy(Policy):
                 capacity=self.episode_buffer_size,
                 burn_in_time_step=self.burn_in_time_step,
                 train_time_step=self.train_time_step,
-                agents_num=self.n_copys
+                n_copys=self.n_copys
             )
         else:
             _type = 'ExperienceReplay'
@@ -68,7 +68,7 @@ class Off_Policy(Policy):
                 _buffer_args.update(
                     n_step=self.n_step,
                     gamma=self.gamma,
-                    agents_num=self.n_copys
+                    n_copys=self.n_copys
                 )
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
@@ -125,7 +125,6 @@ class Off_Policy(Policy):
         TODO: Annotation
         '''
         _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
-        _use_stack = function_dict.get('use_stack', False)
 
         if self.data.can_sample:
             self.intermediate_variable_reset()
@@ -160,15 +159,6 @@ class Off_Policy(Policy):
                 _isw = tf.constant(value=1., dtype=self._tf_data_type)
             # --------------------------------------
 
-            # --------------------------------------如果使用RNN， 就将s和s‘状态进行拼接处理
-            if _use_stack:
-                if self.use_rnn:
-                    obs = ModelObservations.stack_rnn(data.obs, data.obs_, episode_batch_size=self.episode_batch_size)
-                else:
-                    obs = ModelObservations.stack(data.obs, data.obs_)
-                data = data._replace(obs=obs)
-            # --------------------------------------
-
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
             td_error, summaries = self._train(data, _isw, cell_state)
             # --------------------------------------
@@ -200,14 +190,9 @@ class Off_Policy(Policy):
         TODO: Annotation
         '''
         _summary = function_dict.get('summary_dict', {})    # 记录输出到tensorboard的词典
-        _use_stack = function_dict.get('use_stack', False)
 
         self.intermediate_variable_reset()
         data = self._data_process2dict(data=data)
-
-        if _use_stack:
-            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
-            data = data._replace(obs=data.obs.__class__._make(obs))
 
         cell_state = (None,)
 
@@ -231,13 +216,7 @@ class Off_Policy(Policy):
         '''
         TODO: Annotation
         '''
-        _use_stack = function_dict.get('use_stack', False)
-
         data = self._data_process2dict(data=data)
-
-        if _use_stack:
-            obs = [tf.concat([o, o_], axis=0) for o, o_ in zip(data.obs, data.obs_)]  # [B, N] => [2*B, N]
-            data = data._replace(obs=data.obs.__class__._make(obs))
 
         cell_state = (None,)
         td_error = self._cal_td(data, cell_state)

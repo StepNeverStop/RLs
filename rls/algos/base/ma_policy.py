@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from abc import abstractmethod
+from collections import defaultdict
 from typing import (List,
                     Dict,
                     Union,
@@ -35,17 +36,7 @@ class MultiAgentPolicy(Base):
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
         self.delay_lr = bool(kwargs.get('decay_lr', True))
 
-        self.vector_net_kwargs = dict(kwargs.get('vector_net_kwargs', {}))
-        self.vector_net_kwargs['network_type'] = VectorNetworkType(self.vector_net_kwargs['network_type'])
-
-        self.visual_net_kwargs = dict(kwargs.get('visual_net_kwargs', {}))
-        self.visual_net_kwargs['network_type'] = VisualNetworkType(self.visual_net_kwargs['network_type'])
-
-        self.encoder_net_kwargs = dict(kwargs.get('encoder_net_kwargs', {}))
-
-        self.memory_net_kwargs = dict(kwargs.get('memory_net_kwargs', {}))
-        self.memory_net_kwargs['network_type'] = MemoryNetworkType(self.memory_net_kwargs['network_type'])
-        self.use_rnn = bool(self.memory_net_kwargs.get('use_rnn', False))
+        self.representation_net_params = dict(kwargs.get('representation_net_params', defaultdict(dict)))
 
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.n_agents_percopy)]
 

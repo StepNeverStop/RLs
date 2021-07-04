@@ -186,12 +186,10 @@ class MultiVisualNetwork(M):
 
 
 class EncoderNetwork(M):
-    def __init__(self, feat_dim=64, output_dim=64, *, use_encoder=False):
-        # TODO
+    def __init__(self, feat_dim=64, output_dim=64):
         super().__init__()
-        self.use_encoder = use_encoder
-        self.h_dim = output_dim if use_encoder else feat_dim
-        self.net = Dense(output_dim, default_activation, **initKernelAndBias) if use_encoder else lambda x: x
+        self.h_dim = output_dim
+        self.net = Dense(output_dim, default_activation, **initKernelAndBias)
         self(I(shape=feat_dim))
 
     @tf.function
@@ -200,31 +198,27 @@ class EncoderNetwork(M):
 
 
 class MemoryNetwork(M):
-    def __init__(self, feat_dim=64, rnn_units=8, *, use_rnn=False, network_type=MemoryNetworkType.LSTM):
+    def __init__(self, feat_dim=64, rnn_units=8, *, network_type=MemoryNetworkType.LSTM):
         super().__init__()
         # self.masking = tf.keras.layers.Masking(mask_value=0.)
 
         # ValueError: Tried to convert 'tensor' to a tensor and failed. Error: None values not supported.
         # https://github.com/tensorflow/tensorflow/issues/31998
-        self.use_rnn = use_rnn
-        self.h_dim = rnn_units if use_rnn else feat_dim
+        self.h_dim = rnn_units
         self.network_type = network_type
-        if use_rnn:
-            if self.network_type == MemoryNetworkType.GRU:
-                self.cell_nums = 1
-                cell = tf.keras.layers.GRUCell(rnn_units)
-            elif self.network_type == MemoryNetworkType.LSTM:
-                self.cell_nums = 2
-                cell = tf.keras.layers.LSTMCell(rnn_units)
-            self.rnn_net = tf.keras.layers.RNN(cell, return_state=True, return_sequences=True)
-            self(*(
-                [I(shape=(None, feat_dim))]
-                +
-                [I(shape=rnn_units) for _ in range(self.cell_nums)]
-            ))
-        else:
+
+        if self.network_type == MemoryNetworkType.GRU:
             self.cell_nums = 1
-            self.rnn_net = lambda x, initial_state: (x, initial_state)
+            cell = tf.keras.layers.GRUCell(rnn_units)
+        elif self.network_type == MemoryNetworkType.LSTM:
+            self.cell_nums = 2
+            cell = tf.keras.layers.LSTMCell(rnn_units)
+        self.rnn_net = tf.keras.layers.RNN(cell, return_state=True, return_sequences=True)
+        self(*(
+            [I(shape=(None, feat_dim))]
+            +
+            [I(shape=rnn_units) for _ in range(self.cell_nums)]
+        ))
 
     @tf.function
     def call(self, *args):
@@ -235,6 +229,4 @@ class MemoryNetwork(M):
         return x, cell_state
 
     def initial_cell_state(self, batch: int) -> Tuple[tf.Tensor]:
-        if self.use_rnn:
-            return tuple(tf.zeros((batch, self.h_dim), dtype=tf.float32) for _ in range(self.cell_nums))
-        return (None,)
+        return tuple(tf.zeros((batch, self.h_dim), dtype=tf.float32) for _ in range(self.cell_nums))

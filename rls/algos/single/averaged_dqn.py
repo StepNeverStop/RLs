@@ -56,7 +56,7 @@ class AveragedDQN(Off_Policy):
         for i in range(self.target_k):
             target_q_net = _create_net(
                 'dqn_q_target_net' + str(i),
-                self._create_representation_net('_representation_target_net' + str(i))
+                self._representation_net._copy('_representation_target_net' + str(i))
             )
             update_target_net_weights(target_q_net.weights, self.q_net.weights)
             self.target_nets.append(target_q_net)
@@ -82,11 +82,12 @@ class AveragedDQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_net(obs, cell_state=cell_state)
+            ret = self.q_net(obs, cell_state=cell_state)
+            q_values = ret['value']
             for i in range(1, self.target_k):
-                target_q_values, _ = self.target_nets[i](obs, cell_state=cell_state)
+                target_q_values = self.target_nets[i](obs, cell_state=cell_state)['value']
                 q_values += target_q_values
-        return tf.argmax(q_values, axis=1), cell_state  # 不取平均也可以
+        return tf.argmax(q_values, axis=1), ret['cell_state']  # 不取平均也可以
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -104,10 +105,10 @@ class AveragedDQN(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q, _ = self.q_net(BATCH.obs, cell_state=cell_state)
-                q_next, _ = self.target_nets[0](BATCH.obs_, cell_state=cell_state)
+                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
+                q_next = self.target_nets[0](BATCH.obs_, cell_state=cell_state)['value']
                 for i in range(1, self.target_k):
-                    target_q_values, _ = self.target_nets[i](BATCH.obs, cell_state=cell_state)
+                    target_q_values = self.target_nets[i](BATCH.obs, cell_state=cell_state)['value']
                     q_next += target_q_values
                 q_next /= self.target_k
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)

@@ -64,8 +64,7 @@ class RAINBOW(Off_Policy):
         )
 
         self.rainbow_net = _create_net('rainbow_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.rainbow_target_net = _create_net('rainbow_target_net', self._representation_target_net)
+        self.rainbow_target_net = _create_net('rainbow_target_net', self._representation_net._copy())
         update_target_net_weights(self.rainbow_target_net.weights, self.rainbow_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
@@ -88,9 +87,10 @@ class RAINBOW(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.rainbow_net(obs, cell_state=cell_state)
+            ret = self.rainbow_net(obs, cell_state=cell_state)
+            q_values = ret['value']
             q = tf.reduce_sum(self.zb * q_values, axis=-1)  # [B, A, N] => [B, A]
-        return tf.argmax(q, axis=-1), cell_state  # [B, 1]
+        return tf.argmax(q, axis=-1), ret['cell_state']  # [B, 1]
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -100,8 +100,7 @@ class RAINBOW(Off_Policy):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'use_stack': True
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function
@@ -109,16 +108,15 @@ class RAINBOW(Off_Policy):
         batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
                 indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist = self.rainbow_net.value_net(feat)  # [B, A, N]
+                q_dist = self.rainbow_net(BATCH.obs, cell_state=cell_state)  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
                 q_eval = tf.reduce_sum(q_dist * self.z, axis=-1)
-                target_q = self.rainbow_net.value_net(feat_)
+                target_q = self.rainbow_net(BATCH.obs_, cell_state=cell_state)
                 target_q = tf.reduce_sum(self.zb * target_q, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
 
-                target_q_dist, _ = self.rainbow_target_net(BATCH.obs_, cell_state=cell_state)  # [B, A, N]
+                target_q_dist = self.rainbow_target_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, A, N]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]
                 target = tf.tile(BATCH.reward, tf.constant([1, self.atoms])) \
                     + self.gamma * tf.multiply(self.z,   # [1, N]

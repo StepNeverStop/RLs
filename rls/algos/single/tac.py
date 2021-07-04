@@ -66,23 +66,24 @@ class TAC(Off_Policy):
         )
 
         self.critic_net = _create_net('critic_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.critic_target_net = _create_net('critic_target_net', self._representation_target_net)
+        self.critic_target_net = _create_net('critic_target_net', self._representation_net._copy())
 
         if self.is_continuous:
             self.actor_net = ValueNetwork(
                 name='actor_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.ACTOR_CTS,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      output_shape=self.a_dim,
+                value_net_kwargs=dict(output_shape=self.a_dim,
                                       network_settings=network_settings['actor_continuous'])
             )
         else:
             self.actor_net = ValueNetwork(
                 name='actor_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.ACTOR_DCT,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      output_shape=self.a_dim,
+                value_net_kwargs=dict(output_shape=self.a_dim,
                                       network_settings=network_settings['actor_discrete'])
             )
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
@@ -94,7 +95,6 @@ class TAC(Off_Policy):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self._worker_params_dict.update(self._representation_net._all_models)
         self._worker_params_dict.update(self.actor_net._policy_models)
 
         self._all_params_dict.update(self.actor_net._all_models)
@@ -118,7 +118,7 @@ class TAC(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
+            feat, cell_state = self.critic_net.get_feat(obs, cell_state=cell_state, out_cell_state=True)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 pi, _ = tsallis_squash_rsample(mu, log_std, self.entropic_index)
@@ -142,8 +142,7 @@ class TAC(Off_Policy):
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
                     ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
-                ]),
-                'use_stack': True
+                ])
             })
 
     def _train(self, BATCH, isw, cell_state):
@@ -156,7 +155,8 @@ class TAC(Off_Policy):
     def train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
+                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_state)
+                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_state)
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
                     pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
@@ -182,7 +182,9 @@ class TAC(Off_Policy):
                 q1, q2 = self.critic_net.get_value(feat, BATCH.action)
                 q_s_pi = self.critic_net.get_min(feat, pi)
 
-                q1_target, q2_target, _ = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_state)
+                ret = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_state)
+                q1_target = ret['value']
+                q1_target = ret['value2']
                 q_target = tf.minimum(q1_target, q2_target)
                 dc_r = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * (q_target - self.alpha * target_log_pi))
                 td_error1 = q1 - dc_r

@@ -48,8 +48,7 @@ class DQN(Off_Policy):
             value_net_kwargs=dict(output_shape=self.a_dim, network_settings=network_settings)
         )
         self.q_net = _create_net('dqn_q_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_net = _create_net('dqn_q_target_net', self._representation_target_net)
+        self.q_target_net = _create_net('dqn_q_target_net', self._representation_net._copy())
 
         update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
         self.lr = self.init_lr(lr)
@@ -73,8 +72,9 @@ class DQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_net(obs, cell_state=cell_state)
-        return tf.argmax(q_values, axis=1), cell_state
+            ret = self.q_net(obs, cell_state=cell_state)
+            q_values = ret['value']
+        return tf.argmax(q_values, axis=1), ret['cell_state']
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -91,8 +91,8 @@ class DQN(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q, _ = self.q_net(BATCH.obs, cell_state=cell_state)
-                q_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
+                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
                 td_error = q_target - q_eval
@@ -112,8 +112,8 @@ class DQN(Off_Policy):
     # @tf.function
     # def _cal_td(self, BATCH, cell_state):
     #     with tf.device(self.device):
-    #         q = self.q_net(BATCH.obs, cell_state=cell_state)
-    #         q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+    #         q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
+    #         q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']
     #         q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
     #         q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
     #         td_error = q_target - q_eval

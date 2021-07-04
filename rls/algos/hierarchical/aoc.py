@@ -133,7 +133,8 @@ class AOC(On_Policy):
     @tf.function
     def _get_action(self, obs, cell_state, options):
         with tf.device(self.device):
-            (q, pi, beta), cell_state = self.net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+            ret = self.net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+            (q, pi, beta) = ret['value']
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
@@ -153,7 +154,7 @@ class AOC(On_Policy):
             beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
             beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
             new_options = tf.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
-        return sample_op, value, log_prob, beta_adv, new_options, max_options, cell_state
+        return sample_op, value, log_prob, beta_adv, new_options, max_options, ret['cell_state']
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -169,10 +170,11 @@ class AOC(On_Policy):
     def _get_value(self, obs, options, cell_state):
         options = tf.cast(options, tf.int32)
         with tf.device(self.device):
-            (q, _, _), cell_state = self.net(obs, cell_state=cell_state)
+            ret = self.net(obs, cell_state=cell_state)
+            (q, _, _) = ret['value']
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
-            return value, cell_state
+            return value, ret['cell_state']
 
     def calculate_statistics(self):
         init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), self.data.last_data('options'), cell_state=self.cell_state)
@@ -223,8 +225,8 @@ class AOC(On_Policy):
         options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (q, pi, beta), cell_state = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
-
+                ret = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+                (q, pi, beta) = ret['value']
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
                 options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
                 last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]

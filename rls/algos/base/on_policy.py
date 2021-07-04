@@ -22,7 +22,7 @@ class On_Policy(Policy):
         self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
 
     def initialize_data_buffer(self, store_data_type=BatchExperiences, sample_data_type=BatchExperiences) -> NoReturn:
-        self.data = DataBuffer(n_copys=self.n_copys, rnn_cell_nums=self.cell_nums,
+        self.data = DataBuffer(n_copys=self.n_copys, rnn_cell_nums=self.rnn_cell_nums,
                                batch_size=self.batch_size, rnn_time_step=self.rnn_time_step,
                                store_data_type=store_data_type, sample_data_type=sample_data_type)
 

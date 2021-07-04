@@ -73,8 +73,7 @@ class OC(Off_Policy):
             value_net_kwargs=dict(output_shape=self.options_num, network_settings=network_settings['q'])
         )
         self.q_net = _create_net('q_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_net = _create_net('q_target_net', self._representation_target_net)
+        self.q_target_net = _create_net('q_target_net', self._representation_net._copy())
 
         self.intra_option_net = ValueNetwork(
             name='intra_option_net',
@@ -135,10 +134,10 @@ class OC(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state, options):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
-            q = self.q_net.value_net(feat)  # [B, P]
-            pi = self.intra_option_net.value_net(feat)  # [B, P, A]
-            beta = self.termination_net.value_net(feat)  # [B, P]
+            ret = self.q_net(obs, cell_state=cell_state)
+            q = ret['value']  # [B, P]
+            pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
+            beta = self.termination_net.value_net(ret['feat'])  # [B, P]
             options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
             options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
             pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
@@ -157,7 +156,7 @@ class OC(Off_Policy):
                 beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
                 beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
                 new_options = tf.where(beta_dist.sample() < 1, options, max_options)
-        return a, new_options, cell_state
+        return a, new_options, ret['cell_state']
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -182,13 +181,13 @@ class OC(Off_Policy):
         options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
-                q = self.q_net.value_net(feat)  # [B, P]
-                pi = self.intra_option_net.value_net(feat)  # [B, P, A]
-                beta = self.termination_net.value_net(feat)   # [B, P]
-                q_next = self.q_target_net.value_net(feat_)   # [B, P], [B, P, A], [B, P]
-                beta_next = self.termination_net.value_net(feat_)  # [B, P]
+                ret = self.q_net(BATCH.obs, cell_state=cell_state)
+                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+                q = ret['value']  # [B, P]
+                pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
+                beta = self.termination_net.value_net(ret['feat'])   # [B, P]
+                q_next = ret_['value']   # [B, P], [B, P, A], [B, P]
+                beta_next = self.termination_net.value_net(ret_['feat'])  # [B, P]
                 options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
 
                 q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
@@ -196,7 +195,7 @@ class OC(Off_Policy):
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
                 if self.double_q:
-                    q_ = self.q_net.value_net(feat)  # [B, P], [B, P, A], [B, P]
+                    q_ = self.q_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, P], [B, P, A], [B, P]
                     max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
                     q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
                 else:

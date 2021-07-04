@@ -53,8 +53,7 @@ class MAXSQN(Off_Policy):
             value_net_kwargs=dict(output_shape=self.a_dim, network_settings=network_settings)
         )
         self.critic_net = _create_net('critic_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.critic_target_net = _create_net('critic_target_net', self._representation_target_net)
+        self.critic_target_net = _create_net('critic_target_net', self._representation_net._copy())
 
         update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights)
         self.q_lr, self.alpha_lr = map(self.init_lr, [q_lr, alpha_lr])
@@ -83,10 +82,11 @@ class MAXSQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q, _, cell_state = self.critic_net(obs, cell_state=cell_state)
+            ret = self.critic_net(obs, cell_state=cell_state)
+            q = ret['value']
             cate_dist = tfp.distributions.Categorical(logits=(q / self.alpha))
             pi = cate_dist.sample()
-        return tf.argmax(q, axis=1), pi, cell_state
+        return tf.argmax(q, axis=1), pi, ret['cell_state']
 
     def _target_params_update(self):
         update_target_net_weights(self.critic_target_net.weights, self.critic_net.weights, self.ployak)
@@ -105,11 +105,15 @@ class MAXSQN(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                q1, q2, _ = self.critic_net(BATCH.obs, cell_state=cell_state)
+                ret = self.critic_net(BATCH.obs, cell_state=cell_state)
+                q1 = ret['value']
+                q2 = ret['value2']
                 q1_eval = tf.reduce_sum(tf.multiply(q1, BATCH.action), axis=1, keepdims=True)
                 q2_eval = tf.reduce_sum(tf.multiply(q2, BATCH.action), axis=1, keepdims=True)
 
-                q1_target, q2_target, _ = self.critic_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.critic_target_net(BATCH.obs_, cell_state=cell_state)
+                q1_target = ret['value']
+                q1_target = ret['value2']
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
                 q1_target_log_probs = tf.nn.log_softmax(q1_target / (self.alpha + 1e-8), axis=1)
                 q1_target_entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(q1_target_log_probs) * q1_target_log_probs, axis=1, keepdims=True))

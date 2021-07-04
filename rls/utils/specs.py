@@ -122,7 +122,7 @@ class NamedTupleStaticClass:
             if isinstance(d1, tuple) and isinstance(d2, tuple):
                 return NamedTupleStaticClass.check_equal(d1, d2)
             elif isinstance(d1, np.ndarray) and isinstance(d2, np.ndarray):
-                return (d1 == d2).all()
+                return np.allclose(d1, d2, equal_nan=True)
             else:
                 return False
 

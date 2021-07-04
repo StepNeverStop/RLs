@@ -48,8 +48,7 @@ class DDDQN(Off_Policy):
         )
 
         self.dueling_net = _create_net('dueling_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.dueling_target_net = _create_net('dueling_target_net', self._representation_target_net)
+        self.dueling_target_net = _create_net('dueling_target_net', self._representation_net._copy())
         update_target_net_weights(self.dueling_target_net.weights, self.dueling_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
@@ -72,8 +71,9 @@ class DDDQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.dueling_net(obs, cell_state=cell_state)
-        return tf.argmax(q_values, axis=-1), cell_state
+            ret = self.dueling_net(obs, cell_state=cell_state)
+            q_values = ret['value']
+        return tf.argmax(q_values, axis=-1), ret['cell_state']
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -83,19 +83,17 @@ class DDDQN(Off_Policy):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'use_stack': True
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
-                q_target, _ = self.dueling_target_net(BATCH.obs_, cell_state=cell_state)
-                q = self.dueling_net.value_net(feat)
+                q = self.dueling_net(BATCH.obs, cell_state=cell_state)['value']
+                next_q = self.dueling_net(BATCH.obs_, cell_state=cell_state)['value']
+                q_target = self.dueling_target_net(BATCH.obs_, cell_state=cell_state)['value']
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
-                next_q = self.dueling_net.value_net(feat_)
                 next_max_action = tf.argmax(next_q, axis=1, name='next_action_int')
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
                 next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)

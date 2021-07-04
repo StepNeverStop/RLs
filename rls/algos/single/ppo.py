@@ -182,25 +182,25 @@ class PPO(On_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
+            ret = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
                 if self.share_net:
-                    mu, log_std, value = self.net.value_net(feat)
+                    mu, log_std, value = ret['value']
                 else:
-                    mu, log_std = self.net.policy_net(feat)
-                    value = self.net.value_net(feat)
+                    mu, log_std = ret['actor']
+                    value = ret['critic']
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
                 if self.share_net:
-                    logits, value = self.net.value_net(feat)
+                    logits, value = ret['value']
                 else:
-                    logits = self.net.policy_net(feat)
-                    value = self.net.value_net(feat)
+                    logits = ret['actor']
+                    value = ret['critic']
                 norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-        return sample_op, value, log_prob, cell_state
+        return sample_op, value, log_prob, ret['cell_state']
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         # self._running_average()
@@ -212,19 +212,15 @@ class PPO(On_Policy):
     @tf.function
     def _get_value(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
-            output = self.net.value_net(feat)
-            if self.is_continuous:
-                if self.share_net:
-                    _, _, value = output
+            ret = self.net(obs, cell_state=cell_state)
+            if self.share_net:
+                if self.is_continuous:
+                    _, _, value = ret['value']
                 else:
-                    value = output
+                    _, value = ret['value']
             else:
-                if self.share_net:
-                    _, value = output
-                else:
-                    value = output
-            return value, cell_state
+                value = ret['critic']
+            return value, ret['cell_state']
 
     def calculate_statistics(self) -> NoReturn:
         init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
@@ -298,13 +294,13 @@ class PPO(On_Policy):
     def train_share(self, BATCH, cell_state, kl_coef):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, cell_state = self.net(BATCH.obs, cell_state=cell_state)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std, value = output
+                    mu, log_std, value = ret['value']
                     new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits, value = output
+                    logits, value = ret['value']
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -359,13 +355,13 @@ class PPO(On_Policy):
     def train_actor(self, BATCH, cell_state, kl_coef):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, _ = self.net(BATCH.obs, cell_state=cell_state)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std = output
+                    mu, log_std = ret['actor']
                     new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = output
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -402,8 +398,7 @@ class PPO(On_Policy):
     def train_critic(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                value = self.net.value_net(feat)
+                value = self.net(BATCH.obs, cell_state=cell_state)['critic']
 
                 td_error = BATCH.discounted_reward - value
                 if self.use_vclip:

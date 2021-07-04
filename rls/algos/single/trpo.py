@@ -125,21 +125,20 @@ class TRPO(On_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
-            value = self.net.value_net(feat)
-            output = self.net.policy_net(feat)
+            ret = self.net(obs, cell_state=cell_state)
+            value = ret['critic']
             if self.is_continuous:
-                mu, log_std = output
+                mu, log_std = ret['actor']
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
                 return sample_op, value, log_prob, (mu, log_std), cell_state
             else:
-                logits = output
+                logits = ret['actor']
                 logp_all = tf.nn.log_softmax(logits)
                 norm_dist = tfp.distributions.Categorical(logits=logp_all)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-                return sample_op, value, log_prob, logp_all, cell_state
+                return sample_op, value, log_prob, logp_all, ret['cell_state']
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -155,9 +154,8 @@ class TRPO(On_Policy):
     @tf.function
     def _get_value(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
-            value = self.net.value_net(feat)
-            return value, cell_state
+            ret = self.net(obs, cell_state=cell_state)
+            return ret['critic'], ret['cell_state']
 
     def calculate_statistics(self):
         init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
@@ -200,13 +198,13 @@ class TRPO(On_Policy):
     def train_actor(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, _ = self.net(BATCH.obs, cell_state=cell_state)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std = output
+                    mu, log_std = ret['actor']
                     new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = output
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -221,15 +219,15 @@ class TRPO(On_Policy):
     def Hx(self, x, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                output, _ = self.net(BATCH.obs, cell_state=cell_state)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std = output
+                    mu, log_std = ret['actor']
                     var0, var1 = tf.exp(2 * log_std), tf.exp(2 * BATCH.log_std)
                     pre_sum = 0.5 * (((BATCH.mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + BATCH.log_std - log_std
                     all_kls = tf.reduce_sum(pre_sum, axis=1)
                     kl = tf.reduce_mean(all_kls)
                 else:
-                    logits = output
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     all_kls = tf.reduce_sum(tf.exp(BATCH.logp_all) * (BATCH.logp_all - logp_all), axis=1)
                     kl = tf.reduce_mean(all_kls)
@@ -245,8 +243,8 @@ class TRPO(On_Policy):
     def train_critic(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                value = self.net.value_net(feat)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
+                value = ret['critic']
                 td_error = BATCH.discounted_reward - value
                 value_loss = tf.reduce_mean(tf.square(td_error))
             critic_grads = tape.gradient(value_loss, self.net.critic_trainable_variables)

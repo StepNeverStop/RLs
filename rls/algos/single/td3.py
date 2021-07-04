@@ -66,8 +66,7 @@ class TD3(Off_Policy):
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.ac_target_net = _create_net('ac_target_net', self._representation_target_net)
+        self.ac_target_net = _create_net('ac_target_net', self._representation_net._copy())
 
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
         self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
@@ -94,16 +93,16 @@ class TD3(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.ac_net(obs, cell_state=cell_state)
+            ret = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
-                mu = output
+                mu = ret['actor']
                 pi = self.noised_action(mu)
             else:
-                logits = output
+                logits = ret['actor']
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
-            return mu, pi, cell_state
+            return mu, pi, ret['cell_state']
 
     def _target_params_update(self):
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights, self.ployak)
@@ -122,11 +121,11 @@ class TD3(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.ac_net(BATCH.obs, BATCH.action, cell_state=cell_state)
+                feat_ = self.ac_target_net.get_feat(BATCH.obs_, cell_state=cell_state)
                 if self.is_continuous:
                     action_target = self.target_noised_action(self.ac_target_net.policy_net(feat_))
-                    mu = self.ac_net.policy_net(feat)
+                    mu = ret['actor']
                 else:
                     target_logits = self.ac_target_net.policy_net(feat_)
                     target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
@@ -135,14 +134,14 @@ class TD3(Off_Policy):
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
 
                     gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
-                    logits = self.ac_net.policy_net(feat)
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
-                q1, q2 = self.ac_net.get_value(feat, BATCH.action)
-                q1_actor = self.ac_net.value_net(feat, mu)
+                q1, q2 = ret['critic'], ret['critic2']
+                q1_actor = self.ac_net.value_net(ret['feat'], mu)
                 q_target = self.ac_target_net.get_min(feat_, action_target)
                 dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
                 td_error1 = q1 - dc_r

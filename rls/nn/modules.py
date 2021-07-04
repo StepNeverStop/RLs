@@ -21,10 +21,7 @@ class CuriosityModel(M):
 
     def __init__(self,
                  obs_spec,
-                 vector_net_kwargs,
-                 visual_net_kwargs,
-                 encoder_net_kwargs,
-                 memory_net_kwargs,
+                 representation_net_params,
                  is_continuous,
                  action_dim,
                  *,
@@ -46,12 +43,9 @@ class CuriosityModel(M):
         self.is_continuous = is_continuous
 
         self.repre_net = DefaultRepresentationNetwork(
-            obs_spec=obs_spec,
             name='curiosity_model',
-            vector_net_kwargs=vector_net_kwargs,
-            visual_net_kwargs=visual_net_kwargs,
-            encoder_net_kwargs=encoder_net_kwargs,
-            memory_net_kwargs=memory_net_kwargs
+            obs_spec=obs_spec,
+            representation_net_params=representation_net_params
         )
 
         self.feat_dim = self.repre_net.h_dim

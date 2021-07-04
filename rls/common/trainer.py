@@ -79,7 +79,7 @@ class Trainer:
 
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
-        self.algo_args['memory_net_kwargs']['use_rnn'] = self.train_args['use_rnn']
+        self.algo_args['representation_net_params']['use_rnn'] = self.train_args['use_rnn']
         self.algo_args['no_save'] = self.train_args['no_save']
         show_dict(self.algo_args)
 

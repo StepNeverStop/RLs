@@ -65,15 +65,15 @@ class PG(On_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(obs, cell_state=cell_state)
+            ret = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
-                mu, log_std = output
+                mu, log_std = ret['value']
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
-                logits = output
+                logits = ret['value']
                 norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
-        return sample_op, cell_state
+        return sample_op, ret['cell_state']
 
     def calculate_statistics(self):
         self.data.cal_dc_r(self.gamma, 0., normalize=True)
@@ -100,7 +100,7 @@ class PG(On_Policy):
     def train(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                output, cell_state = self.net(BATCH.obs, cell_state=cell_state)
+                output = self.net(BATCH.obs, cell_state=cell_state)['value']
                 if self.is_continuous:
                     mu, log_std = output
                     log_act_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)

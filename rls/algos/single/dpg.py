@@ -92,12 +92,12 @@ class DPG(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(obs, cell_state=cell_state)
+            feat, cell_state = self.net.get_feat(obs, cell_state=cell_state, out_cell_state=True)
             if self.is_continuous:
-                mu = output
+                mu = self.net.policy_net(feat)
                 pi = self.noised_action(mu)
             else:
-                logits = output
+                logits = self.net.policy_net(feat)
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
@@ -110,20 +110,20 @@ class DPG(Off_Policy):
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
-                ]),
-                'use_stack': True
+                ])
             })
 
     @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
+                ret = self.net(BATCH.obs, BATCH.action, cell_state=cell_state)
+                feat_ = self.net.get_feat(BATCH.obs_, cell_state=cell_state)
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)
                     if self.use_target_action_noise:
                         action_target = self.target_noised_action(action_target)
-                    mu = self.net.policy_net(feat)
+                    mu = ret['actor']
                 else:
                     target_logits = self.net.policy_net(feat_)
                     target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
@@ -131,17 +131,17 @@ class DPG(Off_Policy):
                     target_log_pi = target_cate_dist.log_prob(target_pi)
                     action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
 
-                    logits = self.net.policy_net(feat)
+                    logits = ret['actor']
                     _pi = tf.nn.softmax(logits)
                     _pi_true_one_hot = tf.one_hot(tf.argmax(logits, axis=-1), self.a_dim, dtype=tf.float32)
                     _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
                     mu = _pi_diff + _pi
                 q_target = self.net.value_net(feat_, action_target)
                 dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
-                q = self.net.value_net(feat, BATCH.action)
+                q = ret['critic']
                 td_error = dc_r - q
                 q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
-                q_actor = self.net.value_net(feat, mu)
+                q_actor = self.net.value_net(ret['feat'], mu)
                 actor_loss = -tf.reduce_mean(q_actor)
             q_grads = tape.gradient(q_loss, self.net.critic_trainable_variables)
             self.optimizer_critic.apply_gradients(

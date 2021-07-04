@@ -27,6 +27,7 @@ class VDN(MultiAgentOffPolicy):
                  eps_final=0.01,
                  init2mid_annealing_step=1000,
                  assign_interval=2,
+                 share_params=True,
                  network_settings={
                      'share': [128],
                      'v': [128],
@@ -41,29 +42,28 @@ class VDN(MultiAgentOffPolicy):
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
+        self.share_params = share_params
+        self.n_models_percopy = 1 if self.share_params else self.n_agents_percopy
 
         def _create_net(name, i): return ValueNetwork(
             name=name+f'_{i}',
             representation_net=DefaultRepresentationNetwork(
-                obs_spec=self.envspecs[i].obs_spec,
                 name=name+f'_{i}',
-                vector_net_kwargs=self.vector_net_kwargs,
-                visual_net_kwargs=self.visual_net_kwargs,
-                encoder_net_kwargs=self.encoder_net_kwargs,
-                memory_net_kwargs=self.memory_net_kwargs),
+                obs_spec=self.envspecs[i].obs_spec,
+                representation_net_params=self.representation_net_params),
             value_net_type=OutputNetworkType.CRITIC_DUELING,
             value_net_kwargs=dict(output_shape=self.envspecs[i].a_dim, network_settings=network_settings)
         )
 
-        self.dueling_nets = [_create_net(name='dueling_net', i=i) for i in range(self.n_agents_percopy)]
-        self.dueling_target_nets = [_create_net(name='dueling_target_net', i=i) for i in range(self.n_agents_percopy)]
+        self.dueling_nets = [_create_net(name='dueling_net', i=i) for i in range(self.n_models_percopy)]
+        self.dueling_target_nets = [_create_net(name='dueling_target_net', i=i) for i in range(self.n_models_percopy)]
         self._target_params_update()
 
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
-        [self._worker_params_dict.update(self.dueling_nets[i]._policy_models) for i in range(self.n_agents_percopy)]
-        [self._all_params_dict.update(self.dueling_nets[i]._all_models) for i in range(self.n_agents_percopy)]
+        [self._worker_params_dict.update(self.dueling_nets[i]._policy_models) for i in range(self.n_models_percopy)]
+        [self._all_params_dict.update(self.dueling_nets[i]._all_models) for i in range(self.n_models_percopy)]
         self._all_params_dict.update(optimizer=self.optimizer)
         self._model_post_process()
         self.initialize_data_buffer()
@@ -71,22 +71,23 @@ class VDN(MultiAgentOffPolicy):
     def choose_action(self, obs, evaluation=False):
         actions = []
         for i in range(self.n_agents_percopy):
+            j = 0 if self.share_params else i
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
                 actions.append(np.random.randint(0, self.envspecs[i].a_dim, self.n_copys))
             else:
-                a = self._get_action(obs[i], self.dueling_nets[i])
+                a = self._get_action(obs[i], self.dueling_nets[j])
                 actions.append(a.numpy())
         return actions
 
     @tf.function
     def _get_action(self, obs, net):
         with tf.device(self.device):
-            q_values, _ = net(obs)
+            q_values = net(obs)['value']
         return tf.argmax(q_values, axis=-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            for i in range(self.n_agents_percopy):
+            for i in range(self.n_models_percopy):
                 update_target_net_weights(self.dueling_target_nets[i].weights, self.dueling_nets[i].weights)
 
     def learn(self, **kwargs):
@@ -106,16 +107,16 @@ class VDN(MultiAgentOffPolicy):
         summaries = {}
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q_target_all = 0
                 q_target_next_max_all = 0
                 reward = tf.zeros_like(BATCHs[0].reward)
                 done = tf.zeros_like(BATCHs[0].done)
                 for i in range(self.n_agents_percopy):
+                    j = 0 if self.share_params else i
                     reward += BATCHs[i].reward
                     done += BATCHs[i].done
-                    q = self.dueling_nets[i](BATCHs[i].obs)[0]
-                    next_q = self.dueling_nets[i](BATCHs[i].obs_)[0]
-                    q_target = self.dueling_target_nets[i](BATCHs[i].obs_)[0]
+                    q = self.dueling_nets[j](BATCHs[i].obs)['value']
+                    next_q = self.dueling_nets[j](BATCHs[i].obs_)['value']
+                    q_target = self.dueling_target_nets[j](BATCHs[i].obs_)['value']
 
                     q_eval = tf.reduce_sum(tf.multiply(q, BATCHs[i].action), axis=1, keepdims=True)
                     q_eval_all += q_eval

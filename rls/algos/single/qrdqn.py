@@ -53,8 +53,7 @@ class QRDQN(Off_Policy):
         )
 
         self.q_dist_net = _create_net('q_dist_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_dist_net = _create_net('q_target_dist_net', self._representation_target_net)
+        self.q_target_dist_net = _create_net('q_target_dist_net', self._representation_net._copy())
         update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
@@ -77,9 +76,10 @@ class QRDQN(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_dist_net(obs, cell_state=cell_state)
+            ret = self.q_dist_net(obs, cell_state=cell_state)
+            q_values = ret['value']
             q = tf.reduce_mean(q_values, axis=-1)  # [B, A, N] => [B, A]
-        return tf.argmax(q, axis=-1), cell_state  # [B, 1]
+        return tf.argmax(q, axis=-1), ret['cell_state']  # [B, 1]
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -98,10 +98,10 @@ class QRDQN(Off_Policy):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist, _ = self.q_dist_net(BATCH.obs, cell_state=cell_state)  # [B, A, N]
+                q_dist = self.q_dist_net(BATCH.obs, cell_state=cell_state)['value']  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
 
-                target_q_dist, _ = self.q_target_dist_net(BATCH.obs_, cell_state=cell_state)  # [B, A, N]
+                target_q_dist = self.q_target_dist_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, A, N]
                 target_q = tf.reduce_mean(target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]

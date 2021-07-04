@@ -44,17 +44,15 @@ class DDQN(DQN):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'use_stack': True
+                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
             })
 
     @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
-                q = self.q_net.value_net(feat)
-                q_next = self.q_net.value_net(feat_)
+                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
+                q_next = self.q_net(BATCH.obs_, cell_state=cell_state)['value']
                 q_target_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
                 next_max_action = tf.argmax(q_next, axis=1)
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)

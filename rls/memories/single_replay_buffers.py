@@ -240,11 +240,15 @@ class NStepWrapper:
         # TODO: 优化
         q = self.queue[i]
         if len(q) == 0:  # 如果Nstep临时经验池为空，就直接添加
-            q.append(data)
+            if data.done:
+                self._store_op(data)
+            else:
+                q.append(data)
             return
 
         if len(q) == self.n_step:
             self._store_op(q.pop(0))
+
         if not NamedTupleStaticClass.check_equal(q[-1].obs_, data.obs):    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             q.clear()   # 保证经验池中不存在不足N长度的序列，有done的除外，因为（1-done）为0，导致gamma的次方计算不准确也没有关系。
             q.append(data)

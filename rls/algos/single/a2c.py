@@ -76,22 +76,21 @@ class A2C(On_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(obs, cell_state=cell_state)
+            ret = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
-                mu, log_std = output
+                mu, log_std = ret['actor']
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
             else:
-                logits = output
+                logits = ret['actor']
                 norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
-        return sample_op, cell_state
+        return sample_op, ret['cell_state']
 
     @tf.function
     def _get_value(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
-            value = self.net.value_net(feat)
-            return value, cell_state
+            ret = self.net(obs, cell_state=cell_state)
+            return ret['critic'], ret['cell_state']
 
     def calculate_statistics(self):
         init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), cell_state=self.cell_state)
@@ -124,17 +123,17 @@ class A2C(On_Policy):
     def train(self, BATCH, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
+                ret = self.net(BATCH.obs, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std = self.net.policy_net(feat)
+                    mu, log_std = ret['actor']
                     log_act_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = self.net.policy_net(feat)
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     log_act_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                v = self.net.value_net(feat)
+                v = resat['critic']
                 advantage = tf.stop_gradient(BATCH.discounted_reward - v)
                 td_error = BATCH.discounted_reward - v
                 critic_loss = tf.reduce_mean(tf.square(td_error))

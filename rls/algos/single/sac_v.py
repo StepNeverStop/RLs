@@ -68,23 +68,24 @@ class SAC_V(Off_Policy):
             value_net_kwargs=dict(network_settings=network_settings['v'])
         )
         self.v_net = _create_net('v_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.v_target_net = _create_net('v_target_net', self._representation_target_net)
+        self.v_target_net = _create_net('v_target_net', self._representation_net._copy())
 
         if self.is_continuous:
             self.actor_net = ValueNetwork(
                 name='actor_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.ACTOR_CTS,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      output_shape=self.a_dim,
+                value_net_kwargs=dict(output_shape=self.a_dim,
                                       network_settings=network_settings['actor_continuous'])
             )
         else:
             self.actor_net = ValueNetwork(
                 name='actor_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.ACTOR_DCT,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      output_shape=self.a_dim,
+                value_net_kwargs=dict(output_shape=self.a_dim,
                                       network_settings=network_settings['actor_discrete'])
             )
             if self.use_gumbel:
@@ -96,17 +97,19 @@ class SAC_V(Off_Policy):
         if self.is_continuous or self.use_gumbel:
             self.q_net = DoubleValueNetwork(
                 name='q_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      action_dim=self.a_dim,
+                value_net_kwargs=dict(action_dim=self.a_dim,
                                       network_settings=network_settings['q'])
             )
         else:
             self.q_net = DoubleValueNetwork(
                 name='q_net',
+                representation_net=self._representation_net,
+                train_representation_net=False,
                 value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
-                value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                      output_shape=self.a_dim,
+                value_net_kwargs=dict(output_shape=self.a_dim,
                                       network_settings=network_settings['q'])
             )
 
@@ -114,7 +117,6 @@ class SAC_V(Off_Policy):
         self.actor_lr, self.critic_lr, self.alpha_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr])
         self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr])
 
-        self._worker_params_dict.update(self._representation_net._all_models)
         self._worker_params_dict.update(self.actor_net._policy_models)
 
         self._all_params_dict.update(self.actor_net._all_models)
@@ -139,7 +141,7 @@ class SAC_V(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            feat, cell_state = self._representation_net(obs, cell_state=cell_state)
+            feat, cell_state = self.v_net.get_feat(obs, cell_state=cell_state, out_cell_state=True)
             if self.is_continuous:
                 mu, log_std = self.actor_net.value_net(feat)
                 pi, _ = squash_rsample(mu, log_std)
@@ -179,16 +181,16 @@ class SAC_V(Off_Policy):
     def train_continuous(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                v = self.v_net.value_net(feat)
-                v_target, _ = self.v_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.v_net(BATCH.obs, cell_state=cell_state)
+                v = ret['value']
+                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_state)['value']
 
                 if self.is_continuous:
-                    mu, log_std = self.actor_net.value_net(feat)
+                    mu, log_std = self.actor_net.value_net(ret['feat'])
                     pi, log_pi = squash_rsample(mu, log_std)
                     entropy = gaussian_entropy(log_std)
                 else:
-                    logits = self.actor_net.value_net(feat)
+                    logits = self.actor_net.value_net(ret['feat'])
                     logp_all = tf.nn.log_softmax(logits)
                     gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
                     _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
@@ -197,8 +199,8 @@ class SAC_V(Off_Policy):
                     pi = _pi_diff + _pi
                     log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                q1, q2 = self.q_net.get_value(feat, BATCH.action)
-                q1_pi, q2_pi = self.q_net.get_value(feat, pi)
+                q1, q2 = self.q_net.get_value(ret['feat'], BATCH.action)
+                q1_pi, q2_pi = self.q_net.get_value(ret['feat'], pi)
                 dc_r = tf.stop_gradient(BATCH.reward + self.gamma * v_target * (1 - BATCH.done))
                 v_from_q_stop = tf.stop_gradient(tf.minimum(q1_pi, q2_pi) - self.alpha * log_pi)
                 td_v = v - v_from_q_stop
@@ -249,19 +251,19 @@ class SAC_V(Off_Policy):
     def train_discrete(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                v = self.v_net.value_net(feat)  # [B, 1]
-                v_target, _ = self.v_target_net(BATCH.obs_, cell_state=cell_state)  # [B, 1]
+                ret = self.v_net(BATCH.obs, cell_state=cell_state)
+                v = ret['value']  # [B, 1]
+                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, 1]
 
-                q1_all, q2_all = self.q_net.get_value(feat)   # [B, A]
+                q1_all, q2_all = self.q_net.get_value(ret['feat'])   # [B, A]
                 def q_function(x): return tf.reduce_sum(x * BATCH.action, axis=-1, keepdims=True)  # [B, 1]
                 q1 = q_function(q1_all)
                 q2 = q_function(q2_all)
-                logits = self.actor_net.value_net(feat)  # [B, A]
+                logits = self.actor_net.value_net(ret['feat'])  # [B, A]
                 logp_all = tf.nn.log_softmax(logits)  # [B, A]
 
                 entropy = -tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True)    # [B, 1]
-                q_all = self.q_net.get_min(feat)   # [B, A]
+                q_all = self.q_net.get_min(ret['feat'])   # [B, A]
                 actor_loss = -tf.reduce_mean(
                     tf.reduce_sum((q_all - self.alpha * logp_all) * tf.exp(logp_all))  # [B, A] => [B,]
                 )

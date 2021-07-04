@@ -87,8 +87,7 @@ class PD_DDPG(Off_Policy):
             self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
         self.ac_net = _create_net('ac_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.ac_target_net = _create_net('ac_target_net', self._representation_target_net)
+        self.ac_target_net = _create_net('ac_target_net', self._representation_net._copy())
 
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
         self.lambda_lr = lambda_lr
@@ -117,16 +116,16 @@ class PD_DDPG(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.ac_net(obs, cell_state=cell_state)
+            ret = self.ac_net(obs, cell_state=cell_state)
             if self.is_continuous:
-                mu = output
+                mu = ret['actor']
                 pi = self.noised_action(mu)
             else:
-                logits = output
+                logits = ret['actor']
                 mu = tf.argmax(logits, axis=1)
                 cate_dist = tfp.distributions.Categorical(logits=logits)
                 pi = cate_dist.sample()
-            return mu, pi, cell_state
+            return mu, pi, ret['cell_state']
 
     def _target_params_update(self):
         update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights, self.ployak)
@@ -146,8 +145,8 @@ class PD_DDPG(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat, _ = self._representation_net(BATCH.obs, cell_state=cell_state)
-                feat_, _ = self._representation_target_net(BATCH.obs_, cell_state=cell_state)
+                feat = self.ac_net.get_feat(BATCH.obs, cell_state=cell_state)
+                feat_ = self.ac_target_net.get_feat(BATCH.obs_, cell_state=cell_state)
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)

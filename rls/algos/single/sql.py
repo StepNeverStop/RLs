@@ -39,8 +39,7 @@ class SQL(Off_Policy):
         )
 
         self.q_net = _create_net('q_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_net = _create_net('q_target_net', self._representation_target_net)
+        self.q_target_net = _create_net('q_target_net', self._representation_net._copy())
         self.lr = self.init_lr(lr)
         self.optimizer = self.init_optimizer(self.lr)
 
@@ -61,12 +60,13 @@ class SQL(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            q_values, cell_state = self.q_net(obs, cell_state=cell_state)
+            ret = self.q_net(obs, cell_state=cell_state)
+            q_values = ret['value']
             logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
             logits /= tf.reduce_sum(logits)
             cate_dist = tfp.distributions.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return pi, cell_state
+        return pi, ret['cell_state']
 
     @tf.function
     def get_v(self, q):
@@ -88,8 +88,8 @@ class SQL(Off_Policy):
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q, _ = self.q_net(BATCH.obs, cell_state=cell_state)
-                q_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
+                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']
                 v_next = self.get_v(q_next)
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * v_next)

@@ -80,17 +80,17 @@ class AC(Off_Policy):
     @tf.function
     def _get_action(self, obs, cell_state):
         with tf.device(self.device):
-            output, cell_state = self.net(obs, cell_state=cell_state)
+            ret = self.net(obs, cell_state=cell_state)
             if self.is_continuous:
-                mu, log_std = output
+                mu, log_std = ret['actor']
                 sample_op, _ = gaussian_clip_rsample(mu, log_std)
                 log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
             else:
-                logits = output
+                logits = ret['actor']
                 norm_dist = tfp.distributions.Categorical(logits=logits)
                 sample_op = norm_dist.sample()
                 log_prob = norm_dist.log_prob(sample_op)
-        return sample_op, log_prob, cell_state
+        return sample_op, log_prob, ret['cell_state']
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -107,24 +107,25 @@ class AC(Off_Policy):
                 'summary_dict': dict([
                     ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
                     ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
-                ]),
-                'use_stack': True
+                ])
             })
 
     @tf.function
     def _train(self, BATCH, isw, cell_state):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
+                ret = self.net(BATCH.obs, BATCH.action, cell_state=cell_state)
+                q = ret['critic']
+                feat_ = self.net.get_feat(BATCH.obs_, cell_state=cell_state)
                 if self.is_continuous:
-                    mu, log_std = self.net.policy_net(feat)
+                    mu, log_std = ret['actor']
                     log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
                     entropy = gaussian_entropy(log_std)
 
                     next_mu, _ = self.net.policy_net(feat_)
                     max_q_next = tf.stop_gradient(self.net.value_net(feat_, next_mu))
                 else:
-                    logits = self.net.policy_net(feat)
+                    logits = ret['actor']
                     logp_all = tf.nn.log_softmax(logits)
                     log_prob = tf.reduce_sum(tf.multiply(logp_all, BATCH.action), axis=1, keepdims=True)
                     entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
@@ -133,7 +134,6 @@ class AC(Off_Policy):
                     max_a = tf.argmax(logits, axis=1)
                     max_a_one_hot = tf.one_hot(max_a, self.a_dim)
                     max_q_next = tf.stop_gradient(self.net.value_net(feat_, max_a_one_hot))
-                q = self.net.value_net(feat, BATCH.action)
                 ratio = tf.stop_gradient(tf.exp(log_prob - BATCH.old_log_prob))
                 q_value = tf.stop_gradient(q)
                 td_error = (BATCH.reward + self.gamma * (1 - BATCH.done) * max_q_next) - q
