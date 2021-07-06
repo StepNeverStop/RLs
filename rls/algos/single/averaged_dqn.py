@@ -75,7 +75,7 @@ class AveragedDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = a.numpy()
         return a
 
@@ -102,13 +102,13 @@ class AveragedDQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
-                q_next = self.target_nets[0](BATCH.obs_, cell_state=cell_state)['value']
+                q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']
+                q_next = self.target_nets[0](BATCH.obs_, cell_state=cell_states['obs_'])['value']
                 for i in range(1, self.target_k):
-                    target_q_values = self.target_nets[i](BATCH.obs, cell_state=cell_state)['value']
+                    target_q_values = self.target_nets[i](BATCH.obs, cell_state=cell_states['obs'])['value']
                     q_next += target_q_values
                 q_next /= self.target_k
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)

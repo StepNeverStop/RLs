@@ -93,7 +93,7 @@ class DDPG(Off_Policy):
             self.noised_action.reset()
 
     def choose_action(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
@@ -125,11 +125,11 @@ class DDPG(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.ac_net.get_feat(BATCH.obs, cell_state=cell_state)
-                feat_ = self.ac_target_net.get_feat(BATCH.obs_, cell_state=cell_state)
+                feat = self.ac_net.get_feat(BATCH.obs, cell_state=cell_states['obs'])
+                feat_ = self.ac_target_net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
 
                 if self.is_continuous:
                     action_target = self.ac_target_net.policy_net(feat_)

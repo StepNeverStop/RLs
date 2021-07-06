@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
@@ -13,12 +13,46 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import (OutputNetworkType,
+                             ModelObservations,
+                             RlsDataClass,
                              BatchExperiences)
 
-TRPO_Store_BatchExperiences_CTS = namedtuple('TRPO_Store_BatchExperiences_CTS', BatchExperiences._fields + ('value', 'log_prob', 'mu', 'log_std'))
-TRPO_Store_BatchExperiences_DCT = namedtuple('TRPO_Store_BatchExperiences_DCT', BatchExperiences._fields + ('value', 'log_prob', 'logp_all'))
-TRPO_Train_BatchExperiences_CTS = namedtuple('TRPO_Train_BatchExperiences_CTS', 'obs, action, log_prob, discounted_reward, gae_adv, mu, log_std')
-TRPO_Train_BatchExperiences_DCT = namedtuple('TRPO_Train_BatchExperiences_DCT', 'obs, action, log_prob, discounted_reward, gae_adv, logp_all')
+
+@dataclass
+class TRPO_Store_BatchExperiences_CTS(BatchExperiences):
+    value: np.ndarray
+    log_prob: np.ndarray
+    mu: np.ndarray
+    log_std: np.ndarray
+
+
+@dataclass
+class TRPO_Train_BatchExperiences_CTS(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    log_prob: np.ndarray
+    discounted_reward: np.ndarray
+    gae_adv: np.ndarray
+    mu: np.ndarray
+    log_std: np.ndarray
+
+
+@dataclass
+class TRPO_Store_BatchExperiences_DCT(BatchExperiences):
+    value: np.ndarray
+    log_prob: np.ndarray
+    mu: np.ndarray
+    log_std: np.ndarray
+
+
+@dataclass
+class TRPO_Train_BatchExperiences_DCT(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    log_prob: np.ndarray
+    discounted_reward: np.ndarray
+    gae_adv: np.ndarray
+    logp_all: np.ndarray
 
 
 '''
@@ -111,7 +145,7 @@ class TRPO(On_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
-        a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a, _v, _lp, _morlpa, self.next_cell_state = self._get_action(obs.nt, self.cell_state)
         a = a.numpy()
         self._value = _v.numpy()
         self._log_prob = _lp.numpy() + 1e-10

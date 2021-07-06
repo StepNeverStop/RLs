@@ -118,7 +118,7 @@ class SAC(Off_Policy):
         self.initialize_data_buffer()
 
     def choose_action(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
@@ -156,21 +156,21 @@ class SAC(Off_Policy):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         if self.is_continuous or self.use_gumbel:
-            td_error, summaries = self.train_continuous(BATCH, isw, cell_state)
+            td_error, summaries = self.train_continuous(BATCH, isw, cell_states)
         else:
-            td_error, summaries = self.train_discrete(BATCH, isw, cell_state)
+            td_error, summaries = self.train_discrete(BATCH, isw, cell_states)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function
-    def train_continuous(self, BATCH, isw, cell_state):
+    def train_continuous(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_state)
-                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_state)
+                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_states['obs'])
+                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
                     pi, log_pi = squash_rsample(mu, log_std)
@@ -195,7 +195,7 @@ class SAC(Off_Policy):
                     target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
                 q1, q2 = self.critic_net.get_value(feat, BATCH.action)
                 q_s_pi = self.critic_net.get_min(feat, pi)
-                ret = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_state)
+                ret = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_states['obs_'])
                 q1_target = ret['value']
                 q1_target = ret['value2']
                 q_target = tf.minimum(q1_target, q2_target)
@@ -241,11 +241,11 @@ class SAC(Off_Policy):
             return (td_error1 + td_error2) / 2, summaries
 
     @tf.function
-    def train_discrete(self, BATCH, isw, cell_state):
+    def train_discrete(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_state)
-                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_state)
+                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_states['obs'])
+                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
                 q1_all, q2_all = self.critic_net.get_value(feat)  # [B, A]
 
                 logits = self.actor_net.value_net(feat)
@@ -258,7 +258,7 @@ class SAC(Off_Policy):
                 q2 = q_function(q2_all)
                 target_logits = self.actor_net.value_net(feat_)  # [B, A]
                 target_log_probs = tf.nn.log_softmax(target_logits)  # [B, A]
-                ret = self.critic_target_net(BATCH.obs_, cell_state=cell_state)    # [B, A]
+                ret = self.critic_target_net(BATCH.obs_, cell_state=cell_states['obs_'])    # [B, A]
                 q1_target = ret['value']
                 q1_target = ret['value2']
                 def v_target_function(x): return tf.reduce_sum(tf.exp(target_log_probs) * (x - self.alpha * target_log_probs), axis=-1, keepdims=True)  # [B, 1]

@@ -12,8 +12,7 @@ from typing import (Dict,
 
 from rls.memories.on_policy_buffer import DataBuffer
 from rls.algos.base.policy import Policy
-from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+from rls.utils.specs import BatchExperiences
 
 
 class On_Policy(Policy):
@@ -39,12 +38,6 @@ class On_Policy(Policy):
     def no_op_store(self, *args, **kwargs) -> Any:
         pass
 
-    def clear(self) -> NoReturn:
-        """
-        clear the DataFrame.
-        """
-        self.data.clear()
-
     def _learn(self, function_dict: Dict) -> NoReturn:
         '''
         TODO: Annotation
@@ -62,9 +55,9 @@ class On_Policy(Policy):
 
         if self.use_curiosity and not self.use_rnn:
             curiosity_data = self.data.get_curiosity_data()
-            curiosity_data = NamedTupleStaticClass.data_convert(self.data_convert, curiosity_data)
-            cell_state = self.initial_cell_state(batch=self.n_copys)
-            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_state)
+            curiosity_data.map_fn(self.data_convert)
+            cell_states['obs'] = cell_states['obs_'] = self.initial_cell_state(batch=self.n_copys)
+            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data.nt, cell_states)
             self.data.update_reward(crsty_r.numpy())
             # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
             self.summaries.update(crsty_summaries)
@@ -77,13 +70,13 @@ class On_Policy(Policy):
             all_data = self.data.sample_generater()
 
         for data, cell_state in all_data:
-            data = NamedTupleStaticClass.data_convert(self.data_convert, data)
+            data.map_fn(self.data_convert)
             cell_state = self.data_convert(cell_state)
-            summaries = _train(data, cell_state)
+            summaries = _train(data.nt, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)
 
         self.write_training_summaries(self.train_step, self.summaries)
 
-        self.clear()
+        self.data.clear()

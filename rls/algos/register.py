@@ -56,7 +56,7 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     policy_type = algo_info['policy_type']
     LOGO = algo_info.get('logo', '')
     logger.info(colorize(LOGO, color='green'))
-
+    # TODO:
     model = getattr(importlib.import_module(f'rls.algos.{policy_type}.{name}'), class_name)
 
     algo_config = {}

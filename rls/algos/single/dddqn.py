@@ -64,7 +64,7 @@ class DDDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = a.numpy()
         return a
 
@@ -87,12 +87,12 @@ class DDDQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.dueling_net(BATCH.obs, cell_state=cell_state)['value']
-                next_q = self.dueling_net(BATCH.obs_, cell_state=cell_state)['value']
-                q_target = self.dueling_target_net(BATCH.obs_, cell_state=cell_state)['value']
+                q = self.dueling_net(BATCH.obs, cell_state=cell_states['obs'])['value']
+                next_q = self.dueling_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
+                q_target = self.dueling_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
                 next_max_action = tf.argmax(next_q, axis=1, name='next_action_int')
                 next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)

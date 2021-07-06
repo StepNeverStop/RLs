@@ -15,9 +15,7 @@ from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
 from rls.common.yaml_ops import load_yaml
 from rls.utils.specs import (MemoryNetworkType,
-                             BatchExperiences,
-                             ModelObservations,
-                             NamedTupleStaticClass)
+                             BatchExperiences)
 
 
 class Off_Policy(Policy):
@@ -95,16 +93,20 @@ class Off_Policy(Policy):
         exps = self.data.sample()   # 经验池取数据
         return self._data_process2dict(exps)
 
+    def get_burn_in_transitions(self) -> BatchExperiences:
+        exps = self.data.get_burn_in_data()
+        return self._data_process2dict(exps)
+
     def _data_process2dict(self, exps: BatchExperiences) -> BatchExperiences:
         # TODO 优化
         if not self.is_continuous:
-            assert 'action' in exps._fields, "assert 'action' in exps._fields"
-            exps = exps._replace(action=int2one_hot(exps.action.astype(np.int32), self.a_dim))
-        assert 'obs' in exps._fields and 'obs_' in exps._fields, "'obs' in exps._fields and 'obs_' in exps._fields"
-        # exps = exps._replace(
-        #     obs=exps.obs._replace(vector=self.normalize_vector_obs()),
-        #     obs_=exps.obs_._replace(vector=self.normalize_vector_obs()))
-        return NamedTupleStaticClass.data_convert(self.data_convert, exps)
+            assert 'action' in exps.__dict__.keys(), "assert 'action' in exps.__dict__.keys()"
+            exps.action = int2one_hot(exps.action.astype(np.int32), self.a_dim)
+        assert 'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys(), "'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys()"
+        # exps.obs.vector=self.normalize_vector_obs()
+        # exps.obs_.vector=self.normalize_vector_obs()
+        exps.map_fn(self.data_convert)
+        return exps
 
     def _train(self, *args):
         '''
@@ -129,25 +131,24 @@ class Off_Policy(Policy):
         if self.data.can_sample:
             self.intermediate_variable_reset()
             data = self.get_transitions()
+            cell_states = {}
 
             # --------------------------------------burn in隐状态部分
-            cell_state = self.initial_cell_state(batch=self.episode_batch_size)
+            cell_states['obs'] = self.initial_cell_state(batch=self.episode_batch_size)
+            cell_states['obs_'] = self.initial_cell_state(batch=self.episode_batch_size)
             if self.use_rnn and self.burn_in_time_step > 0:
-                _burn_in_data = self.data.get_burn_in_data()
-                _, cell_state = self._representation_net(_burn_in_data.obs, cell_state)
+                _burn_in_data = self.get_burn_in_transitions()
+                _, cell_states['obs'] = self._representation_net(obs=_burn_in_data.obs.nt,
+                                                                 cell_state=cell_states['obs'])
+                _, cell_states['obs_'] = self._representation_net(obs=_burn_in_data.obs_.nt,
+                                                                  cell_state=cell_states['obs_'])
             # --------------------------------------
 
             # --------------------------------------好奇心部分
             if self.use_curiosity:
-                curiosity_data = data
-                if self.use_rnn:
-                    # TODO check visual
-                    obs = [tf.reshape(o, [-1, o.shape[-1]]) for o in data.obs]  # [B, T, N] => [B*T, N]
-                    obs_ = [tf.reshape(o, [-1, o.shape[-1]]) for o in data.obs_]
-                    curiosity_data = data._replace(obs=data.obs.__class__._make(obs),
-                                                   obs_=data.obs_.__class__._make(obs_))
-                crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_state)
-                data = data._replace(reward=data.reward + crsty_r)
+                # TODO: check
+                crsty_r, crsty_summaries = self.curiosity_model(data.nt, cell_states)
+                data.reward += crsty_r
                 _summary.update(crsty_summaries)
             # --------------------------------------
 
@@ -160,7 +161,7 @@ class Off_Policy(Policy):
             # --------------------------------------
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-            td_error, summaries = self._train(data, _isw, cell_state)
+            td_error, summaries = self._train(data.nt, _isw, cell_states)
             # --------------------------------------
 
             # --------------------------------------更新summary
@@ -197,13 +198,13 @@ class Off_Policy(Policy):
         cell_state = (None,)
 
         if self.use_curiosity:
-            crsty_r, crsty_summaries = self.curiosity_model(data, cell_state)
-            data = data._replace(reward=data.reward + crsty_r)
+            crsty_r, crsty_summaries = self.curiosity_model(data.nt, cell_state)
+            data.reward += crsty_r
             _summary.update(crsty_summaries)
 
         _isw = self.data_convert(priorities)
 
-        td_error, summaries = self._train(data, _isw, cell_state)
+        td_error, summaries = self._train(data.nt, _isw, cell_state)
         _summary.update(summaries)
 
         self._target_params_update()

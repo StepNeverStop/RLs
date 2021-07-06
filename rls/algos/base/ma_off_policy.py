@@ -14,8 +14,7 @@ from typing import (List,
 from rls.algos.base.ma_policy import MultiAgentPolicy
 from rls.common.yaml_ops import load_yaml
 from rls.memories.multi_replay_buffers import MultiAgentExperienceReplay
-from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+from rls.utils.specs import BatchExperiences
 
 
 class MultiAgentOffPolicy(MultiAgentPolicy):
@@ -97,13 +96,13 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         rets = []
         for i, exps in enumerate(expss):
             if not self.envspecs[i].is_continuous:
-                assert 'action' in exps._fields, "assert 'action' in exps._fields"
-                exps = exps._replace(action=int2one_hot(exps.action.astype(np.int32), self.envspecs[i].a_dim))
-            assert 'obs' in exps._fields and 'obs_' in exps._fields, "'obs' in exps._fields and 'obs_' in exps._fields"
-            rets.append(NamedTupleStaticClass.data_convert(self.data_convert, exps))
-        # exps = exps._replace(
-        #     obs=exps.obs._replace(vector=self.normalize_vector_obs()),
-        #     obs_=exps.obs_._replace(vector=self.normalize_vector_obs()))
+                assert 'action' in exps.__dict__.keys(), "assert 'action' in exps.__dict__.keys()"
+                exps.action = int2one_hot(exps.action.astype(np.int32), self.envspecs[i].a_dim)
+            assert 'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys(), "'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys()"
+            exps.map_fn(self.data_convert)
+            rets.append(exps)
+            # exps.obs.vector = self.normalize_vector_obs()
+            # exps.obs_.vector = self.normalize_vector_obs()
         return rets
 
     @abstractmethod
@@ -124,6 +123,7 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             data = self.get_transitions()
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
+            data = [d.nt for d in data]
             summaries = self._train(data)
             # --------------------------------------
 

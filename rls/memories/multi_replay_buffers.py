@@ -7,8 +7,7 @@ from typing import (List,
 
 from rls.memories.base_replay_buffer import (ReplayBuffer,
                                              MultiAgentReplayBuffer)
-from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+from rls.utils.specs import BatchExperiences
 
 
 class MultiAgentExperienceReplay(MultiAgentReplayBuffer):
@@ -48,7 +47,7 @@ class MultiAgentCentralExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        for exps in zip(*map(lambda x: list(NamedTupleStaticClass.unpack(x)), expss)):
+        for exps in zip(*map(lambda x: list(x.unpack()), expss)):
             for i, exp in enumerate(exps):
                 self._store_op(i, exp)
             self.update_rb_after_add()
@@ -64,10 +63,10 @@ class MultiAgentCentralExperienceReplay(ReplayBuffer):
         n_sample = self.batch_size if self.can_sample else self._size
         idx = np.random.randint(0, self._size, n_sample)
         t = self._buffers[:, idx]
-        return [NamedTupleStaticClass.pack(_t.tolist()) for _t in t]
+        return [BatchExperiences.pack(_t.tolist()) for _t in t]
 
     def get_all(self) -> BatchExperiences:
-        return [NamedTupleStaticClass.pack(data.tolist()) for data in self._buffers[:, :self._size]]
+        return [BatchExperiences.pack(data.tolist()) for data in self._buffers[:, :self._size]]
 
     def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1

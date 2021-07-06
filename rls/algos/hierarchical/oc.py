@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
@@ -17,7 +17,11 @@ from rls.utils.build_networks import ValueNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
-OC_BatchExperiences = namedtuple('OC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
+
+@dataclass
+class OC_BatchExperiences(BatchExperiences):
+    last_options: np.ndarray
+    options: np.ndarray
 
 
 class OC(Off_Policy):
@@ -124,7 +128,7 @@ class OC(Off_Policy):
             self.options = self._generate_random_options()
         self.last_options = self.options
 
-        a, self.options, self.cell_state = self._get_action(obs, self.cell_state, self.options)
+        a, self.options, self.cell_state = self._get_action(obs.nt, self.cell_state, self.options)
         if self.use_eps_greedy:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
                 self.options = self._generate_random_options()
@@ -176,13 +180,13 @@ class OC(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         last_options = tf.cast(BATCH.last_options, tf.int32)
         options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.q_net(BATCH.obs, cell_state=cell_state)
-                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.q_net(BATCH.obs, cell_state=cell_states['obs'])
+                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])
                 q = ret['value']  # [B, P]
                 pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
                 beta = self.termination_net.value_net(ret['feat'])   # [B, P]
@@ -195,7 +199,7 @@ class OC(Off_Policy):
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
                 if self.double_q:
-                    q_ = self.q_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, P], [B, P, A], [B, P]
+                    q_ = self.q_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']  # [B, P], [B, P, A], [B, P]
                     max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
                     q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
                 else:

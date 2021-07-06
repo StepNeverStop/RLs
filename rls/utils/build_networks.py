@@ -113,25 +113,6 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
             feat: [B, a]
             cell_state: Tuple([B, z],)
         '''
-        feat = self.get_encoder_feature(obs)    # [B*T, X]
-
-        if self.use_rnn:
-            batch_size = tf.shape(cell_state[0])[0]
-            # reshape feature from [B*T, x] to [B, T, x]
-            feat = tf.reshape(feat, (batch_size, -1, feat.shape[-1]))
-            feat, cell_state = self.memory_net(feat, *cell_state)
-            # reshape feature from [B, T, x] to [B*T, x]
-            feat = tf.reshape(feat, (-1, tf.shape(feat)[-1]))
-
-        return feat, cell_state
-
-    def get_encoder_feature(self, obs):
-        '''
-        params:
-            obs: xxx
-        return:
-            feat: [B, z]
-        '''
         if self.obs_spec.has_vector_observation and self.obs_spec.has_visual_observation:
             vec_feat = self.vector_net(*obs.vector)
             vis_feat = self.visual_net(*obs.visual)
@@ -144,9 +125,17 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
             raise Exception("observation must not be empty.")
 
         if self.use_encoder:
-            feat = self.encoder_net(feat)
+            feat = self.encoder_net(feat)  # [B*T, X]
 
-        return feat
+        if self.use_rnn:
+            batch_size = tf.shape(cell_state[0])[0]
+            # reshape feature from [B*T, x] to [B, T, x]
+            feat = tf.reshape(feat, (batch_size, -1, feat.shape[-1]))
+            feat, cell_state = self.memory_net(feat, *cell_state)
+            # reshape feature from [B, T, x] to [B*T, x]
+            feat = tf.reshape(feat, (-1, tf.shape(feat)[-1]))
+
+        return feat, cell_state
 
     @property
     def trainable_variables(self):

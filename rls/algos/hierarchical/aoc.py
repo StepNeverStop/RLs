@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
@@ -13,10 +13,31 @@ from rls.utils.tf2_utils import (gaussian_clip_rsample,
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ValueNetwork
 from rls.utils.specs import (OutputNetworkType,
+                             ModelObservations,
+                             RlsDataClass,
                              BatchExperiences)
 
-AOC_Store_BatchExperiences = namedtuple('AOC_Store_BatchExperiences', BatchExperiences._fields + ('value', 'log_prob', 'beta_advantage', 'last_options', 'options'))
-AOC_Train_BatchExperiences = namedtuple('AOC_Train_BatchExperiences', 'obs, action, value, log_prob, discounted_reward, gae_adv, beta_advantage, last_options, options')
+
+@dataclass
+class AOC_Store_BatchExperiences(BatchExperiences):
+    value: np.ndarray
+    log_prob: np.ndarray
+    beta_advantage: np.ndarray
+    last_options: np.ndarray
+    options: np.ndarray
+
+
+@dataclass
+class AOC_Train_BatchExperiences(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    value: np.ndarray
+    log_prob: np.ndarray
+    discounted_reward: np.ndarray
+    gae_adv: np.ndarray
+    beta_advantage: np.ndarray
+    last_options: np.ndarray
+    options: np.ndarray
 
 
 class AOC(On_Policy):
@@ -119,7 +140,7 @@ class AOC(On_Policy):
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = tf.constant(np.zeros(self.n_copys), dtype=tf.int32)
 
-        a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs, self.cell_state, self.options)
+        a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs.nt, self.cell_state, self.options)
         a = a.numpy()
         new_options = tf.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_copys, False)
@@ -158,7 +179,7 @@ class AOC(On_Policy):
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
-        exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
+        exps.reward = exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1)
         self.data.add(AOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._beta_adv,
                                                  self.last_options, self.options))
         if self.use_rnn:

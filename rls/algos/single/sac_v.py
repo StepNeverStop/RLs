@@ -134,7 +134,7 @@ class SAC_V(Off_Policy):
         return tf.exp(self.log_alpha)
 
     def choose_action(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
@@ -168,22 +168,22 @@ class SAC_V(Off_Policy):
                 ]),
             })
 
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         if self.is_continuous or self.use_gumbel:
-            td_error, summaries = self.train_continuous(BATCH, isw, cell_state)
+            td_error, summaries = self.train_continuous(BATCH, isw, cell_states)
         else:
-            td_error, summaries = self.train_discrete(BATCH, isw, cell_state)
+            td_error, summaries = self.train_discrete(BATCH, isw, cell_states)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function
-    def train_continuous(self, BATCH, isw, cell_state):
+    def train_continuous(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.v_net(BATCH.obs, cell_state=cell_state)
+                ret = self.v_net(BATCH.obs, cell_state=cell_states['obs'])
                 v = ret['value']
-                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_state)['value']
+                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
 
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(ret['feat'])
@@ -248,12 +248,12 @@ class SAC_V(Off_Policy):
             return (td_error1 + td_error2) / 2, summaries
 
     @tf.function
-    def train_discrete(self, BATCH, isw, cell_state):
+    def train_discrete(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.v_net(BATCH.obs, cell_state=cell_state)
+                ret = self.v_net(BATCH.obs, cell_state=cell_states['obs'])
                 v = ret['value']  # [B, 1]
-                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, 1]
+                v_target = self.v_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']  # [B, 1]
 
                 q1_all, q2_all = self.q_net.get_value(ret['feat'])   # [B, A]
                 def q_function(x): return tf.reduce_sum(x * BATCH.action, axis=-1, keepdims=True)  # [B, 1]

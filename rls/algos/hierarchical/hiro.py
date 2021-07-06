@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 from tensorflow_probability import distributions as tfd
 
 from rls.nn.noise import ClippedNormalNoisedAction
@@ -16,10 +16,24 @@ from rls.utils.tf2_utils import update_target_net_weights
 from rls.utils.build_networks import ADoubleCNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences,
-                             NamedTupleStaticClass)
+                             ModelObservations,
+                             RlsDataClass)
 
-Low_BatchExperiences = namedtuple('Low_BatchExperiences', BatchExperiences._fields + ('subgoal', 'next_subgoal'))
-High_BatchExperiences = namedtuple('High_BatchExperiences', 'obs, action, reward, done, subgoal, obs_')
+
+@dataclass
+class Low_BatchExperiences(BatchExperiences):
+    subgoal: np.ndarray
+    next_subgoal: np.ndarray
+
+
+@dataclass
+class High_BatchExperiences(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    reward: np.ndarray
+    done: np.ndarray
+    subgoal: np.ndarray
+    obs_: ModelObservations
 
 
 class HIRO(Off_Policy):
@@ -71,7 +85,8 @@ class HIRO(Off_Policy):
             high_scale if isinstance(high_scale, list) else [high_scale] * self.sub_goal_dim,
             dtype=np.float32)
 
-        self.high_noised_action = ClippedNormalNoisedAction(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim), action_bound=self.high_scale, noise_bound=self.high_scale / 2)
+        self.high_noised_action = ClippedNormalNoisedAction(mu=np.zeros(self.sub_goal_dim), sigma=self.high_scale * np.ones(self.sub_goal_dim),
+                                                            action_bound=self.high_scale, noise_bound=self.high_scale / 2)
         self.low_noised_action = ClippedNormalNoisedAction(mu=np.zeros(self.a_dim), sigma=1.0 * np.ones(self.a_dim), noise_bound=0.5)
 
         def _create_high_ac_net(name): return ADoubleCNetwork(
@@ -231,7 +246,7 @@ class HIRO(Off_Policy):
 
     def choose_action(self, obs, evaluation=False):
         self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.flatten_vector()).numpy(), self._new_subgoal)
-        mu, pi = self._get_action(obs, self._subgoal)
+        mu, pi = self._get_action(obs.nt, self._subgoal)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
@@ -412,7 +427,8 @@ class HIRO(Off_Policy):
         # subgoal = exps.obs.flatten_vector()[:, self.fn_goal_dim:] + self._noop_subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:]
         subgoal = np.random.uniform(-self.high_scale, self.high_scale, size=(self.n_copys, self.sub_goal_dim))
 
-        dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)._replace(reward=ir)
+        dl = Low_BatchExperiences(*exps, self._noop_subgoal, subgoal)
+        dl.reward = ir
         self.data_low.add(dl)
         self._noop_subgoal = subgoal
 
@@ -431,7 +447,8 @@ class HIRO(Off_Policy):
         self._new_subgoal = np.where(self._c == 1, self.get_subgoal(exps.obs_.flatten_vector()).numpy(), exps.obs.flatten_vector()
                                      [:, self.fn_goal_dim:] + self._subgoal - exps.obs_.flatten_vector()[:, self.fn_goal_dim:])
 
-        dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)._replace(reward=ir)
+        dl = Low_BatchExperiences(*exps, self._subgoal, self._new_subgoal)
+        dl.reward = ir
         self.data_low.add(dl)
 
         self._c = np.where(self._c == 1, np.full((self.n_copys, 1), self.sub_goal_steps, np.int32), self._c - 1)
@@ -442,11 +459,12 @@ class HIRO(Off_Policy):
         '''
         exps = databuffer.sample()   # 经验池取数据
         if not self.is_continuous:
-            assert 'action' in exps._fields, "assert 'action' in exps._fields"
+            assert 'action' in exps.__dict__.keys(), "assert 'action' in exps.__dict__.keys()"
             a = exps.action.astype(np.int32)
             pre_shape = a.shape
             a = a.reshape(-1)
             a = int2one_hot(a, self.a_dim)
             a = a.reshape(pre_shape + (-1,))
-            exps = exps._replace(action=a)
-        return NamedTupleStaticClass.data_convert(self.data_convert, exps)
+            exps.action = a
+        exps.map_fn(self.data_convert)
+        return exps

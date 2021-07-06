@@ -69,7 +69,7 @@ class QRDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = a.numpy()
         return a
 
@@ -93,15 +93,15 @@ class QRDQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
                 indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist = self.q_dist_net(BATCH.obs, cell_state=cell_state)['value']  # [B, A, N]
+                q_dist = self.q_dist_net(BATCH.obs, cell_state=cell_states['obs'])['value']  # [B, A, N]
                 q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
 
-                target_q_dist = self.q_target_dist_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, A, N]
+                target_q_dist = self.q_target_dist_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']  # [B, A, N]
                 target_q = tf.reduce_mean(target_q_dist, axis=-1)  # [B, A, N] => [B, A]
                 a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
                 target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]

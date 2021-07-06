@@ -68,11 +68,11 @@ class CuriosityModel(M):
         self.forward_net(tf.concat((feat, action), -1))
 
     @tf.function
-    def call(self, BATCH, cell_state):
+    def call(self, BATCH, cell_states):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                fs, _ = self.repre_net(BATCH.obs, cell_state=cell_state)
-                fs_, _ = self.repre_net(BATCH.obs_, cell_state=cell_state)
+                fs, _ = self.repre_net(BATCH.obs, cell_state=cell_states['obs'])
+                fs_, _ = self.repre_net(BATCH.obs_, cell_state=cell_states['obs_'])
 
                 fsa = tf.concat((fs, BATCH.action), axis=-1)            # <S, A>
                 s_eval = self.forward_net(fsa)                  # <S, A> => S'

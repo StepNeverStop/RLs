@@ -65,7 +65,7 @@ class DQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = a.numpy()
         return a
 
@@ -88,11 +88,11 @@ class DQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
-                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']
+                q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']
+                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
                 q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
                 td_error = q_target - q_eval
@@ -110,10 +110,10 @@ class DQN(Off_Policy):
             ])
 
     # @tf.function
-    # def _cal_td(self, BATCH, cell_state):
+    # def _cal_td(self, BATCH, cell_states):
     #     with tf.device(self.device):
-    #         q = self.q_net(BATCH.obs, cell_state=cell_state)['value']
-    #         q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']
+    #         q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']
+    #         q_next = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
     #         q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
     #         q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
     #         td_error = q_target - q_eval

@@ -12,7 +12,7 @@ from rls.utils.np_utils import (int2one_hot,
                                 normalization,
                                 standardization)
 from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+                             RlsDataClass)
 
 
 class DataBuffer(object):
@@ -49,7 +49,7 @@ class DataBuffer(object):
         '''
         添加数据
         '''
-        for k, v in exps._asdict().items():
+        for k, v in exps.__dict__.items():
             self.data_buffer[k].append(v)
         self.eps_len += 1
 
@@ -127,11 +127,11 @@ class DataBuffer(object):
         def func(x): return np.stack(x, axis=1).reshape(self.n_copys * self.eps_len, -1)
 
         data = {}
-        for k in BatchExperiences._fields:
+        for k in BatchExperiences.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], tuple):
-                data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
-                assert NamedTupleStaticClass.check_len(data[k], l=self.n_copys * self.eps_len), \
+            if isinstance(self.data_buffer[k][0], RlsDataClass):
+                data[k] = BatchExperiences.pack(self.data_buffer[k], func=func)
+                assert RlsDataClass.check_len(data[k], l=self.n_copys * self.eps_len), \
                     f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 data[k] = func(self.data_buffer[k])
@@ -160,8 +160,10 @@ class DataBuffer(object):
         '''
         assert 'obs' in self.data_buffer.keys(), "assert 'obs' in self.data_buffer.keys()"
         assert 'obs_' in self.data_buffer.keys(), "assert 'obs_' in self.data_buffer.keys()"
-        self.data_buffer['obs'] = [NamedTupleStaticClass.data_convert(func, obs, keys=['vector']) for obs in self.data_buffer['obs']]
-        self.data_buffer['obs_'] = [NamedTupleStaticClass.data_convert(func, obs_, keys=['vector']) for obs_ in self.data_buffer['obs_']]
+        for obs in self.data_buffer['obs']:
+            obs.vector.map_fn(func)
+        for obs_ in self.data_buffer['obs_']:
+            obs_.vector.map_fn(func)
 
     def sample_generater(self, batch_size: int = None):
         '''
@@ -178,11 +180,11 @@ class DataBuffer(object):
 
         buffer = {}
         # T * [B, N] => [T*B, N]
-        for k in self.sample_data_type._fields:
+        for k in self.sample_data_type.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], tuple):
-                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
-                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_copys * self.eps_len), \
+            if isinstance(self.data_buffer[k][0], RlsDataClass):
+                buffer[k] = BatchExperiences.pack(self.data_buffer[k], func=np.concatenate)
+                assert RlsDataClass.check_len(buffer[k], l=self.n_copys * self.eps_len), \
                     f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
@@ -194,12 +196,12 @@ class DataBuffer(object):
         for i in range(0, self.eps_len * self.n_copys, batch_size * self.n_copys):
             _idxs = idxs[i:i + batch_size * self.n_copys]
             data = []
-            for k in self.sample_data_type._fields:
-                if isinstance(buffer[k], tuple):
-                    data.append(NamedTupleStaticClass.getbatchitems(buffer[k], _idxs))
+            for k in self.sample_data_type.__dataclass_fields__.keys():
+                if isinstance(buffer[k], RlsDataClass):
+                    data.append(buffer[k].getbatchitems(_idxs))
                 else:
                     data.append(buffer[k][_idxs])
-            yield self.sample_data_type._make(data), (None, )
+            yield self.sample_data_type(*data), (None, )
 
     def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
         '''
@@ -243,12 +245,12 @@ class DataBuffer(object):
                 time_idx = random.randint(*sample_range)
 
                 sample_exp = {}
-                for k in self.sample_data_type._fields:
+                for k in self.sample_data_type.__dataclass_fields__.keys():
                     assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
                     d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
-                    if isinstance(self.data_buffer[k][0], tuple):
-                        d = [NamedTupleStaticClass.getitem(_d, batch_idx) for _d in d]
-                        sample_exp[k] = NamedTupleStaticClass.pack(d)   # [T, N]
+                    if isinstance(self.data_buffer[k][0], RlsDataClass):
+                        d = [_d.getitem(batch_idx) for _d in d]
+                        sample_exp[k] = BatchExperiences.pack(d)   # [T, N]
                     else:
                         d = [_d[batch_idx] for _d in d]
                         sample_exp[k] = np.asarray(d)
@@ -256,7 +258,7 @@ class DataBuffer(object):
 
                 sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
             cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield NamedTupleStaticClass.pack(samples, func=np.concatenate), cs    # [B*T, N]
+            yield BatchExperiences.pack(samples, func=np.concatenate), cs    # [B*T, N]
 
     def clear(self):
         '''

@@ -9,7 +9,7 @@ from typing import (Union,
                     List,
                     Dict,
                     NoReturn)
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.utils.tf2_utils import (show_graph,
                                  gaussian_clip_rsample,
@@ -19,10 +19,25 @@ from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import (ValueNetwork,
                                       ACNetwork)
 from rls.utils.specs import (OutputNetworkType,
+                             ModelObservations,
+                             RlsDataClass,
                              BatchExperiences)
 
-PPO_Store_BatchExperiences = namedtuple('PPO_Store_BatchExperiences', BatchExperiences._fields + ('value', 'log_prob'))
-PPO_Train_BatchExperiences = namedtuple('PPO_Train_BatchExperiences', 'obs, action, value, log_prob, discounted_reward, gae_adv')
+
+@dataclass
+class PPO_Store_BatchExperiences(BatchExperiences):
+    value: np.ndarray
+    log_prob: np.ndarray
+
+
+@dataclass
+class PPO_Train_BatchExperiences(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    value: np.ndarray
+    log_prob: np.ndarray
+    discounted_reward: np.ndarray
+    gae_adv: np.ndarray
 
 
 class PPO(On_Policy):
@@ -173,7 +188,7 @@ class PPO(On_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation: bool = False) -> np.ndarray:
-        a, value, log_prob, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a, value, log_prob, self.next_cell_state = self._get_action(obs.nt, self.cell_state)
         a = a.numpy()
         self._value = value.numpy()
         self._log_prob = log_prob.numpy() + 1e-10

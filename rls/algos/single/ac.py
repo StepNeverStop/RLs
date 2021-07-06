@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
@@ -15,7 +15,10 @@ from rls.utils.build_networks import ACNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
-AC_BatchExperiences = namedtuple('AC_BatchExperiences', BatchExperiences._fields + ('old_log_prob',))
+
+@dataclass
+class AC_BatchExperiences(BatchExperiences):
+    old_log_prob: np.ndarray
 
 
 class AC(Off_Policy):
@@ -72,7 +75,7 @@ class AC(Off_Policy):
         :param obs: 
         :param evaluation:
         """
-        a, _lp, self.cell_state = self._get_action(obs, self.cell_state)
+        a, _lp, self.cell_state = self._get_action(obs.nt, self.cell_state)
         a = a.numpy()
         self._log_prob = _lp.numpy()
         return a
@@ -111,12 +114,12 @@ class AC(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.net(BATCH.obs, BATCH.action, cell_state=cell_state)
+                ret = self.net(BATCH.obs, BATCH.action, cell_state=cell_states['obs'])
                 q = ret['critic']
-                feat_ = self.net.get_feat(BATCH.obs_, cell_state=cell_state)
+                feat_ = self.net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
                 if self.is_continuous:
                     mu, log_std = ret['actor']
                     log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)

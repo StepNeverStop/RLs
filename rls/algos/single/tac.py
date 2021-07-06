@@ -111,7 +111,7 @@ class TAC(Off_Policy):
         return tf.exp(self.log_alpha)
 
     def choose_action(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
@@ -145,18 +145,18 @@ class TAC(Off_Policy):
                 ])
             })
 
-    def _train(self, BATCH, isw, cell_state):
-        td_error, summaries = self.train(BATCH, isw, cell_state)
+    def _train(self, BATCH, isw, cell_states):
+        td_error, summaries = self.train(BATCH, isw, cell_states)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function
-    def train(self, BATCH, isw, cell_state):
+    def train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_state)
-                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_state)
+                feat = self.critic_net.get_feat(BATCH.obs, cell_state=cell_states['obs'])
+                feat_ = self.critic_net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
                 if self.is_continuous:
                     mu, log_std = self.actor_net.value_net(feat)
                     pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
@@ -182,7 +182,7 @@ class TAC(Off_Policy):
                 q1, q2 = self.critic_net.get_value(feat, BATCH.action)
                 q_s_pi = self.critic_net.get_min(feat, pi)
 
-                ret = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_state)
+                ret = self.critic_target_net(BATCH.obs_, target_pi, cell_state=cell_states['obs_'])
                 q1_target = ret['value']
                 q1_target = ret['value2']
                 q_target = tf.minimum(q1_target, q2_target)

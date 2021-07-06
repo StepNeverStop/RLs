@@ -69,7 +69,7 @@ class BootstrappedDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q, self.cell_state = self._get_action(obs, self.cell_state)
+            q, self.cell_state = self._get_action(obs.nt, self.cell_state)
             q = q.numpy()
             a = np.argmax(q[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
         return a
@@ -93,12 +93,12 @@ class BootstrappedDQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
-                q = self.q_net(BATCH.obs, cell_state=cell_state)['value']    # [H, B, A]
-                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_state)['value']   # [H, B, A]
+                q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']    # [H, B, A]
+                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']   # [H, B, A]
                 q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
                 q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
                 td_error = q_target - q_eval    # [H, B, 1]

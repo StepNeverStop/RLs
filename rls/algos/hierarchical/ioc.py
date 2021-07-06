@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
@@ -16,7 +16,11 @@ from rls.utils.build_networks import ValueNetwork
 from rls.utils.specs import (OutputNetworkType,
                              BatchExperiences)
 
-IOC_BatchExperiences = namedtuple('IOC_BatchExperiences', BatchExperiences._fields + ('last_options', 'options'))
+
+@dataclass
+class IOC_BatchExperiences(BatchExperiences):
+    last_options: np.ndarray
+    options: np.ndarray
 
 
 class IOC(Off_Policy):
@@ -126,7 +130,7 @@ class IOC(Off_Policy):
             self.options = self._generate_random_options()
         self.last_options = self.options
 
-        a, self.options, self.cell_state = self._get_action(obs, self.cell_state, self.options)
+        a, self.options, self.cell_state = self._get_action(obs.nt, self.cell_state, self.options)
         a = a.numpy()
         return a
 
@@ -170,13 +174,13 @@ class IOC(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         last_options = tf.cast(BATCH.last_options, tf.int32)
         options = tf.cast(BATCH.options, tf.int32)
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.q_net(BATCH.obs, cell_state=cell_state)
-                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.q_net(BATCH.obs, cell_state=cell_states['obs'])
+                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])
                 q = ret['value']  # [B, P]
                 pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
                 beta = self.termination_net.value_net(ret['feat'])   # [B, P]
@@ -189,7 +193,7 @@ class IOC(Off_Policy):
                 beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True)  # [B, 1]
                 q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
                 if self.double_q:
-                    q_ = self.q_net(BATCH.obs_, cell_state=cell_state)['value']  # [B, P], [B, P, A], [B, P]
+                    q_ = self.q_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']  # [B, P], [B, P, A], [B, P]
                     max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
                     q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
                 else:

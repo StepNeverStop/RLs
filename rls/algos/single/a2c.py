@@ -5,16 +5,23 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-from collections import namedtuple
+from dataclasses import dataclass
 
 from rls.utils.tf2_utils import (gaussian_clip_rsample,
                                  gaussian_likelihood_sum,
                                  gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.build_networks import ACNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.specs import (OutputNetworkType,
+                             RlsDataClass,
+                             ModelObservations)
 
-A2C_Train_BatchExperiences = namedtuple('A2C_Train_BatchExperiences', 'obs, action, discounted_reward')
+
+@dataclass
+class A2C_Train_BatchExperiences(RlsDataClass):
+    obs: ModelObservations
+    action: np.ndarray
+    discounted_reward: np.ndarray
 
 
 class A2C(On_Policy):
@@ -69,7 +76,7 @@ class A2C(On_Policy):
         self._model_post_process()
 
     def choose_action(self, obs, evaluation=False):
-        a, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a, self.next_cell_state = self._get_action(obs.nt, self.cell_state)
         a = a.numpy()
         return a
 

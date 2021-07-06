@@ -235,15 +235,15 @@ class CURL(Off_Policy):
     def alpha(self):
         return tf.exp(self.log_alpha)
 
-    def _train(self, BATCH: BatchExperiences, isw, cell_state):
+    def _train(self, BATCH: BatchExperiences, isw, cell_states):
         visual, visual_, pos = self._process_before_train(BATCH)
-        td_error, summaries = self.train(BATCH, isw, cell_state, visual, visual_, pos)
+        td_error, summaries = self.train(BATCH, isw, cell_states, visual, visual_, pos)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
         return td_error, summaries
 
     @tf.function
-    def train(self, BATCH, isw, cell_state, visual, visual_, pos):
+    def train(self, BATCH, isw, cell_states, visual, visual_, pos):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
                 vis_feat = self.encoder(visual)

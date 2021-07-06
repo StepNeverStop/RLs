@@ -77,7 +77,7 @@ class IQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = a.numpy()
         return a
 
@@ -117,7 +117,7 @@ class IQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         batch_size = tf.shape(BATCH.action)[0]
         with tf.device(self.device):
             with tf.GradientTape() as tape:
@@ -126,7 +126,7 @@ class IQN(Off_Policy):
                     quantiles_num=self.online_quantiles,
                     quantiles_idx=self.quantiles_idx
                 )
-                quantiles_value, q = self.q_net(BATCH.obs, quantiles_tiled, quantiles_num=self.online_quantiles)    # [N, B, A], [B, A]
+                quantiles_value, q = self.q_net(BATCH.obs, quantiles_tiled, quantiles_num=self.online_quantiles, cell_state=cell_states['obs_'])['value']    # [N, B, A], [B, A]
                 _a = tf.reshape(tf.tile(BATCH.action, [self.online_quantiles, 1]), [self.online_quantiles, -1, self.a_dim])  # [B, A] => [N*B, A] => [N, B, A]
                 quantiles_value = tf.reduce_sum(quantiles_value * _a, axis=-1, keepdims=True)   # [N, B, A] => [N, B, 1]
                 q_eval = tf.reduce_sum(q * BATCH.action, axis=-1, keepdims=True)  # [B, A] => [B, 1]
@@ -136,7 +136,7 @@ class IQN(Off_Policy):
                     quantiles_num=self.select_quantiles,
                     quantiles_idx=self.quantiles_idx
                 )
-                _, q_values = self.q_net(BATCH.obs_, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
+                _, q_values = self.q_net(BATCH.obs_, select_quantiles_tiled, quantiles_num=self.select_quantiles, cell_state=cell_states['obs_'])['value']  # [B, A]
                 next_max_action = tf.argmax(q_values, axis=-1)   # [B,]
                 next_max_action = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)  # [B, A]
                 _next_max_action = tf.reshape(tf.tile(next_max_action, [self.target_quantiles, 1]), [self.target_quantiles, -1, self.a_dim])  # [B, A] => [N'*B, A] => [N', B, A]
@@ -146,7 +146,7 @@ class IQN(Off_Policy):
                     quantiles_idx=self.quantiles_idx
                 )
 
-                target_quantiles_value, target_q = self.q_target_net(BATCH.obs_, target_quantiles_tiled, quantiles_num=self.target_quantiles, cell_state=cell_state)['value']  # [N', B, A], [B, A]
+                target_quantiles_value, target_q = self.q_target_net(BATCH.obs_, target_quantiles_tiled, quantiles_num=self.target_quantiles, cell_state=cell_states['obs_'])['value']  # [N', B, A], [B, A]
                 target_quantiles_value = tf.reduce_sum(target_quantiles_value * _next_max_action, axis=-1, keepdims=True)   # [N', B, A] => [N', B, 1]
                 target_q = tf.reduce_sum(target_q * BATCH.action, axis=-1, keepdims=True)  # [B, A] => [B, 1]
                 q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * target_q)   # [B, 1]

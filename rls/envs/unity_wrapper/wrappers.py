@@ -5,8 +5,7 @@ import os
 import numpy as np
 
 from copy import deepcopy
-from typing import (List,
-                    NamedTuple)
+from typing import List
 from collections import defaultdict
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
@@ -20,7 +19,7 @@ from rls.utils.specs import (ObsSpec,
                              EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,
-                             NamedTupleStaticClass)
+                             generate_obs_dataformat)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
@@ -103,12 +102,12 @@ class BasicUnityEnvironment(object):
                     self.visual_dims[bn].append(list(shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
-            self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.vector_idxs[bn]),
-                                                                                      name='vector')
-            self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_copys=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.visual_idxs[bn]),
-                                                                                      name='visual')
+            self.vector_info_type[bn] = generate_obs_dataformat(n_copys=self.behavior_agents[bn],
+                                                                item_nums=len(self.vector_idxs[bn]),
+                                                                name='vector')
+            self.visual_info_type[bn] = generate_obs_dataformat(n_copys=self.behavior_agents[bn],
+                                                                item_nums=len(self.visual_idxs[bn]),
+                                                                name='visual')
 
             action_spec = spec.action_spec
             if action_spec.is_continuous():
@@ -308,18 +307,6 @@ class ScaleVisualWrapper(ObservationWrapper):
         def func(x): return np.asarray(x * 255).astype(np.uint8)
 
         for bn in self.behavior_names:
-            visual = observation[bn].obs.visual
-            if isinstance(visual, np.ndarray):
-                visual = func(visual)
-            else:
-                visual = NamedTupleStaticClass.data_convert(func, visual)
-            observation[bn] = observation[bn]._replace(obs=observation[bn].obs._replace(visual=visual))
-
-            visual = observation[bn].obs_.visual
-            if isinstance(visual, np.ndarray):
-                visual = func(visual)
-            else:
-                visual = NamedTupleStaticClass.data_convert(func, visual)
-            observation[bn] = observation[bn]._replace(obs_=observation[bn].obs_._replace(visual=visual))
-
+            observation[bn].obs.visual.map_fn(func)
+            observation[bn].obs_.visual.map_fn(func)
         return observation

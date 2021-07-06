@@ -75,7 +75,7 @@ class MAXSQN(Off_Policy):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+            mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
             a = pi.numpy()
         return a
 
@@ -102,16 +102,16 @@ class MAXSQN(Off_Policy):
             })
 
     @tf.function
-    def _train(self, BATCH, isw, cell_state):
+    def _train(self, BATCH, isw, cell_states):
         with tf.device(self.device):
             with tf.GradientTape(persistent=True) as tape:
-                ret = self.critic_net(BATCH.obs, cell_state=cell_state)
+                ret = self.critic_net(BATCH.obs, cell_state=cell_states['obs'])
                 q1 = ret['value']
                 q2 = ret['value2']
                 q1_eval = tf.reduce_sum(tf.multiply(q1, BATCH.action), axis=1, keepdims=True)
                 q2_eval = tf.reduce_sum(tf.multiply(q2, BATCH.action), axis=1, keepdims=True)
 
-                ret = self.critic_target_net(BATCH.obs_, cell_state=cell_state)
+                ret = self.critic_target_net(BATCH.obs_, cell_state=cell_states['obs_'])
                 q1_target = ret['value']
                 q1_target = ret['value2']
                 q1_target_max = tf.reduce_max(q1_target, axis=1, keepdims=True)
