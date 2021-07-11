@@ -89,9 +89,9 @@ class BasicUnityEnvironment(object):
 
         self.env.reset()
         for bn, spec in self.env.behavior_specs.items():
-            d, t = self.env.get_steps(bn)
-            self.behavior_agents[bn] = len(d)
-            self.behavior_ids[bn] = d.agent_id_to_index
+            ds, ts = self.env.get_steps(bn)
+            self.behavior_agents[bn] = len(ds)
+            self.behavior_ids[bn] = ds.agent_id_to_index
 
             for i, shape in enumerate(spec.observation_shapes):
                 if len(shape) == 1:
@@ -212,31 +212,31 @@ class BasicUnityEnvironment(object):
             ps = []
 
             while True:
-                d, t = self.env.get_steps(bn)
-                if len(t):
-                    ps.append(t)
+                ds, ts = self.env.get_steps(bn)
+                if len(ts):
+                    ps.append(ts)
 
-                if len(d) == n:
+                if len(ds) == n:
                     break
-                elif len(d) == 0:
+                elif len(ds) == 0:
                     self.env.step()  # some of environments done, but some of not
                 else:
-                    raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
+                    raise ValueError(f'agents number error. Expected 0 or {n}, received {len(ds)}')
 
-            corrected_obs, reward = d.obs, d.reward
+            corrected_obs, reward = ds.obs, ds.reward
             obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
             done = np.full(n, False)
             info_max_step = np.full(n, False)
             info_real_done = np.full(n, False)
 
-            for t in ps:    # TODO: 有待优化
-                _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
-                info_max_step[_ids] = t.interrupted    # 因为达到episode最大步数而终止的
-                info_real_done[_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-                reward[_ids] = t.reward
+            for ts in ps:    # TODO: 有待优化
+                _ids = np.asarray([ids[i] for i in ts.agent_id], dtype=int)
+                info_max_step[_ids] = ts.interrupted    # 因为达到episode最大步数而终止的
+                info_real_done[_ids[~ts.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                reward[_ids] = ts.reward
                 done[_ids] = True
                 # zip: vector, visual, ...
-                for _obs, _tobs in zip(obs, t.obs):
+                for _obs, _tobs in zip(obs, ts.obs):
                     _obs[_ids] = _tobs
 
             reward = np.asarray(reward)
@@ -307,6 +307,6 @@ class ScaleVisualWrapper(ObservationWrapper):
         def func(x): return np.asarray(x * 255).astype(np.uint8)
 
         for bn in self.behavior_names:
-            observation[bn].obs.visual.map_fn(func)
-            observation[bn].obs_.visual.map_fn(func)
+            observation[bn].obs.visual.convert_(func)
+            observation[bn].obs_.visual.convert_(func)
         return observation

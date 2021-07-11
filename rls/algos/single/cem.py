@@ -2,33 +2,30 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
-from tensorflow.keras import Model as M
 
-from rls.nn.layers import mlp
+from rls.nn.layers import MLP
 from rls.algos.base.on_policy import On_Policy
 from rls.utils.specs import BatchExperiences
 
 
-class Model(M):
+class Model(t.nn.Module):
 
     def __init__(self, vector_dim, output_shape, network_settings, is_continuous):
         super().__init__()
         self.is_continuous = is_continuous
-        out_activation = 'tanh' if self.is_continuous else None
-        self.net = mlp(network_settings, act_fn='tanh', output_shape=output_shape, out_activation=out_activation, out_layer=True)
+        out_act = 'tanh' if self.is_continuous else None
+        self.net = MLP(vector_dim, network_settings, act_fn='tanh', output_shape=output_shape, out_act=out_act)
         self.weights_2dim = [[i, j] for i, j in zip([vector_dim] + network_settings, network_settings + [output_shape])]
         self.weights_nums = np.asarray(self.weights_2dim).prod(axis=-1).tolist()
         self.weights_total_nums = np.asarray(self.weights_2dim).prod(axis=-1).sum() + np.asarray(network_settings).sum() + output_shape
-        self(tf.keras.Input(shape=vector_dim))  # 初始化网络权重
 
-    @tf.function
-    def call(self, s):
+    def forward(self, s):
         if self.is_continuous:
             return self.net(s)
         else:
-            return tf.argmax(self.net(s), axis=-1)
+            return self.net(s).argmax(-1)
 
     def set_wb(self, weights):
         start = 0
@@ -68,9 +65,7 @@ class CEM(On_Policy):
         self.extra_var_last_multiplier = extra_var_last_multiplier
         self.concat_vector_dim = self.obs_spec.total_vector_dim
 
-        self._model_post_process()
-
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         self._check_agents()
         a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
         if self.is_continuous:

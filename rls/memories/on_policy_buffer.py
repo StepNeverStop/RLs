@@ -12,7 +12,7 @@ from rls.utils.np_utils import (int2one_hot,
                                 normalization,
                                 standardization)
 from rls.utils.specs import (BatchExperiences,
-                             RlsDataClass)
+                             Data)
 
 
 class DataBuffer(object):
@@ -111,12 +111,14 @@ class DataBuffer(object):
             adv = standardization(adv)
         self.data_buffer['gae_adv'] = list(standardization(adv))
 
-    def last_data(self, key):
+    def last_data(self):
         '''
         获取序列末尾的数据
         '''
-        assert key in self.data_buffer.keys(), f"assert {key} in self.data_buffer.keys()"
-        return self.data_buffer[key][-1]
+        data = {}
+        for k in self.store_data_type.__dataclass_fields__.keys():
+            data[k] = self.data_buffer[k][-1]
+        return self.store_data_type(**data)
 
     def get_curiosity_data(self):
         '''
@@ -129,14 +131,10 @@ class DataBuffer(object):
         data = {}
         for k in BatchExperiences.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], RlsDataClass):
+            if isinstance(self.data_buffer[k][0], Data):
                 data[k] = BatchExperiences.pack(self.data_buffer[k], func=func)
-                assert RlsDataClass.check_len(data[k], l=self.n_copys * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 data[k] = func(self.data_buffer[k])
-                assert data[k].shape[0] == self.n_copys * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
         return BatchExperiences(**data)
 
     def update_reward(self, r: np.ndarray):
@@ -161,9 +159,9 @@ class DataBuffer(object):
         assert 'obs' in self.data_buffer.keys(), "assert 'obs' in self.data_buffer.keys()"
         assert 'obs_' in self.data_buffer.keys(), "assert 'obs_' in self.data_buffer.keys()"
         for obs in self.data_buffer['obs']:
-            obs.vector.map_fn(func)
+            obs.vector.convert_(func)
         for obs_ in self.data_buffer['obs_']:
-            obs_.vector.map_fn(func)
+            obs_.vector.convert_(func)
 
     def sample_generater(self, batch_size: int = None):
         '''
@@ -182,14 +180,10 @@ class DataBuffer(object):
         # T * [B, N] => [T*B, N]
         for k in self.sample_data_type.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], RlsDataClass):
+            if isinstance(self.data_buffer[k][0], Data):
                 buffer[k] = BatchExperiences.pack(self.data_buffer[k], func=np.concatenate)
-                assert RlsDataClass.check_len(buffer[k], l=self.n_copys * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
-                assert buffer[k].shape[0] == self.n_copys * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_copys * self.eps_len}"
 
         idxs = np.arange(self.eps_len * self.n_copys)
         np.random.shuffle(idxs)
@@ -197,10 +191,7 @@ class DataBuffer(object):
             _idxs = idxs[i:i + batch_size * self.n_copys]
             data = []
             for k in self.sample_data_type.__dataclass_fields__.keys():
-                if isinstance(buffer[k], RlsDataClass):
-                    data.append(buffer[k].getbatchitems(_idxs))
-                else:
-                    data.append(buffer[k][_idxs])
+                data.append(buffer[k][_idxs])
             yield self.sample_data_type(*data), (None, )
 
     def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
@@ -248,11 +239,10 @@ class DataBuffer(object):
                 for k in self.sample_data_type.__dataclass_fields__.keys():
                     assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
                     d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
-                    if isinstance(self.data_buffer[k][0], RlsDataClass):
-                        d = [_d.getitem(batch_idx) for _d in d]
+                    d = [_d[batch_idx] for _d in d]
+                    if isinstance(self.data_buffer[k][0], Data):
                         sample_exp[k] = BatchExperiences.pack(d)   # [T, N]
                     else:
-                        d = [_d[batch_idx] for _d in d]
                         sample_exp[k] = np.asarray(d)
                 samples.append(self.sample_data_type(**sample_exp))
 

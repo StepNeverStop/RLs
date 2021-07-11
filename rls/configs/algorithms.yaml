@@ -6,7 +6,6 @@
 
 general:
     decay_lr: false
-    tf_dtype: float32 # float32 or float64
 
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
@@ -20,10 +19,10 @@ general:
         use_encoder: false
         use_rnn: false # always false, using -r to active RNN
         vector_net_params:
-            network_type: adaptive # rls.utils.specs.VectorNetworkType
+            network_type: adaptive # rls.nn.__init__
         visual_net_params:
             visual_feature: 128
-            network_type: simple # rls.utils.specs.VisualNetworkType
+            network_type: simple # rls.nn.__init__
         encoder_net_params:
             output_dim: 16
         memory_net_params:
@@ -467,8 +466,9 @@ trpo:
 dpg:
     gamma: 0.99
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -484,10 +484,10 @@ dpg:
 ddpg:
     gamma: 0.99
     ployak: 0.995
-    noise_type: "ou" # ou or gaussian
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -504,8 +504,9 @@ pd_ddpg:
     gamma: 0.99
     ployak: 0.995
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     reward_critic_lr: 1.0e-3
     cost_critic_lr: 1.0e-3
@@ -525,8 +526,10 @@ td3:
     gamma: 0.99
     ployak: 0.995
     delay_num: 2
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "clip_normal"
+    noise_params:
+        sigma: 0.2 # specify the variance of gaussian distribution
+        noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
@@ -647,6 +650,9 @@ maddpg:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     batch_size: 4
     buffer_size: 100000
     n_step: 4

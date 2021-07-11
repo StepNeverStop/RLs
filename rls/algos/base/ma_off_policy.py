@@ -3,7 +3,7 @@
 
 import importlib
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from abc import abstractmethod
 from typing import (List,
@@ -96,10 +96,7 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         rets = []
         for i, exps in enumerate(expss):
             if not self.envspecs[i].is_continuous:
-                assert 'action' in exps.__dict__.keys(), "assert 'action' in exps.__dict__.keys()"
                 exps.action = int2one_hot(exps.action.astype(np.int32), self.envspecs[i].a_dim)
-            assert 'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys(), "'obs' in exps.__dict__.keys() and 'obs_' in exps.__dict__.keys()"
-            exps.map_fn(self.data_convert)
             rets.append(exps)
             # exps.obs.vector = self.normalize_vector_obs()
             # exps.obs_.vector = self.normalize_vector_obs()
@@ -123,7 +120,7 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             data = self.get_transitions()
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-            data = [d.nt for d in data]
+            data = [d.tensor for d in data]
             summaries = self._train(data)
             # --------------------------------------
 

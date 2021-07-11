@@ -2,13 +2,16 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
+
+from torch import distributions as td
 
 from rls.algos.base.off_policy import Off_Policy
-from rls.utils.tf2_utils import update_target_net_weights
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.torch_utils import (sync_params_pairs,
+                                   q_target_func)
+from rls.nn.models import CriticQvalueAll
+from rls.nn.utils import OPLR
+from rls.utils.sundry_utils import to_numpy
 
 
 class SQL(Off_Policy):
@@ -31,78 +34,73 @@ class SQL(Off_Policy):
         self.alpha = alpha
         self.ployak = ployak
 
-        def _create_net(name, representation_net=None): return ValueNetwork(
-            name=name,
-            representation_net=representation_net,
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
-            value_net_kwargs=dict(output_shape=self.a_dim, network_settings=network_settings)
-        )
+        self.q_net = CriticQvalueAll(self.rep_net.h_dim,
+                                     output_shape=self.a_dim,
+                                     network_settings=network_settings)
+        self.q_target_net = deepcopy(self.q_net)
+        self.q_target_net.eval()
 
-        self.q_net = _create_net('q_net', self._representation_net)
-        self.q_target_net = _create_net('q_target_net', self._representation_net._copy())
-        self.lr = self.init_lr(lr)
-        self.optimizer = self.init_optimizer(self.lr)
+        self._target_rep_net = deepcopy(self.rep_net)
+        self._target_rep_net.eval()
 
-        update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+        self._pairs = [(self.q_target_net, self.q_net),
+                       (self._target_rep_net, self.rep_net)]
+        sync_params_pairs(self._pairs)
 
-        self._worker_params_dict.update(self.q_net._policy_models)
+        self.oplr = OPLR([self.q_net, self.rep_net], lr)
 
-        self._all_params_dict.update(self.q_net._all_models)
-        self._all_params_dict.update(optimizer=self.optimizer)
-        self._model_post_process()
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    model=self.q_net)
+
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    def choose_action(self, obs, evaluation=False):
-        a, self.cell_state = self._get_action(obs.nt, self.cell_state)
-        a = a.numpy()
+    def __call__(self, obs, evaluation=False):
+        a, self.cell_state = self._get_action(obs, self.cell_state)
         return a
 
-    @tf.function
     def _get_action(self, obs, cell_state):
-        with tf.device(self.device):
-            ret = self.q_net(obs, cell_state=cell_state)
-            q_values = ret['value']
-            logits = tf.math.exp((q_values - self.get_v(q_values)) / self.alpha)    # > 0
-            logits /= tf.reduce_sum(logits)
-            cate_dist = tfp.distributions.Categorical(logits=logits)
-            pi = cate_dist.sample()
-        return pi, ret['cell_state']
+        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        q_values = self.q_net(feat)
+        logits = ((q_values - self.get_v(q_values)) / self.alpha).exp()    # > 0
+        logits /= logits.sum()
+        cate_dist = td.categorical.Categorical(logits=logits)
+        pi = cate_dist.sample()
+        return to_numpy(pi), cell_state
 
-    @tf.function
     def get_v(self, q):
-        with tf.device(self.device):
-            v = self.alpha * tf.math.log(tf.reduce_mean(tf.math.exp(q / self.alpha), axis=1, keepdims=True))
+        v = self.alpha * (q / self.alpha).exp().mean(1, keepdim=True).log()
         return v
 
     def _target_params_update(self):
-        update_target_net_weights(self.q_target_net.weights, self.q_net.weights, self.ployak)
+        sync_params_pairs(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
-    @tf.function
     def _train(self, BATCH, isw, cell_states):
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']
-                q_next = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']
-                v_next = self.get_v(q_next)
-                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
-                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * v_next)
-                td_error = q_target - q_eval
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
-            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(grads, self.q_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/loss', q_loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        q = self.q_net(feat)
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        q_next = self.q_target_net(feat_)
+        v_next = self.get_v(q_next)
+        q_eval = (q * BATCH.action).sum(1, keepdim=True)
+        q_target = q_target_func(BATCH.reward,
+                                 self.gamma,
+                                 BATCH.done,
+                                 v_next)
+        td_error = q_target - q_eval
+        q_loss = (td_error.square() * isw).mean()
+        self.oplr.step(q_loss)
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/loss', q_loss],
+            ['Statistics/q_max', q_eval.max()],
+            ['Statistics/q_min', q_eval.min()],
+            ['Statistics/q_mean', q_eval.mean()]
+        ])

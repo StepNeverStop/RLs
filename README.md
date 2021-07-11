@@ -10,7 +10,7 @@
 </div>
 
 <div align="center">
-<p><strong>RLs:</strong> Reinforcement Learning Algorithm Based On TensorFlow 2.x.</p> 
+<p><strong>RLs:</strong> Reinforcement Learning Algorithm Based On PyTorch.</p> 
 </div>
 
 This project includes SOTA or classic RL(reinforcement learning) algorithms used for training agents by interacting with Unity through [ml-agents](https://github.com/Unity-Technologies/ml-agents/tree/release_18) Release 18 or with [gym](https://github.com/openai/gym). The goal of this framework is to provide stable implementations of standard RL algorithms and simultaneously enable fast prototyping of new methods.
@@ -214,7 +214,7 @@ Options:
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
                                 specify the directory that store model, log and others [default: None]
     --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and tensorflow [default: 42]
+                                specify the random seed of module random, numpy and pytorch [default: 42]
     --unity-env-seed=<n>        指定unity环境的随机种子
                                 specify the environment random seed of UNITY3D [default: 42]
     --max-step=<n>              每回合最大步长

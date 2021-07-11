@@ -55,7 +55,7 @@ def gym_train(env, model,
         for _ in range(max_step_per_episode):
             if render or episode > render_episode:
                 env.render(record=False)
-            action = model.choose_action(obs=obs)
+            action = model(obs=obs)
             ret = env.step(action)
             model.store_data(BatchExperiences(obs=obs,
                                               action=action,
@@ -71,13 +71,13 @@ def gym_train(env, model,
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
                 if train_step % save_frequency == 0:
-                    model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 if off_policy_eval_interval > 0 and train_step % off_policy_eval_interval == 0:
                     gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, max_step_per_episode)
 
             frame_step += env.n
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
@@ -89,7 +89,7 @@ def gym_train(env, model,
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
         model.writer_summary(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
@@ -119,7 +119,7 @@ def gym_step_eval(env, model,
         returns = 0.
         step = 0
         for _ in range(max_step_per_episode):
-            action = model.choose_action(obs=obs, evaluation=True)
+            action = model(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += ret.reward[0]
@@ -155,7 +155,7 @@ def gym_evaluate(env, model,
         steps = np.zeros(env.n)
         returns = np.zeros(env.n)
         for _ in range(max_step_per_episode):
-            action = model.choose_action(obs=obs, evaluation=True)
+            action = model(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
             returns += (1 - dones_flag) * ret.reward
@@ -187,7 +187,7 @@ def gym_no_op(env, model,
 
     for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
-            action = model.choose_action(obs=obs)
+            action = model(obs=obs)
         else:
             action = env.sample_actions()
         ret = env.step(action)
@@ -209,7 +209,7 @@ def gym_inference(env, model, episodes: int) -> NoReturn:
         returns = np.zeros(env.n)
         while True:
             env.render(record=False)
-            action = model.choose_action(obs=obs, evaluation=True)
+            action = model(obs=obs, evaluation=True)
             step += 1
             ret = env.step(action)
             returns += (1 - dones_flag) * ret.reward

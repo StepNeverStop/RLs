@@ -1,48 +1,14 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import math
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (List,
+                    Tuple,
                     Optional,
                     NoReturn)
-
-
-def get_device():
-    '''
-    TODO: Annotation
-    '''
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
-    if len(physical_devices) > 0:
-        device = "/gpu:0"
-        for gpu in physical_devices:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    else:
-        device = "/cpu:0"
-    return device
-
-
-def show_graph(name='my_func_trace'):
-    '''
-    show tf2 graph in tensorboard. work for ppo, has bug in off-policy algorithm, like dqn..
-    TODO: fix bug when showing graph of off-policy algorithm based on TF2.
-    '''
-    def show_tf2_graph(func):
-        def inner(*args, **kwargs):
-            tf.summary.trace_on(graph=True)
-            ret = func(*args, **kwargs)
-            tf.summary.trace_export(name=name)
-            return ret
-        return inner
-    return show_tf2_graph
-
-
-def get_TensorSpecs(*args):
-    """
-    get all inputs' shape in order to fix the problem of retracing in TF2.0
-    """
-    return [tf.TensorSpec(shape=[None] + i if isinstance(i, list) else [i], dtype=tf.float32) for i in args]
 
 
 def clip_nn_log_std(log_std, _min=-20, _max=2):
@@ -68,8 +34,8 @@ def gaussian_rsample(mu, log_std):
         sample from the gaussian distribution
         the log probability of sample
     """
-    std = tf.exp(log_std)
-    pi = mu + tf.random.normal(mu.shape) * std
+    std = log_std.exp()
+    pi = mu + t.randn(mu.shape) * std
     log_pi = gaussian_likelihood(pi, mu, log_std)
     return pi, log_pi
 
@@ -86,9 +52,9 @@ def gaussian_clip_rsample(mu, log_std, _min=-1, _max=1):
         sample from the gaussian distribution after clip
         the log probability of sample
     """
-    std = tf.exp(log_std)
-    pi = mu + tf.random.normal(mu.shape) * std
-    pi = tf.clip_by_value(pi, _min, _max)
+    std = log_std.exp()
+    pi = mu + t.randn(mu.shape) * std
+    pi = pi.clamp(_min, _max)
     log_pi = gaussian_likelihood(pi, mu, log_std)
     return pi, log_pi
 
@@ -103,13 +69,13 @@ def gaussian_likelihood(x, mu, log_std):
     Return:
         log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
-    pre_sum = -0.5 * (((x - mu) / (tf.exp(log_std) + 1e-8))**2 + 2 * log_std + tf.math.log(2 * np.pi))
-    return tf.maximum(pre_sum, tf.math.log(1e-8))
+    pre_sum = -0.5 * (((x - mu) / (log_std.exp() + 1e-8))**2 + 2 * log_std + math.log(2 * np.pi))
+    return t.maximum(pre_sum, math.log(1e-8))
 
 
 def gaussian_likelihood_sum(x, mu, log_std):
     log_pi = gaussian_likelihood(x, mu, log_std)
-    return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+    return log_pi.sum(-1, keepdim=True)
 
 
 def gaussian_entropy(log_std):
@@ -120,7 +86,7 @@ def gaussian_entropy(log_std):
     Return:
         The average entropy of a batch of data.
     '''
-    return tf.reduce_mean(0.5 * (1 + tf.math.log(2 * np.pi * tf.exp(log_std)**2 + 1e-8)))
+    return (0.5 * (1 + (2 * np.pi * log_std.exp()**2 + 1e-8).log())).mean()
 
 
 def squash_action(pi, log_pi=None, *, need_sum=True):
@@ -134,12 +100,12 @@ def squash_action(pi, log_pi=None, *, need_sum=True):
         sample range of [-1, 1] after squashed.
         the corrected log probability of squashed sample.
     """
-    pi = tf.tanh(pi)
+    pi.tanh_()
     if log_pi is not None:
-        sub = tf.math.log(clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8)
+        sub = (clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8).log()
         if need_sum:
-            log_pi = tf.reduce_sum(log_pi, axis=-1, keepdims=True)
-            log_pi -= tf.reduce_sum(sub, axis=-1, keepdims=True)
+            log_pi = log_pi.sum(-1, keepdim=True)
+            log_pi -= sub.sum(-1, keepdim=True)
         else:
             log_pi -= sub
     return pi, log_pi
@@ -160,9 +126,9 @@ def clip_but_pass_gradient(x, l=-1., h=1.):
         else:
             x
     """
-    clip_up = tf.cast(x > h, tf.float32)
-    clip_low = tf.cast(x < l, tf.float32)
-    return x + tf.stop_gradient((h - x) * clip_up + (l - x) * clip_low)
+    clip_up = t.as_tensor(x > h)
+    clip_low = t.as_tensor(x < l)
+    return x + ((h - x) * clip_up + (l - x) * clip_low).detach()
 
 
 def squash_rsample(mu, log_std):
@@ -188,39 +154,60 @@ def tsallis_squash_rsample(mu, log_std, q):
 
 def tsallis_entropy_log_q(log_pi, q):
     if q == 1.:
-        return tf.reduce_sum(log_pi, axis=-1, keepdims=True)
+        return log_pi.sum(-1, keepdim=True)
     else:
         if q > 0.:
             '''
             cite from original implementation: https://github.com/rllab-snu/tsallis_actor_critic_mujoco/blob/9f9ba8e4dc8f9680f1e516d3b1391c9ded3934e3/spinup/algos/tac/core.py#L47
             '''
-            pi_p = tf.exp(log_pi)
+            pi_p = log_pi.exp()
         else:
-            pi_p = tf.minimum(tf.exp(log_pi), tf.pow(10., 8 / (1 - q)))
-        safe_x = tf.math.maximum(pi_p, 1e-6)
-        log_q_pi = (tf.pow(safe_x, (1 - q)) - 1) / (1 - q)
-        return tf.reduce_sum(log_q_pi, axis=-1, keepdims=True)
+            pi_p = t.minimum(log_pi.exp(), t.pow(10., 8 / (1 - q)))
+        safe_x = pi_p.maximum(t.full_like(pi_p, 1e-6))
+        log_q_pi = (safe_x.pow(1 - q) - 1) / (1 - q)
+        return log_q_pi.sum(-1, keepdim=True)
 
 
 def huber_loss(td_error, delta=1.):
     '''
     TODO: Annotation
     '''
-    return tf.where(tf.abs(td_error) <= delta, 0.5 * tf.square(td_error), delta * (tf.abs(td_error) - 0.5 * delta))
+    return t.where(td_error.abs() <= delta, 0.5 * td_error.square(), delta * (td_error.abs() - 0.5 * delta))
 
 
-def update_target_net_weights(tge: List[tf.Tensor], src: List[tf.Tensor], ployak: Optional[float] = None) -> NoReturn:
+def sync_params(tge: t.nn.Module, src: t.nn.Module, ployak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
     ployak = 1 - tau
     '''
-    if ployak is None:
-        tf.group([t.assign(s) for t, s in zip(tge, src)])
-    else:
-        tf.group([t.assign(ployak * t + (1 - ployak) * s) for t, s in zip(tge, src)])
+    for _t, _s in zip(tge.parameters(), src.parameters()):
+        _t.data.copy_(_t.data * ployak + _s.data * (1. - ployak))
+
+
+def sync_params_pairs(pairs: List[Tuple], ployak: float = 0.) -> NoReturn:
+    '''
+    update weights of target neural network.
+    ployak = 1 - tau
+    '''
+    for tge, src in pairs:
+        sync_params(tge, src, ployak)
 
 
 def grads_flatten(grads):
-    return tf.concat(
-        [tf.keras.backend.flatten(g) for g in grads],
-        axis=0)
+    return t.cat([g.flatten() for g in grads], 0)
+
+
+def truncated_normal_(size, mean=0., std=1.):
+    with torch.no_grad():
+        tensor = t.zeros(size)
+        tmp = tensor.new_empty(size + (4,)).normal_()
+        valid = (tmp < 2) & (tmp > -2)
+        ind = valid.max(-1, keepdim=True)[1]
+        tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
+        tensor.data.mul_(std).add_(mean)
+        return tensor
+
+
+def q_target_func(reward, gamma, done, q_next, detach=True):
+    q_target = reward + gamma * (1-done) * q_next
+    return q_target.detach() if detach else q_target

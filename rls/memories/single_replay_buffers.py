@@ -3,7 +3,7 @@
 
 import sys
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (Any,
                     NoReturn,
@@ -16,7 +16,7 @@ from copy import deepcopy
 from rls.memories.sum_tree import Sum_Tree
 from rls.memories.base_replay_buffer import ReplayBuffer
 from rls.utils.specs import (BatchExperiences,
-                             RlsDataClass)
+                             Data)
 from rls.utils.hdf5_utils import *
 
 
@@ -45,9 +45,8 @@ class ExperienceReplay(ReplayBuffer):
         change [[s, a, r],[s, a, r]] to [[s, s],[a, a],[r, r]]
         '''
         n_sample = self.batch_size if self.can_sample else self._size
-        t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        # return [np.asarray(e) for e in zip(*t)]
-        return BatchExperiences.pack(t.tolist())
+        data = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
+        return BatchExperiences.pack(data.tolist())
 
     def get_all(self) -> BatchExperiences:
         return BatchExperiences.pack(self._buffer[:self._size].tolist())
@@ -249,8 +248,7 @@ class NStepWrapper:
 
         if len(q) == self.n_step:
             self._store_op(q.pop(0))
-
-        if not RlsDataClass.check_equal(q[-1].obs_, data.obs):    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
+        if not q[-1].obs_ == data.obs:    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             q.clear()   # 保证经验池中不存在不足N长度的序列，有done的除外，因为（1-done）为0，导致gamma的次方计算不准确也没有关系。
             q.append(data)
         else:
@@ -336,7 +334,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         if len(q) == 0:
             q.append(data)
             return
-        if not RlsDataClass.check_equal(q[-1].obs_, data.obs):
+        if not q[-1].obs_ == data.obs:
             self._store_op(q.copy())
             q.clear()
             q.append(data)
@@ -376,16 +374,16 @@ class EpisodeExperienceReplay(ReplayBuffer):
             datas.append(data)
 
         sample_data = BatchExperiences.pack(datas)
-        sample_data.map_fn(f(v=1., l=self.timestep), ['done'])   # [B, T, N]
-        sample_data.map_fn(f(v=0., l=self.timestep))     # [B, T, N]
+        sample_data.convert_(f(v=1., l=self.timestep), ['done'])   # [B, T, N]
+        sample_data.convert_(f(v=0., l=self.timestep))     # [B, T, N]
 
         self.burn_in_data = deepcopy(sample_data)
         train_data = deepcopy(sample_data)
 
-        self.burn_in_data.map_fn(lambda x: x[:, :self.burn_in_time_step])
-        self.burn_in_data.map_fn(lambda x: tf.reshape(x, [-1, *x.shape[2:]]))
-        train_data.map_fn(lambda x: x[:, self.burn_in_time_step:])
-        train_data.map_fn(lambda x: tf.reshape(x, [-1, *x.shape[2:]]))
+        self.burn_in_data.convert_(lambda x: x[:, :self.burn_in_time_step])
+        self.burn_in_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
+        train_data.convert_(lambda x: x[:, self.burn_in_time_step:])
+        train_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
         return train_data
 
     def get_burn_in_data(self) -> BatchExperiences:

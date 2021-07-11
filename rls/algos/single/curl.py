@@ -2,43 +2,42 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
 
-from tensorflow.keras import Model as M
-from tensorflow.keras import Input as I
-from tensorflow.keras import Sequential
+from copy import deepcopy
+from torch import distributions as td
+from torch.nn import (Sequential,
+                      Linear,
+                      LayerNorm)
 from skimage.util.shape import view_as_windows
-from tensorflow.keras.layers import (Dense,
-                                     Flatten,
-                                     LayerNormalization)
 
-from rls.utils.tf2_utils import (squash_rsample,
-                                 gaussian_entropy,
-                                 update_target_net_weights)
+from rls.utils.torch_utils import (squash_rsample,
+                                   gaussian_entropy,
+                                   q_target_func,
+                                   sync_params_pairs)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.nn.networks import get_visual_network_from_type
-from rls.nn.initializers import initKernelAndBias
-from rls.utils.specs import VisualNetworkType
-from rls.utils.build_networks import (ValueNetwork,
-                                      DoubleValueNetwork)
-from rls.utils.specs import (OutputNetworkType,
-                             BatchExperiences)
+from rls.utils.specs import BatchExperiences
+from rls.nn.visual_nets import Vis_REGISTER
+from rls.nn.models import (CriticQvalueOne,
+                           ActorCts,
+                           ActorDct)
+from rls.nn.utils import OPLR
+from rls.utils.sundry_utils import to_numpy
 
 
-class VisualEncoder(M):
+class VisualEncoder(t.nn.Module):
 
     def __init__(self, img_dim, fc_dim):
         super().__init__()
-        self.net = Sequential([
-            get_visual_network_from_type(VisualNetworkType.NATURE)(),
-            Dense(fc_dim, **initKernelAndBias),
-            LayerNormalization()
-        ])
-        self(I(shape=img_dim))
+        net = Vis_REGISTER['nature'](visual_dim=img_dim)
+        self.net = Sequential(
+            net,
+            Linear(net.output_dim, fc_dim),
+            LayerNorm(fc_dim)
+        )
 
-    def call(self, vis):
+    def forward(self, vis):
         return self.net(vis)
 
 
@@ -119,40 +118,33 @@ class CURL(Off_Policy):
         self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
-            self.log_alpha = tf.Variable(initial_value=0.0, name='log_alpha', dtype=tf.float32, trainable=True)
+            self.log_alpha = t.tensor(0., requires_grad=True)
         else:
-            self.log_alpha = tf.Variable(initial_value=tf.math.log(alpha), name='log_alpha', dtype=tf.float32, trainable=False)
+            self.log_alpha = t.tensor(alpha).log()
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
-        def _create_net(name): return DoubleValueNetwork(
-            name=name,
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-            value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
-                                  action_dim=self.a_dim,
-                                  network_settings=network_settings['q'])
-        )
+        self.critic = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.vis_feat_size,
+                                      action_dim=self.a_dim,
+                                      network_settings=network_settings['q'])
 
-        self.critic_net = _create_net('critic_net')
-        self.critic_target_net = _create_net('critic_target_net')
+        self.critic2 = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.vis_feat_size,
+                                       action_dim=self.a_dim,
+                                       network_settings=network_settings['q'])
+        self.critic_target = deepcopy(self.critic)
+        self.critic_target.eval()
+        self.critic2_target = deepcopy(self.critic2)
+        self.critic2_target.eval()
 
         if self.is_continuous:
-            self.actor_net = ValueNetwork(
-                name='actor_net',
-                value_net_type=OutputNetworkType.ACTOR_CTS,
-                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
-                                      output_shape=self.a_dim,
-                                      network_settings=network_settings['actor_continuous'])
-            )
+            self.actor = ActorCts(vector_dim=self.concat_vector_dim + self.vis_feat_size,
+                                  output_shape=self.a_dim,
+                                  network_settings=network_settings['actor_continuous'])
         else:
-            self.actor_net = ValueNetwork(
-                name='actor_net',
-                value_net_type=OutputNetworkType.ACTOR_DCT,
-                value_net_kwargs=dict(vector_dim=self.concat_vector_dim + self.vis_feat_size,
-                                      output_shape=self.a_dim,
-                                      network_settings=network_settings['actor_discrete'])
-            )
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
+            self.actor = ActorDct(vector_dim=self.concat_vector_dim + self.vis_feat_size,
+                                  output_shape=self.a_dim,
+                                  network_settings=network_settings['actor_discrete'])
+            self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
@@ -160,51 +152,47 @@ class CURL(Off_Policy):
         self.encoder = VisualEncoder(self.img_dim, self.vis_feat_size)
         self.encoder_target = VisualEncoder(self.img_dim, self.vis_feat_size)
 
-        self.curl_w = tf.Variable(initial_value=tf.random.normal(shape=(self.vis_feat_size, self.vis_feat_size)), name='curl_w', dtype=tf.float32, trainable=True)
+        self.curl_w = t.tensor(t.randn(self.vis_feat_size, self.vis_feat_size), requires_grad=True)
 
-        self.critic_tv = self.critic_net.trainable_variables + self.encoder.trainable_variables
+        self._pairs = [(self.critic_target, self.critic),
+                       (self.critic2_target, self.critic2),
+                       (self.encoder_target, self.encoder)]
+        sync_params_pairs(self._pairs)
 
-        update_target_net_weights(
-            self.critic_target_net.weights + self.encoder_target.trainable_variables,
-            self.critic_net.weights + self.encoder.trainable_variables
-        )
-        self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr = map(self.init_lr, [actor_lr, critic_lr, alpha_lr, curl_lr])
-        self.optimizer_actor, self.optimizer_critic, self.optimizer_alpha, self.optimizer_curl = map(self.init_optimizer, [self.actor_lr, self.critic_lr, self.alpha_lr, self.curl_lr])
+        self.actor_oplr = OPLR(self.actor, actor_lr)
+        self.critic_oplr = OPLR([self.critic, self.critic2, self.encoder], critic_lr)
+        self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+        self.curl_oplr = OPLR([self.w, self.encoder], curl_lr)
 
-        self._worker_params_dict.update(self.actor_net._policy_models)
-        self._worker_params_dict.update(encoder=self.encoder)
+        self._worker_modules.update(actor=self.actor,
+                                    encoder=self.encoder)
 
-        self._all_params_dict.update(self.actor_net._all_models)
-        self._all_params_dict.update(self.critic_net._all_models)
-        self._all_params_dict.update(curl_w=self.curl_w,
-                                     encoder=self.encoder,
-                                     optimizer_actor=self.optimizer_actor,
-                                     optimizer_critic=self.optimizer_critic,
-                                     optimizer_alpha=self.optimizer_alpha,
-                                     optimizer_curl=self.optimizer_curl)
-        self._model_post_process()
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(critic=self.critic,
+                                     curl_w=self.curl_w,
+                                     actor_oplr=self.actor_oplr,
+                                     critic_oplr=self.critic_oplr,
+                                     alpha_oplr=self.alpha_oplr,
+                                     curl_oplr=self.curl_oplr)
         self.initialize_data_buffer()
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         visual = center_crop_image(obs.first_visual()[:, 0], self.img_size)
         mu, pi = self._get_action(visual)
-        a = mu.numpy() if evaluation else pi.numpy()
-        return a
+        return mu if evaluation else pi
 
-    @tf.function
     def _get_action(self, visual):
-        with tf.device(self.device):
-            feat = tf.concat([self.encoder(visual), obs.flatten_vector()], axis=-1)
-            if self.is_continuous:
-                mu, log_std = self.actor_net.value_net(feat)
-                pi, _ = squash_rsample(mu, log_std)
-                mu = tf.tanh(mu)  # squash mu
-            else:
-                logits = self.actor_net.value_net(feat)
-                mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=logits)
-                pi = cate_dist.sample()
-            return mu, pi
+        feat = t.cat([self.encoder(visual), obs.flatten_vector()], -1)
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            pi, _ = squash_rsample(mu, log_std)
+            mu.tanh_()  # squash mu
+        else:
+            logits = self.actor(feat)
+            mu = logits.argmax(1)
+            cate_dist = td.categorical.Categorical(logits=logits)
+            pi = cate_dist.sample()
+        return to_numpy(mu), to_numpy(pi)
 
     def _process_before_train(self, data: BatchExperiences):
         visual = np.transpose(data.obs.first_visual()[:, 0].numpy(), (0, 3, 1, 2))
@@ -215,9 +203,7 @@ class CURL(Off_Policy):
         return self.data_convert([visual, visual_, pos])
 
     def _target_params_update(self):
-        update_target_net_weights(self.critic_target_net.weights + self.encoder_target.trainable_variables,
-                                  self.critic_net.weights + self.encoder.trainable_variables,
-                                  self.ployak)
+        sync_params_pairs(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
@@ -225,119 +211,110 @@ class CURL(Off_Policy):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)],
-                    ['LEARNING_RATE/alpha_lr', self.alpha_lr(self.train_step)]
+                    ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
+                    ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
+                    ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
                 ])
             })
 
     @property
     def alpha(self):
-        return tf.exp(self.log_alpha)
+        return self.log_alpha.exp()
 
     def _train(self, BATCH: BatchExperiences, isw, cell_states):
         visual, visual_, pos = self._process_before_train(BATCH)
-        td_error, summaries = self.train(BATCH, isw, cell_states, visual, visual_, pos)
+        td_error, summaries = self.train(BATCH.tensor, isw, cell_states, visual, visual_, pos)
         if self.annealing and not self.auto_adaption:
-            self.log_alpha.assign(tf.math.log(tf.cast(self.alpha_annealing(self.global_step.numpy()), tf.float32)))
+            self.log_alpha.copy_(self.alpha_annealing(self.global_step).log())
         return td_error, summaries
 
-    @tf.function
     def train(self, BATCH, isw, cell_states, visual, visual_, pos):
-        with tf.device(self.device):
-            with tf.GradientTape(persistent=True) as tape:
-                vis_feat = self.encoder(visual)
-                vis_feat_ = self.encoder(visual_)
-                target_vis_feat_ = self.encoder_target(visual_)
-                feat = tf.concat([vis_feat, BATCH.obs.flatten_vector()], axis=-1)
-                feat_ = tf.concat([vis_feat_, BATCH.obs_.flatten_vector()], axis=-1)
-                target_feat_ = tf.concat([target_vis_feat_, BATCH.obs_.flatten_vector()], axis=-1)
-                if self.is_continuous:
-                    target_mu, target_log_std = self.actor_net.value_net(feat_)
-                    target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
-                else:
-                    target_logits = self.actor_net.value_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
-                    target_pi = target_cate_dist.sample()
-                    target_log_pi = target_cate_dist.log_prob(target_pi)
-                    target_pi = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
-                q1, q2 = self.critic_net.value_net(feat, BATCH.action)
-                q1_target, q2_target = self.critic_target_net.value_net(feat_, target_pi)
-                q_target = tf.minimum(q1_target, q2_target)
-                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * (q_target - self.alpha * target_log_pi))
-                td_error1 = q1 - dc_r
-                td_error2 = q2 - dc_r
-                q1_loss = tf.reduce_mean(tf.square(td_error1) * isw)
-                q2_loss = tf.reduce_mean(tf.square(td_error2) * isw)
-                critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+        vis_feat = self.encoder(visual)
+        vis_feat_ = self.encoder(visual_)
+        target_vis_feat_ = self.encoder_target(visual_)
+        feat = t.cat([vis_feat, BATCH.obs.flatten_vector()], -1)
+        feat_ = t.cat([vis_feat_, BATCH.obs_.flatten_vector()], -1)
+        target_feat_ = t.cat([target_vis_feat_, BATCH.obs_.flatten_vector()], -1)
+        if self.is_continuous:
+            target_mu, target_log_std = self.actor(feat_)
+            target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
+        else:
+            target_logits = self.actor(feat_)
+            target_cate_dist = td.categorical.Categorical(logits=target_logits)
+            target_pi = target_cate_dist.sample()
+            target_log_pi = target_cate_dist.log_prob(target_pi)
+            target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()
+        q1 = self.critic(feat, BATCH.action)
+        q2 = self.critic2(feat, BATCH.action)
+        q1_target = self.critic_target(feat_, target_pi)
+        q2_target = self.critic2_target(feat_, target_pi)
+        q_target = t.minimum(q1_target, q2_target)
+        dc_r = q_target_func(BATCH.reward,
+                             self.gamma,
+                             BATCH.done,
+                             (q_target - self.alpha * target_log_pi))
+        td_error1 = q1 - dc_r
+        td_error2 = q2 - dc_r
+        q1_loss = (td_error1.square() * isw).mean()
+        q2_loss = (td_error2.square() * isw).mean()
+        critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
 
-                z_a = vis_feat  # [B, N]
-                z_out = self.encoder_target(pos)
-                logits = tf.matmul(z_a, tf.matmul(self.curl_w, tf.transpose(z_out, [1, 0])))
-                logits -= tf.reduce_max(logits, axis=-1, keepdims=True)
-                curl_loss = tf.reduce_mean(tf.keras.losses.sparse_categorical_crossentropy(tf.range(self.batch_size), logits))
-            critic_grads = tape.gradient(critic_loss, self.critic_tv)
-            self.optimizer_critic.apply_gradients(
-                zip(critic_grads, self.critic_tv)
-            )
-            curl_grads = tape.gradient(curl_loss, [self.curl_w] + self.encoder.trainable_variables)
-            self.optimizer_curl.apply_gradients(
-                zip(curl_grads, [self.curl_w] + self.encoder.trainable_variables)
-            )
+        z_a = vis_feat  # [B, N]
+        z_out = self.encoder_target(pos)
+        logits = z_a @ (self.curl_w @ z_out.T)
+        logits -= logits.max(-1, keepdim=True)[0]
+        curl_loss = t.nn.functional.cross_entropy(logits, t.arange(self.batch_size))
 
-            with tf.GradientTape() as tape:
-                if self.is_continuous:
-                    mu, log_std = self.actor_net.value_net(feat)
-                    pi, log_pi = squash_rsample(mu, log_std)
-                    entropy = gaussian_entropy(log_std)
-                else:
-                    logits = self.actor_net.value_net(feat)
-                    logp_all = tf.nn.log_softmax(logits)
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
-                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
-                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    pi = _pi_diff + _pi
-                    log_pi = tf.reduce_sum(tf.multiply(logp_all, pi), axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                q_s_pi = self.critic_net.get_min(feat, pi)
-                actor_loss = -tf.reduce_mean(q_s_pi - self.alpha * log_pi)
-            actor_grads = tape.gradient(actor_loss, self.actor_net.trainable_variables)
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.actor_net.trainable_variables)
-            )
+        self.critic_oplr.step(critic_loss)
+        self.curl_oplr.step(curl_loss)
 
-            if self.auto_adaption:
-                with tf.GradientTape() as tape:
-                    if self.is_continuous:
-                        mu, log_std = self.actor_net.value_net(feat)
-                        norm_dist = tfp.distributions.Normal(loc=mu, scale=tf.exp(log_std))
-                        log_pi = tf.reduce_sum(norm_dist.log_prob(norm_dist.sample()), axis=-1, keep_dims=True)  # [B, 1]
-                    else:
-                        logits = self.actor_net.value_net(feat)
-                        norm_dist = tfp.distributions.Categorical(logits=logits)
-                        log_pi = norm_dist.log_prob(cate_dist.sample())
-                    alpha_loss = -tf.reduce_mean(self.alpha * tf.stop_gradient(log_pi + self.target_entropy))
-                alpha_grad = tape.gradient(alpha_loss, self.log_alpha)
-                self.optimizer_alpha.apply_gradients(
-                    [(alpha_grad, self.log_alpha)]
-                )
-            self.global_step.assign_add(1)
-            summaries = dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/q1_loss', q1_loss],
-                ['LOSS/q2_loss', q2_loss],
-                ['LOSS/critic_loss', critic_loss],
-                ['LOSS/curl_loss', curl_loss],
-                ['Statistics/log_alpha', self.log_alpha],
-                ['Statistics/alpha', self.alpha],
-                ['Statistics/entropy', entropy],
-                ['Statistics/q_min', tf.reduce_min(tf.minimum(q1, q2))],
-                ['Statistics/q_mean', tf.reduce_mean(tf.minimum(q1, q2))],
-                ['Statistics/q_max', tf.reduce_max(tf.maximum(q1, q2))]
-            ])
-            if self.auto_adaption:
-                summaries.update({
-                    'LOSS/alpha_loss': alpha_loss
-                })
-            return (td_error1 + td_error2) / 2., summaries
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            pi, log_pi = squash_rsample(mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            pi = _pi_diff + _pi
+            log_pi = (logp_all * pi).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        q_s_pi = t.minimum(self.critic(feat, pi), self.critic2(feat, pi))
+        actor_loss = -(q_s_pi - self.alpha * log_pi).mean()
+        self.actor_oplr.step(actor_loss)
+
+        if self.auto_adaption:
+            if self.is_continuous:
+                mu, log_std = self.actor(feat)
+                norm_dist = td.normal.Normal(loc=mu, scale=log_std.exp())
+                log_pi = norm_dist.log_prob(norm_dist.sample()).sum(-1, keepdim=True)  # [B, 1]
+            else:
+                logits = self.actor(feat)
+                norm_dist = td.categorical.Categorical(logits=logits)
+                log_pi = norm_dist.log_prob(cate_dist.sample())
+            alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()
+
+            self.alpha_oplr.step(alpha_loss)
+
+        self.global_step.add_(1)
+        summaries = dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/q1_loss', q1_loss],
+            ['LOSS/q2_loss', q2_loss],
+            ['LOSS/critic_loss', critic_loss],
+            ['LOSS/curl_loss', curl_loss],
+            ['Statistics/log_alpha', self.log_alpha],
+            ['Statistics/alpha', self.alpha],
+            ['Statistics/entropy', entropy],
+            ['Statistics/q_min', t.minimum(q1, q2).min()],
+            ['Statistics/q_mean', t.minimum(q1, q2).mean()],
+            ['Statistics/q_max', t.maximum(q1, q2).max()]
+        ])
+        if self.auto_adaption:
+            summaries.update({
+                'LOSS/alpha_loss': alpha_loss
+            })
+        return (td_error1 + td_error2) / 2., summaries

@@ -2,23 +2,27 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
 
+from copy import deepcopy
+from torch import distributions as td
 from dataclasses import dataclass
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import (gaussian_clip_rsample,
-                                 gaussian_likelihood_sum,
-                                 gaussian_entropy,
-                                 update_target_net_weights)
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import (OutputNetworkType,
-                             BatchExperiences)
+from rls.utils.torch_utils import (gaussian_clip_rsample,
+                                   gaussian_likelihood_sum,
+                                   gaussian_entropy,
+                                   q_target_func,
+                                   sync_params_pairs)
+from rls.utils.specs import BatchExperiences
+from rls.nn.models import (OcIntraOption,
+                           CriticQvalueAll)
+from rls.nn.utils import OPLR
+from rls.utils.sundry_utils import to_numpy
 
 
-@dataclass
+@dataclass(eq=False)
 class OC_BatchExperiences(BatchExperiences):
     last_options: np.ndarray
     options: np.ndarray
@@ -70,101 +74,89 @@ class OC(Off_Policy):
         self.boltzmann_temperature = boltzmann_temperature
         self.use_eps_greedy = use_eps_greedy
 
-        def _create_net(name, representation_net=None): return ValueNetwork(
-            name=name,
-            representation_net=representation_net,
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
-            value_net_kwargs=dict(output_shape=self.options_num, network_settings=network_settings['q'])
-        )
-        self.q_net = _create_net('q_net', self._representation_net)
-        self.q_target_net = _create_net('q_target_net', self._representation_net._copy())
+        self.q_net = CriticQvalueAll(self.rep_net.h_dim,
+                                     output_shape=self.options_num,
+                                     network_settings=network_settings['q'])
+        self.q_target_net = deepcopy(self.q_net)
+        self.q_target_net.eval()
 
-        self.intra_option_net = ValueNetwork(
-            name='intra_option_net',
-            value_net_type=OutputNetworkType.OC_INTRA_OPTION,
-            value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                  output_shape=self.a_dim,
-                                  options_num=self.options_num,
-                                  network_settings=network_settings['intra_option'])
-        )
-        self.termination_net = ValueNetwork(
-            name='termination_net',
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
-            value_net_kwargs=dict(vector_dim=self._representation_net.h_dim,
-                                  output_shape=self.options_num,
-                                  network_settings=network_settings['termination'],
-                                  out_activation='sigmoid')
-        )
+        self._target_rep_net = deepcopy(self.rep_net)
+        self._target_rep_net.eval()
 
-        self.actor_tv = self.intra_option_net.trainable_variables
+        self.intra_option_net = OcIntraOption(vector_dim=self.rep_net.h_dim,
+                                              output_shape=self.a_dim,
+                                              options_num=self.options_num,
+                                              network_settings=network_settings['intra_option'])
+        self.termination_net = CriticQvalueAll(vector_dim=self.rep_net.h_dim,
+                                               output_shape=self.options_num,
+                                               network_settings=network_settings['termination'],
+                                               out_act='sigmoid')
+
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
-            self.actor_tv += [self.log_std]
-        update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+            self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
 
-        self.q_lr, self.intra_option_lr, self.termination_lr = map(self.init_lr, [q_lr, intra_option_lr, termination_lr])
-        self.q_optimizer = self.init_optimizer(self.q_lr, clipvalue=5.)
-        self.intra_option_optimizer = self.init_optimizer(self.intra_option_lr, clipvalue=5.)
-        self.termination_optimizer = self.init_optimizer(self.termination_lr, clipvalue=5.)
+        self._pairs = [(self.q_target_net, self.q_net),
+                       (self._target_rep_net, self.rep_net)]
+        sync_params_pairs(self._pairs)
 
-        self._worker_params_dict.update(self.q_net._policy_models)
-        self._worker_params_dict.update(self.intra_option_net._policy_models)
-        self._worker_params_dict.update(self.termination_net._policy_models)
+        self.q_oplr = OPLR([self.rep_net, self.q_net], q_lr, clipvalue=5.)
+        self.intra_option_oplr = OPLR([self.intra_option_net, self.log_std], intra_option_lr, clipvalue=5.)
+        self.termination_oplr = OPLR(self.termination_net, termination_lr, clipvalue=5.)
 
-        self._all_params_dict.update(self.q_net._all_models)
-        self._all_params_dict.update(self.intra_option_net._all_models)
-        self._all_params_dict.update(self.termination_net._all_models)
-        self._all_params_dict.update(q_optimizer=self.q_optimizer,
-                                     intra_option_optimizer=self.intra_option_optimizer,
-                                     termination_optimizer=self.termination_optimizer)
-        self._model_post_process()
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    q_net=self.q_net,
+                                    intra_option_net=self.intra_option_net,
+                                    termination_net=self.termination_net)
+
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(q_op=self.q_op,
+                                     intra_option_oplr=self.intra_option_oplr,
+                                     termination_oplr=self.termination_oplr)
         self.initialize_data_buffer()
 
     def _generate_random_options(self):
-        return tf.constant(np.random.randint(0, self.options_num, self.n_copys), dtype=tf.int32)
+        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
 
-        a, self.options, self.cell_state = self._get_action(obs.nt, self.cell_state, self.options)
+        a, self.cell_state = self._get_action(obs, self.cell_state, self.options)
         if self.use_eps_greedy:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
                 self.options = self._generate_random_options()
-        a = a.numpy()
         return a
 
-    @tf.function
     def _get_action(self, obs, cell_state, options):
-        with tf.device(self.device):
-            ret = self.q_net(obs, cell_state=cell_state)
-            q = ret['value']  # [B, P]
-            pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
-            beta = self.termination_net.value_net(ret['feat'])  # [B, P]
-            options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-            options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
-            if self.is_continuous:
-                log_std = tf.gather(self.log_std, options)
-                mu = tf.math.tanh(pi)
-                a, _ = gaussian_clip_rsample(mu, log_std)
-            else:
-                pi = pi / self.boltzmann_temperature
-                dist = tfp.distributions.Categorical(logits=pi)  # [B, ]
-                a = dist.sample()
-            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
-            if self.use_eps_greedy:
-                new_options = max_options
-            else:
-                beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
-                beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-                new_options = tf.where(beta_dist.sample() < 1, options, max_options)
-        return a, new_options, ret['cell_state']
+        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        q = self.q_net(feat)  # [B, P]
+        pi = self.intra_option_net(feat)  # [B, P, A]
+        beta = self.termination_net(feat)  # [B, P]
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
+        pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
+        if self.is_continuous:
+            log_std = self.log_std[options]
+            mu = pi.tanh()
+            a, _ = gaussian_clip_rsample(mu, log_std)
+        else:
+            pi = pi / self.boltzmann_temperature
+            dist = td.categorical.Categorical(logits=pi)  # [B, ]
+            a = dist.sample()
+        max_options = q.argmax(-1).int()  # [B, P] => [B, ]
+        if self.use_eps_greedy:
+            new_options = max_options
+        else:
+            beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
+            beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
+            new_options = t.where(beta_dist.sample() < 1, options, max_options)
+        self.options = to_numpy(new_options)
+        return to_numpy(a), cell_state
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+            sync_params_pairs(self._pairs)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
@@ -172,100 +164,93 @@ class OC(Off_Policy):
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'summary_dict': dict([
-                    ['LEARNING_RATE/q_lr', self.q_lr(self.train_step)],
-                    ['LEARNING_RATE/intra_option_lr', self.intra_option_lr(self.train_step)],
-                    ['LEARNING_RATE/termination_lr', self.termination_lr(self.train_step)],
+                    ['LEARNING_RATE/q_lr', self.q_oplr.lr],
+                    ['LEARNING_RATE/intra_option_lr', self.intra_option_oplr.lr],
+                    ['LEARNING_RATE/termination_lr', self.termination_oplr.lr],
                     ['Statistics/option', self.options[0]]
                 ])
             })
 
-    @tf.function
     def _train(self, BATCH, isw, cell_states):
-        last_options = tf.cast(BATCH.last_options, tf.int32)
-        options = tf.cast(BATCH.options, tf.int32)
-        with tf.device(self.device):
-            with tf.GradientTape(persistent=True) as tape:
-                ret = self.q_net(BATCH.obs, cell_state=cell_states['obs'])
-                ret_ = self.q_target_net(BATCH.obs_, cell_state=cell_states['obs_'])
-                q = ret['value']  # [B, P]
-                pi = self.intra_option_net.value_net(ret['feat'])  # [B, P, A]
-                beta = self.termination_net.value_net(ret['feat'])   # [B, P]
-                q_next = ret_['value']   # [B, P], [B, P, A], [B, P]
-                beta_next = self.termination_net.value_net(ret_['feat'])  # [B, P]
-                options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
+        last_options = BATCH.last_options
+        options = BATCH.options
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        q = self.q_net(feat)  # [B, P]
+        pi = self.intra_option_net(feat)  # [B, P, A]
+        beta = self.termination_net(feat)   # [B, P]
+        q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
+        beta_next = self.termination_net(feat_)  # [B, P]
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B,] => [B, P]
 
-                q_s = qu_eval = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
-                beta_s_ = tf.reduce_sum(beta_next * options_onehot, axis=-1, keepdims=True)  # [B, 1]
-                q_s_ = tf.reduce_sum(q_next * options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
-                if self.double_q:
-                    q_ = self.q_net(BATCH.obs_, cell_state=cell_states['obs_'])['value']  # [B, P], [B, P, A], [B, P]
-                    max_a_idx = tf.one_hot(tf.argmax(q_, axis=-1), self.options_num, dtype=tf.float32)  # [B, P] => [B, ] => [B, P]
-                    q_s_max = tf.reduce_sum(q_next * max_a_idx, axis=-1, keepdims=True)   # [B, 1]
-                else:
-                    q_s_max = tf.reduce_max(q_next, axis=-1, keepdims=True)   # [B, 1]
-                u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
-                qu_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * u_target)
-                td_error = qu_target - qu_eval     # gradient : q
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw)        # [B, 1] => 1
+        q_s = qu_eval = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
+        beta_s_ = (beta_next * options_onehot).sum(-1, keepdim=True)  # [B, 1]
+        q_s_ = (q_next * options_onehot).sum(-1, keepdim=True)   # [B, 1]
+        # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
+        if self.double_q:
+            feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+            q_ = self.q_net(feat__)  # [B, P], [B, P, A], [B, P]
+            max_a_idx = t.nn.functional.one_hot(q_.argmax(-1), self.options_num).float()  # [B, P] => [B, ] => [B, P]
+            q_s_max = (q_next * max_a_idx).sum(-1, keepdim=True)   # [B, 1]
+        else:
+            q_s_max = q_next.max(-1, keepdim=True)[0]   # [B, 1]
+        u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [B, 1]
+        qu_target = q_target_func(BATCH.reward,
+                                  self.gamma,
+                                  BATCH.done,
+                                  u_target)
+        td_error = qu_target - qu_eval     # gradient : q
+        q_loss = (td_error.square() * isw).mean()        # [B, 1] => 1
 
-                # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
-                if self.use_baseline:
-                    adv = tf.stop_gradient(qu_target - qu_eval)
-                else:
-                    adv = tf.stop_gradient(qu_target)
-                options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)   # [B, P] => [B, P, 1]
-                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, P, A] => [B, A]
-                if self.is_continuous:
-                    log_std = tf.gather(self.log_std, options)
-                    mu = tf.math.tanh(pi)
-                    log_p = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-                    entropy = gaussian_entropy(log_std)
-                else:
-                    pi = pi / self.boltzmann_temperature
-                    log_pi = tf.nn.log_softmax(pi, axis=-1)  # [B, A]
-                    entropy = -tf.reduce_sum(tf.exp(log_pi) * log_pi, axis=1, keepdims=True)    # [B, 1]
-                    log_p = tf.reduce_sum(BATCH.action * log_pi, axis=-1, keepdims=True)   # [B, 1]
-                pi_loss = tf.reduce_mean(-(log_p * adv + self.ent_coff * entropy))              # [B, 1] * [B, 1] => [B, 1] => 1
+        # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
+        if self.use_baseline:
+            adv = (qu_target - qu_eval).detach()
+        else:
+            adv = qu_target.detach()
+        options_onehot_expanded = options_onehot.unsqueeze(-1)   # [B, P] => [B, P, 1]
+        pi = (pi * options_onehot_expanded).sum(1)  # [B, P, A] => [B, A]
+        if self.is_continuous:
+            log_std = self.log_std[options]
+            mu = pi.tanh()
+            log_p = gaussian_likelihood_sum(BATCH.action, mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            pi = pi / self.boltzmann_temperature
+            log_pi = pi.log_softmax(-1)  # [B, A]
+            entropy = -(log_pi.exp() * log_pi).sum(1, keepdim=True)    # [B, 1]
+            log_p = (BATCH.action * log_pi).sum(-1, keepdim=True)   # [B, 1]
+        pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()              # [B, 1] * [B, 1] => [B, 1] => 1
 
-                last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
-                beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                if self.use_eps_greedy:
-                    v_s = tf.reduce_max(q, axis=-1, keepdims=True) - self.termination_regularizer   # [B, 1]
-                else:
-                    v_s = (1 - beta_s) * q_s + beta_s * tf.reduce_max(q, axis=-1, keepdims=True)    # [B, 1]
-                    # v_s = tf.reduce_mean(q, axis=-1, keepdims=True)   # [B, 1]
-                beta_loss = beta_s * tf.stop_gradient(q_s - v_s)   # [B, 1]
-                # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
-                if self.terminal_mask:
-                    beta_loss *= (1 - BATCH.done)
-                beta_loss = tf.reduce_mean(beta_loss)  # [B, 1] => 1
+        last_options_onehot = t.nn.functional.one_hot(last_options, self.options_num).float()    # [B,] => [B, P]
+        beta_s = (beta * last_options_onehot).sum(-1, keepdim=True)   # [B, 1]
+        if self.use_eps_greedy:
+            v_s = q.max(-1, keepdim=True)[0] - self.termination_regularizer   # [B, 1]
+        else:
+            v_s = (1 - beta_s) * q_s + beta_s * q.max(-1, keepdim=True)[0]    # [B, 1]
+            # v_s = q.mean(-1, keepdim=True)   # [B, 1]
+        beta_loss = beta_s * (q_s - v_s).detach()   # [B, 1]
+        # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238
+        if self.terminal_mask:
+            beta_loss *= (1 - BATCH.done)
+        beta_loss = beta_loss.mean()  # [B, 1] => 1
 
-            q_grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            intra_option_grads = tape.gradient(pi_loss, self.actor_tv)
-            termination_grads = tape.gradient(beta_loss, self.termination_net.trainable_variables)
-            self.q_optimizer.apply_gradients(
-                zip(q_grads, self.q_net.trainable_variables)
-            )
-            self.intra_option_optimizer.apply_gradients(
-                zip(intra_option_grads, self.actor_tv)
-            )
-            self.termination_optimizer.apply_gradients(
-                zip(termination_grads, self.termination_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/q_loss', tf.reduce_mean(q_loss)],
-                ['LOSS/pi_loss', tf.reduce_mean(pi_loss)],
-                ['LOSS/beta_loss', tf.reduce_mean(beta_loss)],
-                ['Statistics/q_option_max', tf.reduce_max(q_s)],
-                ['Statistics/q_option_min', tf.reduce_min(q_s)],
-                ['Statistics/q_option_mean', tf.reduce_mean(q_s)]
-            ])
+        self.q_oplr.step(q_loss)
+        self.intra_option_oplr.step(pi_loss)
+        self.termination_oplr.step(beta_loss)
+
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/q_loss', q_loss.mean()],
+            ['LOSS/pi_loss', pi_loss.mean()],
+            ['LOSS/beta_loss', beta_loss.mean()],
+            ['Statistics/q_option_max', q_s.max()],
+            ['Statistics/q_option_min', q_s.min()],
+            ['Statistics/q_option_mean', q_s.mean()]
+        ])
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
-        self.data.add(OC_BatchExperiences(*exps, self.last_options, self.options))
+        self.data.add(OC_BatchExperiences(*exps.astuple(), self.last_options, self.options))
 
     def no_op_store(self, exps: BatchExperiences):
         pass

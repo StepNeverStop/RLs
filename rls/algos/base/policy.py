@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from abc import abstractmethod
 from collections import defaultdict
@@ -16,11 +16,10 @@ from typing import (Union,
                     Optional)
 
 from rls.algos.base.base import Base
-from rls.nn.learningrate import ConsistentLearningRate
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
 from rls.utils.specs import EnvGroupArgs
-from rls.utils.build_networks import DefaultRepresentationNetwork
+from rls.nn.represent_nets import DefaultRepresentationNetwork
 from rls.nn.modules import CuriosityModel
 
 
@@ -43,14 +42,12 @@ class Policy(Base):
         self.gamma = float(kwargs.get('gamma', 0.999))
         self.train_step = 0
         self.max_train_step = int(kwargs.get('max_train_step', 1000))
-        self.delay_lr = bool(kwargs.get('decay_lr', True))
+        self.delay_lr = bool(kwargs.get('decay_lr', False))
 
         self.representation_net_params = dict(kwargs.get('representation_net_params', defaultdict(dict)))
         self.use_rnn = bool(self.representation_net_params.get('use_rnn', False))
-
-        self._representation_net = DefaultRepresentationNetwork(name='_representation_net',
-                                                                obs_spec=self.obs_spec,
-                                                                representation_net_params=self.representation_net_params)
+        self.rep_net = DefaultRepresentationNetwork(obs_spec=self.obs_spec,
+                                                    representation_net_params=self.representation_net_params)
 
         self.use_curiosity = bool(kwargs.get('use_curiosity', False))
         if self.use_curiosity:
@@ -64,19 +61,10 @@ class Policy(Base):
                                                   eta=self.curiosity_eta,
                                                   lr=self.curiosity_lr,
                                                   beta=self.curiosity_beta)
-            self._all_params_dict.update(curiosity_model=self.curiosity_model)
-
-    def init_lr(self, lr: float) -> Callable:
-        if self.delay_lr:
-            return tf.keras.optimizers.schedules.PolynomialDecay(lr, self.max_train_step, 1e-10, power=1.0)
-        else:
-            return ConsistentLearningRate(lr)
+            self._trainer_modules.update(curiosity_model=self.curiosity_model)
 
     # def normalize_vector_obs(self, x: np.ndarray) -> np.ndarray:
     #     return self._running_average.normalize(x)
-
-    def init_optimizer(self, lr: Callable, *args, **kwargs) -> tf.keras.optimizers.Optimizer:
-        return tf.keras.optimizers.Adam(learning_rate=lr(self.train_step), *args, **kwargs)
 
     def reset(self) -> NoReturn:
         '''reset model for each new episode.'''
@@ -85,19 +73,19 @@ class Policy(Base):
     @property
     def rnn_cell_nums(self):
         if self.use_rnn:
-            return self._representation_net.memory_net.cell_nums
+            return self.rep_net.memory_net.cell_nums
         else:
             return 0
 
-    def initial_cell_state(self, batch: int) -> Tuple[tf.Tensor]:
+    def initial_cell_state(self, batch: int) -> Tuple[t.Tensor]:
         if self.use_rnn:
-            return self._representation_net.memory_net.initial_cell_state(batch=batch)
+            return self.rep_net.memory_net.initial_cell_state(batch=batch)
         return (None,)
 
-    def get_cell_state(self) -> Tuple[Optional[tf.Tensor]]:
+    def get_cell_state(self) -> Tuple[Optional[t.Tensor]]:
         return self.cell_state
 
-    def set_cell_state(self, cs: Tuple[Optional[tf.Tensor]]) -> NoReturn:
+    def set_cell_state(self, cs: Tuple[Optional[t.Tensor]]) -> NoReturn:
         self.cell_state = cs
 
     def partial_reset(self, done: Union[List, np.ndarray]) -> NoReturn:
@@ -120,7 +108,7 @@ class Policy(Base):
         self.summaries = {}
 
     @abstractmethod
-    def choose_action(self, obs, evaluation=False) -> Any:
+    def __call__(self, obs, evaluation=False) -> Any:
         '''
         '''
         pass
@@ -132,7 +120,6 @@ class Policy(Base):
         '''
         pass
 
-    @tf.function
     def _get_action(self, obs, is_training: bool = True) -> Any:
         '''
         TODO: Annotation

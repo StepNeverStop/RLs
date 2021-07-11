@@ -36,7 +36,7 @@ class GymCollector(object):
             while True:
                 step += 1
                 # env.render(record=False)
-                action = model.choose_action(s=state[0], visual_s=state[1])
+                action = model(s=state[0], visual_s=state[1])
                 _, reward, done, info, state[i] = env.step(action)
                 rets += (1 - dones_flag) * reward
                 dones_flag = np.sign(dones_flag + done)
@@ -76,7 +76,7 @@ class GymCollector(object):
         dones_flag = np.zeros(n)
 
         while True:
-            action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
+            action = model(s=state[0], visual_s=state[1], evaluation=True)
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             exps = [*state, action, reward[:, np.newaxis], *new_state, done[:, np.newaxis]]
             td_error = model.apex_cal_td(deepcopy(exps))
@@ -104,7 +104,7 @@ class GymCollector(object):
         dones_flag = np.zeros(n)
 
         while True:
-            action = model.choose_action(s=state[0], visual_s=state[1], evaluation=True)
+            action = model(s=state[0], visual_s=state[1], evaluation=True)
             new_state[i], reward, done, info, correct_new_state = env.step(action)
             model.partial_reset(done)
             unfinished_index = np.where(dones_flag == 0)[0]

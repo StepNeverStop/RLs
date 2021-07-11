@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 # encoding: utf-8
+import torch as t
 
-import tensorflow as tf
-from tensorflow.keras.layers import Activation
-from tensorflow.keras.utils import get_custom_objects
+default_act = 'relu'
+Act_REGISTER = {}
 
-# from rls.utils.specs import DefaultActivationFuncType
-
-class Mish(Activation):
-
-    def __init__(self, activation, **kwargs):
-        super().__init__(activation, **kwargs)
-        self.__name__ = 'mish'
-
-
-def mish(x):
-    """
-    Swish activation function. For more info: https://arxiv.org/abs/1908.08681
-    The original repository for Mish: https://github.com/digantamisra98/Mish
-    """
-    return tf.multiply(x, tf.nn.tanh(tf.nn.softplus(x)))
-
-get_custom_objects().update({
-    'mish': Mish(mish)
-    })
+Act_REGISTER[None] = lambda: lambda x: x
+Act_REGISTER['relu'] = t.nn.ReLU
+Act_REGISTER['elu'] = t.nn.ELU
+Act_REGISTER['gelu'] = t.nn.GELU
+Act_REGISTER['leakyrelu'] = t.nn.LeakyReLU
+Act_REGISTER['tanh'] = t.nn.Tanh
+Act_REGISTER['softplus'] = t.nn.Softplus
+Act_REGISTER['mish'] = t.nn.Mish
+Act_REGISTER['sigmoid'] = t.nn.Sigmoid
+Act_REGISTER['log_softmax'] = t.nn.LogSoftmax
 
 
-default_activation = 'swish'  # 'tanh', 'relu', 'swish', 'mish'
+class Swish(t.nn.Module):
+    '''
+    https://arxiv.org/abs/1710.05941
+    '''
+
+    def forward(self, input: t.Tensor) -> t.Tensor:
+        return input * t.sigmoid(input)
+
+
+Act_REGISTER['swish'] = Swish

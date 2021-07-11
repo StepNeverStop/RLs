@@ -55,7 +55,7 @@ def unity_train(env, model,
 
         for _ in range(max_step_per_episode):
             obs = ret.corrected_obs
-            action = model.choose_action(obs=obs)
+            action = model(obs=obs)
             ret = env.step(action, step_config={})
             model.store_data(BatchExperiences(obs=obs,
                                               action=action,
@@ -70,11 +70,11 @@ def unity_train(env, model,
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
                 if train_step % save_frequency == 0:
-                    model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
             frame_step += env._n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
@@ -86,7 +86,7 @@ def unity_train(env, model,
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
         model.writer_summary(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
@@ -115,7 +115,7 @@ def unity_no_op(env, model,
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
         obs = ret.corrected_obs
         if prefill_choose:
-            action = model.choose_action(obs=obs)
+            action = model(obs=obs)
         else:
             action = env.random_action()
         ret = env.step(action, step_config={})
@@ -137,7 +137,7 @@ def unity_inference(env, model,
         model.reset()
         ret = env.reset(reset_config={})
         while True:
-            action = model.choose_action(obs=ret.corrected_obs,
+            action = model(obs=ret.corrected_obs,
                                          evaluation=True)
             ret = env.step(action, step_config={})
             model.partial_reset(ret.done)
@@ -159,7 +159,7 @@ def ma_unity_no_op(env, model,
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
         pre_obss = [ret.corrected_obs for ret in rets]
         if prefill_choose:
-            actions = model.choose_action(obs=pre_obss)
+            actions = model(obs=pre_obss)
         else:
             actions = env.random_action(is_single=False)
         rets = env.step(actions, is_single=False, step_config={})
@@ -214,7 +214,7 @@ def ma_unity_train(env, model,
 
         for _ in range(max_step_per_episode):
             pre_obss = [ret.corrected_obs for ret in rets]
-            actions = model.choose_action(obs=pre_obss)
+            actions = model(obs=pre_obss)
             rets = env.step(actions, is_single=False, step_config={})
 
             expss = [
@@ -235,11 +235,11 @@ def ma_unity_train(env, model,
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
                 if train_step % save_frequency == 0:
-                    model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
             frame_step += env._n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
                 return
 
@@ -251,7 +251,7 @@ def ma_unity_train(env, model,
             model.learn(episode=episode, train_step=train_step)
             train_step += 1
             if train_step % save_frequency == 0:
-                model.save_checkpoint(train_step=train_step, episode=episode, frame_step=frame_step)
+                model.save(train_step=train_step, episode=episode, frame_step=frame_step)
         model.writer_summary(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
@@ -266,7 +266,7 @@ def ma_unity_inference(env, model,
         model.reset()
         rets = env.reset(is_single=False, reset_config={})
         while True:
-            actions = model.choose_action(obs=[ret.corrected_obs for ret in rets],
+            actions = model(obs=[ret.corrected_obs for ret in rets],
                                           evaluation=True)
             rets = env.step(actions, is_single=False, step_config={})
             model.partial_reset([ret.done for ret in rets])

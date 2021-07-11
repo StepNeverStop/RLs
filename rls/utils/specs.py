@@ -1,6 +1,6 @@
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from enum import Enum
 from typing import (Dict,
@@ -10,11 +10,15 @@ from typing import (Dict,
                     Iterator,
                     Callable)
 from dataclasses import (dataclass,
+                         astuple,
+                         asdict,
+                         is_dataclass,
                          make_dataclass)
-from collections import namedtuple
+
+from rls.utils.sundry_utils import nested_tuple
 
 
-@dataclass
+@dataclass(frozen=True)
 class ObsSpec:
     vector_dims: List[int]
     visual_dims: List[Union[List[int], Tuple[int]]]
@@ -40,7 +44,7 @@ class ObsSpec:
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class EnvGroupArgs:
     obs_spec: ObsSpec
     a_dim: int
@@ -49,144 +53,114 @@ class EnvGroupArgs:
 
 
 @dataclass
-class RlsDataClass:
+class Data:
 
-    def map_fn(self, func, keys=None):
+    @property
+    def tensor(self):
+        params = {}
+        for k, v in self.__dict__.items():
+            params[k] = v.tensor if isinstance(v, Data) else t.as_tensor(v).float()
+        return self.__class__(**params)
+
+    @property
+    def numpy(self):
+        params = {}
+        for k, v in self.__dict__.items():
+            params[k] = v.numpy if isinstance(v, Data) else np.asarray(v)
+        return self.__class__(**params)
+
+    def asdict(self, recursive=False):
+        return asdict(self) if recursive else self.__dict__
+
+    def astuple(self, recursive=False):
+        return astuple(self) if recursive else self.__dict__.values()
+
+    def __getitem__(self, i):
+        params = {}
+        for k, v in self.asdict().items():
+            params[k] = v[i]
+        return self.__class__(**params)
+
+    def __setitem__(self, i, v):
+        '''TODO: Test'''
+        for k in self.__dict__.keys():
+            getattr(self, k)[i] = v[k]
+
+    def __len__(self):
+        for k, v in self.__dict__.items():
+            return len(v) if isinstance(v, Data) else v.shape[0]
+
+    def __eq__(self, other):
+        '''TODO: Annotation'''
+        for s, o in zip(nested_tuple(self.astuple(recursive=True)), nested_tuple(other.astuple(recursive=True))):
+            if not np.allclose(s, o, equal_nan=True):
+                return False
+        else:
+            return True
+
+    def convert_(self, func: Callable, keys=None):
         keys = keys or self.__dict__.keys()
         for k in keys:
             v = getattr(self, k)
-            if isinstance(v, RlsDataClass):
-                v.map_fn(func)
+            if isinstance(v, Data):
+                v.convert_(func)
             else:
                 setattr(self, k, func(v))
 
-    def getitem(self, idx):
-        params = {}
-        for k, v in self.__dict__.items():
-            if isinstance(v, RlsDataClass):
-                params[k] = v.getitem(idx)
-            else:
-                params[k] = v[idx]
-        return self.__class__(**params)
-
-    def getbatchitems(self, idxs: np.ndarray):
-        params = {}
-        for k, v in self.__dict__.items():
-            if isinstance(v, RlsDataClass):
-                params[k] = v.getitem(idxs)
-            else:
-                params[k] = v[idxs]
-        return self.__class__(**params)
-
-    @property
-    def batch_size(self):
-        for k, v in self.__dict__.items():
-            if isinstance(v, RlsDataClass):
-                return v.batch_size
-            else:
-                return v.shape[0]
-
     def unpack(self) -> Iterator:
-        '''
-        TODO: Annotation
-        '''
-        for i in range(self.batch_size):
-            yield self.getitem(i)
+        for i in range(len(self)):
+            yield self[i]
 
     @staticmethod
-    def pack(rdss: List, func: Callable = None):
+    def pack(ds: List, func: Callable = lambda x: np.asarray(x)):
         '''
         TODO: Annotation
         '''
         params = {}
-        for k, v in rdss[0].__dict__.items():
-            d = [getattr(rds, k) for rds in rdss]
-            if isinstance(v, RlsDataClass):
-                params[k] = RlsDataClass.pack(d, func)
-            else:
-                params[k] = func(d) if func else np.asarray(d)
-        return rdss[0].__class__(**params)
-
-    @staticmethod
-    def check_equal(x, y, k: str = None):
-        '''
-        TODO: Annotation
-        '''
-        def _check(d1, d2):
-            if isinstance(d1, RlsDataClass) and isinstance(d2, RlsDataClass):
-                return RlsDataClass.check_equal(d1, d2)
-            elif isinstance(d1, np.ndarray) and isinstance(d2, np.ndarray):
-                return np.allclose(d1, d2, equal_nan=True)
-            else:
-                return False
-
-        if k is not None:
-            return _check(d1=getattr(x, k), d2=getattr(y, k))
-        else:
-            return all([_check(d1=getattr(x, k), d2=getattr(y, k)) for k in x.__dict__.keys()])
-
-    def check_len(self, l: int):
-        '''
-        TODO: Annotation
-        '''
-        ret = []
-        for v in self.values():
-            if isinstance(v, RlsDataClass):
-                ret.append(RlsDataClass.check_len(v, l))
-            else:
-                ret.append(v.shape[0] == l)
-        return all(ret)
-
-    @property
-    def nt(self):
-        params = {}
-        nt = namedtuple('nt', self.__dict__.keys())
-        for k, v in self.__dict__.items():
-            if isinstance(v, RlsDataClass):
-                params[k] = v.nt
-            else:
-                params[k] = v
-        return nt(**params)
+        for k, v in ds[0].__dict__.items():
+            d = [getattr(rds, k) for rds in ds]
+            params[k] = Data.pack(d, func) if isinstance(v, Data) else func(d)
+        return ds[0].__class__(**params)
 
 
 def generate_obs_dataformat(n_copys, item_nums, name='obs'):
     if item_nums == 0:
-        return lambda *args: make_dataclass('dataclass', [name], bases=(RlsDataClass,))(np.full((n_copys, 0), [], dtype=np.float32))
+        return lambda *args: make_dataclass('dataclass', [name], bases=(Data,))(np.full((n_copys, 0), [], dtype=np.float32))
     else:
-        return make_dataclass('dataclass', [name+f'_{str(i)}' for i in range(item_nums)], bases=(RlsDataClass,))
+        return make_dataclass('dataclass', [name+f'_{str(i)}' for i in range(item_nums)], bases=(Data,))
 
 
-@dataclass
-class ModelObservations(RlsDataClass):
+@dataclass(eq=False)
+class ModelObservations(Data):
     '''
         agent's observation
     '''
-    vector: RlsDataClass
-    visual: RlsDataClass
+    vector: Data
+    visual: Data
 
     def flatten_vector(self):
         '''
         TODO: Annotation
         '''
         func = np.hstack if isinstance(self.first_vector(), np.ndarray) \
-            else lambda x: tf.concat(x, axis=-1)
-        return func(self.vector.values())
+            else lambda x: t.cat(x, -1)
+        return func(self.vector.astuple(recursive=True))
 
     def first_vector(self):
         '''
         TODO: Annotation
         '''
-        return self.vector.values()[0]
+        return self.vector.astuple(recursive=True)[0]
 
     def first_visual(self):
         '''
         TODO: Annotation
         '''
-        return self.visual.values()[0]
+        return self.visual.astuple(recursive=True)[0]
 
 
-@dataclass
-class BatchExperiences(RlsDataClass):
+@dataclass(eq=False)
+class BatchExperiences(Data):
     '''
         format of experience that needed to be stored in replay buffer.
     '''
@@ -214,53 +188,3 @@ class GymVectorizedType(Enum):
     VECTOR = 'vector'
     MULTITHREADING = 'multithreading'
     MULTIPROCESSING = 'multiprocessing'
-
-
-class VectorNetworkType(Enum):
-    CONCAT = 'concat'
-    ADAPTIVE = 'adaptive'
-
-
-class VisualNetworkType(Enum):
-    MATCH3 = 'match3'
-    SIMPLE = 'simple'
-    NATURE = 'nature'
-    RESNET = 'resnet'
-    DEEPCONV = 'deepconv'
-
-
-class MemoryNetworkType(Enum):
-    GRU = 'gru'
-    LSTM = 'lstm'
-
-
-class DefaultActivationFuncType(Enum):
-    TANH = 'tanh'
-    RELU = 'relu'
-    ELU = 'elu'
-    SWISH = 'swish'  # https://arxiv.org/abs/1710.05941
-    MISH = 'mish'   # https://arxiv.org/abs/1908.08681
-
-
-class OutputNetworkType(Enum):
-    ACTOR_DPG = 'ActorDPG'
-    ACTOR_MU = 'ActorMu'
-    ACTOR_MU_LOGSTD = 'ActorMuLogstd'
-    ACTOR_CTS = 'ActorCts'
-    ACTOR_DCT = 'ActorDct'
-    CRITIC_QVALUE_ONE = 'CriticQvalueOne'
-    CRITIC_QVALUE_ONE_DDPG = 'CriticQvalueOneDDPG'
-    CRITIC_QVALUE_ONE_TD3 = 'CriticQvalueOneTD3'
-    CRITIC_VALUE = 'CriticValue'
-    CRITIC_QVALUE_ALL = 'CriticQvalueAll'
-    CRITIC_QVALUE_BOOTSTRAP = 'CriticQvalueBootstrap'
-    CRITIC_DUELING = 'CriticDueling'
-    OC_INTRA_OPTION = 'OcIntraOption'
-    AOC_SHARE = 'AocShare'
-    PPOC_SHARE = 'PpocShare'
-    ACTOR_CRITIC_VALUE_CTS = 'ActorCriticValueCts'
-    ACTOR_CRITIC_VALUE_DCT = 'ActorCriticValueDct'
-    C51_DISTRIBUTIONAL = 'C51Distributional'
-    QRDQN_DISTRIBUTIONAL = 'QrdqnDistributional'
-    RAINBOW_DUELING = 'RainbowDueling'
-    IQN_NET = 'IqnNet'

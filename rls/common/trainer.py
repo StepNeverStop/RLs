@@ -100,7 +100,7 @@ class Trainer:
             'base_dir': self.train_args.base_dir
         })
         self.model = self.MODEL(**self.algo_args)
-        self.model.init_or_restore(self.train_args.load_model_path)
+        self.model.resume(self.train_args.load_model_path)
 
         _train_info = self.model.get_init_training_info()
         self.train_args['begin_train_step'] = _train_info['train_step']

@@ -64,7 +64,7 @@ extras['all'] = all_deps
 setup(
     name="RLs",
     version=_metadata.__version__,
-    description="Reinforcement Learning Algorithm Based On TensorFlow 2.x.",
+    description="Reinforcement Learning Algorithm Based On PyTorch.",
     keywords='reinforcement learning gym ml-agents tf2',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -103,8 +103,7 @@ setup(
         'colored_traceback',
         'pyglet==1.5.11',
         'gym>=0.15.0, <=0.15.3',
-        'tensorflow>=2.0.0, <=2.3.1',
-        'tensorflow_probability>=0.8.0, <=0.11.1'
+        'pytorch'
     ],
     extras_require=extras,
 )

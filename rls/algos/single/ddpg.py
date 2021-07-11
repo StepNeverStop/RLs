@@ -2,15 +2,20 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
 
-from rls.nn.noise import (OrnsteinUhlenbeckNoisedAction,
-                          ClippedNormalNoisedAction)
+from copy import deepcopy
+from torch import distributions as td
+
+from rls.nn.noised_actions import ClippedNormalNoisedAction
 from rls.algos.base.off_policy import Off_Policy
-from rls.utils.tf2_utils import update_target_net_weights
-from rls.utils.build_networks import ACNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.torch_utils import (sync_params_pairs,
+                                   q_target_func)
+from rls.nn.noised_actions import Noise_action_REGISTER
+from rls.nn.models import (CriticQvalueOne,
+                           ActorDct,
+                           ActorDPG)
+from rls.nn.utils import OPLR
 
 
 class DDPG(Off_Policy):
@@ -22,10 +27,11 @@ class DDPG(Off_Policy):
                  envspec,
 
                  ployak=0.995,
-                 noise_type='ou',
+                 noise_action='ou',
+                 noise_params={
+                     'sigma': 0.2
+                 },
                  use_target_action_noise=False,
-                 gaussian_noise_sigma=0.2,
-                 gaussian_noise_bound=0.2,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
@@ -39,52 +45,49 @@ class DDPG(Off_Policy):
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.use_target_action_noise = use_target_action_noise
-        self.gaussian_noise_sigma = gaussian_noise_sigma
-        self.gaussian_noise_bound = gaussian_noise_bound
 
         if self.is_continuous:
-            def _create_net(name, representation_net=None): return ACNetwork(
-                name=name,
-                representation_net=representation_net,
-                policy_net_type=OutputNetworkType.ACTOR_DPG,
-                policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_continuous']),
-                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-                value_net_kwargs=dict(action_dim=self.a_dim,
-                                      network_settings=network_settings['q'])
-            )
-            self.target_noised_action = ClippedNormalNoisedAction(sigma=self.gaussian_noise_sigma, noise_bound=self.gaussian_noise_bound)
-            if noise_type == 'ou':
-                self.noised_action = OrnsteinUhlenbeckNoisedAction(sigma=0.2)
-            elif noise_type == 'gaussian':
+            self.actor = ActorDPG(self.rep_net.h_dim,
+                                  output_shape=self.a_dim,
+                                  network_settings=network_settings['actor_continuous'])
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
+            if noise_action == 'ou':
+                self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
+            elif noise_action == 'normal':
                 self.noised_action = self.target_noised_action
             else:
-                raise Exception(f'cannot use noised action type of {noise_type}')
+                raise Exception(f'cannot use noised action type of {noise_action}')
         else:
-            def _create_net(name, representation_net=None): return ACNetwork(
-                name=name,
-                representation_net=representation_net,
-                policy_net_type=OutputNetworkType.ACTOR_DCT,
-                policy_net_kwargs=dict(output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_discrete']),
-                value_net_type=OutputNetworkType.CRITIC_QVALUE_ONE,
-                value_net_kwargs=dict(action_dim=self.a_dim,
+            self.actor = ActorDct(self.rep_net.h_dim,
+                                  output_shape=self.a_dim,
+                                  network_settings=network_settings['actor_discrete'])
+            self.gumbel_dist = td.gumbel.Gumbel(0, 1)
+        self.critic = CriticQvalueOne(self.rep_net.h_dim,
+                                      action_dim=self.a_dim,
                                       network_settings=network_settings['q'])
-            )
-            self.gumbel_dist = tfp.distributions.Gumbel(0, 1)
 
-        self.ac_net = _create_net('ac_net', self._representation_net)
-        self.ac_target_net = _create_net('ac_target_net', self._representation_net._copy())
-        update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights)
-        self.actor_lr, self.critic_lr = map(self.init_lr, [actor_lr, critic_lr])
-        self.optimizer_actor, self.optimizer_critic = map(self.init_optimizer, [self.actor_lr, self.critic_lr])
+        self._target_rep_net = deepcopy(self.rep_net)
+        self._target_rep_net.eval()
+        self.actor_target = deepcopy(self.actor)
+        self.actor_target.eval()
+        self.critic_target = deepcopy(self.critic)
+        self.critic_target.eval()
 
-        self._worker_params_dict.update(self.ac_net._policy_models)
+        self._pairs = [(self._target_rep_net, self.rep_net),
+                       (self.actor_target, self.actor),
+                       (self.critic_target, self.critic)]
+        sync_params_pairs(self._pairs)
 
-        self._all_params_dict.update(self.ac_net._all_models)
-        self._all_params_dict.update(optimizer_actor=self.optimizer_actor,
-                                     optimizer_critic=self.optimizer_critic)
-        self._model_post_process()
+        self.actor_oplr = OPLR(self.actor, actor_lr)
+        self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
+
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    actor=self.actor)
+
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(critic=self.critic,
+                                     actor_oplr=self.actor_oplr,
+                                     critic_oplr=self.critic_oplr)
         self.initialize_data_buffer()
 
     def reset(self):
@@ -92,85 +95,80 @@ class DDPG(Off_Policy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    def choose_action(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs.nt, self.cell_state)
+    def __call__(self, obs, evaluation=False):
+        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
         a = mu.numpy() if evaluation else pi.numpy()
         return a
 
-    @tf.function
     def _get_action(self, obs, cell_state):
-        with tf.device(self.device):
-            ret = self.ac_net(obs, cell_state=cell_state)
-            if self.is_continuous:
-                mu = ret['actor']
-                pi = self.noised_action(mu)
-            else:
-                logits = ret['actor']
-                mu = tf.argmax(logits, axis=1)
-                cate_dist = tfp.distributions.Categorical(logits=logits)
-                pi = cate_dist.sample()
-            return mu, pi, ret['cell_state']
+        feat, _ = self.rep_net(obs.tensor, cell_state=cell_state)
+        output = self.actor(feat)
+        if self.is_continuous:
+            mu = output
+            pi = self.noised_action(mu)
+        else:
+            logits = output
+            mu = logits.argmax(1)
+            cate_dist = td.categorical.Categorical(logits=logits)
+            pi = cate_dist.sample()
+        return mu, pi, cell_state
 
     def _target_params_update(self):
-        update_target_net_weights(self.ac_target_net.weights, self.ac_net.weights, self.ployak)
+        sync_params_pairs(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
                 'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_lr(self.train_step)],
-                    ['LEARNING_RATE/critic_lr', self.critic_lr(self.train_step)]
+                    ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
+                    ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
                 ])
             })
 
-    @tf.function
     def _train(self, BATCH, isw, cell_states):
-        with tf.device(self.device):
-            with tf.GradientTape(persistent=True) as tape:
-                feat = self.ac_net.get_feat(BATCH.obs, cell_state=cell_states['obs'])
-                feat_ = self.ac_target_net.get_feat(BATCH.obs_, cell_state=cell_states['obs_'])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
 
-                if self.is_continuous:
-                    action_target = self.ac_target_net.policy_net(feat_)
-                    if self.use_target_action_noise:
-                        action_target = self.target_noised_action(action_target)
-                    mu = self.ac_net.policy_net(feat)
-                else:
-                    target_logits = self.ac_target_net.policy_net(feat_)
-                    target_cate_dist = tfp.distributions.Categorical(logits=target_logits)
-                    target_pi = target_cate_dist.sample()
-                    target_log_pi = target_cate_dist.log_prob(target_pi)
-                    action_target = tf.one_hot(target_pi, self.a_dim, dtype=tf.float32)
+        if self.is_continuous:
+            action_target = self.actor_target(feat_)
+            if self.use_target_action_noise:
+                action_target = self.target_noised_action(action_target)
+            mu = self.actor(feat)
+        else:
+            target_logits = self.actor_target(feat_)
+            target_cate_dist = td.categorical.Categorical(logits=target_logits)
+            target_pi = target_cate_dist.sample()
+            target_log_pi = target_cate_dist.log_prob(target_pi)
+            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
 
-                    gumbel_noise = tf.cast(self.gumbel_dist.sample(BATCH.action.shape), dtype=tf.float32)
-                    logits = self.ac_net.policy_net(feat)
-                    logp_all = tf.nn.log_softmax(logits)
-                    _pi = tf.nn.softmax((logp_all + gumbel_noise) / self.discrete_tau)
-                    _pi_true_one_hot = tf.one_hot(tf.argmax(_pi, axis=-1), self.a_dim)
-                    _pi_diff = tf.stop_gradient(_pi_true_one_hot - _pi)
-                    mu = _pi_diff + _pi
-                q = self.ac_net.value_net(feat, BATCH.action)
-                q_target = self.ac_target_net.value_net(feat_, action_target)
-                dc_r = tf.stop_gradient(BATCH.reward + self.gamma * q_target * (1 - BATCH.done))
-                td_error = dc_r - q
-                q_loss = 0.5 * tf.reduce_mean(tf.square(td_error) * isw)
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            mu = _pi_diff + _pi
+        q = self.critic(feat, BATCH.action)
+        q_target = self.critic_target(feat_, action_target)
+        dc_r = q_target_func(BATCH.reward,
+                             self.gamma,
+                             BATCH.done,
+                             q_target)
+        td_error = dc_r - q
+        q_loss = 0.5 * (td_error.square() * isw).mean()
 
-                q_actor = self.ac_net.value_net(feat, mu)
-                actor_loss = -tf.reduce_mean(q_actor)
-            q_grads = tape.gradient(q_loss, self.ac_net.critic_trainable_variables)
-            self.optimizer_critic.apply_gradients(
-                zip(q_grads, self.ac_net.critic_trainable_variables)
-            )
-            actor_grads = tape.gradient(actor_loss, self.ac_net.actor_trainable_variables)
-            self.optimizer_actor.apply_gradients(
-                zip(actor_grads, self.ac_net.actor_trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', q_loss],
-                ['Statistics/q_min', tf.reduce_min(q)],
-                ['Statistics/q_mean', tf.reduce_mean(q)],
-                ['Statistics/q_max', tf.reduce_max(q)]
-            ])
+        q_actor = self.critic(feat, mu)
+        actor_loss = -q_actor.mean()
+
+        self.critic_oplr.step(q_loss)
+        self.actor_oplr.step(actor_loss)
+
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/critic_loss', q_loss],
+            ['Statistics/q_min', q.min()],
+            ['Statistics/q_mean', q.mean()],
+            ['Statistics/q_max', q.max()]
+        ])

@@ -54,7 +54,7 @@ class QS:
     def partial_reset(self, done):
         self.mask = np.where(done)[0]
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         s = self.one_hot2int(obs.flatten_vector())
         if self.mode == 'q':
             return self._get_action(s, evaluation)

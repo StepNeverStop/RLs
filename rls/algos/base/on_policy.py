@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (Dict,
                     Union,
@@ -55,9 +55,8 @@ class On_Policy(Policy):
 
         if self.use_curiosity and not self.use_rnn:
             curiosity_data = self.data.get_curiosity_data()
-            curiosity_data.map_fn(self.data_convert)
             cell_states['obs'] = cell_states['obs_'] = self.initial_cell_state(batch=self.n_copys)
-            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data.nt, cell_states)
+            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data.tensor, cell_states)
             self.data.update_reward(crsty_r.numpy())
             # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
             self.summaries.update(crsty_summaries)
@@ -70,9 +69,9 @@ class On_Policy(Policy):
             all_data = self.data.sample_generater()
 
         for data, cell_state in all_data:
-            data.map_fn(self.data_convert)
             cell_state = self.data_convert(cell_state)
-            summaries = _train(data.nt, cell_state)
+            cell_state = {'obs': cell_state, 'obs_': cell_state}
+            summaries = _train(data.tensor, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)

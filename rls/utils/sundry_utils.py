@@ -5,7 +5,7 @@ import os
 import sys
 import random
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (List,
                     NoReturn)
@@ -28,11 +28,11 @@ def check_or_create(dicpath: str, name: str = '') -> NoReturn:
 
 def set_global_seeds(seed: int) -> NoReturn:
     """
-    Set the random seed of tensorflow, numpy and random.
+    Set the random seed of pytorch, numpy and random.
     params:
         seed: an integer refers to the random seed
     """
-    tf.random.set_seed(seed)
+    t.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
@@ -56,3 +56,35 @@ class LinearAnnealing:
         TODO: Annotation
         '''
         return max(self.x + self.interval * current, self.x_)
+
+
+def nested_tuple(x):
+    ret = []
+    for i in x:
+        if isinstance(i, (tuple, list)):
+            ret.extend(nested_tuple(i))
+        else:
+            ret.append(i)
+    return tuple(ret)
+
+
+def to_numpy(x):
+    if isinstance(x, t.Tensor):
+        return x.detach().cpu().numpy()
+    elif isinstance(x, np.ndarray):  # second often case
+        return x
+    elif isinstance(x, (np.number, np.bool_, Number)):
+        return np.asanyarray(x)
+
+
+def to_tensor(x, dtype=None, device='cpu'):
+    if isinstance(x, t.Tensor):
+        if dtype:
+            x = x.type(dtype)
+        return x.to(device)
+    elif isinstance(x, np.ndarray):
+        x = t.as_tensor(x, device=device)
+        if dtype:
+            return x.type(dtype)
+        else:
+            return x

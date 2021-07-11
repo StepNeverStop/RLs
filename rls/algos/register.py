@@ -4,7 +4,6 @@
 # algorithms based on TF 2.x
 
 import importlib
-import tensorflow as tf
 
 from typing import (Tuple,
                     Callable,
@@ -14,7 +13,6 @@ from rls.common.yaml_ops import load_yaml
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
-assert tf.__version__[0] == '2'
 logger = get_logger(__name__)
 
 

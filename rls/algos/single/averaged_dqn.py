@@ -2,17 +2,20 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
+from copy import deepcopy
 from typing import (Union,
                     List,
                     NoReturn)
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import update_target_net_weights
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.torch_utils import (sync_params,
+                                   q_target_func)
+from rls.nn.models import CriticQvalueAll
+from rls.nn.utils import OPLR
+from rls.utils.sundry_utils import to_numpy
 
 
 class AveragedDQN(Off_Policy):
@@ -42,87 +45,82 @@ class AveragedDQN(Off_Policy):
         self.assign_interval = assign_interval
         self.target_k = target_k
         assert self.target_k > 0, "assert self.target_k > 0"
-        self.target_nets = []
         self.current_target_idx = 0
 
-        def _create_net(name, representation_net=None): return ValueNetwork(
-            name=name,
-            representation_net=representation_net,
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_ALL,
-            value_net_kwargs=dict(output_shape=self.a_dim, network_settings=network_settings)
-        )
-        self.q_net = _create_net('dqn_q_net', self._representation_net)
-
+        self.q_net = CriticQvalueAll(self.rep_net.h_dim,
+                                     output_shape=self.a_dim,
+                                     network_settings=network_settings)
+        self.target_representation_nets = []
+        self.target_nets = []
         for i in range(self.target_k):
-            target_q_net = _create_net(
-                'dqn_q_target_net' + str(i),
-                self._representation_net._copy('_representation_target_net' + str(i))
-            )
-            update_target_net_weights(target_q_net.weights, self.q_net.weights)
+            target_rep_net = deepcopy(self.rep_net)
+            target_rep_net.eval()
+            sync_params(target_rep_net, self.rep_net)
+            target_q_net = deepcopy(self.q_net)
+            target_q_net.eval()
+            sync_params(target_q_net, self.q_net)
+            self.target_representation_nets.append(target_rep_net)
             self.target_nets.append(target_q_net)
 
-        self.lr = self.init_lr(lr)
-        self.optimizer = self.init_optimizer(self.lr)
+        self.oplr = OPLR([self.q_net, self.rep_net], lr)
 
-        self._worker_params_dict.update(self.q_net._policy_models)
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    model=self.q_net)
 
-        self._all_params_dict.update(self.q_net._all_models)
-        self._all_params_dict.update(optimizer=self.optimizer)
-        self._model_post_process()
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    def choose_action(self, obs, evaluation: bool = False) -> np.ndarray:
+    def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs.nt, self.cell_state)
-            a = a.numpy()
+            a, self.cell_state = self._get_action(obs, self.cell_state)
         return a
 
-    @tf.function
     def _get_action(self, obs, cell_state):
-        with tf.device(self.device):
-            ret = self.q_net(obs, cell_state=cell_state)
-            q_values = ret['value']
-            for i in range(1, self.target_k):
-                target_q_values = self.target_nets[i](obs, cell_state=cell_state)['value']
-                q_values += target_q_values
-        return tf.argmax(q_values, axis=1), ret['cell_state']  # 不取平均也可以
+        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        q_values = self.q_net(feat)
+        for i in range(1, self.target_k):
+            target_feat, _ = self.target_representation_nets[i](obs, cell_state=cell_state)
+            target_q_values = self.target_nets[i](target_feat)
+            q_values += target_q_values
+        return to_numpy(q_values.argmax(1)), cell_state  # 不取平均也可以
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            update_target_net_weights(self.target_nets[self.current_target_idx].weights, self.q_net.weights)
+            sync_params(self.representation_net_params[self, current_target_idx], self.rep_net)
+            sync_params(self.target_nets[self.current_target_idx], self.q_net)
             self.current_target_idx = (self.current_target_idx + 1) % self.target_k
 
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
-    @tf.function
     def _train(self, BATCH, isw, cell_states):
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                q = self.q_net(BATCH.obs, cell_state=cell_states['obs'])['value']
-                q_next = self.target_nets[0](BATCH.obs_, cell_state=cell_states['obs_'])['value']
-                for i in range(1, self.target_k):
-                    target_q_values = self.target_nets[i](BATCH.obs, cell_state=cell_states['obs'])['value']
-                    q_next += target_q_values
-                q_next /= self.target_k
-                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
-                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=1, keepdims=True))
-                td_error = q_target - q_eval
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
-            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(grads, self.q_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/loss', q_loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        q = self.q_net(feat)
+        feat_, _ = self.target_representation_nets[0](BATCH.obs_, cell_state=cell_states['obs_'])
+        q_next = self.target_nets[0](feat_)
+        for i in range(1, self.target_k):
+            feat_, _ = self.target_representation_nets[0](BATCH.obs_, cell_state=cell_states['obs_'])
+            q_next += self.target_nets[0](feat_)
+        q_next /= self.target_k
+        q_eval = (q * BATCH.action).sum(1, keepdim=True)
+        q_target = q_target_func(BATCH.reward,
+                                 self.gamma,
+                                 BATCH.done,
+                                 q_next.max(-1, keepdim=True)[0])
+        td_error = q_target - q_eval
+
+        self.oplr.step(q_loss)
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/loss', q_loss],
+            ['Statistics/q_max', q_eval.max()],
+            ['Statistics/q_min', q_eval.min()],
+            ['Statistics/q_mean', q_eval.mean()]
+        ])
