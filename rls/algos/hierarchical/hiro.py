@@ -235,8 +235,9 @@ class HIRO(Off_Policy):
             self._subgoals[i] = []
 
     @iTensor_oNumpy
-    def _get_action(self, obs, subgoal):
-        feat = t.cat([obs.flatten_vector(), subgoal], -1)
+    def __call__(self, obs, evaluation=False):
+        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.flatten_vector()).numpy(), self._new_subgoal)
+        feat = t.cat([obs.flatten_vector(), self._subgoal], -1)
         output = self.low_actor(feat)
         if self.is_continuous:
             mu = output
@@ -246,11 +247,6 @@ class HIRO(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu, pi
-
-    def __call__(self, obs, evaluation=False):
-        self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.flatten_vector()).numpy(), self._new_subgoal)
-        mu, pi = self._get_action(obs, self._subgoal)
         return mu if evaluation else pi
 
     def get_subgoal(self, s):

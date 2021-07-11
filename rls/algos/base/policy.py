@@ -119,9 +119,3 @@ class Policy(Base):
         TODO: Annotation
         '''
         pass
-
-    def _get_action(self, obs, is_training: bool = True) -> Any:
-        '''
-        TODO: Annotation
-        '''
-        raise NotImplementedError

@@ -69,12 +69,8 @@ class A2C(On_Policy):
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
-    def __call__(self, obs, evaluation=False):
-        a = self._get_action(obs)
-        return a
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation=False):
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
         if self.is_continuous:

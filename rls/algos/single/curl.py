@@ -176,13 +176,9 @@ class CURL(Off_Policy):
                                      curl_oplr=self.curl_oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         visual = center_crop_image(obs.first_visual()[:, 0], self.img_size)
-        mu, pi = self._get_action(visual)
-        return mu if evaluation else pi
-
-    @iTensor_oNumpy
-    def _get_action(self, visual):
         feat = t.cat([self.encoder(visual), obs.flatten_vector()], -1)
         if self.is_continuous:
             mu, log_std = self.actor(feat)
@@ -193,7 +189,7 @@ class CURL(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu, pi
+        return mu if evaluation else pi
 
     def _process_before_train(self, data: BatchExperiences):
         visual = np.transpose(data.obs.first_visual()[:, 0].numpy(), (0, 3, 1, 2))

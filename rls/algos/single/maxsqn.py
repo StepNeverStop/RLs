@@ -85,21 +85,18 @@ class MAXSQN(Off_Policy):
     def alpha(self):
         return self.log_alpha.exp()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            mu, pi = self._get_action(obs)
+            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+            q = self.critic(feat)
+            cate_dist = td.categorical.Categorical(logits=(q / self.alpha))
+            pi = cate_dist.sample()
+            mu = q.argmax(1)
             a = pi
         return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        q = self.critic(feat)
-        cate_dist = td.categorical.Categorical(logits=(q / self.alpha))
-        pi = cate_dist.sample()
-        return q.argmax(1), pi
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)

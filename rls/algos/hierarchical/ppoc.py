@@ -128,6 +128,7 @@ class PPOC(On_Policy):
     def _generate_random_options(self):
         return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
@@ -135,18 +136,13 @@ class PPOC(On_Policy):
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
 
-        a = self._get_action(obs, self.options)
-        return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs, options):
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(feat)
-        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
-            log_std = self.log_std[options]
+            log_std = self.log_std[self.options]
             mu = pi
             sample_op, _ = gaussian_clip_rsample(mu, log_std)
             log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
@@ -163,7 +159,7 @@ class PPOC(On_Policy):
         max_options = q.argmax(-1)  # [B, P] => [B, ]
         beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
         beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
-        new_options = t.where(beta_dist.sample() < 1, options, sample_options)    # <1 则不改变op， =1 则改变op
+        new_options = t.where(beta_dist.sample() < 1, self.options, sample_options)    # <1 则不改变op， =1 则改变op
 
         new_options = t.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_copys, False)

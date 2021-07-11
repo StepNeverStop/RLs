@@ -175,12 +175,8 @@ class PPO(On_Policy):
         self.initialize_data_buffer(store_data_type=PPO_Store_BatchExperiences,
                                     sample_data_type=PPO_Train_BatchExperiences)
 
-    def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
-        a = self._get_action(obs)
-        return a
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         if self.is_continuous:
             if self.share_net:

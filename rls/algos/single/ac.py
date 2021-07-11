@@ -65,17 +65,13 @@ class AC(Off_Policy):
                                      critic_oplr=self.critic_oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         """
         choose an action according to a given observation
         :param obs: 
         :param evaluation:
         """
-        a = self._get_action(obs)
-        return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
         if self.is_continuous:
