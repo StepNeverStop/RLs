@@ -2,21 +2,44 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
 
-from collections import namedtuple
+from torch import distributions as td
+from dataclasses import dataclass
 
-from rls.utils.tf2_utils import (gaussian_clip_rsample,
-                                 gaussian_likelihood_sum,
-                                 gaussian_entropy)
+from rls.utils.torch_utils import (gaussian_clip_rsample,
+                                   gaussian_likelihood_sum,
+                                   gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import (OutputNetworkType,
-                             BatchExperiences)
+from rls.common.specs import (ModelObservations,
+                              Data,
+                              BatchExperiences)
+from rls.nn.models import AocShare
+from rls.nn.utils import OPLR
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
-AOC_Store_BatchExperiences = namedtuple('AOC_Store_BatchExperiences', BatchExperiences._fields + ('value', 'log_prob', 'beta_advantage', 'last_options', 'options'))
-AOC_Train_BatchExperiences = namedtuple('AOC_Train_BatchExperiences', 'obs, action, value, log_prob, discounted_reward, gae_adv, beta_advantage, last_options, options')
+
+@dataclass(eq=False)
+class AOC_Store_BatchExperiences(BatchExperiences):
+    value: np.ndarray
+    log_prob: np.ndarray
+    beta_advantage: np.ndarray
+    last_options: np.ndarray
+    options: np.ndarray
+
+
+@dataclass(eq=False)
+class AOC_Train_BatchExperiences(Data):
+    obs: ModelObservations
+    action: np.ndarray
+    value: np.ndarray
+    log_prob: np.ndarray
+    discounted_reward: np.ndarray
+    gae_adv: np.ndarray
+    beta_advantage: np.ndarray
+    last_options: np.ndarray
+    options: np.ndarray
 
 
 class AOC(On_Policy):
@@ -61,7 +84,7 @@ class AOC(On_Policy):
         self.kl_reverse = kl_reverse
         self.kl_target = kl_target
         self.kl_alpha = kl_alpha
-        self.kl_coef = tf.constant(kl_coef, dtype=tf.float32)
+        self.kl_coef = t.tensor(kl_coef).float()
 
         self.kl_cutoff = kl_target * kl_target_cutoff
         self.kl_stop = kl_target * kl_target_earlystop
@@ -73,110 +96,99 @@ class AOC(On_Policy):
         self.terminal_mask = terminal_mask
         self.eps = eps
 
-        def _create_net(name): return
-        self.net = ValueNetwork(
-            name='net',
-            representation_net=self._representation_net,
-            value_net_type=OutputNetworkType.AOC_SHARE,
-            value_net_kwargs=dict(action_dim=self.a_dim,
-                                  options_num=self.options_num,
-                                  network_settings=network_settings,
-                                  is_continuous=self.is_continuous)
-        )
-
+        self.net = AocShare(self.rep_net.h_dim,
+                            action_dim=self.a_dim,
+                            options_num=self.options_num,
+                            network_settings=network_settings,
+                            is_continuous=self.is_continuous)
         if self.is_continuous:
-            self.log_std = tf.Variable(initial_value=-0.5 * np.ones((self.options_num, self.a_dim), dtype=np.float32), trainable=True)   # [P, A]
-            self.net_tv = self.net.trainable_variables + [self.log_std]
-        else:
-            self.net_tv = self.net.trainable_variables
-        self.lr = self.init_lr(lr)
-        self.optimizer = self.init_optimizer(self.lr)
+            self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
+        self.oplr = OPLR([self.net, self.rep_net, self.log_std], lr)
 
-        self._worker_params_dict.update(self.net._policy_models)
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    model=self.net)
 
-        self._all_params_dict.update(self.net._all_models)
-        self._all_params_dict.update(optimizer=self.optimizer)
-        self._model_post_process()
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(oplr=self.oplr)
 
         self.initialize_data_buffer(store_data_type=AOC_Store_BatchExperiences,
                                     sample_data_type=AOC_Train_BatchExperiences)
 
     def reset(self):
         super().reset()
-        self._done_mask = np.full(self.n_agents, True)
+        self._done_mask = np.full(self.n_copys, True)
 
     def partial_reset(self, done):
         super().partial_reset(done)
         self._done_mask = done
 
     def _generate_random_options(self):
-        return tf.constant(np.random.randint(0, self.options_num, self.n_agents), dtype=tf.int32)
+        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
         if not hasattr(self, 'oc_mask'):
-            self.oc_mask = tf.constant(np.zeros(self.n_agents), dtype=tf.int32)
+            self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
 
-        a, value, log_prob, beta_adv, new_options, max_options, self.next_cell_state = self._get_action(obs, self.cell_state, self.options)
-        a = a.numpy()
-        new_options = tf.where(self._done_mask, max_options, new_options)
-        self._done_mask = np.full(self.n_agents, False)
-        self._value = value.numpy()
-        self._log_prob = log_prob.numpy() + 1e-10
-        self._beta_adv = beta_adv.numpy() + self.dc
-        self.oc_mask = (new_options == self.options).numpy()  # equal means no change
-        self.options = new_options
+        a = self._get_action(obs, self.options)
         return a
 
-    @tf.function
-    def _get_action(self, obs, cell_state, options):
-        with tf.device(self.device):
-            (q, pi, beta), cell_state = self.net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
-            options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-            options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-            pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, A]
-            if self.is_continuous:
-                mu = pi
-                log_std = tf.gather(self.log_std, options)
-                sample_op, _ = gaussian_clip_rsample(mu, log_std)
-                log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
-            else:
-                logits = pi
-                norm_dist = tfp.distributions.Categorical(logits=logits)
-                sample_op = norm_dist.sample()
-                log_prob = norm_dist.log_prob(sample_op)
-            value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
-            beta_adv = q_o - ((1 - self.eps) * tf.reduce_max(q, axis=-1, keepdims=True) + self.eps * tf.reduce_mean(q, axis=-1, keepdims=True))   # [B, 1]
-            max_options = tf.cast(tf.argmax(q, axis=-1), dtype=tf.int32)  # [B, P] => [B, ]
-            beta_probs = tf.reduce_sum(beta * options_onehot, axis=1)   # [B, P] => [B,]
-            beta_dist = tfp.distributions.Bernoulli(probs=beta_probs)
-            new_options = tf.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
-        return sample_op, value, log_prob, beta_adv, new_options, max_options, cell_state
+    @iTensor_oNumpy
+    def _get_action(self, obs, options):
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+        (q, pi, beta) = self.net(feat)
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
+        pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
+        if self.is_continuous:
+            mu = pi
+            log_std = self.log_std[options]
+            sample_op, _ = gaussian_clip_rsample(mu, log_std)
+            log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
+        else:
+            logits = pi
+            norm_dist = td.categorical.Categorical(logits=logits)
+            sample_op = norm_dist.sample()
+            log_prob = norm_dist.log_prob(sample_op)
+        value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
+        beta_adv = q_o - ((1 - self.eps) * q.max(-1, keepdim=True)[0] + self.eps * q.mean(-1, keepdim=True))   # [B, 1]
+        max_options = q.argmax(-1)  # [B, P] => [B, ]
+        beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
+        beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
+        new_options = t.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
+
+        new_options = t.where(self._done_mask, max_options, new_options)
+        self._done_mask = np.full(self.n_copys, False)
+        self._value = to_numpy(value)
+        self._log_prob = to_numpy(log_prob) + 1e-10
+        self._beta_adv = to_numpy(beta_adv) + self.dc
+        self.oc_mask = to_numpy(new_options == self.options)  # equal means no change
+        self.options = to_numpy(new_options)
+        return sample_op
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
-        exps = exps._replace(reward=exps.reward - tf.expand_dims((1 - self.oc_mask) * self.dc, axis=-1))
-        self.data.add(AOC_Store_BatchExperiences(*exps, self._value, self._log_prob, self._beta_adv,
+        exps.reward = exps.reward - ((1 - self.oc_mask) * self.dc).unsqueeze(-1)
+        self.data.add(AOC_Store_BatchExperiences(*exps.astuple(), self._value, self._log_prob, self._beta_adv,
                                                  self.last_options, self.options))
         if self.use_rnn:
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
-        self.oc_mask = tf.zeros_like(self.oc_mask)
+        self.oc_mask = np.zeros_like(self.oc_mask)
 
-    @tf.function
+    @dataclass
     def _get_value(self, obs, options, cell_state):
-        options = tf.cast(options, tf.int32)
-        with tf.device(self.device):
-            (q, _, _), cell_state = self.net(obs, cell_state=cell_state)
-            options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-            value = q_o = tf.reduce_sum(q * options_onehot, axis=-1, keepdims=True)  # [B, 1]
-            return value, cell_state
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        (q, _, _) = self.net(feat)
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
+        return value, cell_state
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_data('obs_'), self.data.last_data('options'), cell_state=self.cell_state)
-        init_value = init_value.numpy()
+        last_data = self.data.last_data()
+        init_value, self.cell_state = self._get_value(last_data.obs_, last_data.options, cell_state=self.cell_state)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
@@ -209,7 +221,7 @@ class AOC(On_Policy):
             ])
             return summaries
 
-        summary_dict = dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+        summary_dict = dict([['LEARNING_RATE/lr', self.oplr.lr]])
 
         self._learn(function_dict={
             'calculate_statistics': self.calculate_statistics,
@@ -217,63 +229,57 @@ class AOC(On_Policy):
             'summary_dict': summary_dict
         })
 
-    @tf.function
+    @iTensor_oNumpy
     def train(self, BATCH, cell_state, kl_coef):
-        last_options = tf.cast(BATCH.last_options, tf.int32)  # [B,]
-        options = tf.cast(BATCH.options, tf.int32)
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                (q, pi, beta), cell_state = self.net(BATCH.obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+        last_options = BATCH.last_options  # [B,]
+        options = BATCH.options
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
+        (q, pi, beta) = self.net(feat)
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
+        last_options_onehot = t.nn.functional.one_hot(last_options, self.options_num).float()    # [B,] => [B, P]
 
-                options_onehot = tf.one_hot(options, self.options_num, dtype=tf.float32)    # [B, P]
-                options_onehot_expanded = tf.expand_dims(options_onehot, axis=-1)  # [B, P, 1]
-                last_options_onehot = tf.one_hot(last_options, self.options_num, dtype=tf.float32)    # [B,] => [B, P]
+        pi = (pi * options_onehot_expanded).sum(1)  # [B, P, A] => [B, A]
+        value = (q * options_onehot).sum(1, keepdim=True)    # [B, 1]
 
-                pi = tf.reduce_sum(pi * options_onehot_expanded, axis=1)  # [B, P, A] => [B, A]
-                value = tf.reduce_sum(q * options_onehot, axis=1, keepdims=True)    # [B, 1]
+        if self.is_continuous:
+            mu = pi  # [B, A]
+            log_std = self.log_std[options]
+            new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = pi  # [B, A]
+            logp_all = logits.log_softmax(-1)
+            new_log_prob = (BATCH.action * logp_all).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        ratio = (new_log_prob - BATCH.log_prob).exp()
 
-                if self.is_continuous:
-                    mu = pi  # [B, A]
-                    log_std = tf.gather(self.log_std, options)
-                    new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-                    entropy = gaussian_entropy(log_std)
-                else:
-                    logits = pi  # [B, A]
-                    logp_all = tf.nn.log_softmax(logits)
-                    new_log_prob = tf.reduce_sum(BATCH.action * logp_all, axis=1, keepdims=True)
-                    entropy = -tf.reduce_mean(tf.reduce_sum(tf.exp(logp_all) * logp_all, axis=1, keepdims=True))
-                ratio = tf.exp(new_log_prob - BATCH.log_prob)
+        if self.kl_reverse:
+            kl = (new_log_prob - BATCH.log_prob).mean()
+        else:
+            kl = (BATCH.log_prob - new_log_prob).mean()    # a sample estimate for KL-divergence, easy to compute
+        surrogate = ratio * BATCH.gae_adv
 
-                if self.kl_reverse:
-                    kl = tf.reduce_mean(new_log_prob - BATCH.log_prob)
-                else:
-                    kl = tf.reduce_mean(BATCH.log_prob - new_log_prob)    # a sample estimate for KL-divergence, easy to compute
-                surrogate = ratio * BATCH.gae_adv
+        value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)
+        td_error = BATCH.discounted_reward - value
+        td_error_clip = BATCH.discounted_reward - value_clip
+        td_square = t.maximum(td_error.square(), td_error_clip.square())
 
-                value_clip = BATCH.value + tf.clip_by_value(value - BATCH.value, -self.value_epsilon, self.value_epsilon)
-                td_error = BATCH.discounted_reward - value
-                td_error_clip = BATCH.discounted_reward - value_clip
-                td_square = tf.maximum(tf.square(td_error), tf.square(td_error_clip))
+        pi_loss = -t.minimum(
+            surrogate,
+            ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
+        ).mean()
+        kl_loss = kl_coef * kl
+        extra_loss = 1000.0 * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square()
+        pi_loss = pi_loss + kl_loss + extra_loss
+        q_loss = 0.5 * td_square.mean()
 
-                pi_loss = -tf.reduce_mean(
-                    tf.minimum(
-                        surrogate,
-                        tf.clip_by_value(ratio, 1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
-                    ))
-                kl_loss = kl_coef * kl
-                extra_loss = 1000.0 * tf.square(tf.maximum(0., kl - self.kl_cutoff))
-                pi_loss = pi_loss + kl_loss + extra_loss
-                q_loss = 0.5 * tf.reduce_mean(td_square)
+        beta_s = (beta * last_options_onehot).sum(-1, keepdim=True)   # [B, 1]
+        beta_loss = (beta_s * BATCH.beta_advantage).mean()
+        if self.terminal_mask:
+            beta_loss *= (1 - done)
 
-                beta_s = tf.reduce_sum(beta * last_options_onehot, axis=-1, keepdims=True)   # [B, 1]
-                beta_loss = tf.reduce_mean(beta_s * BATCH.beta_advantage)
-                if self.terminal_mask:
-                    beta_loss *= (1 - done)
-
-                loss = pi_loss + 1.0 * q_loss + beta_loss - self.pi_beta * entropy
-            loss_grads = tape.gradient(loss, self.net_tv)
-            self.optimizer.apply_gradients(
-                zip(loss_grads, self.net_tv)
-            )
-            self.global_step.assign_add(1)
-            return loss, pi_loss, q_loss, beta_loss, entropy, kl
+        loss = pi_loss + 1.0 * q_loss + beta_loss - self.pi_beta * entropy
+        self.oplr.step(loss)
+        self.global_step.add_(1)
+        return loss, pi_loss, q_loss, beta_loss, entropy, kl

@@ -40,7 +40,7 @@ Options:
     --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
                                 specify the directory that store model, log and others [default: None]
     --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and tensorflow [default: 42]
+                                specify the random seed of module random, numpy and pytorch [default: 42]
     --unity-env-seed=<n>        指定unity环境的随机种子
                                 specify the environment random seed of UNITY3D [default: 42]
     --max-step=<n>              每回合最大步长
@@ -95,6 +95,8 @@ from rls.utils.display import show_dict
 from rls.utils.logging_utils import set_log_level
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+# device = "cuda" if torch.cuda.is_available() else "cpu" # TODO
+
 set_log_level(logging.INFO)
 if sys.platform.startswith('win'):
     import pywintypes   # necessary when using python 3.8+

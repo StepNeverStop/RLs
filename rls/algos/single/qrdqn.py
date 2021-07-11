@@ -2,14 +2,17 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
+
+from copy import deepcopy
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import (huber_loss,
-                                 update_target_net_weights)
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.torch_utils import (huber_loss,
+                                   sync_params_pairs)
+from rls.nn.models import QrdqnDistributional
+from rls.nn.utils import OPLR
+from rls.common.decorator import iTensor_oNumpy
 
 
 class QRDQN(Off_Policy):
@@ -37,7 +40,7 @@ class QRDQN(Off_Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.nums = nums
         self.huber_delta = huber_delta
-        self.quantiles = tf.reshape(tf.constant((2 * np.arange(self.nums) + 1) / (2.0 * self.nums), dtype=tf.float32), [-1, self.nums])  # [1, N]
+        self.quantiles = t.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().view(-1, self.nums)  # [1, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -45,88 +48,86 @@ class QRDQN(Off_Policy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        def _create_net(name, representation_net=None): return ValueNetwork(
-            name=name,
-            representation_net=representation_net,
-            value_net_type=OutputNetworkType.QRDQN_DISTRIBUTIONAL,
-            value_net_kwargs=dict(action_dim=self.a_dim, nums=self.nums, network_settings=network_settings)
-        )
+        self.q_net = QrdqnDistributional(self.rep_net.h_dim,
+                                         action_dim=self.a_dim,
+                                         nums=self.nums,
+                                         network_settings=network_settings)
+        self.q_target_net = deepcopy(self.q_net)
+        self.q_target_net.eval()
 
-        self.q_dist_net = _create_net('q_dist_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_dist_net = _create_net('q_target_dist_net', self._representation_target_net)
-        update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
-        self.lr = self.init_lr(lr)
-        self.optimizer = self.init_optimizer(self.lr)
+        self._target_rep_net = deepcopy(self.rep_net)
+        self._target_rep_net.eval()
 
-        self._worker_params_dict.update(self.q_dist_net._policy_models)
+        self._pairs = [(self.q_target_net, self.q_net),
+                       (self._target_rep_net, self.rep_net)]
+        sync_params_pairs(self._pairs)
 
-        self._all_params_dict.update(self.q_dist_net._all_models)
-        self._all_params_dict.update(optimizer=self.optimizer)
-        self._model_post_process()
+        self.oplr = OPLR([self.q_net, self.rep_net], lr)
+
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    model=self.q_net)
+
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
-            a = a.numpy()
+            a = self._get_action(obs)
         return a
 
-    @tf.function
-    def _get_action(self, obs, cell_state):
-        with tf.device(self.device):
-            q_values, cell_state = self.q_dist_net(obs, cell_state=cell_state)
-            q = tf.reduce_mean(q_values, axis=-1)  # [B, A, N] => [B, A]
-        return tf.argmax(q, axis=-1), cell_state  # [B, 1]
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        q_values = self.q_net(feat)
+        q = q_values.mean(-1)  # [B, A, N] => [B, A]
+        return q.argmax(-1)  # [B, 1]
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            update_target_net_weights(self.q_target_dist_net.weights, self.q_dist_net.weights)
+            sync_params_pairs(self._pairs)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
-    @tf.function
-    def _train(self, BATCH, isw, cell_state):
-        batch_size = tf.shape(BATCH.action)[0]
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                indexes = tf.reshape(tf.range(batch_size), [-1, 1])  # [B, 1]
-                q_dist, _ = self.q_dist_net(BATCH.obs, cell_state=cell_state)  # [B, A, N]
-                q_dist = tf.transpose(tf.reduce_sum(tf.transpose(q_dist, [2, 0, 1]) * BATCH.action, axis=-1), [1, 0])  # [B, N]
+    @iTensor_oNumpy
+    def _train(self, BATCH, isw, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        batch_size = BATCH.action.shape[0]
+        indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]
+        q_dist = self.q_net(feat)  # [B, A, N]
+        q_dist = (q_dist.permute(2, 0, 1) * BATCH.action).sum(-1).T  # [B, N]
 
-                target_q_dist, _ = self.q_target_dist_net(BATCH.obs_, cell_state=cell_state)  # [B, A, N]
-                target_q = tf.reduce_mean(target_q_dist, axis=-1)  # [B, A, N] => [B, A]
-                a_ = tf.reshape(tf.cast(tf.argmax(target_q, axis=-1), dtype=tf.int32), [-1, 1])  # [B, 1]
-                target_q_dist = tf.gather_nd(target_q_dist, tf.concat([indexes, a_], axis=-1))   # [B, N]
-                target = tf.tile(BATCH.reward, tf.constant([1, self.nums])) \
-                    + self.gamma * tf.multiply(target_q_dist,   # [1, N]
-                                               (1.0 - tf.tile(BATCH.done, tf.constant([1, self.nums]))))  # [B, N], [B, N]* [B, N] = [B, N]
+        target_q_dist = self.q_target_net(feat_)  # [B, A, N]
+        target_q = target_q_dist.mean(-1)  # [B, A, N] => [B, A]
+        a_ = target_q.argmax(-1).view(-1, 1)  # [B, 1]
+        target_q_dist = target_q_dist[list(t.cat([indexes, a_], -1).long().T)]   # [B, N]
+        target = BATCH.reward.repeat(1, self.nums) \
+            + self.gamma * target_q_dist * (1.0 - BATCH.done.repeat(1, self.nums))  # [B, N], [B, N]* [B, N] = [B, N]
 
-                q_eval = tf.reduce_mean(q_dist, axis=-1)    # [B, 1]
-                q_target = tf.reduce_mean(target, axis=-1)  # [B, 1]
-                td_error = q_target - q_eval     # [B, 1], used for PER
+        q_eval = q_dist.mean(-1)    # [B, 1]
+        q_target = target.mean(-1)  # [B, 1]
+        td_error = q_target - q_eval     # [B, 1], used for PER
 
-                quantile_error = tf.expand_dims(target, axis=1) - tf.expand_dims(q_dist, axis=-1)   # [B, 1, N] - [B, N, 1] => [B, N, N]
-                huber = huber_loss(quantile_error, delta=self.huber_delta)  # [B, N, N]
-                huber_abs = tf.abs(self.quantiles - tf.where(quantile_error < 0, 1., 0.))   # [1, N] - [B, N, N] => [B, N, N]
-                loss = tf.reduce_mean(huber_abs * huber, axis=-1)  # [B, N, N] => [B, N]
-                loss = tf.reduce_sum(loss, axis=-1)  # [B, N] => [B, ]
-                loss = tf.reduce_mean(loss * isw)  # [B, ] => 1
-            grads = tape.gradient(loss, self.q_dist_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(grads, self.q_dist_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/loss', loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+        quantile_error = target.unsqueeze(1) - q_dist.unsqueeze(-1)   # [B, 1, N] - [B, N, 1] => [B, N, N]
+        huber = huber_loss(quantile_error, delta=self.huber_delta)  # [B, N, N]
+        huber_abs = (self.quantiles - t.where(quantile_error < 0, 1., 0.)).abs()   # [1, N] - [B, N, N] => [B, N, N]
+        loss = (huber_abs * huber).mean(-1)  # [B, N, N] => [B, N]
+        loss = loss.sum(-1)  # [B, N] => [B, ]
+        loss = (loss * isw).mean()  # [B, ] => 1
+
+        self.oplr.step(loss)
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/loss', loss],
+            ['Statistics/q_max', q_eval.max()],
+            ['Statistics/q_min', q_eval.min()],
+            ['Statistics/q_mean', q_eval.mean()]
+        ])

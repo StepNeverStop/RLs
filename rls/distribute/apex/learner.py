@@ -47,7 +47,7 @@ class EvalThread(threading.Thread):
             while True:
                 step += 1
                 # env.render(record=False)
-                action = self.model.choose_action(s=state[0], visual_s=state[1])
+                action = self.model(s=state[0], visual_s=state[1])
                 _, reward, done, info, state[i] = self.env.step(action)
                 rets += (1 - dones_flag) * reward
                 dones_flag = np.sign(dones_flag + done)
@@ -102,7 +102,7 @@ class LearnerServicer(apex_learner_pb2_grpc.LearnerServicer):
         td_error = numpy2proto(self.model.apex_learn(self.train_step, data, prios))
         self.train_step += 1
         if self.train_step % 100 == 0:
-            self.model.save_checkpoint(train_step=self.train_step)
+            self.model.save(train_step=self.train_step)
         logger.info('send new priorities to buffer...')
         return td_error
 

@@ -79,7 +79,7 @@ class Trainer:
 
         if self.train_args['algo_config'] is not None:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
-        self.algo_args['memory_net_kwargs']['use_rnn'] = self.train_args['use_rnn']
+        self.algo_args['representation_net_params']['use_rnn'] = self.train_args['use_rnn']
         self.algo_args['no_save'] = self.train_args['no_save']
         show_dict(self.algo_args)
 
@@ -100,14 +100,17 @@ class Trainer:
             'base_dir': self.train_args.base_dir
         })
         self.model = self.MODEL(**self.algo_args)
-        self.model.init_or_restore(self.train_args.load_model_path)
+        self.model.resume(self.train_args.load_model_path)
 
         _train_info = self.model.get_init_training_info()
         self.train_args['begin_train_step'] = _train_info['train_step']
         self.train_args['begin_frame_step'] = _train_info['frame_step']
         self.train_args['begin_episode'] = _train_info['episode']
         if not self.train_args['inference'] and not self.train_args['no_save']:
-            self.algo_args['envspec'] = str(self.algo_args['envspec'])
+            if self.multi_agents_training:  # TODO: Optimization
+                self.algo_args['envspecs'] = str(self.algo_args['envspecs'])
+            else:
+                self.algo_args['envspec'] = str(self.algo_args['envspec'])
             records_dict = {
                 'env': self.env_args.to_dict,
                 'train': self.train_args.to_dict,

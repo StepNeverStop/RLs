@@ -2,6 +2,10 @@
 # encoding: utf-8
 
 import functools
+import torch as t
+
+from rls.utils.converter import (to_numpy,
+                                 to_tensor)
 
 
 def lazy_property(func):
@@ -13,4 +17,19 @@ def lazy_property(func):
         if not hasattr(self, attribute):
             setattr(self, attribute, func(self))
         return getattr(self, attribute)
+    return wrapper
+
+
+def iTensor_oNumpy(func):
+
+    def wrapper(*args, **kwargs):
+        args = [to_tensor(x, dtype=t.float32) for x in args]
+        kwargs = {k: to_tensor(v, dtype=t.float32) for k, v in kwargs.items()}
+        output = func(*args, **kwargs)
+        if isinstance(output, (tuple, list)):
+            output = [to_numpy(x) for x in output]
+        else:
+            output = to_numpy(output)
+        return output
+
     return wrapper

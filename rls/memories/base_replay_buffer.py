@@ -7,7 +7,7 @@ from typing import (Any,
                     Tuple,
                     Optional)
 
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class ReplayBuffer(ABC):
@@ -31,8 +31,32 @@ class ReplayBuffer(ABC):
     def add(self, exps: BatchExperiences) -> Any:
         pass
 
+    @property
+    def can_sample(self) -> bool:
+        return self._size > self.batch_size
+
     def is_empty(self) -> bool:
         return self._size == 0
 
     def update(self, *args) -> Any:
+        pass
+
+
+class MultiAgentReplayBuffer(ABC):
+    def __init__(self,
+                 n_agents: int):
+        assert isinstance(n_agents, int) and n_agents >= 0, 'n_agents must be int and larger than 0'
+        self._n_agents = n_agents
+
+    @abstractmethod
+    def sample(self) -> Any:
+        pass
+
+    @abstractmethod
+    def add(self, expss: List[BatchExperiences]) -> Any:
+        pass
+
+    @property
+    @abstractmethod
+    def can_sample(self) -> bool:
         pass

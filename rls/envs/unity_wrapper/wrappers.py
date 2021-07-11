@@ -5,8 +5,7 @@ import os
 import numpy as np
 
 from copy import deepcopy
-from typing import (List,
-                    NamedTuple)
+from typing import List
 from collections import defaultdict
 from mlagents_envs.environment import UnityEnvironment
 from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
@@ -16,11 +15,11 @@ from mlagents_envs.side_channel.environment_parameters_channel import Environmen
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (ObsSpec,
+from rls.common.specs import (ObsSpec,
                              EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,
-                             NamedTupleStaticClass)
+                             generate_obs_dataformat)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
@@ -90,9 +89,9 @@ class BasicUnityEnvironment(object):
 
         self.env.reset()
         for bn, spec in self.env.behavior_specs.items():
-            d, t = self.env.get_steps(bn)
-            self.behavior_agents[bn] = len(d)
-            self.behavior_ids[bn] = d.agent_id_to_index
+            ds, ts = self.env.get_steps(bn)
+            self.behavior_agents[bn] = len(ds)
+            self.behavior_ids[bn] = ds.agent_id_to_index
 
             for i, shape in enumerate(spec.observation_shapes):
                 if len(shape) == 1:
@@ -103,12 +102,12 @@ class BasicUnityEnvironment(object):
                     self.visual_dims[bn].append(list(shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
-            self.vector_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.vector_idxs[bn]),
-                                                                                      name='vector')
-            self.visual_info_type[bn] = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.behavior_agents[bn],
-                                                                                      item_nums=len(self.visual_idxs[bn]),
-                                                                                      name='visual')
+            self.vector_info_type[bn] = generate_obs_dataformat(n_copys=self.behavior_agents[bn],
+                                                                item_nums=len(self.vector_idxs[bn]),
+                                                                name='vector')
+            self.visual_info_type[bn] = generate_obs_dataformat(n_copys=self.behavior_agents[bn],
+                                                                item_nums=len(self.visual_idxs[bn]),
+                                                                name='visual')
 
             action_spec = spec.action_spec
             if action_spec.is_continuous():
@@ -198,54 +197,75 @@ class BasicUnityEnvironment(object):
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         '''
         behavior_names = behavior_names or self.behavior_names
-        rets = []
+
+        # TODO: optimization
+        whole_done = np.full(self._n_copys, False)
+        whole_info_max_step = np.full(self._n_copys, False)
+        whole_info_real_done = np.full(self._n_copys, False)
+        all_corrected_obs = []
+        all_obs = []
+        all_reward = []
+
         for bn in behavior_names:
             n = self.behavior_agents[bn]
             ids = self.behavior_ids[bn]
             ps = []
 
             while True:
-                d, t = self.env.get_steps(bn)
-                if len(t):
-                    ps.append(t)
+                ds, ts = self.env.get_steps(bn)
+                if len(ts):
+                    ps.append(ts)
 
-                if len(d) == n:
+                if len(ds) == n:
                     break
-                elif len(d) == 0:
+                elif len(ds) == 0:
                     self.env.step()  # some of environments done, but some of not
                 else:
-                    raise ValueError(f'agents number error. Expected 0 or {n}, received {len(d)}')
+                    raise ValueError(f'agents number error. Expected 0 or {n}, received {len(ds)}')
 
-            corrected_obs, reward = d.obs, d.reward
+            corrected_obs, reward = ds.obs, ds.reward
             obs = deepcopy(corrected_obs)  # corrected_obs应包含正确的用于决策动作的下一状态
             done = np.full(n, False)
             info_max_step = np.full(n, False)
             info_real_done = np.full(n, False)
 
-            for t in ps:    # TODO: 有待优化
-                _ids = np.asarray([ids[i] for i in t.agent_id], dtype=int)
-                info_max_step[_ids] = t.interrupted    # 因为达到episode最大步数而终止的
-                info_real_done[_ids[~t.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
-                reward[_ids] = t.reward
+            for ts in ps:    # TODO: 有待优化
+                _ids = np.asarray([ids[i] for i in ts.agent_id], dtype=int)
+                info_max_step[_ids] = ts.interrupted    # 因为达到episode最大步数而终止的
+                info_real_done[_ids[~ts.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                reward[_ids] = ts.reward
                 done[_ids] = True
                 # zip: vector, visual, ...
-                for _obs, _tobs in zip(obs, t.obs):
+                for _obs, _tobs in zip(obs, ts.obs):
                     _obs[_ids] = _tobs
 
             reward = np.asarray(reward)
             done = np.asarray(done)
 
-            rets.extend([
+            for idxs in self.batch_idx_for_behaviors[bn]:
+                whole_done = np.logical_or(whole_done, done[idxs])
+                whole_info_max_step = np.logical_or(whole_info_max_step, info_max_step[idxs])
+                whole_info_real_done = np.logical_or(whole_info_real_done, info_real_done[idxs])
+
+                all_corrected_obs.append(ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                                           visual=self.visual_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.visual_idxs[bn]])))
+                all_obs.append(ModelObservations(vector=self.vector_info_type[bn](*[obs[vi][idxs] for vi in self.vector_idxs[bn]]),
+                                                 visual=self.visual_info_type[bn](*[obs[vi][idxs] for vi in self.visual_idxs[bn]])))
+                all_reward.append(reward[idxs])
+                # all_info.append(dict(max_step=info_max_step[idxs], real_done=info_real_done[idxs]))
+
+        rets = []
+        for corrected_obs, obs, reward in zip(all_corrected_obs, all_obs, all_reward):
+            rets.append(
                 SingleModelInformation(
-                    corrected_obs=ModelObservations(vector=self.vector_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.vector_idxs[bn]]),
-                                                    visual=self.visual_info_type[bn](*[corrected_obs[vi][idxs] for vi in self.visual_idxs[bn]])),
-                    obs=ModelObservations(vector=self.vector_info_type[bn](*[obs[vi][idxs] for vi in self.vector_idxs[bn]]),
-                                          visual=self.visual_info_type[bn](*[obs[vi][idxs] for vi in self.visual_idxs[bn]])),
-                    reward=reward[idxs],
-                    done=done[idxs],
-                    info=dict(max_step=info_max_step[idxs], real_done=info_real_done[idxs])
-                ) for idxs in self.batch_idx_for_behaviors[bn]
-            ])
+                    corrected_obs=corrected_obs,
+                    obs=obs,
+                    reward=reward,
+                    done=whole_done,
+                    info=dict(max_step=whole_info_max_step,
+                              real_done=whole_info_real_done)
+                )
+            )
         return rets
 
     def random_action(self, is_single=True):
@@ -287,18 +307,6 @@ class ScaleVisualWrapper(ObservationWrapper):
         def func(x): return np.asarray(x * 255).astype(np.uint8)
 
         for bn in self.behavior_names:
-            visual = observation[bn].obs.visual
-            if isinstance(visual, np.ndarray):
-                visual = func(visual)
-            else:
-                visual = NamedTupleStaticClass.data_convert(func, visual)
-            observation[bn] = observation[bn]._replace(obs=observation[bn].obs._replace(visual=visual))
-
-            visual = observation[bn].obs_.visual
-            if isinstance(visual, np.ndarray):
-                visual = func(visual)
-            else:
-                visual = NamedTupleStaticClass.data_convert(func, visual)
-            observation[bn] = observation[bn]._replace(obs_=observation[bn].obs_._replace(visual=visual))
-
+            observation[bn].obs.visual.convert_(func)
+            observation[bn].obs_.visual.convert_(func)
         return observation

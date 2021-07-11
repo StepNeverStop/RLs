@@ -47,7 +47,7 @@ class EvalProc(object):
             while True:
                 step += 1
                 # env.render(record=False)
-                action = self.model.choose_action(s=state[0], visual_s=state[1])
+                action = self.model(s=state[0], visual_s=state[1])
                 _, reward, done, info, state[i] = self.env.step(action)
                 rets += (1 - dones_flag) * reward
                 dones_flag = np.sign(dones_flag + done)

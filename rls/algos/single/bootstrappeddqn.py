@@ -2,14 +2,19 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import torch as t
+
+from copy import deepcopy
+from torch import distributions as td
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.tf2_utils import update_target_net_weights
-from rls.utils.build_networks import ValueNetwork
-from rls.utils.specs import OutputNetworkType
+from rls.utils.torch_utils import (sync_params_pairs,
+                                   q_target_func)
+from rls.nn.models import CriticQvalueBootstrap
+from rls.nn.utils import OPLR
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class BootstrappedDQN(Off_Policy):
@@ -41,80 +46,83 @@ class BootstrappedDQN(Off_Policy):
         self._probs = [1. / head_num for _ in range(head_num)]
         self.now_head = 0
 
-        def _create_net(name, representation_net=None): return ValueNetwork(
-            name=name,
-            representation_net=representation_net,
-            value_net_type=OutputNetworkType.CRITIC_QVALUE_BOOTSTRAP,
-            value_net_kwargs=dict(output_shape=self.a_dim, head_num=self.head_num, network_settings=network_settings)
-        )
+        self.q_net = CriticQvalueBootstrap(self.rep_net.h_dim,
+                                           output_shape=self.a_dim,
+                                           head_num=self.head_num,
+                                           network_settings=network_settings)
+        self.q_target_net = deepcopy(self.q_net)
+        self.q_target_net.eval()
 
-        self.q_net = _create_net('q_net', self._representation_net)
-        self._representation_target_net = self._create_representation_net('_representation_target_net')
-        self.q_target_net = _create_net('q_target_net', self._representation_target_net)
-        update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
-        self.lr = self.init_lr(lr)
-        self.optimizer = self.init_optimizer(self.lr)
+        self._target_rep_net = deepcopy(self.rep_net)
+        self._target_rep_net.eval()
 
-        self._worker_params_dict.update(self.q_net._policy_models)
+        self._pairs = [(self.q_target_net, self.q_net),
+                       (self._target_rep_net, self.rep_net)]
+        sync_params_pairs(self._pairs)
 
-        self._all_params_dict.update(self.q_net._all_models)
-        self._all_params_dict.update(optimizer=self.optimizer)
-        self._model_post_process()
+        self.oplr = OPLR([self.q_net, self.rep_net], lr)
+
+        self._worker_modules.update(rep_net=self.rep_net,
+                                    model=self.q_net)
+
+        self._trainer_modules.update(self._worker_modules)
+        self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
     def reset(self):
         super().reset()
         self.now_head = np.random.randint(self.head_num)
 
-    def choose_action(self, obs, evaluation=False):
+    def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_agents)
+            a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q, self.cell_state = self._get_action(obs, self.cell_state)
-            q = q.numpy()
-            a = np.argmax(q[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
+            a = self._get_action(obs)
         return a
 
-    @tf.function
-    def _get_action(self, obs, cell_state):
-        with tf.device(self.device):
-            q_values, cell_state = self.q_net(obs, cell_state=cell_state)  # [H, B, A]
-        return q_values, cell_state
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        q_values = self.q_net(feat)  # [H, B, A]
+        q_values = to_numpy(q_values)
+        a = np.argmax(q_values[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
+        return a
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            update_target_net_weights(self.q_target_net.weights, self.q_net.weights)
+            sync_params_pairs(self._pairs)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]])
+                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
-    @tf.function
-    def _train(self, BATCH, isw, cell_state):
-        batch_size = tf.shape(BATCH.action)[0]
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                q, _ = self.q_net(BATCH.obs, cell_state=cell_state)    # [H, B, A]
-                q_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)   # [H, B, A]
-                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=-1, keepdims=True)    # [H, B, A] * [B, A] => [H, B, 1]
-                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * tf.reduce_max(q_next, axis=-1, keepdims=True))
-                td_error = q_target - q_eval    # [H, B, 1]
-                td_error = tf.reduce_sum(td_error, axis=-1)  # [H, B]
+    @iTensor_oNumpy
+    def _train(self, BATCH, isw, cell_states):
+        batch_size = BATCH.action.shape[0]
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        q = self.q_net(feat)   # [H, B, A]
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        q_next = self.q_target_net(feat_)   # [H, B, A]
+        q_eval = (q * BATCH.action).sum(-1, keepdim=True)    # [H, B, A] * [B, A] => [H, B, 1]
+        q_target = q_target_func(BATCH.reward,
+                                 self.gamma,
+                                 BATCH.done,
+                                 q_next.max(-1, keepdim=True)[0])
+        td_error = q_target - q_eval    # [H, B, 1]
+        td_error = td_error.sum(-1)  # [H, B]
 
-                mask_dist = tfp.distributions.Bernoulli(probs=self._probs)
-                mask = tf.transpose(mask_dist.sample(batch_size), [1, 0])   # [H, B]
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
-            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(grads, self.q_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return tf.reduce_mean(td_error, axis=0), dict([  # [H, B] =>
-                ['LOSS/loss', q_loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+        mask_dist = td.bernoulli.Bernoulli(probs=self._probs)
+        mask = mask_dist.sample([batch_size]).T   # [H, B]
+        q_loss = (td_error.square() * isw).mean()
+
+        self.oplr.step(q_loss)
+        self.global_step.add_(1)
+        return td_error.mean(0), dict([  # [H, B] =>
+            ['LOSS/loss', q_loss],
+            ['Statistics/q_max', q_eval.max()],
+            ['Statistics/q_min', q_eval.min()],
+            ['Statistics/q_mean', q_eval.mean()]
+        ])

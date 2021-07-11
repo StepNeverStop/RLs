@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import math
 import numpy as np
-import tensorflow as tf
+import torch as t
+
 from abc import ABC, abstractmethod
+
+Noise_action_REGISTER = {}
+
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 
 
@@ -54,7 +59,7 @@ class NormalNoisedAction(NoisedAction):
         self.action_bound = action_bound
 
     def __call__(self, action):
-        return tf.clip_by_value(action + tf.random.normal(action.shape, self.mu, self.sigma), -self.action_bound, self.action_bound)
+        return (action + t.normal(self.mu, self.sigma, action.shape)).clamp(-self.action_bound, self.action_bound)
 
     def __repr__(self):
         return 'NormalNoisedAction(mu={}, sigma={}, action_bound={})'.format(self.mu, self.sigma, self.action_bound)
@@ -66,9 +71,7 @@ class ClippedNormalNoisedAction(NormalNoisedAction):
         self.noise_bound = noise_bound
 
     def __call__(self, action):
-        return tf.clip_by_value(
-            action + tf.clip_by_value(tf.random.normal(action.shape, self.mu, self.sigma), -self.noise_bound, self.noise_bound),
-            -self.action_bound, self.action_bound)
+        return (action + t.normal(self.mu, self.sigma, action.shape).clamp(-self.noise_bound, self.noise_bound)).clamp(-self.action_bound, self.action_bound)
 
     def __repr__(self):
         return 'ClippedNormalNoisedAction(mu={}, sigma={}, action_bound={}, noise_bound={})'.format(self.mu, self.sigma, self.action_bound, self.noise_bound)
@@ -84,11 +87,16 @@ class OrnsteinUhlenbeckNoisedAction(NormalNoisedAction):
         self.reset()
 
     def __call__(self, action):
-        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * tf.math.sqrt(self.dt) * tf.random.normal(action.shape)
-        return tf.clip_by_value(action + self.x_prev, -self.action_bound, self.action_bound)
+        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * math.sqrt(self.dt) * t.randn(action.shape)
+        return (action + self.x_prev).clamp(-self.action_bound, self.action_bound)
 
     def reset(self):
         self.x_prev = self.x0 if self.x0 is not None else 0.
 
     def __repr__(self):
         return 'OrnsteinUhlenbeckNoisedAction(mu={}, sigma={}, action_bound={}, theta={}, dt={})'.format(self.mu, self.sigma, self.action_bound, self.theta, self.dt)
+
+
+Noise_action_REGISTER['normal'] = NormalNoisedAction
+Noise_action_REGISTER['clip_normal'] = ClippedNormalNoisedAction
+Noise_action_REGISTER['OU'] = OrnsteinUhlenbeckNoisedAction

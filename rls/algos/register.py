@@ -4,7 +4,6 @@
 # algorithms based on TF 2.x
 
 import importlib
-import tensorflow as tf
 
 from typing import (Tuple,
                     Callable,
@@ -14,7 +13,6 @@ from rls.common.yaml_ops import load_yaml
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
-assert tf.__version__[0] == '2'
 logger = get_logger(__name__)
 
 
@@ -56,7 +54,7 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     policy_type = algo_info['policy_type']
     LOGO = algo_info.get('logo', '')
     logger.info(colorize(LOGO, color='green'))
-
+    # TODO:
     model = getattr(importlib.import_module(f'rls.algos.{policy_type}.{name}'), class_name)
 
     algo_config = {}

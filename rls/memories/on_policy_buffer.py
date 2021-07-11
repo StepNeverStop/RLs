@@ -11,8 +11,8 @@ from rls.utils.np_utils import (int2one_hot,
                                 calculate_td_error,
                                 normalization,
                                 standardization)
-from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+from rls.common.specs import (BatchExperiences,
+                             Data)
 
 
 class DataBuffer(object):
@@ -21,7 +21,7 @@ class DataBuffer(object):
     '''
 
     def __init__(self,
-                 n_agents: int = 1,
+                 n_copys: int = 1,
                  rnn_cell_nums: int = 0,
                  batch_size: int = 32,
                  rnn_time_step: int = 8,
@@ -29,12 +29,12 @@ class DataBuffer(object):
                  sample_data_type: BatchExperiences = BatchExperiences):
         '''
         params:
-            n_agents: 一个policy控制的智能体数量
+            n_copys: 一个policy控制的智能体数量
         '''
-        assert n_agents > 0, "assert n_agents > 0"
+        assert n_copys > 0, "assert n_copys > 0"
 
         self.data_buffer = defaultdict(list)
-        self.n_agents = n_agents
+        self.n_copys = n_copys
         self.rnn_cell_nums = rnn_cell_nums
         self.cell_state_buffer = [[] for _ in range(self.rnn_cell_nums)]
         self.eps_len = 0
@@ -49,7 +49,7 @@ class DataBuffer(object):
         '''
         添加数据
         '''
-        for k, v in exps._asdict().items():
+        for k, v in exps.__dict__.items():
             self.data_buffer[k].append(v)
         self.eps_len += 1
 
@@ -111,12 +111,14 @@ class DataBuffer(object):
             adv = standardization(adv)
         self.data_buffer['gae_adv'] = list(standardization(adv))
 
-    def last_data(self, key):
+    def last_data(self):
         '''
         获取序列末尾的数据
         '''
-        assert key in self.data_buffer.keys(), f"assert {key} in self.data_buffer.keys()"
-        return self.data_buffer[key][-1]
+        data = {}
+        for k in self.store_data_type.__dataclass_fields__.keys():
+            data[k] = self.data_buffer[k][-1]
+        return self.store_data_type(**data)
 
     def get_curiosity_data(self):
         '''
@@ -124,26 +126,22 @@ class DataBuffer(object):
         '''
 
         # T * [B, N] => [B, T, N] => [B*T, N]
-        def func(x): return np.stack(x, axis=1).reshape(self.n_agents * self.eps_len, -1)
+        def func(x): return np.stack(x, axis=1).reshape(self.n_copys * self.eps_len, -1)
 
         data = {}
-        for k in BatchExperiences._fields:
+        for k in BatchExperiences.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], tuple):
-                data[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=func)
-                assert NamedTupleStaticClass.check_len(data[k], l=self.n_agents * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+            if isinstance(self.data_buffer[k][0], Data):
+                data[k] = BatchExperiences.pack(self.data_buffer[k], func=func)
             else:
                 data[k] = func(self.data_buffer[k])
-                assert data[k].shape[0] == self.n_agents * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
         return BatchExperiences(**data)
 
     def update_reward(self, r: np.ndarray):
         '''
         r: [B*T, N]
         '''
-        r = r.reshape(self.n_agents, self.eps_len, -1)
+        r = r.reshape(self.n_copys, self.eps_len, -1)
         for i in range(self.eps_len):
             self.data_buffer['reward'][i] += r[:, i]
 
@@ -160,8 +158,10 @@ class DataBuffer(object):
         '''
         assert 'obs' in self.data_buffer.keys(), "assert 'obs' in self.data_buffer.keys()"
         assert 'obs_' in self.data_buffer.keys(), "assert 'obs_' in self.data_buffer.keys()"
-        self.data_buffer['obs'] = [NamedTupleStaticClass.data_convert(func, obs, keys=['vector']) for obs in self.data_buffer['obs']]
-        self.data_buffer['obs_'] = [NamedTupleStaticClass.data_convert(func, obs_, keys=['vector']) for obs_ in self.data_buffer['obs_']]
+        for obs in self.data_buffer['obs']:
+            obs.vector.convert_(func)
+        for obs_ in self.data_buffer['obs_']:
+            obs_.vector.convert_(func)
 
     def sample_generater(self, batch_size: int = None):
         '''
@@ -178,28 +178,21 @@ class DataBuffer(object):
 
         buffer = {}
         # T * [B, N] => [T*B, N]
-        for k in self.sample_data_type._fields:
+        for k in self.sample_data_type.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-            if isinstance(self.data_buffer[k][0], tuple):
-                buffer[k] = NamedTupleStaticClass.pack(self.data_buffer[k], func=np.concatenate)
-                assert NamedTupleStaticClass.check_len(buffer[k], l=self.n_agents * self.eps_len), \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
+            if isinstance(self.data_buffer[k][0], Data):
+                buffer[k] = BatchExperiences.pack(self.data_buffer[k], func=np.concatenate)
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
-                assert buffer[k].shape[0] == self.n_agents * self.eps_len, \
-                    f"shape of {k} not equal to {self.n_agents * self.eps_len}"
 
-        idxs = np.arange(self.eps_len * self.n_agents)
+        idxs = np.arange(self.eps_len * self.n_copys)
         np.random.shuffle(idxs)
-        for i in range(0, self.eps_len * self.n_agents, batch_size * self.n_agents):
-            _idxs = idxs[i:i + batch_size * self.n_agents]
+        for i in range(0, self.eps_len * self.n_copys, batch_size * self.n_copys):
+            _idxs = idxs[i:i + batch_size * self.n_copys]
             data = []
-            for k in self.sample_data_type._fields:
-                if isinstance(buffer[k], tuple):
-                    data.append(NamedTupleStaticClass.getbatchitems(buffer[k], _idxs))
-                else:
-                    data.append(buffer[k][_idxs])
-            yield self.sample_data_type._make(data), (None, )
+            for k in self.sample_data_type.__dataclass_fields__.keys():
+                data.append(buffer[k][_idxs])
+            yield self.sample_data_type(*data), (None, )
 
     def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
         '''
@@ -243,20 +236,19 @@ class DataBuffer(object):
                 time_idx = random.randint(*sample_range)
 
                 sample_exp = {}
-                for k in self.sample_data_type._fields:
+                for k in self.sample_data_type.__dataclass_fields__.keys():
                     assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
                     d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
-                    if isinstance(self.data_buffer[k][0], tuple):
-                        d = [NamedTupleStaticClass.getitem(_d, batch_idx) for _d in d]
-                        sample_exp[k] = NamedTupleStaticClass.pack(d)   # [T, N]
+                    d = [_d[batch_idx] for _d in d]
+                    if isinstance(self.data_buffer[k][0], Data):
+                        sample_exp[k] = BatchExperiences.pack(d)   # [T, N]
                     else:
-                        d = [_d[batch_idx] for _d in d]
                         sample_exp[k] = np.asarray(d)
                 samples.append(self.sample_data_type(**sample_exp))
 
                 sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
             cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield NamedTupleStaticClass.pack(samples, func=np.concatenate), cs    # [B*T, N]
+            yield BatchExperiences.pack(samples, func=np.concatenate), cs    # [B*T, N]
 
     def clear(self):
         '''

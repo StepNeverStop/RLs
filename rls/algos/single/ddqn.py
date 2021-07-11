@@ -2,13 +2,15 @@
 # encoding: utf-8
 
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (Union,
                     List,
                     NoReturn)
 
 from rls.algos.single.dqn import DQN
+from rls.utils.torch_utils import q_target_func
+from rls.common.decorator import iTensor_oNumpy
 
 
 class DDQN(DQN):
@@ -44,34 +46,33 @@ class DDQN(DQN):
         self.train_step = kwargs.get('train_step')
         for i in range(self.train_times_per_step):
             self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.lr(self.train_step)]]),
-                'use_stack': True
+                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
-    @tf.function
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_state):
-        with tf.device(self.device):
-            with tf.GradientTape() as tape:
-                (feat, feat_), _ = self._representation_net(BATCH.obs, cell_state=cell_state, need_split=True)
-                q = self.q_net.value_net(feat)
-                q_next = self.q_net.value_net(feat_)
-                q_target_next, _ = self.q_target_net(BATCH.obs_, cell_state=cell_state)
-                next_max_action = tf.argmax(q_next, axis=1)
-                next_max_action_one_hot = tf.one_hot(tf.squeeze(next_max_action), self.a_dim, 1., 0., dtype=tf.float32)
-                next_max_action_one_hot = tf.cast(next_max_action_one_hot, tf.float32)
-                q_eval = tf.reduce_sum(tf.multiply(q, BATCH.action), axis=1, keepdims=True)
-                q_target_next_max = tf.reduce_sum(tf.multiply(q_target_next, next_max_action_one_hot), axis=1, keepdims=True)
-                q_target = tf.stop_gradient(BATCH.reward + self.gamma * (1 - BATCH.done) * q_target_next_max)
-                td_error = q_target - q_eval
-                q_loss = tf.reduce_mean(tf.square(td_error) * isw)
-            grads = tape.gradient(q_loss, self.q_net.trainable_variables)
-            self.optimizer.apply_gradients(
-                zip(grads, self.q_net.trainable_variables)
-            )
-            self.global_step.assign_add(1)
-            return td_error, dict([
-                ['LOSS/loss', q_loss],
-                ['Statistics/q_max', tf.reduce_max(q_eval)],
-                ['Statistics/q_min', tf.reduce_min(q_eval)],
-                ['Statistics/q_mean', tf.reduce_mean(q_eval)]
-            ])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_state['obs_'])
+        feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        q = self.q_net(feat)
+        q_next = self.q_net(feat__)
+        q_target_next = self.q_target_net(feat_)
+        next_max_action = q_next.argmax(1)
+        next_max_action_one_hot = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dim).float()
+        q_eval = (q * BATCH.action).sum(1, keepdim=True)
+        q_target_next_max = (q_target_next * next_max_action_one_hot).sum(1, keepdim=True)
+        q_target = q_target_func(BATCH.reward,
+                                 self.gamma,
+                                 BATCH.done,
+                                 q_target_next_max)
+        td_error = q_target - q_eval
+        q_loss = (td_error.square() * isw).mean()
+
+        self.oplr.step(q_loss)
+        self.global_step.add_(1)
+        return td_error, dict([
+            ['LOSS/loss', q_loss],
+            ['Statistics/q_max', q_eval.max()],
+            ['Statistics/q_min', q_eval.min()],
+            ['Statistics/q_mean', q_eval.mean()]
+        ])

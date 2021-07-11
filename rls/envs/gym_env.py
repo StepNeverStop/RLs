@@ -14,12 +14,12 @@ from copy import deepcopy
 from rls.utils.display import colorize
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (ObsSpec,
+from rls.common.specs import (ObsSpec,
                              EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,
                              GymVectorizedType,
-                             NamedTupleStaticClass)
+                             generate_obs_dataformat)
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -104,12 +104,12 @@ class gym_envs(object):
             self.obs_type = 'vector'
             self.visual_dims = []
 
-        self.vector_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
-                                                                              item_nums=1 if self.obs_type == 'vector' else 0,
-                                                                              name='vector')
-        self.visual_info_type = NamedTupleStaticClass.generate_obs_namedtuple(n_agents=self.n,
-                                                                              item_nums=1 if self.obs_type == 'visual' else 0,
-                                                                              name='visual')
+        self.vector_info_type = generate_obs_dataformat(n_copys=self.n,
+                                                        item_nums=1 if self.obs_type == 'vector' else 0,
+                                                        name='vector')
+        self.visual_info_type = generate_obs_dataformat(n_copys=self.n,
+                                                        item_nums=1 if self.obs_type == 'visual' else 0,
+                                                        name='visual')
 
         # process action
         ActSpace = env.action_space

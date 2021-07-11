@@ -6,7 +6,6 @@
 
 general:
     decay_lr: false
-    tf_dtype: float32 # float32 or float64
 
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
@@ -16,18 +15,19 @@ general:
     normalize_vector_obs: false
     logger2file: false
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
-    vector_net_kwargs:
-        network_type: adaptive # rls.utils.specs.VectorNetworkType
-    visual_net_kwargs:
-        visual_feature: 128
-        network_type: simple # rls.utils.specs.VisualNetworkType
-    encoder_net_kwargs:
+    representation_net_params: &representation_net_params
         use_encoder: false
-        output_dim: 16
-    memory_net_kwargs:
         use_rnn: false # always false, using -r to active RNN
-        rnn_units: 16
-        network_type: lstm
+        vector_net_params:
+            network_type: adaptive # rls.nn.__init__
+        visual_net_params:
+            visual_feature: 128
+            network_type: simple # rls.nn.__init__
+        encoder_net_params:
+            output_dim: 16
+        memory_net_params:
+            rnn_units: 16
+            network_type: lstm
     # -----
 
 on_policy:
@@ -126,9 +126,11 @@ dqn: &dqn
     use_priority: false
     n_step: 4
     network_settings: [64, 64]
-    visual_net_kwargs:
-        visual_feature: 128
-        network_type: nature
+    representation_net_params:
+        <<: *representation_net_params
+        visual_net_params:
+            visual_feature: 128
+            network_type: nature
 
 ddqn: *dqn
 
@@ -137,11 +139,11 @@ averaged_dqn:
     <<: *dqn
 
 dddqn:
+    <<: *dqn
     network_settings:
         share: [64]
         v: [64]
         adv: [64]
-    <<: *dqn
 
 bootstrappeddqn:
     head_num: 4
@@ -464,8 +466,9 @@ trpo:
 dpg:
     gamma: 0.99
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -481,10 +484,10 @@ dpg:
 ddpg:
     gamma: 0.99
     ployak: 0.995
-    noise_type: "ou" # ou or gaussian
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -501,8 +504,9 @@ pd_ddpg:
     gamma: 0.99
     ployak: 0.995
     use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     reward_critic_lr: 1.0e-3
     cost_critic_lr: 1.0e-3
@@ -522,8 +526,10 @@ td3:
     gamma: 0.99
     ployak: 0.995
     delay_num: 2
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "clip_normal"
+    noise_params:
+        sigma: 0.2 # specify the variance of gaussian distribution
+        noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
@@ -644,9 +650,34 @@ maddpg:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    batch_size: 32
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
+    batch_size: 4
     buffer_size: 100000
+    n_step: 4
+    share_params: true
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
+
+iql: &iql
+    lr: 5.0e-4
+    gamma: 0.99
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_step: 100
+    batch_size: 256
+    buffer_size: 100000
+    assign_interval: 1000
+    share_params: true
+    network_settings: [64, 64]
+
+vdn:
+    <<: *iql
+    network_settings:
+        share: [64]
+        v: [64]
+        adv: [64]

@@ -3,7 +3,7 @@
 
 import sys
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (Any,
                     NoReturn,
@@ -11,15 +11,17 @@ from typing import (Any,
                     List,
                     Tuple,
                     Optional)
+from copy import deepcopy
 
 from rls.memories.sum_tree import Sum_Tree
 from rls.memories.base_replay_buffer import ReplayBuffer
-from rls.utils.specs import (BatchExperiences,
-                             NamedTupleStaticClass)
+from rls.common.specs import (BatchExperiences,
+                             Data)
 from rls.utils.hdf5_utils import *
 
 
 class ExperienceReplay(ReplayBuffer):
+
     def __init__(self,
                  batch_size: int,
                  capacity: int):
@@ -31,7 +33,7 @@ class ExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        for exp in NamedTupleStaticClass.unpack(exps):
+        for exp in exps.unpack():
             self._store_op(exp)
 
     def _store_op(self, exp: BatchExperiences) -> NoReturn:
@@ -42,13 +44,12 @@ class ExperienceReplay(ReplayBuffer):
         '''
         change [[s, a, r],[s, a, r]] to [[s, s],[a, a],[r, r]]
         '''
-        n_sample = self.batch_size if self.is_lg_batch_size else self._size
-        t = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        # return [np.asarray(e) for e in zip(*t)]
-        return NamedTupleStaticClass.pack(t.tolist())
+        n_sample = self.batch_size if self.can_sample else self._size
+        data = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
+        return BatchExperiences.pack(data.tolist())
 
     def get_all(self) -> BatchExperiences:
-        return NamedTupleStaticClass.pack(self._buffer[:self._size].tolist())
+        return BatchExperiences.pack(self._buffer[:self._size].tolist())
 
     def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1
@@ -56,6 +57,15 @@ class ExperienceReplay(ReplayBuffer):
             self._data_pointer = 0
         if self._size < self.capacity:
             self._size += 1
+
+    def generate_random_sample_idxs(self, batch_size: int = 0):
+        batch_size = batch_size or self.batch_size
+        n_sample = self.batch_size if self.can_sample else self._size
+        idxs = np.random.randint(0, self._size, n_sample)
+        return idxs
+
+    def sample_from_idxs(self, idxs):
+        return BatchExperiences.pack(self._buffer[idxs].tolist())
 
     @property
     def is_full(self) -> bool:
@@ -66,7 +76,7 @@ class ExperienceReplay(ReplayBuffer):
         return self._size
 
     @property
-    def is_lg_batch_size(self) -> bool:
+    def can_sample(self) -> bool:
         return self._size > self.batch_size
 
     @property
@@ -125,8 +135,8 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         input: [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        self.add_batch(list(NamedTupleStaticClass.unpack(exps)))
-        # for data in NamedTupleStaticClass.unpack(exps):
+        self.add_batch(list(exps.unpack()))
+        # for data in exps.unpack():
         #     self._store_op(data)
 
     def _store_op(self, data: BatchExperiences) -> NoReturn:
@@ -150,14 +160,14 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         '''
         output: weights, [ss, visual_ss, as, rs, s_s, visual_s_s, dones]
         '''
-        n_sample = self.batch_size if self.is_lg_batch_size else self._size
+        n_sample = self.batch_size if self.can_sample else self._size
         all_intervals = np.linspace(0, self.tree.total, n_sample + 1)
         ps = np.random.uniform(all_intervals[:-1], all_intervals[1:])
         idxs, data_indx, p, data = self.tree.get_batch_parallel(ps)
         self.last_indexs = idxs
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
-        data = NamedTupleStaticClass.pack(data.tolist())
+        data = BatchExperiences.pack(data.tolist())
         if return_index:
             return data, idxs
         else:
@@ -168,7 +178,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.last_indexs = idxs
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
-        data = NamedTupleStaticClass.pack(data.tolist())
+        data = BatchExperiences.pack(data.tolist())
         if return_index:
             return data, idxs
         else:
@@ -178,7 +188,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         return self.tree.get_all_exps()
 
     @property
-    def is_lg_batch_size(self) -> bool:
+    def can_sample(self) -> bool:
         return self._size > self.batch_size
 
     def update(self,
@@ -210,40 +220,43 @@ class NStepWrapper:
                  buffer: ReplayBuffer,
                  gamma: float,
                  n_step: int,
-                 agents_num: int):
+                 n_copys: int):
         '''
         gamma: discount factor
         n_step: N time steps
-        agents_num: batch experience
+        n_copys: batch experience
         '''
         self.buffer = buffer
         self.n_step = n_step
         self.gamma = gamma
-        self.agents_num = agents_num
-        self.queue = [[] for _ in range(agents_num)]
+        self.n_copys = n_copys
+        self.queue = [[] for _ in range(n_copys)]
 
     def add(self, exps: BatchExperiences) -> NoReturn:
-        for i, data in enumerate(NamedTupleStaticClass.unpack(exps)):
+        for i, data in enumerate(exps.unpack()):
             self._per_store(i, data)
 
     def _per_store(self, i: int, data: BatchExperiences) -> NoReturn:
         # TODO: 优化
         q = self.queue[i]
         if len(q) == 0:  # 如果Nstep临时经验池为空，就直接添加
-            q.append(data)
+            if data.done:
+                self._store_op(data)
+            else:
+                q.append(data)
             return
 
         if len(q) == self.n_step:
             self._store_op(q.pop(0))
-        if not NamedTupleStaticClass.check_equal(q[-1].obs_, data.obs):    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
+        if not q[-1].obs_ == data.obs:    # 如果截断了，非常规done，把Nstep临时经验池中已存在的经验都存进去，临时经验池清空
             q.clear()   # 保证经验池中不存在不足N长度的序列，有done的除外，因为（1-done）为0，导致gamma的次方计算不准确也没有关系。
             q.append(data)
         else:
             _len = len(q)
             for j in range(_len):   # 然后再存入一条最新的经验到Nstep临时经验池
-                q[j] = q[j]._replace(reward=q[j].reward + data.reward * (self.gamma ** (_len - j)))
-                q[j] = q[j]._replace(obs_=data.obs_)
-                q[j] = q[j]._replace(done=data.done)
+                q[j].reward = q[j].reward + data.reward * (self.gamma ** (_len - j))
+                q[j].obs_ = data.obs_
+                q[j].done = data.done
             q.append(data)
             if data.done:  # done or not # 如果新数据是done，就清空临时经验池
                 while q:    # (1-done)会清零不正确的n-step
@@ -263,10 +276,10 @@ class NStepExperienceReplay(NStepWrapper):
                  capacity: int,
                  gamma: float,
                  n_step: int,
-                 agents_num: int):
+                 n_copys: int):
         super().__init__(
             buffer=ExperienceReplay(batch_size, capacity),
-            gamma=gamma, n_step=n_step, agents_num=agents_num
+            gamma=gamma, n_step=n_step, n_copys=n_copys
         )
 
 
@@ -285,10 +298,10 @@ class NStepPrioritizedExperienceReplay(NStepWrapper):
                  global_v: bool,
                  gamma: float,
                  n_step: int,
-                 agents_num: int):
+                 n_copys: int):
         super().__init__(
             buffer=PrioritizedExperienceReplay(batch_size, capacity, max_train_step, alpha, beta, epsilon, global_v),
-            gamma=gamma, n_step=n_step, agents_num=agents_num
+            gamma=gamma, n_step=n_step, n_copys=n_copys
         )
 
 
@@ -297,15 +310,15 @@ class EpisodeExperienceReplay(ReplayBuffer):
     def __init__(self,
                  batch_size: int,
                  capacity: int,
-                 agents_num: int,
+                 n_copys: int,
                  burn_in_time_step: int,
                  train_time_step: int):
         super().__init__(batch_size, capacity)
-        self.agents_num = agents_num
+        self.n_copys = n_copys
         self.burn_in_time_step = burn_in_time_step
         self.train_time_step = train_time_step
         self.timestep = burn_in_time_step + train_time_step
-        self.queue = [[] for _ in range(agents_num)]
+        self.queue = [[] for _ in range(n_copys)]
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
 
@@ -313,7 +326,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         '''
         change [s, s],[a, a],[r, r] to [s, a, r],[s, a, r] and store every item in it.
         '''
-        for i, data in enumerate(NamedTupleStaticClass.unpack(exps)):
+        for i, data in enumerate(exps.unpack()):
             self._per_store(i, data)
 
     def _per_store(self, i: int, data: BatchExperiences) -> NoReturn:
@@ -321,7 +334,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         if len(q) == 0:
             q.append(data)
             return
-        if not NamedTupleStaticClass.check_equal(q[-1].obs_, data.obs):
+        if not q[-1].obs_ == data.obs:
             self._store_op(q.copy())
             q.clear()
             q.append(data)
@@ -345,7 +358,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
             self._size += 1
 
     def sample(self) -> BatchExperiences:
-        n_sample = self.batch_size if self.is_lg_batch_size else self._size
+        n_sample = self.batch_size if self.can_sample else self._size
         trajs = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)   # 选n_sample条轨迹
 
         def f(v, l):    # [B, T, N]
@@ -357,19 +370,20 @@ class EpisodeExperienceReplay(ReplayBuffer):
 
         datas = []  # [B, 不定长时间步, N]
         for traj in trajs:
-            data = NamedTupleStaticClass.pack(truncate(traj))
+            data = BatchExperiences.pack(truncate(traj))
             datas.append(data)
 
-        sample_data = NamedTupleStaticClass.pack(datas)
-        sample_data = NamedTupleStaticClass.data_convert(f(v=1., l=self.timestep), sample_data, ['done'])   # [B, T, N]
-        sample_data = NamedTupleStaticClass.data_convert(f(v=0., l=self.timestep), sample_data)  # [B, T, N]
+        sample_data = BatchExperiences.pack(datas)
+        sample_data.convert_(f(v=1., l=self.timestep), ['done'])   # [B, T, N]
+        sample_data.convert_(f(v=0., l=self.timestep))     # [B, T, N]
 
-        burn_in_data = NamedTupleStaticClass.data_convert(lambda x: x[:, :self.burn_in_time_step], sample_data)
-        train_data = NamedTupleStaticClass.data_convert(lambda x: x[:, self.burn_in_time_step:], sample_data)
+        self.burn_in_data = deepcopy(sample_data)
+        train_data = deepcopy(sample_data)
 
-        self.burn_in_data = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [-1, *x.shape[2:]]), burn_in_data)
-        train_data = NamedTupleStaticClass.data_convert(lambda x: tf.reshape(x, [-1, *x.shape[2:]]), train_data)
-
+        self.burn_in_data.convert_(lambda x: x[:, :self.burn_in_time_step])
+        self.burn_in_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
+        train_data.convert_(lambda x: x[:, self.burn_in_time_step:])
+        train_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
         return train_data
 
     def get_burn_in_data(self) -> BatchExperiences:
@@ -384,7 +398,7 @@ class EpisodeExperienceReplay(ReplayBuffer):
         return self._size
 
     @property
-    def is_lg_batch_size(self) -> bool:
+    def can_sample(self) -> bool:
         return self._size > self.batch_size
 
     @property

@@ -1,15 +1,15 @@
-ExperienceReplay: {}
+ExperienceReplay: &ExperienceReplay {}
 
-PrioritizedExperienceReplay:
+PrioritizedExperienceReplay: &PrioritizedExperienceReplay
   alpha: 0.6 # priority
   beta: 0.4 # importance sampling ratio
   epsilon: 0.01
   global_v: false
 
-NStepExperienceReplay:
+NStepExperienceReplay: &NStepExperienceReplay
   n_step: 4
 
-NStepPrioritizedExperienceReplay:
+NStepPrioritizedExperienceReplay: &NStepPrioritizedExperienceReplay
   alpha: 0.6
   beta: 0.4
   epsilon: 0.01
@@ -17,8 +17,26 @@ NStepPrioritizedExperienceReplay:
   n_step: 4
 
 # off-policy with rnn
-EpisodeExperienceReplay:
+EpisodeExperienceReplay: &EpisodeExperienceReplay
   burn_in_time_step: 20
   train_time_step: 40 # null
 
-MultiAgentExperienceReplay: {}
+# Multi-Agents
+
+MultiAgentCentralExperienceReplay: {} # TODO
+
+MultiAgentExperienceReplay:
+  ExperienceReplay:
+    <<: *ExperienceReplay
+
+  PrioritizedExperienceReplay:
+    <<: *PrioritizedExperienceReplay
+
+  NStepExperienceReplay:
+    <<: *NStepExperienceReplay
+
+  NStepPrioritizedExperienceReplay:
+    <<: *NStepPrioritizedExperienceReplay
+
+  EpisodeExperienceReplay:
+    <<: *EpisodeExperienceReplay

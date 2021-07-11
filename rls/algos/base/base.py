@@ -4,7 +4,7 @@
 import os
 import json
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (Dict,
                     Callable,
@@ -13,8 +13,8 @@ from typing import (Dict,
                     NoReturn,
                     Optional,
                     Any)
+from torch.utils.tensorboard import SummaryWriter
 
-from rls.utils.tf2_utils import get_device
 from rls.utils.display import colorize
 from rls.utils.sundry_utils import check_or_create
 from rls.utils.logging_utils import (get_logger,
@@ -33,11 +33,6 @@ class Base:
         super().__init__()
         self.no_save = bool(kwargs.get('no_save', False))
         self.base_dir = base_dir = kwargs.get('base_dir')
-        tf_dtype = str(kwargs.get('tf_dtype'))
-        self._tf_data_type = tf.float32 if tf_dtype == 'float32' else tf.float64
-        tf.keras.backend.set_floatx(tf_dtype)
-
-        self.device = get_device()
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
@@ -49,76 +44,72 @@ class Base:
             check_or_create(self.excel_dir, 'excel')
             self.excel_writer = pd.ExcelWriter(self.excel_dir + '/data.xlsx')
 
-        self.global_step = tf.Variable(0, name="global_step", trainable=False, dtype=tf.int64)  # in TF 2.x must be tf.int64, because function set_step need args to be tf.int64.
-        self._worker_params_dict = {}
-        self._all_params_dict = dict(global_step=self.global_step)
+        self.global_step = t.tensor(0, dtype=t.int64)
+        self._worker_modules = {}
+        self._trainer_modules = {'global_step': self.global_step}
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
         if bool(kwargs.get('logger2file', False)):
             set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
 
-    def _tf_data_cast(self, *args):
+    def data_convert(self, data: Union[np.ndarray, List]) -> t.Tensor:
         '''
         TODO: Annotation
         '''
-        with tf.device(self.device):
-            return [tf.cast(i, self._tf_data_type) for i in args]
+        if isinstance(data, tuple):
+            return tuple(
+                t.as_tensor(d)
+                if d is not None
+                else d
+                for d in data
+            )
+        else:
+            return t.as_tensor(data)
 
-    def data_convert(self, data: Union[np.ndarray, List]) -> tf.Tensor:
-        '''
-        TODO: Annotation
-        '''
-        with tf.device(self.device):
-            if isinstance(data, tuple):
-                return tuple(
-                    tf.convert_to_tensor(d, dtype=self._tf_data_type)
-                    if d is not None
-                    else d
-                    for d in data
-                )
-            else:
-                return tf.convert_to_tensor(data, dtype=self._tf_data_type)
-
-    def _create_saver(self) -> NoReturn:
-        """
-        create checkpoint and saver.
-        """
-        self.checkpoint = tf.train.Checkpoint(**self._all_params_dict)
-        self.saver = tf.train.CheckpointManager(self.checkpoint, directory=self.cp_dir, max_to_keep=5, checkpoint_name='ckpt')
-
-    def _create_writer(self, log_dir: str) -> tf.summary.SummaryWriter:
+    def _create_writer(self, log_dir: str) -> SummaryWriter:
         if not self.no_save:
             check_or_create(log_dir, 'logs(summaries)')
-            return tf.summary.create_file_writer(log_dir)
+            return SummaryWriter(log_dir)
 
-    def init_or_restore(self, base_dir: Optional[str] = None) -> NoReturn:
+    def resume(self, base_dir: Optional[str] = None) -> NoReturn:
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
-        if base_dir is not None:
-            cp_dir = os.path.join(base_dir, 'model')
-            if os.path.exists(os.path.join(cp_dir, 'checkpoint')):
-                try:
-                    ckpt = tf.train.latest_checkpoint(cp_dir)
-                    self.checkpoint.restore(ckpt).expect_partial()    # 从指定路径导入模型
-                except:
-                    logger.error(colorize(f'restore model from {cp_dir} FAILED.', color='red'))
-                    raise Exception(f'restore model from {cp_dir} FAILED.')
-                else:
-                    logger.info(colorize(f'restore model from {ckpt} SUCCUESS.', color='green'))
+        if base_dir:
+            ckpt_path = os.path.join(base_dir, 'model/checkpoint.pth')
         else:
-            ckpt = self.saver.latest_checkpoint
-            self.checkpoint.restore(ckpt).expect_partial()  # 从本模型目录载入模型，断点续训
-            logger.info(colorize(f'restore model from {ckpt} SUCCUESS.', color='green'))
-            logger.info(colorize('initialize model SUCCUESS.', color='green'))
+            ckpt_path = os.path.join(self.cp_dir, 'checkpoint.pth')
+        if os.path.exists(ckpt_path):
+            checkpoint = t.load(ckpt_path)
+            try:
+                for k, v in self._trainer_modules.items():
+                    if hasattr(v, 'load_state_dict'):
+                        self._trainer_modules[k].load_state_dict(checkpoint[k])
+                    elif hasattr(v, 'fill_'):
+                        self._trainer_modules[k].fill_(checkpoint[k])
+                    else:
+                        raise ValueError
+            except Exception as e:
+                logger.error(e)
+                raise Exception(colorize(f'Resume model from {ckpt_path} FAILED.', color='red'))
+            else:
+                logger.info(colorize(f'Resume model from {ckpt_path} SUCCUESS.', color='green'))
+        else:
+            logger.info(colorize('Initialize model SUCCUESS.', color='green'))
 
-    def save_checkpoint(self, **kwargs) -> NoReturn:
+    def save(self, **kwargs) -> NoReturn:
         """
         save the training model 
         """
         if not self.no_save:
             train_step = int(kwargs.get('train_step', 0))
-            self.saver.save(checkpoint_number=train_step)
+            data = {}
+            for k, v in self._trainer_modules.items():
+                if hasattr(v, 'state_dict'):
+                    data[k] = v.state_dict()
+                else:
+                    data[k] = v
+            t.save(data, os.path.join(self.cp_dir, 'checkpoint.pth'))
             logger.info(colorize(f'Save checkpoint success. Training step: {train_step}', color='green'))
             self.write_training_info(kwargs)
 
@@ -132,11 +123,9 @@ class Base:
                 data = json.load(f)
         else:
             data = {}
-        return dict(
-            train_step=int(data.get('train_step', 0)),
-            frame_step=int(data.get('frame_step', 0)),
-            episode=int(data.get('episode', 0))
-        )
+        return dict(train_step=int(data.get('train_step', 0)),
+                    frame_step=int(data.get('frame_step', 0)),
+                    episode=int(data.get('episode', 0)))
 
     def write_training_info(self, data: Dict) -> NoReturn:
         '''
@@ -146,41 +135,34 @@ class Base:
             json.dump(data, f)
 
     def writer_summary(self,
-                       global_step: Union[int, tf.Variable],
-                       writer: Optional[tf.summary.SummaryWriter] = None,
-                       summaries: Dict = {}) -> NoReturn:
+                       global_step: Union[int, t.Tensor],
+                       summaries: Dict = {},
+                       writer: Optional[SummaryWriter] = None) -> NoReturn:
         """
         record the data used to show in the tensorboard
         """
         if not self.no_save:
             writer = writer or self.writer
-            writer.set_as_default()
-            tf.summary.experimental.set_step(global_step)
             for k, v in summaries.items():
-                tf.summary.scalar('AGENT/' + k, v)
-            writer.flush()
+                writer.add_scalar('AGENT/' + k, v, global_step=global_step)
 
     def write_training_summaries(self,
-                                 global_step: Union[int, tf.Variable],
+                                 global_step: Union[int, t.Tensor],
                                  summaries: Dict = {},
-                                 writer: Optional[tf.summary.SummaryWriter] = None) -> NoReturn:
+                                 writer: Optional[SummaryWriter] = None) -> NoReturn:
         '''
         write tf summaries showing in tensorboard.
         '''
         if not self.no_save:
             writer = writer or self.writer
-            writer.set_as_default()
-            tf.summary.experimental.set_step(global_step)
-            for key, value in summaries.items():
-                tf.summary.scalar(key, value)
-            writer.flush()
+            for k, v in summaries.items():
+                writer.add_scalar(k, v, global_step=global_step)
 
     def get_worker_params(self):
-        weights_list = list(map(lambda x: x.numpy(), self._worker_params_list))
-        return weights_list
+        pass
 
     def set_worker_params(self, weights_list):
-        [src.assign(tgt) for src, tgt in zip(self._worker_params_list, weights_list)]
+        pass
 
     def save_weights(self, path: str) -> Any:
         """
@@ -214,13 +196,4 @@ class Base:
         """
         set the start training step.
         """
-        self.global_step.assign(num)
-
-    def _model_post_process(self) -> NoReturn:
-        self._worker_params_list = []
-        for k, v in self._worker_params_dict.items():
-            if isinstance(v, tf.keras.Model):
-                self._worker_params_list.extend(list(map(lambda x: x, v.weights)))
-            else:
-                self._worker_params_list.append(v)
-        self._create_saver()
+        self.global_step = t.tensor(num, dtype=t.int64)  # TODO
