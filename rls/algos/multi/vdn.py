@@ -80,6 +80,7 @@ class VDN(MultiAgentOffPolicy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         actions = []
         for i in range(self.n_agents_percopy):
@@ -87,14 +88,10 @@ class VDN(MultiAgentOffPolicy):
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
                 actions.append(np.random.randint(0, self.envspecs[i].a_dim, self.n_copys))
             else:
-                actions.append(self._get_action(obs[i], self.rep_nets[j], self.q_nets[j]))
+                feat, _ = self.rep_nets[j](obs[i])
+                q_values = self.q_nets[j](feat)
+                actions.append(q_values.argmax(-1))
         return actions
-
-    @iTensor_oNumpy
-    def _get_action(self, obs, retnet, net):
-        feat, _ = retnet(obs)
-        q_values = net(feat)
-        return q_values.argmax(-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

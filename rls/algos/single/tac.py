@@ -113,12 +113,8 @@ class TAC(Off_Policy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    def __call__(self, obs, evaluation=False):
-        mu, pi = self._get_action(obs)
-        return mu if evaluation else pi
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation=False):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         if self.is_continuous:
             mu, log_std = self.actor(feat)
@@ -129,7 +125,7 @@ class TAC(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu, pi
+        return mu if evaluation else pi
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)

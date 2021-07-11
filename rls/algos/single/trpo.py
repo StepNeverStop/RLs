@@ -12,8 +12,8 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import (ModelObservations,
-                             Data,
-                             BatchExperiences)
+                              Data,
+                              BatchExperiences)
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticValue)
@@ -138,12 +138,8 @@ class TRPO(On_Policy):
         self._trainer_modules.update(critic=self.critic,
                                      critic_oplr=self.critic_oplr)
 
-    def __call__(self, obs, evaluation=False):
-        a = self._get_action(obs)
-        return a
-
     @iTensor_oNumpy
-    def _get_action(self, obs, cell_state):
+    def __call__(self, obs, evaluation=False):
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         self._value = to_numpy(self.critic(feat))
         if self.is_continuous:

@@ -56,12 +56,8 @@ class SQL(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    def __call__(self, obs, evaluation=False):
-        a = self._get_action(obs)
-        return a
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation=False):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q_values = self.q_net(feat)
         logits = ((q_values - self.get_v(q_values)) / self.alpha).exp()    # > 0

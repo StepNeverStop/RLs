@@ -71,22 +71,19 @@ class AveragedDQN(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a = self._get_action(obs)
+            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+            q_values = self.q_net(feat)
+            for i in range(1, self.target_k):
+                target_feat, _ = self.target_representation_nets[i](obs, cell_state=self.cell_state)
+                target_q_values = self.target_nets[i](target_feat)
+                q_values += target_q_values
+            a = q_values.argmax(1)  # 不取平均也可以
         return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        q_values = self.q_net(feat)
-        for i in range(1, self.target_k):
-            target_feat, _ = self.target_representation_nets[i](obs, cell_state=self.cell_state)
-            target_q_values = self.target_nets[i](target_feat)
-            q_values += target_q_values
-        return q_values.argmax(1)  # 不取平均也可以
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

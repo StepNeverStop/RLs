@@ -57,12 +57,8 @@ class PG(On_Policy):
         self._trainer_modules.update(self._worker_modules)
         self._trainer_modules.update(oplr=self.oplr)
 
-    def __call__(self, obs, evaluation=False):
-        a = self._get_action(obs)
-        return a
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation=False):
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.net(feat)
         if self.is_continuous:

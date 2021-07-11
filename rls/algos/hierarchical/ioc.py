@@ -112,23 +112,20 @@ class IOC(Off_Policy):
     def _generate_random_options(self):
         return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
-        a = self._get_action(obs, self.options)
-        return a
 
-    @iTensor_oNumpy
-    def _get_action(self, obs, options):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q = self.q_net(feat)  # [B, P]
         pi = self.intra_option_net(feat)  # [B, P, A]
-        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
-            log_std = self.log_std[options]
+            log_std = self.log_std[self.options]
             mu = pi.tanh()
             a, _ = gaussian_clip_rsample(mu, log_std)
         else:

@@ -77,12 +77,8 @@ class DPG(Off_Policy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    def __call__(self, obs, evaluation=False):
-        mu, pi = self._get_action(obs)
-        return mu if evaluation else pi
-
     @iTensor_oNumpy
-    def _get_action(self, obs):
+    def __call__(self, obs, evaluation=False):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
         if self.is_continuous:
@@ -93,7 +89,7 @@ class DPG(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu, pi
+        return mu if evaluation else pi
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

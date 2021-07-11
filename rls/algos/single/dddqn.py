@@ -64,18 +64,15 @@ class DDDQN(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a = self._get_action(obs)
+            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+            q_values = self.q_net(feat)
+            a = q_values.argmax(-1)
         return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        q_values = self.q_net(feat)
-        return q_values.argmax(-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

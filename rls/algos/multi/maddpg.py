@@ -123,11 +123,13 @@ class MADDPG(MultiAgentOffPolicy):
         for noised_action in self.noised_actions:
             noised_action.reset()
 
+    @iTensor_oNumpy
     def __call__(self, obs: List, evaluation=False):
         actions = []
         for i in range(self.n_agents_percopy):
             j = 0 if self.share_params else i
-            output = self._get_action(obs[i], self.rep_nets[j], self.actors[j])
+            feat, _ = self.rep_nets[j](obs[i])
+            output = self.actors[j](feat)
             if self.envspecs[i].is_continuous:
                 mu = output
                 pi = self.noised_actions[j](mu)
@@ -138,12 +140,6 @@ class MADDPG(MultiAgentOffPolicy):
                 pi = cate_dist.sample()
             actions.append(mu if evaluation else pi)
         return actions
-
-    @iTensor_oNumpy
-    def _get_action(self, obs, repnet, net):
-        feat, _ = repnet(obs)
-        output = net(feat)
-        return output
 
     def _target_params_update(self):
         for i in range(self.n_models_percopy):

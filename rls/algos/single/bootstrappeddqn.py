@@ -73,19 +73,15 @@ class BootstrappedDQN(Off_Policy):
         super().reset()
         self.now_head = np.random.randint(self.head_num)
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a = self._get_action(obs)
-        return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        q_values = self.q_net(feat)  # [H, B, A]
-        q_values = to_numpy(q_values)
-        a = np.argmax(q_values[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
+            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+            q_values = self.q_net(feat)  # [H, B, A]
+            q_values = to_numpy(q_values)
+            a = np.argmax(q_values[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
         return a
 
     def _target_params_update(self):

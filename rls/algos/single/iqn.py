@@ -78,25 +78,22 @@ class IQN(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
+    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a = self._get_action(obs)
+            batch_size = obs.shape[0]   # TODO
+            _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
+                batch_size=batch_size,
+                quantiles_num=self.select_quantiles,
+                quantiles_idx=self.quantiles_idx
+            )
+            # [B, A]
+            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+            (_, q_values) = self.q_net(feat, elect_quantiles_tiled, quantiles_num=self.select_quantiles)
+            a = q_values.argmax(-1)  # [B,]
         return a
-
-    @iTensor_oNumpy
-    def _get_action(self, obs):
-        batch_size = obs.shape[0]   # TODO
-        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-            batch_size=batch_size,
-            quantiles_num=self.select_quantiles,
-            quantiles_idx=self.quantiles_idx
-        )
-        # [B, A]
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        (_, q_values) = self.q_net(feat, elect_quantiles_tiled, quantiles_num=self.select_quantiles)
-        return q_values.argmax(-1), cell_state  # [B,]
 
     def _generate_quantiles(self, batch_size, quantiles_num, quantiles_idx):
         _quantiles = t.rand([batch_size * quantiles_num, 1])  # [N*B, 1]
