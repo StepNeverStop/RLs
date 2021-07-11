@@ -11,13 +11,13 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_likelihood_sum,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import (Data,
-                             ModelObservations)
+from rls.common.specs import (Data,
+                              ModelObservations)
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -70,13 +70,13 @@ class A2C(On_Policy):
                                      critic_oplr=self.critic_oplr)
 
     def __call__(self, obs, evaluation=False):
-        a, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
         if self.is_continuous:
             mu, log_std = output
             sample_op, _ = gaussian_clip_rsample(mu, log_std)
@@ -84,12 +84,13 @@ class A2C(On_Policy):
             logits = output
             norm_dist = td.categorical.Categorical(logits=logits)
             sample_op = norm_dist.sample()
-        return to_numpy(sample_op), cell_state
+        return sample_op
 
+    @iTensor_oNumpy
     def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         value = self.critic(feat)
-        return to_numpy(value), cell_state
+        return value, cell_state
 
     def calculate_statistics(self):
         init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
@@ -100,7 +101,7 @@ class A2C(On_Policy):
 
         def _train(data, cell_state):
             for _ in range(self.epoch):
-                actor_loss, critic_loss, entropy = self.train(data.tensor, cell_state)
+                actor_loss, critic_loss, entropy = self.train(data, cell_state)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -118,6 +119,7 @@ class A2C(On_Policy):
             ])
         })
 
+    @iTensor_oNumpy
     def train(self, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         output = self.actor(feat)

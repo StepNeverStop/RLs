@@ -15,7 +15,7 @@ from rls.utils.torch_utils import (sync_params,
                                    q_target_func)
 from rls.nn.models import CriticQvalueAll
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class AveragedDQN(Off_Policy):
@@ -75,17 +75,18 @@ class AveragedDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q_values = self.q_net(feat)
         for i in range(1, self.target_k):
-            target_feat, _ = self.target_representation_nets[i](obs, cell_state=cell_state)
+            target_feat, _ = self.target_representation_nets[i](obs, cell_state=self.cell_state)
             target_q_values = self.target_nets[i](target_feat)
             q_values += target_q_values
-        return to_numpy(q_values.argmax(1)), cell_state  # 不取平均也可以
+        return q_values.argmax(1)  # 不取平均也可以
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -100,6 +101,7 @@ class AveragedDQN(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         q = self.q_net(feat)

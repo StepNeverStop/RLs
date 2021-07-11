@@ -12,7 +12,7 @@ from rls.utils.torch_utils import sync_params
 from rls.nn.represent_nets import DefaultRepresentationNetwork
 from rls.nn.models import CriticDueling
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class VDN(MultiAgentOffPolicy):
@@ -90,10 +90,11 @@ class VDN(MultiAgentOffPolicy):
                 actions.append(self._get_action(obs[i], self.rep_nets[j], self.q_nets[j]))
         return actions
 
+    @iTensor_oNumpy
     def _get_action(self, obs, retnet, net):
         feat, _ = retnet(obs)
         q_values = net(feat)
-        return to_numpy(q_values.argmax(-1))
+        return q_values.argmax(-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -106,6 +107,7 @@ class VDN(MultiAgentOffPolicy):
         for i in range(self.train_times_per_step):
             self._learn()
 
+    @iTensor_oNumpy
     def _train(self, BATCHs):
         summaries = {}
         q_target_next_max_all = 0

@@ -12,7 +12,7 @@ from typing import (Dict,
 
 from rls.memories.on_policy_buffer import DataBuffer
 from rls.algos.base.policy import Policy
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class On_Policy(Policy):
@@ -56,7 +56,7 @@ class On_Policy(Policy):
         if self.use_curiosity and not self.use_rnn:
             curiosity_data = self.data.get_curiosity_data()
             cell_states['obs'] = cell_states['obs_'] = self.initial_cell_state(batch=self.n_copys)
-            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data.tensor, cell_states)
+            crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_states)
             self.data.update_reward(crsty_r.numpy())
             # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])
             self.summaries.update(crsty_summaries)
@@ -71,7 +71,7 @@ class On_Policy(Policy):
         for data, cell_state in all_data:
             cell_state = self.data_convert(cell_state)
             cell_state = {'obs': cell_state, 'obs_': cell_state}
-            summaries = _train(data.tensor, cell_state)
+            summaries = _train(data, cell_state)
 
         self.summaries.update(summaries)
         self.summaries.update(_summary)

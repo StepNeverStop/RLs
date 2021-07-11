@@ -9,6 +9,7 @@ from torch.nn import (Sequential,
 from rls.nn.represent_nets import DefaultRepresentationNetwork
 from rls.nn.activations import default_act
 from rls.nn.activations import Act_REGISTER
+from rls.common.decorator import iTensor_oNumpy
 
 
 class CuriosityModel(t.nn.Module):
@@ -60,6 +61,7 @@ class CuriosityModel(t.nn.Module):
             Linear(self.feat_dim, self.feat_dim)
         )
 
+    @iTensor_oNumpy
     def forward(self, BATCH, cell_states):
         fs, _ = self.repre_net(BATCH.obs, cell_state=cell_states['obs'])
         fs_, _ = self.repre_net(BATCH.obs_, cell_state=cell_states['obs_'])

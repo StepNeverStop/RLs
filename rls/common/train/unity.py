@@ -10,7 +10,7 @@ from typing import (Callable,
 from rls.common.recoder import (SimpleMovingAverageRecoder,
                                 SimpleMovingAverageMultiAgentRecoder)
 from rls.utils.logging_utils import get_logger
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'

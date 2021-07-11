@@ -14,7 +14,7 @@ from copy import deepcopy
 from rls.utils.display import colorize
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (ObsSpec,
+from rls.common.specs import (ObsSpec,
                              EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,

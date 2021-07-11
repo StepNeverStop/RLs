@@ -17,13 +17,13 @@ from rls.utils.torch_utils import (squash_rsample,
                                    sync_params_pairs)
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 from rls.nn.visual_nets import Vis_REGISTER
 from rls.nn.models import (CriticQvalueOne,
                            ActorCts,
                            ActorDct)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class VisualEncoder(t.nn.Module):
@@ -181,6 +181,7 @@ class CURL(Off_Policy):
         mu, pi = self._get_action(visual)
         return mu if evaluation else pi
 
+    @iTensor_oNumpy
     def _get_action(self, visual):
         feat = t.cat([self.encoder(visual), obs.flatten_vector()], -1)
         if self.is_continuous:
@@ -192,7 +193,7 @@ class CURL(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return to_numpy(mu), to_numpy(pi)
+        return mu, pi
 
     def _process_before_train(self, data: BatchExperiences):
         visual = np.transpose(data.obs.first_visual()[:, 0].numpy(), (0, 3, 1, 2))
@@ -223,11 +224,12 @@ class CURL(Off_Policy):
 
     def _train(self, BATCH: BatchExperiences, isw, cell_states):
         visual, visual_, pos = self._process_before_train(BATCH)
-        td_error, summaries = self.train(BATCH.tensor, isw, cell_states, visual, visual_, pos)
+        td_error, summaries = self.train(BATCH, isw, cell_states, visual, visual_, pos)
         if self.annealing and not self.auto_adaption:
             self.log_alpha.copy_(self.alpha_annealing(self.global_step).log())
         return td_error, summaries
 
+    @iTensor_oNumpy
     def train(self, BATCH, isw, cell_states, visual, visual_, pos):
         vis_feat = self.encoder(visual)
         vis_feat_ = self.encoder(visual_)

@@ -14,14 +14,14 @@ from rls.memories.single_replay_buffers import ExperienceReplay
 from rls.utils.np_utils import int2one_hot
 from rls.utils.torch_utils import (sync_params_pairs,
                                    q_target_func)
-from rls.utils.specs import (BatchExperiences,
-                             ModelObservations,
-                             Data)
+from rls.common.specs import (BatchExperiences,
+                              ModelObservations,
+                              Data)
 from rls.nn.models import (ActorDPG,
                            ActorDct,
                            CriticQvalueOne)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -234,6 +234,7 @@ class HIRO(Off_Policy):
             self._done[i] = []
             self._subgoals[i] = []
 
+    @iTensor_oNumpy
     def _get_action(self, obs, subgoal):
         feat = t.cat([obs.flatten_vector(), subgoal], -1)
         output = self.low_actor(feat)
@@ -245,7 +246,7 @@ class HIRO(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return to_numpy(mu), to_numpy(pi)
+        return mu, pi
 
     def __call__(self, obs, evaluation=False):
         self._subgoal = np.where(self._c == self.sub_goal_steps, self.get_subgoal(obs.flatten_vector()).numpy(), self._new_subgoal)
@@ -286,6 +287,7 @@ class HIRO(Off_Policy):
                 ]))
                 self.write_training_summaries(self.global_step, self.summaries)
 
+    @iTensor_oNumpy
     def train_low(self, BATCH: Low_BatchExperiences):
         feat = t.cat([BATCH.obs.flatten_vector(), BATCH.subgoal], -1)
         feat_ = t.cat([BATCH.obs_.flatten_vector(), BATCH.next_subgoal], -1)
@@ -341,6 +343,7 @@ class HIRO(Off_Policy):
             ['Statistics/low_q_max', q.max()]
         ])
 
+    @iTensor_oNumpy
     def train_high(self, BATCH: High_BatchExperiences):
         # BATCH.obs_ : [B, N]
         # BATCH.obs, BATCH.action [B, T, *]

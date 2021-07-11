@@ -7,7 +7,7 @@ import torch as t
 
 from rls.nn.layers import MLP
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class Model(t.nn.Module):

@@ -14,11 +14,11 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_entropy,
                                    q_target_net,
                                    sync_params_pairs)
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 from rls.nn.models import (OcIntraOption,
                            CriticQvalueAll)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -116,11 +116,12 @@ class IOC(Off_Policy):
         if not hasattr(self, 'options'):
             self.options = self._generate_random_options()
         self.last_options = self.options
-        a = self._get_action(obs, self.cell_state, self.options)
+        a = self._get_action(obs, self.options)
         return a
 
-    def _get_action(self, obs, cell_state, options):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs, options):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q = self.q_net(feat)  # [B, P]
         pi = self.intra_option_net(feat)  # [B, P, A]
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
@@ -137,8 +138,7 @@ class IOC(Off_Policy):
         interests = self.interest_net(feat)  # [B, P]
         op_logits = interests * q  # [B, P] or q.softmax(-1)
         self.options = td.categorical.Categorical(logits=op_logits).sample()
-        self.cell_state = cell_state
-        return to_numpy(a)
+        return a
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -157,6 +157,7 @@ class IOC(Off_Policy):
                 ])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         last_options = BATCH.last_options
         options = BATCH.options

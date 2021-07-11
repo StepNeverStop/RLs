@@ -15,7 +15,7 @@ from copy import deepcopy
 
 from rls.memories.sum_tree import Sum_Tree
 from rls.memories.base_replay_buffer import ReplayBuffer
-from rls.utils.specs import (BatchExperiences,
+from rls.common.specs import (BatchExperiences,
                              Data)
 from rls.utils.hdf5_utils import *
 

@@ -11,7 +11,7 @@ from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import sync_params_pairs
 from rls.nn.models import C51Distributional
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class C51(Off_Policy):
@@ -76,14 +76,15 @@ class C51(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, _ = self.rep_net(obs, cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, self.cell_state)
         feat = q_net(feat)
         q = (self.zb * feat).sum(-1)  # [B, A, N] => [B, A]
-        return to_numpy(q.argmax(-1)), cell_state  # [B, 1]
+        return q.argmax(-1)  # [B, 1]
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -96,6 +97,7 @@ class C51(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         batch_size = BATCH.action.shape[0]
         indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]

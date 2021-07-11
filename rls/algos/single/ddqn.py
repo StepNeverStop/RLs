@@ -10,6 +10,7 @@ from typing import (Union,
 
 from rls.algos.single.dqn import DQN
 from rls.utils.torch_utils import q_target_func
+from rls.common.decorator import iTensor_oNumpy
 
 
 class DDQN(DQN):
@@ -48,6 +49,7 @@ class DDQN(DQN):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_state['obs_'])

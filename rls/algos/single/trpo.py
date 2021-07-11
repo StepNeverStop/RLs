@@ -11,14 +11,15 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_likelihood_sum,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import (ModelObservations,
+from rls.common.specs import (ModelObservations,
                              Data,
                              BatchExperiences)
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -138,11 +139,12 @@ class TRPO(On_Policy):
                                      critic_oplr=self.critic_oplr)
 
     def __call__(self, obs, evaluation=False):
-        a, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
+    @iTensor_oNumpy
     def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         self._value = to_numpy(self.critic(feat))
         if self.is_continuous:
             mu, log_std = output
@@ -158,7 +160,7 @@ class TRPO(On_Policy):
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
         self._log_prob = to_numpy(log_prob) + 1e-10
-        return to_numpy(sample_op), cell_state
+        return sample_op
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -171,8 +173,9 @@ class TRPO(On_Policy):
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
 
+    @iTensor_oNumpy
     def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         value = self.critic(feat)
         return value, cell_state
 
@@ -213,6 +216,7 @@ class TRPO(On_Policy):
             ])
         })
 
+    @iTensor_oNumpy
     def train_actor(self, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         output = self.actor(feat)
@@ -232,6 +236,7 @@ class TRPO(On_Policy):
         self.global_step.add_(1)
         return actor_loss, entropy, gradients
 
+    @iTensor_oNumpy
     def Hx(self, x, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         output = self.actor(feat)
@@ -252,6 +257,7 @@ class TRPO(On_Policy):
             hvp += self.damping_coeff * x
         return hvp
 
+    @iTensor_oNumpy
     def train_critic(self, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         value = self.critic(feat)
@@ -260,6 +266,7 @@ class TRPO(On_Policy):
         self.critic_oplr.step(value_loss)
         return value_loss
 
+    @iTensor_oNumpy
     def cg(self, Ax, b, BATCH, cell_state):
         """
         Conjugate gradient algorithm

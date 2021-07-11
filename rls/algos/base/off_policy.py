@@ -14,7 +14,7 @@ from typing import (Dict,
 from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
 from rls.common.yaml_ops import load_yaml
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class Off_Policy(Policy):
@@ -143,7 +143,7 @@ class Off_Policy(Policy):
             # --------------------------------------好奇心部分
             if self.use_curiosity:
                 # TODO: check
-                crsty_r, crsty_summaries = self.curiosity_model(data.tensor, cell_states)
+                crsty_r, crsty_summaries = self.curiosity_model(data, cell_states)
                 data.reward += crsty_r
                 _summary.update(crsty_summaries)
             # --------------------------------------
@@ -157,7 +157,7 @@ class Off_Policy(Policy):
             # --------------------------------------
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-            td_error, summaries = self._train(data.tensor, _isw, cell_states)
+            td_error, summaries = self._train(data, _isw, cell_states)
             # --------------------------------------
 
             # --------------------------------------更新summary
@@ -198,7 +198,7 @@ class Off_Policy(Policy):
             data.reward += crsty_r
             _summary.update(crsty_summaries)
 
-        td_error, summaries = self._train(data.tensor, _isw, cell_state)
+        td_error, summaries = self._train(data, _isw, cell_state)
         _summary.update(summaries)
 
         self._target_params_update()

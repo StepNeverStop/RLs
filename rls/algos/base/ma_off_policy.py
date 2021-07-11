@@ -14,7 +14,7 @@ from typing import (List,
 from rls.algos.base.ma_policy import MultiAgentPolicy
 from rls.common.yaml_ops import load_yaml
 from rls.memories.multi_replay_buffers import MultiAgentExperienceReplay
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class MultiAgentOffPolicy(MultiAgentPolicy):
@@ -120,7 +120,6 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             data = self.get_transitions()
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
-            data = [d.tensor for d in data]
             summaries = self._train(data)
             # --------------------------------------
 

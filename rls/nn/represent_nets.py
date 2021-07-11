@@ -11,7 +11,7 @@ from rls.nn.networks import (MultiVectorNetwork,
                              EncoderNetwork,
                              MemoryNetwork)
 from rls.utils.logging_utils import get_logger
-from rls.utils.specs import ObsSpec
+from rls.common.specs import ObsSpec
 logger = get_logger(__name__)
 
 Rep_REGISTER = {}

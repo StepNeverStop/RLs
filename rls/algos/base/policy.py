@@ -18,7 +18,7 @@ from typing import (Union,
 from rls.algos.base.base import Base
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.utils.specs import EnvGroupArgs
+from rls.common.specs import EnvGroupArgs
 from rls.nn.represent_nets import DefaultRepresentationNetwork
 from rls.nn.modules import CuriosityModel
 
@@ -95,7 +95,7 @@ class Policy(Base):
         '''
         根据环境的done的index，局部初始化RNN的隐藏状态
         '''
-        assert isinstance(index, (list, np.ndarray))
+        assert isinstance(index, (list, np.ndarray)), 'assert isinstance(index, (list, np.ndarray))'
         if self.cell_state[0] is not None and len(index) > 0:
             _arr = np.ones(shape=self.cell_state[0].shape, dtype=np.float32)    # h, c
             _arr[index] = 0.

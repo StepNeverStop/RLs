@@ -20,7 +20,7 @@ from rls.nn.models import (CriticQvalueOne,
                            ActorDct,
                            ActorDPG)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class MADDPG(MultiAgentOffPolicy):
@@ -136,9 +136,10 @@ class MADDPG(MultiAgentOffPolicy):
                 mu = logits.argmax(1)
                 cate_dist = td.categorical.Categorical(logits=logits)
                 pi = cate_dist.sample()
-            actions.append(to_numpy(mu) if evaluation else to_numpy(pi))
+            actions.append(mu if evaluation else pi)
         return actions
 
+    @iTensor_oNumpy
     def _get_action(self, obs, repnet, net):
         feat, _ = repnet(obs)
         output = net(feat)
@@ -155,6 +156,7 @@ class MADDPG(MultiAgentOffPolicy):
         for i in range(self.train_times_per_step):
             self._learn()
 
+    @iTensor_oNumpy
     def _train(self, BATCHs):
         '''
         TODO: Annotation

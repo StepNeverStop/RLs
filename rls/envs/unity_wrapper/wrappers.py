@@ -15,7 +15,7 @@ from mlagents_envs.side_channel.environment_parameters_channel import Environmen
 
 from rls.common.yaml_ops import load_yaml
 from rls.utils.np_utils import get_discrete_action_list
-from rls.utils.specs import (ObsSpec,
+from rls.common.specs import (ObsSpec,
                              EnvGroupArgs,
                              ModelObservations,
                              SingleModelInformation,

@@ -107,6 +107,19 @@ class Data:
             else:
                 setattr(self, k, func(v))
 
+    def convert(self, func: Callable, keys=None):
+        params = {}
+        keys = keys or self.__dict__.keys()
+        for k, v in self.__dict__.items():
+            if k not in keys:
+                params[k] = v
+            else:
+                if isinstance(v, Data):
+                    params[k] = v.convert(func)
+                else:
+                    params[k] = func(v)
+        return self.__class__(**params)
+
     def unpack(self) -> Iterator:
         for i in range(len(self)):
             yield self[i]

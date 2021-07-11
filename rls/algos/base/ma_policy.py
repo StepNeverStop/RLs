@@ -15,7 +15,7 @@ from typing import (List,
                     NoReturn)
 
 from rls.algos.base.base import Base
-from rls.utils.specs import EnvGroupArgs
+from rls.common.specs import EnvGroupArgs
 
 
 class MultiAgentPolicy(Base):

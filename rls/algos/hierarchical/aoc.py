@@ -11,12 +11,13 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_likelihood_sum,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import (ModelObservations,
-                             Data,
-                             BatchExperiences)
+from rls.common.specs import (ModelObservations,
+                              Data,
+                              BatchExperiences)
 from rls.nn.models import AocShare
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -131,11 +132,12 @@ class AOC(On_Policy):
         if not hasattr(self, 'oc_mask'):
             self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
 
-        a = self._get_action(obs, self.cell_state, self.options)
+        a = self._get_action(obs, self.options)
         return a
 
-    def _get_action(self, obs, cell_state, options):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+    @iTensor_oNumpy
+    def _get_action(self, obs, options):
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
@@ -164,8 +166,7 @@ class AOC(On_Policy):
         self._beta_adv = to_numpy(beta_adv) + self.dc
         self.oc_mask = to_numpy(new_options == self.options)  # equal means no change
         self.options = to_numpy(new_options)
-        self.next_cell_state = cell_state
-        return to_numpy(sample_op)
+        return sample_op
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -177,12 +178,13 @@ class AOC(On_Policy):
         self.cell_state = self.next_cell_state
         self.oc_mask = np.zeros_like(self.oc_mask)
 
+    @dataclass
     def _get_value(self, obs, options, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         (q, _, _) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
-        return to_numpy(value), cell_state
+        return value, cell_state
 
     def calculate_statistics(self):
         last_data = self.data.last_data()
@@ -197,7 +199,7 @@ class AOC(On_Policy):
         def _train(data, cell_state):
             early_step = 0
             for i in range(self.epoch):
-                loss, pi_loss, q_loss, beta_loss, entropy, kl = self.train(data.tensor, cell_state, self.kl_coef)
+                loss, pi_loss, q_loss, beta_loss, entropy, kl = self.train(data, cell_state, self.kl_coef)
                 if kl > self.kl_stop:
                     early_step = i
                     break
@@ -227,6 +229,7 @@ class AOC(On_Policy):
             'summary_dict': summary_dict
         })
 
+    @iTensor_oNumpy
     def train(self, BATCH, cell_state, kl_coef):
         last_options = BATCH.last_options  # [B,]
         options = BATCH.options

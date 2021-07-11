@@ -11,7 +11,7 @@ from rls.utils.torch_utils import (huber_loss,
                                    sync_params)
 from rls.nn.models import IqnNet
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class IQN(Off_Policy):
@@ -82,10 +82,11 @@ class IQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
+    @iTensor_oNumpy
+    def _get_action(self, obs):
         batch_size = obs.shape[0]   # TODO
         _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
             batch_size=batch_size,
@@ -93,9 +94,9 @@ class IQN(Off_Policy):
             quantiles_idx=self.quantiles_idx
         )
         # [B, A]
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         (_, q_values) = self.q_net(feat, elect_quantiles_tiled, quantiles_num=self.select_quantiles)
-        return to_numpy(q_values.argmax(-1)), cell_state  # [B,]
+        return q_values.argmax(-1), cell_state  # [B,]
 
     def _generate_quantiles(self, batch_size, quantiles_num, quantiles_idx):
         _quantiles = t.rand([batch_size * quantiles_num, 1])  # [N*B, 1]
@@ -116,6 +117,7 @@ class IQN(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
 
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])

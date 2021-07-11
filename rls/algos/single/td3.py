@@ -15,7 +15,7 @@ from rls.nn.models import (ActorDPG,
                            ActorDct,
                            CriticQvalueOne)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class TD3(Off_Policy):
@@ -100,11 +100,12 @@ class TD3(Off_Policy):
             self.noised_action.reset()
 
     def __call__(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi = self._get_action(obs)
         return mu if evaluation else pi
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu = output
@@ -114,7 +115,7 @@ class TD3(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return to_numpy(mu), to_numpy(pi), cell_state
+        return mu, pi
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)
@@ -129,6 +130,7 @@ class TD3(Off_Policy):
                 ])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])

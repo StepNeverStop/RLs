@@ -11,7 +11,7 @@ from rls.utils.np_utils import (int2one_hot,
                                 calculate_td_error,
                                 normalization,
                                 standardization)
-from rls.utils.specs import (BatchExperiences,
+from rls.common.specs import (BatchExperiences,
                              Data)
 
 

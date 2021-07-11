@@ -12,12 +12,13 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    q_target_func,
                                    gaussian_entropy)
 from rls.algos.base.off_policy import Off_Policy
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticQvalueOne)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -70,11 +71,12 @@ class AC(Off_Policy):
         :param obs: 
         :param evaluation:
         """
-        a, self.cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -86,7 +88,7 @@ class AC(Off_Policy):
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
         self._log_prob = to_numpy(log_prob)
-        return to_numpy(sample_op), cell_state
+        return sample_op
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -106,6 +108,7 @@ class AC(Off_Policy):
                 ])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         output = self.actor(feat)

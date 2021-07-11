@@ -7,7 +7,7 @@ from typing import (List,
 
 from rls.memories.base_replay_buffer import (ReplayBuffer,
                                              MultiAgentReplayBuffer)
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class MultiAgentExperienceReplay(MultiAgentReplayBuffer):

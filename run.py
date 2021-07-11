@@ -97,7 +97,7 @@ from rls.utils.logging_utils import set_log_level
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 # device = "cuda" if torch.cuda.is_available() else "cpu" # TODO
 
-set_log_level(logging.DEBUG)
+set_log_level(logging.INFO)
 if sys.platform.startswith('win'):
     import pywintypes   # necessary when using python 3.8+
     import win32api

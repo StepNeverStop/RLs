@@ -11,7 +11,7 @@ from rls.utils.torch_utils import (sync_params_pairs,
                                    q_target_func)
 from rls.nn.models import CriticQvalueAll
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class SQL(Off_Policy):
@@ -57,17 +57,18 @@ class SQL(Off_Policy):
         self.initialize_data_buffer()
 
     def __call__(self, obs, evaluation=False):
-        a, self.cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q_values = self.q_net(feat)
         logits = ((q_values - self.get_v(q_values)) / self.alpha).exp()    # > 0
         logits /= logits.sum()
         cate_dist = td.categorical.Categorical(logits=logits)
         pi = cate_dist.sample()
-        return to_numpy(pi), cell_state
+        return pi
 
     def get_v(self, q):
         v = self.alpha * (q / self.alpha).exp().mean(1, keepdim=True).log()
@@ -83,6 +84,7 @@ class SQL(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         q = self.q_net(feat)

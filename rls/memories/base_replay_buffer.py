@@ -7,7 +7,7 @@ from typing import (Any,
                     Tuple,
                     Optional)
 
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 
 
 class ReplayBuffer(ABC):

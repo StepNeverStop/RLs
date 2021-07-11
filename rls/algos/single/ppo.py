@@ -15,16 +15,17 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_likelihood_sum,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import (ModelObservations,
-                             Data,
-                             BatchExperiences)
+from rls.common.specs import (ModelObservations,
+                              Data,
+                              BatchExperiences)
 from rls.nn.models import (ActorCriticValueCts,
                            ActorCriticValueDct,
                            ActorMuLogstd,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -175,11 +176,12 @@ class PPO(On_Policy):
                                     sample_data_type=PPO_Train_BatchExperiences)
 
     def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
-        a, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         if self.is_continuous:
             if self.share_net:
                 mu, log_std, value = self.net(feat)
@@ -199,8 +201,7 @@ class PPO(On_Policy):
             log_prob = norm_dist.log_prob(sample_op)
         self._value = to_numpy(value)
         self._log_prob = to_numpy(log_prob) + 1e-10
-        self.next_cell_state = cell_state
-        return to_numpy(sample_op)
+        return sample_op
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         # self._running_average()
@@ -209,8 +210,9 @@ class PPO(On_Policy):
             self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
         self.cell_state = self.next_cell_state
 
+    @iTensor_oNumpy
     def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         if self.share_net:
             if self.is_continuous:
                 _, _, value = self.net(feat)
@@ -218,7 +220,7 @@ class PPO(On_Policy):
                 _, value = self.net(feat)
         else:
             value = self.critic(feat)
-        return to_numpy(value), cell_state
+        return value, cell_state
 
     def calculate_statistics(self) -> NoReturn:
         init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
@@ -286,6 +288,7 @@ class PPO(On_Policy):
             'train_data_type': PPO_Train_BatchExperiences
         })
 
+    @iTensor_oNumpy
     def train_share(self, BATCH, cell_state, kl_coef):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         if self.is_continuous:
@@ -341,6 +344,7 @@ class PPO(On_Policy):
         self.global_step.add_(1)
         return actor_loss, value_loss, entropy, kl
 
+    @iTensor_oNumpy
     def train_actor(self, BATCH, cell_state, kl_coef):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         if self.is_continuous:
@@ -378,6 +382,7 @@ class PPO(On_Policy):
         self.global_step.add_(1)
         return actor_loss, entropy, kl
 
+    @iTensor_oNumpy
     def train_critic(self, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         value = self.critic(feat)

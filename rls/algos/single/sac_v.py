@@ -19,7 +19,7 @@ from rls.nn.models import (CriticValue,
                            CriticQvalueOne,
                            CriticQvalueAll)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class SAC_V(Off_Policy):
@@ -130,11 +130,12 @@ class SAC_V(Off_Policy):
         return self.log_alpha.exp()
 
     def __call__(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self._get_action(obs, self.cell_state)
+        mu, pi = self._get_action(obs)
         return mu if evaluation else pi
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         if self.is_continuous:
             mu, log_std = self.actor(feat)
             pi, _ = squash_rsample(mu, log_std)
@@ -144,7 +145,7 @@ class SAC_V(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.categorical.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return to_numpy(mu), to_numpy(pi), cell_state
+        return mu, pi
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)
@@ -170,6 +171,7 @@ class SAC_V(Off_Policy):
             self.log_alpha.copy_(self.alpha_annealing(self.global_step).log())
         return td_error, summaries
 
+    @iTensor_oNumpy
     def train_continuous(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
@@ -235,6 +237,7 @@ class SAC_V(Off_Policy):
             })
         return (td_error1 + td_error2) / 2, summaries
 
+    @iTensor_oNumpy
     def train_discrete(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])

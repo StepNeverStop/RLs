@@ -10,7 +10,7 @@ from rls.utils.torch_utils import (sync_params_pairs,
                                    q_target_func)
 from rls.nn.models import CriticDueling
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class DDDQN(Off_Policy):
@@ -68,12 +68,14 @@ class DDDQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            a, self.cell_state = self._get_action(obs, self.cell_state)
+            a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        q_values = self.q_net(obs, cell_state=cell_state)
-        return to_numpy(q_values.argmax(-1)), cell_state
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        q_values = self.q_net(feat)
+        return q_values.argmax(-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -86,6 +88,7 @@ class DDDQN(Off_Policy):
                 'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])

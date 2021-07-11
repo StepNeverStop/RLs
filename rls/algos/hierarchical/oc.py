@@ -15,11 +15,12 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_entropy,
                                    q_target_func,
                                    sync_params_pairs)
-from rls.utils.specs import BatchExperiences
+from rls.common.specs import BatchExperiences
 from rls.nn.models import (OcIntraOption,
                            CriticQvalueAll)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.utils.converter import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -122,14 +123,15 @@ class OC(Off_Policy):
             self.options = self._generate_random_options()
         self.last_options = self.options
 
-        a, self.cell_state = self._get_action(obs, self.cell_state, self.options)
+        a = self._get_action(obs, self.options)
         if self.use_eps_greedy:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
                 self.options = self._generate_random_options()
         return a
 
-    def _get_action(self, obs, cell_state, options):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs, options):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         q = self.q_net(feat)  # [B, P]
         pi = self.intra_option_net(feat)  # [B, P, A]
         beta = self.termination_net(feat)  # [B, P]
@@ -152,7 +154,7 @@ class OC(Off_Policy):
             beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
             new_options = t.where(beta_dist.sample() < 1, options, max_options)
         self.options = to_numpy(new_options)
-        return to_numpy(a), cell_state
+        return a
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -171,6 +173,7 @@ class OC(Off_Policy):
                 ])
             })
 
+    @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         last_options = BATCH.last_options
         options = BATCH.options

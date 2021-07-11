@@ -11,12 +11,12 @@ from rls.utils.torch_utils import (gaussian_clip_rsample,
                                    gaussian_likelihood_sum,
                                    gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
-from rls.utils.specs import (Data,
-                             ModelObservations)
+from rls.common.specs import (Data,
+                              ModelObservations)
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct)
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 @dataclass(eq=False)
@@ -58,11 +58,12 @@ class PG(On_Policy):
         self._trainer_modules.update(oplr=self.oplr)
 
     def __call__(self, obs, evaluation=False):
-        a, self.next_cell_state = self._get_action(obs, self.cell_state)
+        a = self._get_action(obs)
         return a
 
-    def _get_action(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs.tensor, cell_state=cell_state)
+    @iTensor_oNumpy
+    def _get_action(self, obs):
+        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
         output = self.net(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -71,7 +72,7 @@ class PG(On_Policy):
             logits = output
             norm_dist = td.categorical.Categorical(logits=logits)
             sample_op = norm_dist.sample()
-        return to_numpy(sample_op), cell_state
+        return sample_op
 
     def calculate_statistics(self):
         self.data.cal_dc_r(self.gamma, 0., normalize=True)
@@ -81,7 +82,7 @@ class PG(On_Policy):
 
         def _train(data, cell_state):
             for _ in range(self.epoch):
-                loss, entropy = self.train(data.tensor, cell_state)
+                loss, entropy = self.train(data, cell_state)
             summaries = dict([
                 ['LOSS/loss', loss],
                 ['Statistics/entropy', entropy]
@@ -94,6 +95,7 @@ class PG(On_Policy):
             'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
         })
 
+    @iTensor_oNumpy
     def train(self, BATCH, cell_state):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
         output = self.net(feat)

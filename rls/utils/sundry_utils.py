@@ -41,7 +41,7 @@ class LinearAnnealing:
 
     def __init__(self, x: float, x_: float, end: int):
         '''
-        Params: 
+        Params:
             x: start value
             x_: end value
             end: annealing time
@@ -66,25 +66,3 @@ def nested_tuple(x):
         else:
             ret.append(i)
     return tuple(ret)
-
-
-def to_numpy(x):
-    if isinstance(x, t.Tensor):
-        return x.detach().cpu().numpy()
-    elif isinstance(x, np.ndarray):  # second often case
-        return x
-    elif isinstance(x, (np.number, np.bool_, Number)):
-        return np.asanyarray(x)
-
-
-def to_tensor(x, dtype=None, device='cpu'):
-    if isinstance(x, t.Tensor):
-        if dtype:
-            x = x.type(dtype)
-        return x.to(device)
-    elif isinstance(x, np.ndarray):
-        x = t.as_tensor(x, device=device)
-        if dtype:
-            return x.type(dtype)
-        else:
-            return x

@@ -12,7 +12,7 @@ from rls.utils.torch_utils import sync_params
 from rls.nn.represent_nets import DefaultRepresentationNetwork
 from rls.nn.models import CriticQvalueAll
 from rls.nn.utils import OPLR
-from rls.utils.sundry_utils import to_numpy
+from rls.common.decorator import iTensor_oNumpy
 
 
 class IQL(MultiAgentOffPolicy):
@@ -83,10 +83,11 @@ class IQL(MultiAgentOffPolicy):
                 actions.append(self._get_action(obs[i], self.rep_nets[j], self.q_nets[j]))
         return actions
 
+    @iTensor_oNumpy
     def _get_action(self, obs, repnet, net):
         feat, _ = repnet(obs)
         q_values = net(feat)
-        return to_numpy(q_values.argmax(-1))
+        return q_values.argmax(-1)
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -99,6 +100,7 @@ class IQL(MultiAgentOffPolicy):
         for i in range(self.train_times_per_step):
             self._learn()
 
+    @iTensor_oNumpy
     def _train(self, BATCHs):
         summaries = {}
         for i in range(self.n_agents_percopy):
