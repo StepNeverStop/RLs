@@ -24,7 +24,6 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
 
         self.n_step = int(kwargs.get('n_step', 1))
-        self.gamma = self.gamma ** self.n_step
 
         self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 10))
         self.train_time_step = int(kwargs.get('train_time_step', 10))
@@ -62,6 +61,7 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
                 gamma=self.gamma,
                 n_copys=self.n_copys
             )
+            self.gamma = self.gamma ** self.n_step
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')['MultiAgentExperienceReplay'][_type]
         default_buffer_args.update(_buffer_args)

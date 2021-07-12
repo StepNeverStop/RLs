@@ -83,14 +83,14 @@ class A2C(On_Policy):
         return sample_op
 
     @iTensor_oNumpy
-    def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         value = self.critic(feat)
-        return value, cell_state
+        return value
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
-        self.data.cal_dc_r(self.gamma, init_value.numpy())
+        init_value = self._get_value(self.data.get_last_date().obs_, cell_state=)
+        self.data.cal_dc_r(self.gamma, init_value)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

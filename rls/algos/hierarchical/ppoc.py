@@ -182,16 +182,16 @@ class PPOC(On_Policy):
         self.oc_mask = np.zeros_like(self.oc_mask)
 
     @iTensor_oNumpy
-    def _get_value(self, obs, options, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs, options):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         (q, _, _, _) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
-        return value, cell_state
+        return value
 
     def calculate_statistics(self):
-        last_data = self.data.last_data()
-        init_value, self.cell_state = self._get_value(last_data.obs_, last_data.options, cell_state=self.cell_state)
+        last_data = self.data.get_last_date()
+        init_value = self._get_value(last_data.obs_, last_data.options)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)

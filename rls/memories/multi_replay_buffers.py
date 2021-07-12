@@ -7,7 +7,8 @@ from typing import (List,
 
 from rls.memories.base_replay_buffer import (ReplayBuffer,
                                              MultiAgentReplayBuffer)
-from rls.common.specs import BatchExperiences
+from rls.common.specs import (BatchExperiences,
+                              Data)
 
 
 class MultiAgentExperienceReplay(MultiAgentReplayBuffer):
@@ -63,10 +64,10 @@ class MultiAgentCentralExperienceReplay(ReplayBuffer):
         n_sample = self.batch_size if self.can_sample else self._size
         idx = np.random.randint(0, self._size, n_sample)
         t = self._buffers[:, idx]
-        return [BatchExperiences.pack(_t.tolist()) for _t in t]
+        return [Data.pack(_t.tolist()) for _t in t]
 
     def get_all(self) -> BatchExperiences:
-        return [BatchExperiences.pack(data.tolist()) for data in self._buffers[:, :self._size]]
+        return [Data.pack(data.tolist()) for data in self._buffers[:, :self._size]]
 
     def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1

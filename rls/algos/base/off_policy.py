@@ -23,7 +23,6 @@ class Off_Policy(Policy):
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
 
         self.n_step = int(kwargs.get('n_step', 1))
-        self.gamma = self.gamma ** self.n_step
 
         self.use_priority = kwargs.get('use_priority', False)
         self.use_isw = bool(kwargs.get('use_isw', False))
@@ -67,6 +66,7 @@ class Off_Policy(Policy):
                     gamma=self.gamma,
                     n_copys=self.n_copys
                 )
+                self.gamma = self.gamma ** self.n_step
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
         default_buffer_args.update(_buffer_args)

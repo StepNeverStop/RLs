@@ -12,7 +12,7 @@ from rls.utils.np_utils import (int2one_hot,
                                 normalization,
                                 standardization)
 from rls.common.specs import (BatchExperiences,
-                             Data)
+                              Data)
 
 
 class DataBuffer(object):
@@ -25,8 +25,8 @@ class DataBuffer(object):
                  rnn_cell_nums: int = 0,
                  batch_size: int = 32,
                  rnn_time_step: int = 8,
-                 store_data_type: BatchExperiences = BatchExperiences,
-                 sample_data_type: BatchExperiences = BatchExperiences):
+                 store_data_type: Data = BatchExperiences,
+                 sample_data_type: Data = BatchExperiences):
         '''
         params:
             n_copys: 一个policy控制的智能体数量
@@ -45,7 +45,7 @@ class DataBuffer(object):
         self.store_data_type = store_data_type
         self.sample_data_type = sample_data_type
 
-    def add(self, exps: BatchExperiences):
+    def add(self, exps: Data):
         '''
         添加数据
         '''
@@ -111,7 +111,7 @@ class DataBuffer(object):
             adv = standardization(adv)
         self.data_buffer['gae_adv'] = list(standardization(adv))
 
-    def last_data(self):
+    def get_last_date(self):
         '''
         获取序列末尾的数据
         '''
@@ -132,7 +132,7 @@ class DataBuffer(object):
         for k in BatchExperiences.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], Data):
-                data[k] = BatchExperiences.pack(self.data_buffer[k], func=func)
+                data[k] = Data.pack(self.data_buffer[k], func=func)
             else:
                 data[k] = func(self.data_buffer[k])
         return BatchExperiences(**data)
@@ -181,7 +181,7 @@ class DataBuffer(object):
         for k in self.sample_data_type.__dataclass_fields__.keys():
             assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
             if isinstance(self.data_buffer[k][0], Data):
-                buffer[k] = BatchExperiences.pack(self.data_buffer[k], func=np.concatenate)
+                buffer[k] = Data.pack(self.data_buffer[k], func=np.concatenate)
             else:
                 buffer[k] = np.concatenate(self.data_buffer[k])
 
@@ -241,14 +241,14 @@ class DataBuffer(object):
                     d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
                     d = [_d[batch_idx] for _d in d]
                     if isinstance(self.data_buffer[k][0], Data):
-                        sample_exp[k] = BatchExperiences.pack(d)   # [T, N]
+                        sample_exp[k] = Data.pack(d)   # [T, N]
                     else:
                         sample_exp[k] = np.asarray(d)
                 samples.append(self.sample_data_type(**sample_exp))
 
                 sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
             cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield BatchExperiences.pack(samples, func=np.concatenate), cs    # [B*T, N]
+            yield Data.pack(samples, func=np.concatenate), cs    # [B*T, N]
 
     def clear(self):
         '''

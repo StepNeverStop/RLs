@@ -170,14 +170,13 @@ class TRPO(On_Policy):
         self.cell_state = self.next_cell_state
 
     @iTensor_oNumpy
-    def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         value = self.critic(feat)
-        return value, cell_state
+        return value
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
-        init_value = init_value.numpy()
+        init_value = self._get_value(self.data.get_last_date().obs_)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
