@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 
-from rls.nn.layers import MLP
+from rls.nn.mlps import MLP
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import BatchExperiences
 
@@ -28,6 +28,7 @@ class Model(t.nn.Module):
             return self.net(s).argmax(-1)
 
     def set_wb(self, weights):
+        # TODO: 优化
         start = 0
         wbs = []
         for dim_list, nums in zip(self.weights_2dim, self.weights_nums):
@@ -108,7 +109,7 @@ class CEM(On_Policy):
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations * self.frac)), 1)
-        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous).to(self.device) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums) * self.init_var
         self._update_models_weights()

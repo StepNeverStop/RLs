@@ -69,7 +69,7 @@ class SAC_V(Off_Policy):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self.v_net = CriticValue(self.rep_net.h_dim,
-                                 network_settings=network_settings['v'])
+                                 network_settings=network_settings['v']).to(self.device)
         self.v_target_net = deepcopy(self.v_net)
         self.v_target_net.eval()
         self._target_rep_net = deepcopy(self.rep_net)
@@ -78,11 +78,11 @@ class SAC_V(Off_Policy):
         if self.is_continuous:
             self.actor = ActorCts(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
             if self.use_gumbel:
                 self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
@@ -92,17 +92,17 @@ class SAC_V(Off_Policy):
         if self.is_continuous or self.use_gumbel:
             self.q_net = CriticQvalueOne(self.rep_net.h_dim,
                                          action_dim=self.a_dim,
-                                         network_settings=network_settings['q'])
+                                         network_settings=network_settings['q']).to(self.device)
             self.q_net2 = CriticQvalueOne(self.rep_net.h_dim,
                                           action_dim=self.a_dim,
-                                          network_settings=network_settings['q'])
+                                          network_settings=network_settings['q']).to(self.device)
         else:
             self.q_net = CriticQvalueAll(self.rep_net.h_dim,
                                          action_dim=self.a_dim,
-                                         network_settings=network_settings['q'])
+                                         network_settings=network_settings['q']).to(self.device)
             self.q_net2 = CriticQvalueAll(self.rep_net.h_dim,
                                           action_dim=self.a_dim,
-                                          network_settings=network_settings['q'])
+                                          network_settings=network_settings['q']).to(self.device)
 
         self._pairs = [(self.v_target_net, self.v_net),
                        (self._target_rep_net, self.rep_net)]

@@ -95,13 +95,13 @@ class HIRO(Off_Policy):
 
         self.high_actor = ActorDPG(vector_dim=self.concat_vector_dim,
                                    output_shape=self.sub_goal_dim,
-                                   network_settings=network_settings['high_actor'])
+                                   network_settings=network_settings['high_actor']).to(self.device)
         self.high_critic = CriticQvalueOne(vector_dim=self.concat_vector_dim,
                                            action_dim=self.sub_goal_dim,
-                                           network_settings=network_settings['high_critic'])
+                                           network_settings=network_settings['high_critic']).to(self.device)
         self.high_critic2 = CriticQvalueOne(vector_dim=self.concat_vector_dim,
                                             action_dim=self.sub_goal_dim,
-                                            network_settings=network_settings['high_critic'])
+                                            network_settings=network_settings['high_critic']).to(self.device)
         self.high_actor_target = deepcopy(self.high_actor)
         self.high_actor_target.eval()
         self.high_critic_target = deepcopy(self.high_critic)
@@ -112,18 +112,18 @@ class HIRO(Off_Policy):
         if self.is_continuous:
             self.low_actor = ActorDPG(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                       output_shape=self.a_dim,
-                                      network_settings=network_settings['low_actor'])
+                                      network_settings=network_settings['low_actor']).to(self.device)
         else:
             self.low_actor = ActorDct(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                       output_shape=self.a_dim,
-                                      network_settings=network_settings['low_actor'])
+                                      network_settings=network_settings['low_actor']).to(self.device)
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
         self.low_critic = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                           action_dim=self.a_dim,
-                                          network_settings=network_settings['low_critic'])
+                                          network_settings=network_settings['low_critic']).to(self.device)
         self.low_critic2 = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                            action_dim=self.a_dim,
-                                           network_settings=network_settings['low_critic'])
+                                           network_settings=network_settings['low_critic']).to(self.device)
         self.low_actor_target = deepcopy(self.low_actor)
         self.low_actor_target.eval()
         self.low_critic_target = deepcopy(self.low_critic)

@@ -102,7 +102,7 @@ class PPOC(On_Policy):
                              action_dim=self.a_dim,
                              options_num=self.options_num,
                              network_settings=network_settings,
-                             is_continuous=self.is_continuous)
+                             is_continuous=self.is_continuous).to(self.device)
 
         if self.is_continuous:
             self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
@@ -231,10 +231,10 @@ class PPOC(On_Policy):
         })
 
     @iTensor_oNumpy
-    def share(self, BATCH, cell_state, kl_coef):
+    def share(self, BATCH, cell_states, kl_coef):
         last_options = BATCH.last_options  # [B,]
         options = BATCH.options
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]

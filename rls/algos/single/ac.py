@@ -44,14 +44,14 @@ class AC(Off_Policy):
         if self.is_continuous:
             self.actor = ActorMuLogstd(self.rep_net.h_dim,
                                        output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_continuous'])
+                                       network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
         self.critic = CriticQvalueOne(self.rep_net.h_dim,
                                       action_dim=self.a_dim,
-                                      network_settings=network_settings['critic'])
+                                      network_settings=network_settings['critic']).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
@@ -106,10 +106,10 @@ class AC(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.actor(feat)
         q = self.critic(feat)
-        feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_state['obs_'])
+        feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         if self.is_continuous:
             mu, log_std = output
             log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)

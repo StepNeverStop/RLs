@@ -187,7 +187,7 @@ def gym_no_op(env, model,
 
     for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
-            action = model(obs=obs)
+            action = model(obs=obs, evaluation=True)
         else:
             action = env.sample_actions()
         ret = env.step(action)

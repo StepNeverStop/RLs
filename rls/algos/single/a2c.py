@@ -48,13 +48,13 @@ class A2C(On_Policy):
         if self.is_continuous:
             self.actor = ActorMuLogstd(self.rep_net.h_dim,
                                        output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_continuous'])
+                                       network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
         self.critic = CriticValue(self.rep_net.h_dim,
-                                  network_settings=network_settings['critic'])
+                                  network_settings=network_settings['critic']).to(self.device)
 
         self.actor_op = OPLR(self.actor, actor_lr)
         self.critic_op = OPLR([self.critic, self.rep_net], critic_lr)
@@ -116,8 +116,8 @@ class A2C(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train(self, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train(self, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.actor(feat)
         v = self.critic(feat)
         if self.is_continuous:

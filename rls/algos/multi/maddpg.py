@@ -68,18 +68,18 @@ class MADDPG(MultiAgentOffPolicy):
 
         for i in range(self.n_models_percopy):
             rep_net = DefaultRepresentationNetwork(obs_spec=self.envspecs[i].obs_spec,
-                                                   representation_net_params=self.representation_net_params)
+                                                   representation_net_params=self.representation_net_params).to(self.device)
             if self.envspecs[i].is_continuous:
                 actor = ActorDPG(rep_net.h_dim,
                                  output_shape=self.envspecs[i].a_dim,
-                                 network_settings=network_settings['actor_continuous'])
+                                 network_settings=network_settings['actor_continuous']).to(self.device)
             else:
                 actor = ActorDct(rep_net.h_dim,
                                  output_shape=self.envspecs[i].a_dim,
-                                 network_settings=network_settings['actor_discrete'])
+                                 network_settings=network_settings['actor_discrete']).to(self.device)
             critic = CriticQvalueOne(rep_net.h_dim*self.n_models_percopy,
                                      action_dim=sum([envspec.a_dim for envspec in self.envspecs]),
-                                     network_settings=network_settings['q'])
+                                     network_settings=network_settings['q']).to(self.device)
             target_rep_net = deepcopy(rep_net)
             target_rep_net.eval()
             critic_target = deepcopy(critic)

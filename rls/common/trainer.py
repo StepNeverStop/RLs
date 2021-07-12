@@ -81,6 +81,7 @@ class Trainer:
             self.algo_args = UpdateConfig(self.algo_args, self.train_args['algo_config'], 'algo')
         self.algo_args['representation_net_params']['use_rnn'] = self.train_args['use_rnn']
         self.algo_args['no_save'] = self.train_args['no_save']
+        self.algo_args['device'] = self.train_args['device']
         show_dict(self.algo_args)
 
         if self.train_args['policy_mode'] == 'on-policy':

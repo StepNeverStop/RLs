@@ -31,7 +31,8 @@ Options:
                                 specify the training step that optimize the policy model [default: None]
     -u,--unity                  是否使用unity客户端
                                 whether training with UNITY3D editor [default: False]
-    
+    -d, --device=<str>          指定Tensor的设备，None指由程序自动获取
+                                specify the device that operate Torch.Tensor [default: None]
     --apex=<str>                i.e. "learner"/"worker"/"buffer"/"evaluator" [default: None]
     --unity-env=<name>          指定unity环境的名字
                                 specify the name of training environment of UNITY3D [default: None]
@@ -95,7 +96,6 @@ from rls.utils.display import show_dict
 from rls.utils.logging_utils import set_log_level
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
-# device = "cuda" if torch.cuda.is_available() else "cpu" # TODO
 
 set_log_level(logging.INFO)
 if sys.platform.startswith('win'):
@@ -124,7 +124,8 @@ def get_options(options: Dict) -> Config:
     return:
         op: an instance of Config class that contains the parameters
     '''
-    def f(k, t): return None if options[k] == 'None' else t(options[k])
+    def f(k, t): 
+        return None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
         ['inference',               bool(options['--inference'])],
@@ -136,6 +137,7 @@ def get_options(options: Dict) -> Config:
         ['unity',                   bool(options['--unity'])],
         ['graphic',                 bool(options['--graphic'])],
         ['name',                    f('--name', str)],
+        ['device',                  f('--device', str)],
         ['save_frequency',          f('--save-frequency', int)],
         ['models',                  int(options['--models'])],
         ['store_dir',               f('--store-dir', str)],

@@ -47,7 +47,7 @@ class Policy(Base):
         self.representation_net_params = dict(kwargs.get('representation_net_params', defaultdict(dict)))
         self.use_rnn = bool(self.representation_net_params.get('use_rnn', False))
         self.rep_net = DefaultRepresentationNetwork(obs_spec=self.obs_spec,
-                                                    representation_net_params=self.representation_net_params)
+                                                    representation_net_params=self.representation_net_params).to(self.device)
 
         self.use_curiosity = bool(kwargs.get('use_curiosity', False))
         if self.use_curiosity:
@@ -80,7 +80,7 @@ class Policy(Base):
     def initial_cell_state(self, batch: int) -> Tuple[t.Tensor]:
         if self.use_rnn:
             return self.rep_net.memory_net.initial_cell_state(batch=batch)
-        return (None,)
+        return None
 
     def get_cell_state(self) -> Tuple[Optional[t.Tensor]]:
         return self.cell_state
@@ -96,7 +96,7 @@ class Policy(Base):
         根据环境的done的index，局部初始化RNN的隐藏状态
         '''
         assert isinstance(index, (list, np.ndarray)), 'assert isinstance(index, (list, np.ndarray))'
-        if self.cell_state[0] is not None and len(index) > 0:
+        if self.cell_state is not None and len(index) > 0:
             _arr = np.ones(shape=self.cell_state[0].shape, dtype=np.float32)    # h, c
             _arr[index] = 0.
             self.cell_state = [c * _arr for c in self.cell_state]        # [A, B] * [A, B] => [A, B] 将某行全部替换为0.

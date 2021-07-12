@@ -33,6 +33,8 @@ class Base:
         super().__init__()
         self.no_save = bool(kwargs.get('no_save', False))
         self.base_dir = base_dir = kwargs.get('base_dir')
+        self.device = kwargs.get('device', None) or ("cuda" if t.cuda.is_available() else "cpu")
+        logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
@@ -51,20 +53,6 @@ class Base:
 
         if bool(kwargs.get('logger2file', False)):
             set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
-
-    def data_convert(self, data: Union[np.ndarray, List]) -> t.Tensor:
-        '''
-        TODO: Annotation
-        '''
-        if isinstance(data, tuple):
-            return tuple(
-                t.as_tensor(d)
-                if d is not None
-                else d
-                for d in data
-            )
-        else:
-            return t.as_tensor(data)
 
     def _create_writer(self, log_dir: str) -> SummaryWriter:
         if not self.no_save:

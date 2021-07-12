@@ -19,7 +19,7 @@ from rls.nn.visual_nets import Vis_REGISTER
 class MultiVectorNetwork(t.nn.Module):
     def __init__(self, vector_dim=[], network_type='concat'):
         super().__init__()
-        self.nets = []
+        self.nets = t.nn.ModuleList()
         for in_dim in vector_dim:
             self.nets.append(Vec_REGISTER[network_type](in_dim=in_dim))
         self.h_dim = sum([net.h_dim for net in self.nets])
@@ -36,7 +36,7 @@ class MultiVisualNetwork(t.nn.Module):
 
     def __init__(self, visual_dim=[], visual_feature=128, network_type='nature'):
         super().__init__()
-        self.dense_nets = []
+        self.dense_nets = t.nn.ModuleList()
         for vd in visual_dim:
             net = Vis_REGISTER[network_type](visual_dim=vd)
             self.dense_nets.append(
@@ -83,11 +83,11 @@ class MemoryNetwork(t.nn.Module):
             self.cell_nums = 2
             self.rnn = t.nn.LSTMCell(feat_dim, rnn_units)
 
-    def forward(self, *args):
-        x, cell_state = args[0], args[1:] if len(args) > 2 else args[1]
+    def forward(self, feat, cell_state=None):
+        # feat: [B, T, x]
         output = []
-        for i in range(x.shape[1]):
-            cell_state = self.rnn(x, cell_state)
+        for i in range(feat.shape[1]):
+            cell_state = self.rnn(feat[:, i], cell_state)
             if self.network_type == 'gru':
                 output.append(cell_state)
             elif self.network_type == 'lstm':

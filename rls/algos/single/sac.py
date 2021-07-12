@@ -72,17 +72,17 @@ class SAC(Off_Policy):
         if self.is_continuous or self.use_gumbel:
             self.critic = CriticQvalueOne(self.rep_net.h_dim,
                                           action_dim=self.a_dim,
-                                          network_settings=network_settings['q'])
+                                          network_settings=network_settings['q']).to(self.device)
             self.critic2 = CriticQvalueOne(self.rep_net.h_dim,
                                            action_dim=self.a_dim,
-                                           network_settings=network_settings['q'])
+                                           network_settings=network_settings['q']).to(self.device)
         else:
             self.critic = CriticQvalueAll(self.rep_net.h_dim,
                                           output_shape=self.a_dim,
-                                          network_settings=network_settings['q'])
+                                          network_settings=network_settings['q']).to(self.device)
             self.critic2 = CriticQvalueAll(self.rep_net.h_dim,
                                            output_shape=self.a_dim,
-                                           network_settings=network_settings['q'])
+                                           network_settings=network_settings['q']).to(self.device)
 
         self.critic_target = deepcopy(self.critic)
         self.critic_target.eval()
@@ -94,11 +94,11 @@ class SAC(Off_Policy):
         if self.is_continuous:
             self.actor = ActorCts(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
             if self.use_gumbel:
                 self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 

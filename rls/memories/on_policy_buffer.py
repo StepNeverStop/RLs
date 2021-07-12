@@ -192,7 +192,7 @@ class DataBuffer(object):
             data = []
             for k in self.sample_data_type.__dataclass_fields__.keys():
                 data.append(buffer[k][_idxs])
-            yield self.sample_data_type(*data), (None, )
+            yield self.sample_data_type(*data), None
 
     def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
         '''

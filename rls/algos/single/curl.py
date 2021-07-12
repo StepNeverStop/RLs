@@ -126,11 +126,11 @@ class CURL(Off_Policy):
 
         self.critic = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                       action_dim=self.a_dim,
-                                      network_settings=network_settings['q'])
+                                      network_settings=network_settings['q']).to(self.device)
 
         self.critic2 = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                        action_dim=self.a_dim,
-                                       network_settings=network_settings['q'])
+                                       network_settings=network_settings['q']).to(self.device)
         self.critic_target = deepcopy(self.critic)
         self.critic_target.eval()
         self.critic2_target = deepcopy(self.critic2)
@@ -139,18 +139,18 @@ class CURL(Off_Policy):
         if self.is_continuous:
             self.actor = ActorCts(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(vector_dim=self.concat_vector_dim + self.vis_feat_size,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        self.encoder = VisualEncoder(self.img_dim, self.vis_feat_size)
-        self.encoder_target = VisualEncoder(self.img_dim, self.vis_feat_size)
+        self.encoder = VisualEncoder(self.img_dim, self.vis_feat_size).to(self.device)
+        self.encoder_target = VisualEncoder(self.img_dim, self.vis_feat_size).to(self.device)
 
         self.curl_w = t.tensor(t.randn(self.vis_feat_size, self.vis_feat_size), requires_grad=True)
 
@@ -197,7 +197,7 @@ class CURL(Off_Policy):
         pos = np.transpose(random_crop(visual, self.img_size), (0, 2, 3, 1))
         visual = np.transpose(random_crop(visual, self.img_size), (0, 2, 3, 1))
         visual_ = np.transpose(random_crop(visual_, self.img_size), (0, 2, 3, 1))
-        return self.data_convert([visual, visual_, pos])
+        return visual, visual_, pos
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)

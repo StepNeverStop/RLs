@@ -67,22 +67,22 @@ class IOC(Off_Policy):
 
         self.q_net = CriticQvalueAll(self.rep_net.h_dim,
                                      output_shape=self.options_num,
-                                     network_settings=network_settings['q'])
+                                     network_settings=network_settings['q']).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 
         self.intra_option_net = OcIntraOption(vector_dim=self.rep_net.h_dim,
                                               output_shape=self.a_dim,
                                               options_num=self.options_num,
-                                              network_settings=network_settings['intra_option'])
+                                              network_settings=network_settings['intra_option']).to(self.device)
         self.termination_net = CriticQvalueAll(vector_dim=self.rep_net.h_dim,
                                                output_shape=self.options_num,
                                                network_settings=network_settings['termination'],
-                                               out_act='sigmoid')
+                                               out_act='sigmoid').to(self.device)
         self.interest_net = CriticQvalueAll(vector_dim=self.rep_net.h_dim,
                                             output_shape=self.options_num,
                                             network_settings=network_settings['interest'],
-                                            out_act='sigmoid')
+                                            out_act='sigmoid').to(self.device)
 
         if self.is_continuous:
             self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]

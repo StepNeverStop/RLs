@@ -69,7 +69,6 @@ class On_Policy(Policy):
             all_data = self.data.sample_generater()
 
         for data, cell_state in all_data:
-            cell_state = self.data_convert(cell_state)
             cell_state = {'obs': cell_state, 'obs_': cell_state}
             summaries = _train(data, cell_state)
 

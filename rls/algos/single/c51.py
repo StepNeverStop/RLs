@@ -52,7 +52,7 @@ class C51(Off_Policy):
         self.q_net = C51Distributional(self.rep_net.h_dim,
                                        action_dim=self.a_dim,
                                        atoms=self.atoms,
-                                       network_settings=network_settings)
+                                       network_settings=network_settings).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 

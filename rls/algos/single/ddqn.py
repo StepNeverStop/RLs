@@ -50,9 +50,9 @@ class DDQN(DQN):
             })
 
     @iTensor_oNumpy
-    def _train(self, BATCH, isw, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_state['obs_'])
+    def _train(self, BATCH, isw, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         q = self.q_net(feat)
         q_next = self.q_net(feat__)

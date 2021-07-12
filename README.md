@@ -139,6 +139,7 @@ For now, these algorithms are available:
 |         Algorithms(29)          | Discrete | Continuous | Image | RNN  | Command parameter |
 | :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
 | Q-Learning/Sarsa/Expected Sarsa |    √     |            |       |      |        qs         |
+|            ~~CEM~~              |    √     |     √      |       |      |        cem        |
 |               PG                |    √     |     √      |   √   |      |        pg         |
 |               AC                |    √     |     √      |   √   |  √   |        ac         |
 |               A2C               |    √     |     √      |   √   |      |        a2c        |

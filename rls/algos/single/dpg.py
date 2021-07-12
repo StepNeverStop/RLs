@@ -49,16 +49,16 @@ class DPG(Off_Policy):
             self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
             self.actor = ActorDPG(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
 
         self.critic = CriticQvalueOne(self.rep_net.h_dim,
                                       action_dim=self.a_dim,
-                                      network_settings=network_settings['q'])
+                                      network_settings=network_settings['q']).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
@@ -105,7 +105,7 @@ class DPG(Off_Policy):
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.actor(feat)
-        feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_state['obs_'])
+        feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         if self.is_continuous:
             action_target = self.actor(feat_)
             if self.use_target_action_noise:

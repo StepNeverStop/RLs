@@ -202,7 +202,7 @@ class CriticQvalueBootstrap(t.nn.Module):
 
     def __init__(self, vector_dim, output_shape, head_num, network_settings):
         super().__init__()
-        self.nets = [MLP(vector_dim, network_settings, output_shape=output_shape) for _ in range(head_num)]
+        self.nets = t.nn.ModuleList([MLP(vector_dim, network_settings, output_shape=output_shape) for _ in range(head_num)])
 
     def forward(self, x):
         q = t.stack([net(x) for net in self.nets])  # [H, B, A]

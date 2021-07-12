@@ -49,7 +49,7 @@ class AveragedDQN(Off_Policy):
 
         self.q_net = CriticQvalueAll(self.rep_net.h_dim,
                                      output_shape=self.a_dim,
-                                     network_settings=network_settings)
+                                     network_settings=network_settings).to(self.device)
         self.target_representation_nets = []
         self.target_nets = []
         for i in range(self.target_k):

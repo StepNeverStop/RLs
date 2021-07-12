@@ -100,10 +100,10 @@ setup(
         'numpy',
         'pyyaml',
         'tqdm',
+        'tensorboard',
         'colored_traceback',
-        'pyglet==1.5.11',
-        'gym>=0.15.0, <=0.15.3',
-        'pytorch'
+        'pyglet',
+        'gym>=0.15.0, <=0.15.3'
     ],
     extras_require=extras,
 )

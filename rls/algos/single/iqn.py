@@ -58,7 +58,7 @@ class IQN(Off_Policy):
         self.q_net = IqnNet(self.rep_net.h_dim,
                             action_dim=self.a_dim,
                             quantiles_idx=self.quantiles_idx,
-                            network_settings=network_settings)
+                            network_settings=network_settings).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 
@@ -117,8 +117,8 @@ class IQN(Off_Policy):
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
 
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_state['obs_'])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
 
         batch_size = BATCH.action.shape[0]
