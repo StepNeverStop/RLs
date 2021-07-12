@@ -113,6 +113,8 @@ class AOC(On_Policy):
 
         self.initialize_data_buffer(store_data_type=AOC_Store_BatchExperiences,
                                     sample_data_type=AOC_Train_BatchExperiences)
+        self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
+        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
     def reset(self):
         super().reset()
@@ -122,16 +124,9 @@ class AOC(On_Policy):
         super().partial_reset(done)
         self._done_mask = done
 
-    def _generate_random_options(self):
-        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
-
     @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        if not hasattr(self, 'options'):
-            self.options = self._generate_random_options()
         self.last_options = self.options
-        if not hasattr(self, 'oc_mask'):
-            self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
 
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta) = self.net(feat)

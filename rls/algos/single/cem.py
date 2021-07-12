@@ -64,9 +64,11 @@ class CEM(On_Policy):
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
         self.concat_vector_dim = self.obs_spec.total_vector_dim
+        self._check_agents()
+        self.populations = int(self.n_copys / self.envs_per_popu)
+        self._build()
 
     def __call__(self, obs, evaluation=False):
-        self._check_agents()
         a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
         if self.is_continuous:
             a = np.vstack(a)
@@ -99,10 +101,7 @@ class CEM(On_Policy):
         用于为实例赋予种群数量属性，并且初始化变量
         params : 状态列表S，一个环境下有多少个智能体就包含多少个状态向量
         '''
-        if not hasattr(self, 'populations'):
-            assert self.n_copys % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
-            self.populations = int(self.n_copys / self.envs_per_popu)
-            self._build()
+        assert self.n_copys % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
 
     def _build(self):
         '''

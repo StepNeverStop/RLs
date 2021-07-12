@@ -114,14 +114,13 @@ class OC(Off_Policy):
                                      intra_option_oplr=self.intra_option_oplr,
                                      termination_oplr=self.termination_oplr)
         self.initialize_data_buffer()
+        self.options = self._generate_random_options()
 
     def _generate_random_options(self):
         return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
     @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        if not hasattr(self, 'options'):
-            self.options = self._generate_random_options()
         self.last_options = self.options
 
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)

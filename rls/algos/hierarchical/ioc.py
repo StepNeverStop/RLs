@@ -109,13 +109,10 @@ class IOC(Off_Policy):
                                      interest_oplr=self.interest_oplr)
         self.initialize_data_buffer()
 
-    def _generate_random_options(self):
-        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
+        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
     @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        if not hasattr(self, 'options'):
-            self.options = self._generate_random_options()
         self.last_options = self.options
 
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
