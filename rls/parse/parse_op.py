@@ -64,6 +64,7 @@ def parse_options(options: Config, default_config: Dict) -> Tuple[Config]:
     train_args.inference_episode = abs(train_args.inference_episode) or sys.maxsize
 
     train_args.algo = options.algo
+    train_args.device = options.device
     train_args.apex = options.apex
     train_args.use_rnn = options.use_rnn
     train_args.algo_config = options.algo_config

@@ -44,7 +44,7 @@ class DDDQN(Off_Policy):
 
         self.q_net = CriticDueling(self.rep_net.hdim,
                                    output_shape=self.a_dim,
-                                   network_settings=network_settings)
+                                   network_settings=network_settings).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 

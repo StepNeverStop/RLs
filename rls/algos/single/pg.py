@@ -42,11 +42,11 @@ class PG(On_Policy):
         if self.is_continuous:
             self.net = ActorMuLogstd(self.rep_net.h_dim,
                                      output_shape=self.a_dim,
-                                     network_settings=network_settings['actor_continuous'])
+                                     network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.net = ActorDct(self.rep_net.h_dim,
                                 output_shape=self.a_dim,
-                                network_settings=network_settings['actor_discrete'])
+                                network_settings=network_settings['actor_discrete']).to(self.device)
         self.oplr = OPLR([self.net, self.rep_net], lr)
 
         self.initialize_data_buffer(sample_data_type=PG_Train_BatchExperiences)
@@ -92,8 +92,8 @@ class PG(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train(self, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train(self, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.net(feat)
         if self.is_continuous:
             mu, log_std = output

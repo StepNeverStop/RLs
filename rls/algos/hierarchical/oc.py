@@ -77,7 +77,7 @@ class OC(Off_Policy):
 
         self.q_net = CriticQvalueAll(self.rep_net.h_dim,
                                      output_shape=self.options_num,
-                                     network_settings=network_settings['q'])
+                                     network_settings=network_settings['q']).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 
@@ -87,11 +87,11 @@ class OC(Off_Policy):
         self.intra_option_net = OcIntraOption(vector_dim=self.rep_net.h_dim,
                                               output_shape=self.a_dim,
                                               options_num=self.options_num,
-                                              network_settings=network_settings['intra_option'])
+                                              network_settings=network_settings['intra_option']).to(self.device)
         self.termination_net = CriticQvalueAll(vector_dim=self.rep_net.h_dim,
                                                output_shape=self.options_num,
                                                network_settings=network_settings['termination'],
-                                               out_act='sigmoid')
+                                               out_act='sigmoid').to(self.device)
 
         if self.is_continuous:
             self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
@@ -114,14 +114,13 @@ class OC(Off_Policy):
                                      intra_option_oplr=self.intra_option_oplr,
                                      termination_oplr=self.termination_oplr)
         self.initialize_data_buffer()
+        self.options = self._generate_random_options()
 
     def _generate_random_options(self):
         return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
 
     @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        if not hasattr(self, 'options'):
-            self.options = self._generate_random_options()
         self.last_options = self.options
 
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)

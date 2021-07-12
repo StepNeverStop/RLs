@@ -66,21 +66,21 @@ class PD_DDPG(Off_Policy):
             # NOTE: value_net is reward net; value_net2 is cost net.
             self.actor = ActorDPG(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
             self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
             self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         self.critic_reward = CriticQvalueOne(self.rep_net.h_dim,
                                              action_dim=self.a_dim,
-                                             network_settings=network_settings['reward'])
+                                             network_settings=network_settings['reward']).to(self.device)
         self.critic_cost = CriticQvalueOne(self.rep_net.h_dim,
                                            action_dim=self.a_dim,
-                                           network_settings=network_settings['cost'])
+                                           network_settings=network_settings['cost']).to(self.device)
 
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()

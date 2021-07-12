@@ -16,8 +16,8 @@ from copy import deepcopy
 from rls.memories.sum_tree import Sum_Tree
 from rls.memories.base_replay_buffer import ReplayBuffer
 from rls.common.specs import (BatchExperiences,
-                             Data)
-from rls.utils.hdf5_utils import *
+                              Data)
+# from rls.utils.hdf5_utils import *
 
 
 class ExperienceReplay(ReplayBuffer):
@@ -46,10 +46,10 @@ class ExperienceReplay(ReplayBuffer):
         '''
         n_sample = self.batch_size if self.can_sample else self._size
         data = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)
-        return BatchExperiences.pack(data.tolist())
+        return Data.pack(data.tolist())
 
     def get_all(self) -> BatchExperiences:
-        return BatchExperiences.pack(self._buffer[:self._size].tolist())
+        return Data.pack(self._buffer[:self._size].tolist())
 
     def update_rb_after_add(self) -> NoReturn:
         self._data_pointer += 1
@@ -65,7 +65,7 @@ class ExperienceReplay(ReplayBuffer):
         return idxs
 
     def sample_from_idxs(self, idxs):
-        return BatchExperiences.pack(self._buffer[idxs].tolist())
+        return Data.pack(self._buffer[idxs].tolist())
 
     @property
     def is_full(self) -> bool:
@@ -167,7 +167,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.last_indexs = idxs
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
-        data = BatchExperiences.pack(data.tolist())
+        data = Data.pack(data.tolist())
         if return_index:
             return data, idxs
         else:
@@ -178,7 +178,7 @@ class PrioritizedExperienceReplay(ReplayBuffer):
         self.last_indexs = idxs
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         self.IS_w = np.power(_min_p / p, self.beta)
-        data = BatchExperiences.pack(data.tolist())
+        data = Data.pack(data.tolist())
         if return_index:
             return data, idxs
         else:
@@ -370,10 +370,10 @@ class EpisodeExperienceReplay(ReplayBuffer):
 
         datas = []  # [B, 不定长时间步, N]
         for traj in trajs:
-            data = BatchExperiences.pack(truncate(traj))
+            data = Data.pack(truncate(traj))
             datas.append(data)
 
-        sample_data = BatchExperiences.pack(datas)
+        sample_data = Data.pack(datas)
         sample_data.convert_(f(v=1., l=self.timestep), ['done'])   # [B, T, N]
         sample_data.convert_(f(v=0., l=self.timestep))     # [B, T, N]
 

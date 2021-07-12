@@ -23,7 +23,6 @@ class Off_Policy(Policy):
         self.buffer_size = int(kwargs.get('buffer_size', 10000))
 
         self.n_step = int(kwargs.get('n_step', 1))
-        self.gamma = self.gamma ** self.n_step
 
         self.use_priority = kwargs.get('use_priority', False)
         self.use_isw = bool(kwargs.get('use_isw', False))
@@ -67,6 +66,7 @@ class Off_Policy(Policy):
                     gamma=self.gamma,
                     n_copys=self.n_copys
                 )
+                self.gamma = self.gamma ** self.n_step
 
         default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
         default_buffer_args.update(_buffer_args)
@@ -151,9 +151,8 @@ class Off_Policy(Policy):
             # --------------------------------------优先经验回放部分，获取重要性比例
             if self.use_priority and self.use_isw:
                 _isw = self.data.get_IS_w().reshape(-1, 1)  # [B, ] => [B, 1]
-                _isw = self.data_convert(_isw)
             else:
-                _isw = t.tensor(1.)
+                _isw = 1.
             # --------------------------------------
 
             # --------------------------------------训练主程序，返回可能用于PER权重更新的TD error，和需要输出tensorboard的信息
@@ -191,7 +190,7 @@ class Off_Policy(Policy):
         self.intermediate_variable_reset()
         data = self._data_process2dict(data=data)
 
-        cell_state = (None,)
+        cell_state = None
 
         if self.use_curiosity:
             crsty_r, crsty_summaries = self.curiosity_model(data, cell_state)
@@ -213,6 +212,6 @@ class Off_Policy(Policy):
         '''
         data = self._data_process2dict(data=data)
 
-        cell_state = (None,)
+        cell_state = None
         td_error = self._cal_td(data, cell_state)
         return np.squeeze(td_error.numpy())

@@ -59,7 +59,7 @@ class RAINBOW(Off_Policy):
         self.rainbow_net = RainbowDueling(self.rep_net.h_dim,
                                           action_dim=self.a_dim,
                                           atoms=self.atoms,
-                                          network_settings=network_settings)
+                                          network_settings=network_settings).to(self.device)
         self.rainbow_target_net = deepcopy(self.rainbow_net)
         self.rainbow_target_net.eval()
 

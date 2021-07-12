@@ -50,12 +50,12 @@ class TD3(Off_Policy):
         if self.is_continuous:
             self.actor = ActorDPG(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
             self.noised_action = self.target_noised_action = Noise_action_REGISTER[noise_action](**noise_params)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+                                  network_settings=network_settings['actor_continuous']).to(self.device)
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         self.actor_target = deepcopy(self.actor)
@@ -63,10 +63,10 @@ class TD3(Off_Policy):
 
         self.critic = CriticQvalueOne(self.rep_net.h_dim,
                                       action_dim=self.a_dim,
-                                      network_settings=network_settings['q'])
+                                      network_settings=network_settings['q']).to(self.device)
         self.critic2 = CriticQvalueOne(self.rep_net.h_dim,
                                        action_dim=self.a_dim,
-                                       network_settings=network_settings['q'])
+                                       network_settings=network_settings['q']).to(self.device)
 
         self.critic_target = deepcopy(self.critic)
         self.critic_target.eval()

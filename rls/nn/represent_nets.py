@@ -92,11 +92,12 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
             feat = self.encoder_net(feat)  # [B*T, X]
 
         if self.use_rnn:
+            # TODO: 
             batch_size = cell_state[0].shape[0]
             # reshape feature from [B*T, x] to [B, T, x]
 
             feat = feat.view(batch_size, -1, feat.shape[-1])
-            feat, cell_state = self.memory_net(feat, *cell_state)
+            feat, cell_state = self.memory_net(feat, cell_state)
             # reshape feature from [B, T, x] to [B*T, x]
             feat = feat.view(-1, feat.shape[-1])
 

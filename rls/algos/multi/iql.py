@@ -47,10 +47,10 @@ class IQL(MultiAgentOffPolicy):
         self.oplrs = []
         for i in range(self.n_models_percopy):
             rep_net = DefaultRepresentationNetwork(obs_spec=self.envspecs[i].obs_spec,
-                                                   representation_net_params=self.representation_net_params)
+                                                   representation_net_params=self.representation_net_params).to(self.device)
             q_net = CriticQvalueAll(rep_net.h_dim,
                                     output_shape=self.envspecs[i].a_dim,
-                                    network_settings=network_settings)
+                                    network_settings=network_settings).to(self.device)
             target_rep_net = deepcopy(rep_net)
             target_rep_net.eval()
             q_target_net = deepcopy(q_net)

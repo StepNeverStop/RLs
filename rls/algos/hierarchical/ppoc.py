@@ -102,7 +102,7 @@ class PPOC(On_Policy):
                              action_dim=self.a_dim,
                              options_num=self.options_num,
                              network_settings=network_settings,
-                             is_continuous=self.is_continuous)
+                             is_continuous=self.is_continuous).to(self.device)
 
         if self.is_continuous:
             self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
@@ -117,6 +117,9 @@ class PPOC(On_Policy):
         self._trainer_modules.update(self._worker_modules)
         self._trainer_modules.update(oplr=self.oplr)
 
+        self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
+        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
+
     def reset(self):
         super().reset()
         self._done_mask = np.full(self.n_copys, True)
@@ -125,16 +128,9 @@ class PPOC(On_Policy):
         super().partial_reset(done)
         self._done_mask = done
 
-    def _generate_random_options(self):
-        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
-
     @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        if not hasattr(self, 'options'):
-            self.options = self._generate_random_options()
         self.last_options = self.options
-        if not hasattr(self, 'oc_mask'):
-            self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
 
         feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(feat)
@@ -182,16 +178,16 @@ class PPOC(On_Policy):
         self.oc_mask = np.zeros_like(self.oc_mask)
 
     @iTensor_oNumpy
-    def _get_value(self, obs, options, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs, options):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         (q, _, _, _) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
-        return value, cell_state
+        return value
 
     def calculate_statistics(self):
-        last_data = self.data.last_data()
-        init_value, self.cell_state = self._get_value(last_data.obs_, last_data.options, cell_state=self.cell_state)
+        last_data = self.data.get_last_date()
+        init_value = self._get_value(last_data.obs_, last_data.options)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
@@ -235,10 +231,10 @@ class PPOC(On_Policy):
         })
 
     @iTensor_oNumpy
-    def share(self, BATCH, cell_state, kl_coef):
+    def share(self, BATCH, cell_states, kl_coef):
         last_options = BATCH.last_options  # [B,]
         options = BATCH.options
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(feat)
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]

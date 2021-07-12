@@ -115,7 +115,7 @@ def unity_no_op(env, model,
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
         obs = ret.corrected_obs
         if prefill_choose:
-            action = model(obs=obs)
+            action = model(obs=obs, evaluation=True)
         else:
             action = env.random_action()
         ret = env.step(action, step_config={})
@@ -159,7 +159,7 @@ def ma_unity_no_op(env, model,
     for _ in trange(0, pre_fill_steps, n, unit_scale=n, ncols=80, desc=desc, bar_format=bar_format):
         pre_obss = [ret.corrected_obs for ret in rets]
         if prefill_choose:
-            actions = model(obs=pre_obss)
+            actions = model(obs=pre_obss, evaluation=True)
         else:
             actions = env.random_action(is_single=False)
         rets = env.step(actions, is_single=False, step_config={})

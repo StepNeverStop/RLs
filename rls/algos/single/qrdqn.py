@@ -51,7 +51,7 @@ class QRDQN(Off_Policy):
         self.q_net = QrdqnDistributional(self.rep_net.h_dim,
                                          action_dim=self.a_dim,
                                          nums=self.nums,
-                                         network_settings=network_settings)
+                                         network_settings=network_settings).to(self.device)
         self.q_target_net = deepcopy(self.q_net)
         self.q_target_net.eval()
 

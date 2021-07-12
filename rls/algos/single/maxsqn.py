@@ -52,10 +52,10 @@ class MAXSQN(Off_Policy):
 
         self.critic = CriticQvalueAll(self.rep_net.h_dim,
                                       output_shape=self.a_dim,
-                                      network_settings=network_settings)
+                                      network_settings=network_settings).to(self.device)
         self.critic2 = CriticQvalueAll(self.rep_net.h_dim,
                                        output_shape=self.a_dim,
-                                       network_settings=network_settings)
+                                       network_settings=network_settings).to(self.device)
 
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()

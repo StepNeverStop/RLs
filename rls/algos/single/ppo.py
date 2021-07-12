@@ -133,11 +133,11 @@ class PPO(On_Policy):
             if self.is_continuous:
                 self.net = ActorCriticValueCts(self.rep_net.h_dim,
                                                output_shape=self.a_dim,
-                                               network_settings=network_settings['share']['continuous'])
+                                               network_settings=network_settings['share']['continuous']).to(self.device)
             else:
                 self.net = ActorCriticValueDct(self.rep_net.h_dim,
                                                output_shape=self.a_dim,
-                                               network_settings=network_settings['share']['discrete'])
+                                               network_settings=network_settings['share']['discrete']).to(self.device)
             if self.max_grad_norm is not None:
                 self.oplr = OPLR([self.net, self.rep_net], lr, clipnorm=self.max_grad_norm)
             else:
@@ -151,13 +151,13 @@ class PPO(On_Policy):
             if self.is_continuous:
                 self.actor = ActorMuLogstd(self.rep_net.h_dim,
                                            output_shape=self.a_dim,
-                                           network_settings=network_settings['actor_continuous'])
+                                           network_settings=network_settings['actor_continuous']).to(self.device)
             else:
                 self.actor = ActorDct(self.rep_net.h_dim,
                                       output_shape=self.a_dim,
-                                      network_settings=network_settings['actor_discrete'])
+                                      network_settings=network_settings['actor_discrete']).to(self.device)
             self.critic = CriticValue(self.rep_net.h_dim,
-                                      network_settings=network_settings['critic'])
+                                      network_settings=network_settings['critic']).to(self.device)
             if self.max_grad_norm is not None:
                 self.actor_oplr = OPLR(self.actor, actor_lr, clipnorm=self.max_grad_norm)
                 self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr, clipnorm=self.max_grad_norm)
@@ -207,8 +207,8 @@ class PPO(On_Policy):
         self.cell_state = self.next_cell_state
 
     @iTensor_oNumpy
-    def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         if self.share_net:
             if self.is_continuous:
                 _, _, value = self.net(feat)
@@ -216,10 +216,10 @@ class PPO(On_Policy):
                 _, value = self.net(feat)
         else:
             value = self.critic(feat)
-        return value, cell_state
+        return value
 
     def calculate_statistics(self) -> NoReturn:
-        init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
+        init_value = self._get_value(self.data.get_last_date().obs_)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma, normalize=True)
@@ -227,23 +227,23 @@ class PPO(On_Policy):
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
 
-        def _train(data, cell_state):
+        def _train(data, cell_states):
             early_step = 0
             if self.share_net:
                 for i in range(self.policy_epoch):
-                    actor_loss, critic_loss, entropy, kl = self.train_share(data, cell_state, self.kl_coef)
+                    actor_loss, critic_loss, entropy, kl = self.train_share(data, cell_states, self.kl_coef)
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
             else:
                 for i in range(self.policy_epoch):
-                    actor_loss, entropy, kl = self.train_actor(data, cell_state, self.kl_coef)
+                    actor_loss, entropy, kl = self.train_actor(data, cell_states, self.kl_coef)
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
 
                 for _ in range(self.value_epoch):
-                    critic_loss = self.train_critic(data, cell_state)
+                    critic_loss = self.train_critic(data, cell_states)
 
             summaries = dict([
                 ['LOSS/actor_loss', actor_loss],
@@ -285,8 +285,8 @@ class PPO(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train_share(self, BATCH, cell_state, kl_coef):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train_share(self, BATCH, cell_states, kl_coef):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std, value = self.net(feat)
             new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
@@ -341,8 +341,8 @@ class PPO(On_Policy):
         return actor_loss, value_loss, entropy, kl
 
     @iTensor_oNumpy
-    def train_actor(self, BATCH, cell_state, kl_coef):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train_actor(self, BATCH, cell_states, kl_coef):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std = self.actor(feat)
             new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
@@ -379,8 +379,8 @@ class PPO(On_Policy):
         return actor_loss, entropy, kl
 
     @iTensor_oNumpy
-    def train_critic(self, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train_critic(self, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         value = self.critic(feat)
 
         td_error = BATCH.discounted_reward - value

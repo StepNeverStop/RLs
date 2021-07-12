@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 
-from rls.nn.layers import MLP
+from rls.nn.mlps import MLP
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import BatchExperiences
 
@@ -28,6 +28,7 @@ class Model(t.nn.Module):
             return self.net(s).argmax(-1)
 
     def set_wb(self, weights):
+        # TODO: 优化
         start = 0
         wbs = []
         for dim_list, nums in zip(self.weights_2dim, self.weights_nums):
@@ -64,9 +65,11 @@ class CEM(On_Policy):
         self.envs_per_popu = envs_per_popu
         self.extra_var_last_multiplier = extra_var_last_multiplier
         self.concat_vector_dim = self.obs_spec.total_vector_dim
+        self._check_agents()
+        self.populations = int(self.n_copys / self.envs_per_popu)
+        self._build()
 
     def __call__(self, obs, evaluation=False):
-        self._check_agents()
         a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
         if self.is_continuous:
             a = np.vstack(a)
@@ -99,17 +102,14 @@ class CEM(On_Policy):
         用于为实例赋予种群数量属性，并且初始化变量
         params : 状态列表S，一个环境下有多少个智能体就包含多少个状态向量
         '''
-        if not hasattr(self, 'populations'):
-            assert self.n_copys % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
-            self.populations = int(self.n_copys / self.envs_per_popu)
-            self._build()
+        assert self.n_copys % self.envs_per_popu == 0, '环境数必须可以整除envs_per_popu系数'
 
     def _build(self):
         '''
         构建实体模型，初始化变量
         '''
         self.n_elite = max(int(np.round(self.populations * self.frac)), 1)
-        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous) for i in range(self.populations)]
+        self.cem_models = [Model(self.concat_vector_dim, self.a_dim, self.network_settings, self.is_continuous).to(self.device) for i in range(self.populations)]
         self.mu = np.random.randn(self.cem_models[0].weights_total_nums)
         self.sigma = np.ones(self.cem_models[0].weights_total_nums) * self.init_var
         self._update_models_weights()

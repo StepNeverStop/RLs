@@ -5,7 +5,6 @@ import numpy as np
 from numbers import Number
 
 from rls.common.specs import Data
-from rls.algos.base.base import Base
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
@@ -31,12 +30,10 @@ def to_numpy(x):
 
 
 def to_tensor(x, dtype=t.float32, device='cpu'):
-    if not x:
+    if x is None or isinstance(x, Number):
         return x
     try:
-        if isinstance(x, Base):   # arg: self
-            return x
-        elif isinstance(x, Data):
+        if isinstance(x, Data):
             return x.convert(func=lambda y: t.as_tensor(y, dtype=dtype, device=device))
         elif isinstance(x, np.ndarray):
             x = t.as_tensor(x, dtype=dtype, device=device)

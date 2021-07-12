@@ -61,11 +61,11 @@ class DDPG(Off_Policy):
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
             self.gumbel_dist = td.gumbel.Gumbel(0, 1)
         self.critic = CriticQvalueOne(self.rep_net.h_dim,
                                       action_dim=self.a_dim,
-                                      network_settings=network_settings['q'])
+                                      network_settings=network_settings['q']).to(self.device)
 
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()

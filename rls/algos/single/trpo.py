@@ -114,13 +114,13 @@ class TRPO(On_Policy):
         if self.is_continuous:
             self.actor = ActorMuLogstd(self.rep_net.h_dim,
                                        output_shape=self.a_dim,
-                                       network_settings=network_settings['actor_continuous'])
+                                       network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete'])
+                                  network_settings=network_settings['actor_discrete']).to(self.device)
         self.critic = CriticValue(self.rep_net.h_dim,
-                                  network_settings=network_settings['critic'])
+                                  network_settings=network_settings['critic']).to(self.device)
 
         self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
 
@@ -170,14 +170,13 @@ class TRPO(On_Policy):
         self.cell_state = self.next_cell_state
 
     @iTensor_oNumpy
-    def _get_value(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def _get_value(self, obs):
+        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         value = self.critic(feat)
-        return value, cell_state
+        return value
 
     def calculate_statistics(self):
-        init_value, self.cell_state = self._get_value(self.data.last_data().obs_, cell_state=self.cell_state)
-        init_value = init_value.numpy()
+        init_value = self._get_value(self.data.get_last_date().obs_)
         self.data.cal_dc_r(self.gamma, init_value)
         self.data.cal_td_error(self.gamma, init_value)
         self.data.cal_gae_adv(self.lambda_, self.gamma)
@@ -213,8 +212,8 @@ class TRPO(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train_actor(self, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train_actor(self, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -233,8 +232,8 @@ class TRPO(On_Policy):
         return actor_loss, entropy, gradients
 
     @iTensor_oNumpy
-    def Hx(self, x, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def Hx(self, x, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -254,8 +253,8 @@ class TRPO(On_Policy):
         return hvp
 
     @iTensor_oNumpy
-    def train_critic(self, BATCH, cell_state):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state['obs'])
+    def train_critic(self, BATCH, cell_states):
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         value = self.critic(feat)
         td_error = BATCH.discounted_reward - value
         value_loss = td_error.square().mean()
