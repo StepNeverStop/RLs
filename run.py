@@ -6,82 +6,49 @@ Usage:
     python [options]
 
 Options:
-    -h,--help                   显示帮助
-    -a,--algorithm=<name>       算法
-                                specify the training algorithm [default: ppo]
-    -c,--copys=<n>              指定并行训练的数量
-                                nums of environment copys that collect data in parallel [default: 1]
-    -e,--env=<file>             指定Unity环境路径
-                                specify the path of builded training environment of UNITY3D [default: None]
-    -g,--graphic                是否显示图形界面
-                                whether show graphic interface when using UNITY3D [default: False]
-    -i,--inference              推断
-                                inference the trained model, not train policies [default: False]
-    -m,--models=<n>             同时训练多少个模型
-                                specify the number of trails that using different random seeds [default: 1]
-    -n,--name=<name>            训练的名字
-                                specify the name of this training task [default: None]
-    -p,--port=<n>               端口
-                                specify the port that communicate with training environment of UNITY3D [default: 5005]
-    -r,--rnn                    是否使用RNN模型
-                                whether use rnn[GRU, LSTM, ...] or not [default: False]
-    -s,--save-frequency=<n>     保存频率
-                                specify the interval that saving model checkpoint [default: None]
-    -t,--train-step=<n>         总的训练次数
-                                specify the training step that optimize the policy model [default: None]
-    -u,--unity                  是否使用unity客户端
-                                whether training with UNITY3D editor [default: False]
-    -d, --device=<str>          指定Tensor的设备，None指由程序自动获取
-                                specify the device that operate Torch.Tensor [default: None]
+    -h,--help                   show help info
+    -a,--algorithm=<name>       specify the training algorithm [default: ppo]
+    -c,--copys=<n>              nums of environment copys that collect data in parallel [default: 1]
+    -d, --device=<str>          specify the device that operate Torch.Tensor [default: None]
+    -e, --env=<name>            specify the environment name [default: CartPole-v0]
+    -f,--file-name=<file>       specify the path of builded training environment of UNITY3D [default: None]
+    -g,--graphic                whether show graphic interface when using UNITY3D [default: False]
+    -i,--inference              inference the trained model, not train policies [default: False]
+    -p,--platform=<str>         specify the platform of training environment [default: gym]
+    -l,--load=<name>            specify the name of pre-trained model that need to load [default: None]
+    -m,--models=<n>             specify the number of trails that using different random seeds [default: 1]
+    -n,--name=<name>            specify the name of this training task [default: None]
+    -r,--rnn                    whether use rnn[GRU, LSTM, ...] or not [default: False]
+    -s,--save-frequency=<n>     specify the interval that saving model checkpoint [default: None]
+    -t,--train-step=<n>         specify the training step that optimize the policy model [default: None]
+    -u,--unity                  whether training with UNITY3D editor [default: False]
+    --port=<n>                  specify the port that communicate with training environment of UNITY3D [default: 5005]
     --apex=<str>                i.e. "learner"/"worker"/"buffer"/"evaluator" [default: None]
-    --unity-env=<name>          指定unity环境的名字
-                                specify the name of training environment of UNITY3D [default: None]
-    --config-file=<file>        指定模型的超参数config文件
-                                specify the path of training configuration file [default: None]
-    --store-dir=<file>          指定要保存模型、日志、数据的文件夹路径
-                                specify the directory that store model, log and others [default: None]
-    --seed=<n>                  指定训练器全局随机种子
-                                specify the random seed of module random, numpy and pytorch [default: 42]
-    --unity-env-seed=<n>        指定unity环境的随机种子
-                                specify the environment random seed of UNITY3D [default: 42]
-    --max-step=<n>              每回合最大步长
-                                specify the maximum step per episode [default: None]
-    --train-episode=<n>         总的训练回合数
-                                specify the training maximum episode [default: None]
-    --train-frame=<n>           总的训练采样次数
-                                specify the training maximum steps interacting with environment [default: None]
-    --load=<name>               指定载入model的训练名称
-                                specify the name of pre-trained model that need to load [default: None]
-    --prefill-steps=<n>         指定预填充的经验数量
-                                specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
-    --prefill-choose            指定no_op操作时随机选择动作，或者置0
-                                whether choose action using model or choose randomly [default: False]
-    --gym                       是否使用gym训练环境
-                                whether training with gym [default: False]
-    --gym-env=<name>            指定gym环境的名字
-                                specify the environment name of gym [default: CartPole-v0]
-    --gym-env-seed=<n>          指定gym环境的随机种子
-                                specify the environment random seed of gym [default: 42]
-    --render-episode=<n>        指定gym环境从何时开始渲染
-                                specify when to render the graphic interface of gym environment [default: None]
-    --info=<str>                抒写该训练的描述，用双引号包裹
-                                write another information that describe this training task [default: None]
-    --hostname                  是否在训练名称后附加上主机名称
-                                whether concatenate hostname with the training name [default: False]
-    --no-save                   指定是否在训练中保存模型、日志及训练数据
-                                specify whether save models/logs/summaries while training or not [default: False]
+    --config-file=<file>        specify the path of training configuration file [default: None]
+    --store-dir=<file>          specify the directory that store model, log and others [default: None]
+    --seed=<n>                  specify the random seed of module random, numpy and pytorch [default: 42]
+    --env-seed=<n>              specify the environment random seed [default: 42]
+    --max-step=<n>              specify the maximum step per episode [default: None]
+    --train-episode=<n>         specify the training maximum episode [default: None]
+    --train-frame=<n>           specify the training maximum steps interacting with environment [default: None]
+    --prefill-steps=<n>         specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
+    --prefill-choose            whether choose action using model or choose randomly [default: False]
+    --render-episode=<n>        specify when to render the graphic interface of gym environment [default: None]
+    --info=<str>                write another information that describe this training task [default: None]
+    --hostname                  whether concatenate hostname with the training name [default: False]
+    --no-save                   specify whether save models/logs/summaries while training or not [default: False]
 Example:
-    gym:
-        python run.py --gym -a dqn --gym-env CartPole-v0 -c 12 -n dqn_cartpole --no-save
-    unity:
-        python run.py -u -a ppo -n run_with_unity
-        python run.py -e /root/env/3dball.app -a sac -n run_with_execution_file
+    python run.py
+    python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole --no-save
+    python run.py -p unity -a ppo -n run_with_unity
+    python run.py -p unity --file-name /root/env/3dball.app -a sac -n run_with_execution_file
 """
 
 import os
 import sys
 import time
 import logging
+import platform
 
 from typing import Dict
 from copy import deepcopy
@@ -91,11 +58,12 @@ from multiprocessing import Process
 from rls.common.trainer import Trainer
 from rls.common.config import Config
 from rls.common.yaml_ops import load_yaml
-from rls.parse.parse_op import parse_options
 from rls.utils.display import show_dict
 from rls.utils.logging_utils import set_log_level
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
+
+BASE_DIR = f'C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + f'/RLData'
 
 set_log_level(logging.INFO)
 if sys.platform.startswith('win'):
@@ -124,7 +92,7 @@ def get_options(options: Dict) -> Config:
     return:
         op: an instance of Config class that contains the parameters
     '''
-    def f(k, t): 
+    def f(k, t):
         return None if options[k] == 'None' else t(options[k])
     op = Config()
     op.add_dict(dict([
@@ -132,9 +100,9 @@ def get_options(options: Dict) -> Config:
         ['algo',                    str(options['--algorithm'])],
         ['use_rnn',                 bool(options['--rnn'])],
         ['algo_config',             f('--config-file', str)],
-        ['env',                     f('--env', str)],
+        ['file_name',               f('--file-name', str)],
         ['port',                    int(options['--port'])],
-        ['unity',                   bool(options['--unity'])],
+        ['platform',                str(options['--platform'])],
         ['graphic',                 bool(options['--graphic'])],
         ['name',                    f('--name', str)],
         ['device',                  f('--device', str)],
@@ -142,7 +110,7 @@ def get_options(options: Dict) -> Config:
         ['models',                  int(options['--models'])],
         ['store_dir',               f('--store-dir', str)],
         ['seed',                    int(options['--seed'])],
-        ['unity_env_seed',          int(options['--unity-env-seed'])],
+        ['env_seed',                int(options['--env-seed'])],
         ['max_step_per_episode',    f('--max-step', int)],
         ['max_train_step',          f('--train-step', int)],
         ['max_train_frame',         f('--train-frame', int)],
@@ -150,13 +118,10 @@ def get_options(options: Dict) -> Config:
         ['load',                    f('--load', str)],
         ['prefill_steps',           f('--prefill-steps', int)],
         ['prefill_choose',          bool(options['--prefill-choose'])],
-        ['gym',                     bool(options['--gym'])],
         ['n_copys',                 int(options['--copys'])],
-        ['gym_env',                 str(options['--gym-env'])],
-        ['gym_env_seed',            int(options['--gym-env-seed'])],
+        ['env',                     str(options['--env'])],
         ['render_episode',          f('--render-episode', int)],
         ['info',                    f('--info', str)],
-        ['unity_env',               f('--unity-env', str)],
         ['apex',                    f('--apex', str)],
         ['hostname',                bool(options['--hostname'])],
         ['no_save',                 bool(options['--no-save'])],
@@ -179,8 +144,84 @@ def main():
     trails = options.models
     assert trails > 0, '--models must greater than 0.'
 
-    env_args, train_args = parse_options(options, default_config=load_yaml(f'./config.yaml'))
+    default_config = load_yaml(f'./config.yaml')
 
+    # gym > unity > unity_env
+    env_args = Config()
+    env_args.env_num = options.n_copys  # Environmental copies of vectorized training.
+    env_args.inference = options.inference
+
+    env_args.type = options.platform
+    env_args.add_dict(default_config[env_args.type]['env'])
+    env_args.env_seed = options.env_seed
+    if env_args.type == 'gym':
+        env_args.env_name = options.env
+    elif env_args.type == 'unity':
+        if env_args.initialize_config.env_copys <= 1:
+            env_args.initialize_config.env_copys = options.n_copys
+        env_args.port = options.port
+        env_args.env_seed = options.env_seed
+        env_args.render = options.graphic or options.inference
+
+        env_args.file_name = options.file_name
+        if env_args.file_name:
+            if os.path.exists(env_args.file_name):
+                env_args.env_name = options.env or os.path.join(
+                    *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:]
+                )
+                if 'visual' in env_args.env_name.lower():
+                    # if traing with visual input but do not render the environment, all 0 obs will be passed.
+                    env_args.render = True
+            else:
+                raise Exception('can not find the executable file.')
+        else:
+            env_args.env_name = 'unity'
+    else:
+        raise NotImplementedError(f'Cannot recognize this kind of platform: {options.platform}')
+
+    train_args = Config(**default_config['train'])
+    train_args.add_dict(default_config[env_args.type]['train'])
+    if env_args.type == 'gym':
+        train_args.render_episode = abs(train_args.render_episode) or sys.maxsize
+        train_args.update({'render_episode': options.render_episode})
+    train_args.index = 0
+    train_args.name = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
+    train_args.max_step_per_episode = abs(train_args.max_step_per_episode) or sys.maxsize
+    train_args.max_train_step = abs(train_args.max_train_step) or sys.maxsize
+    train_args.max_frame_step = abs(train_args.max_frame_step) or sys.maxsize
+    train_args.max_train_episode = abs(train_args.max_train_episode) or sys.maxsize
+    train_args.inference_episode = abs(train_args.inference_episode) or sys.maxsize
+
+    train_args.algo = options.algo
+    train_args.device = options.device
+    train_args.apex = options.apex
+    train_args.use_rnn = options.use_rnn
+    train_args.algo_config = options.algo_config
+    train_args.seed = options.seed
+    train_args.inference = options.inference
+    train_args.prefill_choose = options.prefill_choose
+    train_args.load_model_path = options.load
+    train_args.no_save = options.no_save
+    train_args.base_dir = os.path.join(options.store_dir or BASE_DIR, env_args.env_name, train_args.algo)
+    if train_args.load_model_path is not None and not os.path.exists(train_args.load_model_path):   # 如果不是绝对路径，就拼接load的训练相对路径
+        train_args.load_model_path = os.path.join(train_args.base_dir, train_args.load_model_path)
+    train_args.update(dict([
+        ['name', options.name],
+        ['max_step_per_episode', options.max_step_per_episode],
+        ['max_train_step', options.max_train_step],
+        ['max_train_frame', options.max_train_frame],
+        ['max_train_episode', options.max_train_episode],
+        ['save_frequency', options.save_frequency],
+        ['pre_fill_steps', options.prefill_steps],
+        ['info', options.info]
+    ]))
+    if options.apex is not None:
+        train_args.name = f'{options.apex}/' + train_args.name
+    if options.hostname:
+        import socket
+        train_args.name += ('-' + str(socket.gethostname()))
+
+    # start training
     if options.inference:
         Trainer(env_args, train_args).evaluate()
         return
