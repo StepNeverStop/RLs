@@ -7,9 +7,6 @@ import torch as t
 from torch import distributions as td
 from dataclasses import dataclass
 
-from rls.utils.torch_utils import (gaussian_clip_rsample,
-                                   gaussian_likelihood_sum,
-                                   gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import (ModelObservations,
                               Data,
@@ -144,18 +141,19 @@ class TRPO(On_Policy):
         self._value = to_numpy(self.critic(feat))
         if self.is_continuous:
             mu, log_std = output
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            sample_op = dist.sample().clamp(-1, 1)
+            log_prob = dist.log_prob(sample_op).unsqueeze(-1)
             self._mu = to_numpy(mu)
             self._log_std = to_numpy(log_std)
-            sample_op, _ = gaussian_clip_rsample(mu, log_std)
-            log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
         else:
             logits = output
             logp_all = logits.log_softmax(-1)
             self._logp_all = to_numpy(logp_all)
-            norm_dist = td.categorical.Categorical(logits=logp_all)
+            norm_dist = td.Categorical(logits=logp_all)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
-        self._log_prob = to_numpy(log_prob) + 1e-10
+        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
         return sample_op
 
     def store_data(self, exps: BatchExperiences):
@@ -189,7 +187,7 @@ class TRPO(On_Policy):
 
             x = self.cg(self.Hx, gradients.numpy(), data, cell_state)
             x = t.tensor(x)
-            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, data, cell_state)) + 1e-8))
+            alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, data, cell_state)) + np.finfo(np.float32).eps))
             for i in range(self.backtrack_iters):
                 assign_params_from_flat(alpha * x * (self.backtrack_coeff ** i), self.actor)
 
@@ -217,8 +215,9 @@ class TRPO(On_Policy):
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
-            new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             logits = output
             logp_all = logits.log_softmax(-1)
@@ -238,7 +237,7 @@ class TRPO(On_Policy):
         if self.is_continuous:
             mu, log_std = output
             var0, var1 = (2 * log_std).exp(), (2 * BATCH.log_std).exp()
-            pre_sum = 0.5 * (((BATCH.mu - mu)**2 + var0) / (var1 + 1e-8) - 1) + BATCH.log_std - log_std
+            pre_sum = 0.5 * (((BATCH.mu - mu)**2 + var0) / (var1 + t.finfo().eps) - 1) + BATCH.log_std - log_std
             all_kls = pre_sum.sum(1)
         else:
             logits = output
@@ -273,7 +272,7 @@ class TRPO(On_Policy):
         r_dot_old = np.dot(r, r)
         for _ in range(self.cg_iters):
             z = Ax(t.tensor(p), BATCH, cell_state)
-            alpha = r_dot_old / (np.dot(p, z) + 1e-8)
+            alpha = r_dot_old / (np.dot(p, z) + np.finfo(np.float32).eps)
             x += alpha * p
             r -= alpha * z
             r_dot_new = np.dot(r, r)

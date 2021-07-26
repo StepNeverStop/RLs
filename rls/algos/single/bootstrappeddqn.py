@@ -110,7 +110,7 @@ class BootstrappedDQN(Off_Policy):
         td_error = q_target - q_eval    # [H, B, 1]
         td_error = td_error.sum(-1)  # [H, B]
 
-        mask_dist = td.bernoulli.Bernoulli(probs=self._probs)
+        mask_dist = td.Bernoulli(probs=self._probs)
         mask = mask_dist.sample([batch_size]).T   # [H, B]
         q_loss = (td_error.square() * isw).mean()
 

@@ -117,7 +117,6 @@ class HIRO(Off_Policy):
             self.low_actor = ActorDct(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                       output_shape=self.a_dim,
                                       network_settings=network_settings['low_actor']).to(self.device)
-            self.gumbel_dist = td.gumbel.Gumbel(0, 1)
         self.low_critic = CriticQvalueOne(vector_dim=self.concat_vector_dim + self.sub_goal_dim,
                                           action_dim=self.a_dim,
                                           network_settings=network_settings['low_critic']).to(self.device)
@@ -245,7 +244,7 @@ class HIRO(Off_Policy):
         else:
             logits = output
             mu = logits.argmax(1)
-            cate_dist = td.categorical.Categorical(logits=logits)
+            cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
         return mu if evaluation else pi
 
@@ -293,7 +292,7 @@ class HIRO(Off_Policy):
             action_target = target_output
         else:
             target_logits = target_output
-            target_cate_dist = td.categorical.Categorical(logits=target_logits)
+            target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
@@ -320,8 +319,8 @@ class HIRO(Off_Policy):
             mu = output
         else:
             logits = output
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
             logp_all = logits.log_softmax(-1)
+            gumbel_noise = td.Gumbel(0, 1).sample(BATCH.action.shape)
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
             _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
             _pi_diff = (_pi_true_one_hot - _pi).detach()
@@ -348,7 +347,7 @@ class HIRO(Off_Policy):
 
         s = BATCH.obs[:, 0]                                # [B, N]
         true_end = (BATCH.obs_ - s)[:, self.fn_goal_dim:]
-        g_dist = td.normal.Normal(loc=true_end, scale=0.5 * self.high_scale[None, :])
+        g_dist = td.Normal(loc=true_end, scale=0.5 * self.high_scale[None, :])
         ss = BATCH.obs.unsqueeze(0)  # [1, B, T, *]
         ss = ss.repeat(self.sample_g_nums, 1, 1, 1)    # [10, B, T, *]
         ss = ss.view(-1, ss.shape[-1])  # [10*B*T, *]

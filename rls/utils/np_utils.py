@@ -124,7 +124,7 @@ def standardization(data):
     '''
     assert isinstance(data, np.ndarray)
     mu = np.mean(data)
-    sigma = np.std(data) + 1e-8
+    sigma = np.std(data) + np.finfo(np.float32).eps
     return (data - mu) / sigma
 
 

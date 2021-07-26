@@ -24,41 +24,6 @@ def clip_nn_log_std(log_std, _min=-20, _max=2):
     return _min + 0.5 * (_max - _min) * (log_std + 1)
 
 
-def gaussian_rsample(mu, log_std):
-    """
-    Reparameter
-    Args:
-        mu: mean value of a gaussian distribution
-        log_std: log standard deviation of a gaussian distribution
-    Return: 
-        sample from the gaussian distribution
-        the log probability of sample
-    """
-    std = log_std.exp()
-    pi = mu + t.randn(mu.shape) * std
-    log_pi = gaussian_likelihood(pi, mu, log_std)
-    return pi, log_pi
-
-
-def gaussian_clip_rsample(mu, log_std, _min=-1, _max=1):
-    """
-    Reparameter sample and clip the value of sample to range [_min, _max]
-    Args:
-        mu: mean value of a gaussian distribution
-        log_std: log standard deviation of a gaussian distribution
-        _min: minimum value of sample after clip
-        _max: maximum value of sample after clip
-    Return:
-        sample from the gaussian distribution after clip
-        the log probability of sample
-    """
-    std = log_std.exp()
-    pi = mu + t.randn(mu.shape) * std
-    pi = pi.clamp(_min, _max)
-    log_pi = gaussian_likelihood(pi, mu, log_std)
-    return pi, log_pi
-
-
 def gaussian_likelihood(x, mu, log_std):
     """
     Calculating the log probability of a sample from gaussian distribution.
@@ -69,13 +34,8 @@ def gaussian_likelihood(x, mu, log_std):
     Return:
         log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
-    pre_sum = -0.5 * (((x - mu) / (log_std.exp() + 1e-8))**2 + 2 * log_std + math.log(2 * np.pi))
+    pre_sum = -0.5 * (((x - mu) / (log_std.exp() + t.finfo().eps))**2 + 2 * log_std + math.log(2 * np.pi))
     return t.maximum(pre_sum, t.full_like(pre_sum, t.finfo().eps))
-
-
-def gaussian_likelihood_sum(x, mu, log_std):
-    log_pi = gaussian_likelihood(x, mu, log_std)
-    return log_pi.sum(-1, keepdim=True)
 
 
 def gaussian_entropy(log_std):
@@ -86,10 +46,10 @@ def gaussian_entropy(log_std):
     Return:
         The average entropy of a batch of data.
     '''
-    return (0.5 * (1 + (2 * np.pi * log_std.exp()**2 + 1e-8).log())).mean()
+    return (0.5 * (1 + (2 * np.pi * log_std.exp()**2 + t.finfo().eps).log())).mean()
 
 
-def squash_action(pi, log_pi=None, *, need_sum=True):
+def squash_action(pi, log_pi, *, is_independent=True):
     """
     Enforcing action bounds.
     squash action to range [-1, 1] and calculate the correct log probability value.
@@ -101,13 +61,10 @@ def squash_action(pi, log_pi=None, *, need_sum=True):
         the corrected log probability of squashed sample.
     """
     pi.tanh_()
-    if log_pi is not None:
-        sub = (clip_but_pass_gradient(1 - pi**2, l=0, h=1) + 1e-8).log()
-        if need_sum:
-            log_pi = log_pi.sum(-1, keepdim=True)
-            log_pi -= sub.sum(-1, keepdim=True)
-        else:
-            log_pi -= sub
+    sub = (clip_but_pass_gradient(1 - pi**2, l=0, h=1) + t.finfo().eps).log()
+    log_pi -= sub
+    if is_independent:
+        log_pi = log_pi.sum(-1, keepdim=True)
     return pi, log_pi
 
 
@@ -131,29 +88,8 @@ def clip_but_pass_gradient(x, l=-1., h=1.):
     return x + ((h - x) * clip_up + (l - x) * clip_low).detach()
 
 
-def squash_rsample(mu, log_std):
-    '''
-    Reparameter sample from guassian distribution. Sqashing output from [-inf, inf] to [-1, 1]
-    Args:
-        mu: mean of guassian distribution
-        log_std: log standard deviation of guassian distribution
-    Return:
-        actions range from [-1, 1], like [batch, action_value]
-    '''
-    return squash_action(*gaussian_rsample(mu, log_std), need_sum=True)
-
-
-def tsallis_squash_rsample(mu, log_std, q):
-    '''
-    TODO: Annotation
-    '''
-    pi, log_pi = squash_action(*gaussian_rsample(mu, log_std), need_sum=False)
-    log_q_pi = tsallis_entropy_log_q(log_pi, q)
-    return pi, log_q_pi
-
-
 def tsallis_entropy_log_q(log_pi, q):
-    if q == 1.:
+    if q == 1.:  # same to SAC
         return log_pi.sum(-1, keepdim=True)
     else:
         if q > 0.:
