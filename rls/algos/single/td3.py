@@ -77,7 +77,7 @@ class TD3(Off_Policy):
 
         self._pairs = [(self._target_rep_net, self.rep_net),
                        (self.critic_target, self.critic),
-                       (self.critic2_target, self.critic2)
+                       (self.critic2_target, self.critic2),
                        (self.actor_target, self.actor)]
         sync_params_pairs(self._pairs)
 
@@ -128,44 +128,46 @@ class TD3(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        if self.is_continuous:
-            action_target = self.target_noised_action(self.actor_target(feat_))
-            mu = output
-        else:
-            target_logits = self.actor_target(feat_)
-            target_cate_dist = td.categorical.Categorical(logits=target_logits)
-            target_pi = target_cate_dist.sample()
-            target_log_pi = target_cate_dist.log_prob(target_pi)
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
+        for _ in range(self.delay_num):
+            feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+            feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+            if self.is_continuous:
+                action_target = self.target_noised_action(self.actor_target(feat_))
+            else:
+                target_logits = self.actor_target(feat_)
+                target_cate_dist = td.categorical.Categorical(logits=target_logits)
+                target_pi = target_cate_dist.sample()
+                target_log_pi = target_cate_dist.log_prob(target_pi)
+                action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
+            q1 = self.critic(feat, BATCH.action)
+            q2 = self.critic2(feat, BATCH.action)
+            q_target = t.minimum(self.critic_target(feat_, action_target), self.critic2_target(feat_, action_target))
+            dc_r = q_target_func(BATCH.reward,
+                                self.gamma,
+                                BATCH.done,
+                                q_target)
+            td_error1 = q1 - dc_r
+            td_error2 = q2 - dc_r
+            q1_loss = (td_error1.square() * isw).mean()
+            q2_loss = (td_error2.square() * isw).mean()
+            critic_loss = 0.5 * (q1_loss + q2_loss)
+            self.critic_oplr.step(critic_loss)
 
+        feat = feat.detach()
+        if self.is_continuous:
+            mu = self.actor(feat)
+        else:
             gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
-            logits = output
+            logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
             _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
             _pi_diff = (_pi_true_one_hot - _pi).detach()
             mu = _pi_diff + _pi
-        q1 = self.critic(feat, BATCH.action)
-        q2 = self.critic2(feat, BATCH.action)
         q1_actor = self.critic(feat, mu)
-        q_target = t.minimum(self.critic_target(feat_, action_target), self.critic2_target(feat_, action_target))
-        dc_r = q_target_func(BATCH.reward,
-                             self.gamma,
-                             BATCH.done,
-                             q_target)
-        td_error1 = q1 - dc_r
-        td_error2 = q2 - dc_r
-        q1_loss = (td_error1.square() * isw).mean()
-        q2_loss = (td_error2.square() * isw).mean()
-        critic_loss = 0.5 * (q1_loss + q2_loss)
         actor_loss = -q1_actor.mean()
-        self.critic_oplr.step(critic_loss)
-
+        self.actor_oplr.step(actor_loss)
         self.global_step.add_(1)
-        if self.global_step % self.delay_num == 0:
-            self.actor_oplr.step(actor_loss)
         return (td_error1 + td_error2) / 2, dict([
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', critic_loss],

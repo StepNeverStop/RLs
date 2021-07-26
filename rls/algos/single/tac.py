@@ -153,22 +153,9 @@ class TAC(Off_Policy):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         if self.is_continuous:
-            mu, log_std = self.actor(feat)
-            pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
-            entropy = gaussian_entropy(log_std)
             target_mu, target_log_std = self.actor(feat_)
             target_pi, target_log_pi = tsallis_squash_rsample(target_mu, target_log_std, self.entropic_index)
         else:
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            pi = _pi_diff + _pi
-            log_pi = (logp_all * pi).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-
             target_logits = self.actor(feat_)
             target_cate_dist = td.categorical.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
@@ -176,7 +163,6 @@ class TAC(Off_Policy):
             target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()
         q1 = self.critic(feat, BATCH.action)
         q2 = self.critic2(feat, BATCH.action)
-        q_s_pi = t.minimum(self.critic(feat, pi), self.critic2(feat, pi))
 
         q1_target = self.critic_target(feat_, target_pi)
         q2_target = self.critic2_target(feat_, target_pi)
@@ -190,8 +176,25 @@ class TAC(Off_Policy):
         q1_loss = (td_error1.square() * isw).mean()
         q2_loss = (td_error2.square() * isw).mean()
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-        actor_loss = -(q_s_pi - self.alpha * log_pi).mean()
         self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            pi, log_pi = tsallis_squash_rsample(mu, log_std, self.entropic_index)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            pi = _pi_diff + _pi
+            log_pi = (logp_all * pi).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        q_s_pi = t.minimum(self.critic(feat, pi), self.critic2(feat, pi))
+        actor_loss = -(q_s_pi - self.alpha * log_pi).mean()
         self.actor_oplr.step(actor_loss)
 
         if self.auto_adaption:

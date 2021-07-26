@@ -70,7 +70,7 @@ def gaussian_likelihood(x, mu, log_std):
         log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
     pre_sum = -0.5 * (((x - mu) / (log_std.exp() + 1e-8))**2 + 2 * log_std + math.log(2 * np.pi))
-    return t.maximum(pre_sum, math.log(1e-8))
+    return t.maximum(pre_sum, t.full_like(pre_sum, t.finfo().eps))
 
 
 def gaussian_likelihood_sum(x, mu, log_std):
@@ -163,7 +163,7 @@ def tsallis_entropy_log_q(log_pi, q):
             pi_p = log_pi.exp()
         else:
             pi_p = t.minimum(log_pi.exp(), t.pow(10., 8 / (1 - q)))
-        safe_x = pi_p.maximum(t.full_like(pi_p, 1e-6))
+        safe_x = pi_p.maximum(t.full_like(pi_p, t.finfo().eps))
         log_q_pi = (safe_x.pow(1 - q) - 1) / (1 - q)
         return log_q_pi.sum(-1, keepdim=True)
 
@@ -195,17 +195,6 @@ def sync_params_pairs(pairs: List[Tuple], ployak: float = 0.) -> NoReturn:
 
 def grads_flatten(grads):
     return t.cat([g.flatten() for g in grads], 0)
-
-
-def truncated_normal_(size, mean=0., std=1.):
-    with torch.no_grad():
-        tensor = t.zeros(size)
-        tmp = tensor.new_empty(size + (4,)).normal_()
-        valid = (tmp < 2) & (tmp > -2)
-        ind = valid.max(-1, keepdim=True)[1]
-        tensor.data.copy_(tmp.gather(-1, ind).squeeze(-1))
-        tensor.data.mul_(std).add_(mean)
-        return tensor
 
 
 def q_target_func(reward, gamma, done, q_next, detach=True):

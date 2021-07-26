@@ -153,14 +153,12 @@ class IOC(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        last_options = BATCH.last_options
-        options = BATCH.options
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+
+        last_options = BATCH.last_options
+        options = BATCH.options
         q = self.q_net(feat)    # [B, P]
-        pi = self.intra_option_net(feat)  # [B, P, A]
-        beta = self.termination_net(feat)   # [B, P]
-        interests = self.interest_net(feat)  # [B, P]
         q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
         beta_next = self.termination_net(feat_)  # [B, P]
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B,] => [B, P]
@@ -182,6 +180,12 @@ class IOC(Off_Policy):
                                   u_target)
         td_error = qu_target - qu_eval     # gradient : q
         q_loss = (td_error.square() * isw).mean()        # [B, 1] => 1
+        self.q_oplr.step(q_loss)
+
+        feat = feat.detach()
+        pi = self.intra_option_net(feat)  # [B, P, A]
+        beta = self.termination_net(feat)   # [B, P]
+        interests = self.interest_net(feat)  # [B, P]
 
         if self.use_baseline:
             adv = (qu_target - qu_eval).detach()
@@ -200,23 +204,22 @@ class IOC(Off_Policy):
             entropy = -(log_pi.exp() * log_pi).sum(1, keepdim=True)    # [B, 1]
             log_p = (BATCH.action * log_pi).sum(-1, keepdim=True)   # [B, 1]
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()              # [B, 1] * [B, 1] => [B, 1] => 1
+        self.intra_option_oplr.step(pi_loss)
 
         last_options_onehot = t.nn.functional.one_hot(last_options, self.options_num).float()    # [B,] => [B, P]
         beta_s = (beta * last_options_onehot).sum(-1, keepdim=True)   # [B, 1]
 
         pi_op = (interests * q.detach()).softmax(-1)  # [B, P] or q.softmax(-1)
         interest_loss = -(beta_s * (pi_op * options_onehot).sum(-1, keepdim=True) * q_s).mean()  # [B, 1] => 1
+        self.interest_oplr.step(interest_loss)
 
         v_s = (q * pi_op).sum(-1, keepdim=True)  # [B, P] * [B, P] => [B, 1]
         beta_loss = beta_s * (q_s - v_s).detach()   # [B, 1]
         if self.terminal_mask:
             beta_loss *= (1 - BATCH.done)
         beta_loss = beta_loss.mean()  # [B, 1] => 1
-
-        self.q_oplr.step(q_loss)
-        self.intra_option_oplr.step(pi_loss)
         self.termination_oplr.step(beta_loss)
-        self.interest_oplr.step(interest_loss)
+
         self.global_step.add_(1)
         return td_error, dict([
             ['LOSS/q_loss', q_loss.mean()],

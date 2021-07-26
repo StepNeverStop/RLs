@@ -132,21 +132,12 @@ class DDPG(Off_Policy):
             action_target = self.actor_target(feat_)
             if self.use_target_action_noise:
                 action_target = self.target_noised_action(action_target)
-            mu = self.actor(feat)
         else:
             target_logits = self.actor_target(feat_)
             target_cate_dist = td.categorical.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
-
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            mu = _pi_diff + _pi
         q = self.critic(feat, BATCH.action)
         q_target = self.critic_target(feat_, action_target)
         dc_r = q_target_func(BATCH.reward,
@@ -155,11 +146,21 @@ class DDPG(Off_Policy):
                              q_target)
         td_error = dc_r - q
         q_loss = 0.5 * (td_error.square() * isw).mean()
+        self.critic_oplr.step(q_loss)
 
+        feat = feat.detach()
+        if self.is_continuous:
+            mu = self.actor(feat)
+        else:
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            mu = _pi_diff + _pi
         q_actor = self.critic(feat, mu)
         actor_loss = -q_actor.mean()
-
-        self.critic_oplr.step(q_loss)
         self.actor_oplr.step(actor_loss)
 
         self.global_step.add_(1)

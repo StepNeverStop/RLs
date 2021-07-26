@@ -118,24 +118,24 @@ class A2C(On_Policy):
     @iTensor_oNumpy
     def train(self, BATCH, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        output = self.actor(feat)
         v = self.critic(feat)
+        td_error = BATCH.discounted_reward - v
+        critic_loss = td_error.square().mean()
+        self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
         if self.is_continuous:
-            mu, log_std = output
+            mu, log_std = self.actor(feat)
             log_act_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
             entropy = gaussian_entropy(log_std)
         else:
-            logits = output
+            logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)
             log_act_prob = (BATCH.action * logp_all).sum(1, keepdim=True)
             entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-        advantage = (BATCH.discounted_reward - v).detach()
-        td_error = BATCH.discounted_reward - v
-        critic_loss = td_error.square().mean()
+        advantage = BATCH.discounted_reward - v.detach()
         actor_loss = -((log_act_prob * advantage).mean() + self.beta * entropy)
-
         self.actor_oplr.step(actor_loss)
-        self.critic_oplr.step(critic_loss)
 
         self.global_step.add_(1)
         return actor_loss, critic_loss, entropy
