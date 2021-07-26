@@ -107,37 +107,38 @@ class AC(Off_Policy):
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        output = self.actor(feat)
-        q = self.critic(feat)
         feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        q = self.critic(feat)
         if self.is_continuous:
-            mu, log_std = output
-            log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
-
             next_mu, _ = self.actor(feat_)
             max_q_next = self.critic(feat_, next_mu).detach()
         else:
-            logits = output
-            logp_all = logits.log_softmax(-1)
-            log_prob = (logp_all * BATCH.action).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-
             logits = self.actor(feat_)
             max_a = logits.argmax(1)
             max_a_one_hot = t.nn.functional.one_hot(max_a, self.a_dim).float()
             max_q_next = self.critic(feat_, max_a_one_hot).detach()
-        ratio = (log_prob - BATCH.old_log_prob).exp().detach()
         q_value = q.detach()
-        td_error = q_target_func(BATCH.reward,
-                                 self.gamma,
-                                 BATCH.done,
-                                 max_q_next)
+        td_error = q - q_target_func(BATCH.reward,
+                                     self.gamma,
+                                     BATCH.done,
+                                     max_q_next)
         critic_loss = (td_error.square() * isw).mean()
-        actor_loss = -(ratio * log_prob * q_value).mean()
-
-        self.actor_oplr.step(actor_loss)
         self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        q_value = q.detach()
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            log_prob = (logp_all * BATCH.action).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        ratio = (log_prob - BATCH.old_log_prob).exp().detach()
+        actor_loss = -(ratio * log_prob * q_value).mean()
+        self.actor_oplr.step(actor_loss)
 
         self.global_step.add_(1)
         return td_error, dict([

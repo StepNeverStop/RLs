@@ -177,7 +177,6 @@ class SAC_V(Off_Policy):
         if self.is_continuous:
             mu, log_std = self.actor(feat)
             pi, log_pi = squash_rsample(mu, log_std)
-            entropy = gaussian_entropy(log_std)
         else:
             logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)
@@ -187,7 +186,6 @@ class SAC_V(Off_Policy):
             _pi_diff = (_pi_true_one_hot - _pi).detach()
             pi = _pi_diff + _pi
             log_pi = (logp_all * pi).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
         q1 = self.q_net(feat, BATCH.action)
         q2 = self.q_net2(feat, BATCH.action)
         q1_pi = self.q_net(feat, pi)
@@ -204,10 +202,27 @@ class SAC_V(Off_Policy):
         q2_loss = (td_error2.square() * isw).mean()
         v_loss_stop = (td_v.square() * isw).mean()
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-        actor_loss = -(q1_pi - self.alpha * log_pi).mean()
-
-        self.actor_oplr.step(actor_loss)
         self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            pi, log_pi = squash_rsample(mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            pi = _pi_diff + _pi
+            log_pi = (logp_all * pi).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        q1_pi = self.q_net(feat, pi)
+        actor_loss = -(q1_pi - self.alpha * log_pi).mean()
+        self.actor_oplr.step(actor_loss)
+
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()
             self.alpha_oplr.step(alpha_loss)
@@ -248,7 +263,6 @@ class SAC_V(Off_Policy):
         logits = self.actor(feat)  # [B, A]
         logp_all = logits.log_softmax(-1)  # [B, A]
 
-        entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)    # [B, 1]
         q_all = t.minimum(self.q_net(feat), self.q_net2(feat))   # [B, A]
         actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum().mean()  # [B, A] => [B,]
 
@@ -266,8 +280,17 @@ class SAC_V(Off_Policy):
         q2_loss = (td_error2.square() * isw).mean()
         v_loss_stop = (td_v.square() * isw).mean()
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-
         self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        q1_all = self.q_net(feat)
+        q2_all = self.q_net2(feat)   # [B, A]
+        logits = self.actor(feat)  # [B, A]
+        logp_all = logits.log_softmax(-1)  # [B, A]
+
+        entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)    # [B, 1]
+        q_all = t.minimum(self.q_net(feat), self.q_net2(feat))   # [B, A]
+        actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum().mean()  # [B, A] => [B,]
         self.actor_oplr.step(actor_loss)
 
         if self.auto_adaption:

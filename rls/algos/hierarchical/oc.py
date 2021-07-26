@@ -171,13 +171,12 @@ class OC(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        last_options = BATCH.last_options
-        options = BATCH.options
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+
+        last_options = BATCH.last_options
+        options = BATCH.options
         q = self.q_net(feat)  # [B, P]
-        pi = self.intra_option_net(feat)  # [B, P, A]
-        beta = self.termination_net(feat)   # [B, P]
         q_next = self.q_target_net(feat_)   # [B, P], [B, P, A], [B, P]
         beta_next = self.termination_net(feat_)  # [B, P]
         options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B,] => [B, P]
@@ -200,6 +199,11 @@ class OC(Off_Policy):
                                   u_target)
         td_error = qu_target - qu_eval     # gradient : q
         q_loss = (td_error.square() * isw).mean()        # [B, 1] => 1
+        self.q_oplr.step(q_loss)
+
+        feat = feat.detach()
+        pi = self.intra_option_net(feat)  # [B, P, A]
+        beta = self.termination_net(feat)   # [B, P]
 
         # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
         if self.use_baseline:
@@ -233,7 +237,6 @@ class OC(Off_Policy):
             beta_loss *= (1 - BATCH.done)
         beta_loss = beta_loss.mean()  # [B, 1] => 1
 
-        self.q_oplr.step(q_loss)
         self.intra_option_oplr.step(pi_loss)
         self.termination_oplr.step(beta_loss)
 

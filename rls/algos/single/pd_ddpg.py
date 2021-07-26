@@ -155,19 +155,12 @@ class PD_DDPG(Off_Policy):
             action_target = self.actor_target(feat_)
             if self.use_target_action_noise:
                 action_target = self.target_noised_action(action_target)
-            mu = self.actor(feat)
         else:
             target_logits = self.actor_target(feat_)
             target_cate_dist = td.categorical.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
-
-            logits = self.actor(feat)
-            _pi = logits.softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(logits.argmax(-1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            mu = _pi_diff + _pi
         q_reward = self.critic_reward(feat, BATCH.action)
         q_target = self.critic_reward_target(feat_, action_target)
         dc_r = q_target_func(BATCH.reward,
@@ -176,8 +169,10 @@ class PD_DDPG(Off_Policy):
                              q_target)
         td_error_reward = q_reward - dc_r
         reward_loss = 0.5 * (td_error_reward.square() * isw).mean()
+        self.reward_critic_oplr.step(reward_loss)
 
-        q_cost = self.critic_cost(feat.detach(), BATCH.action)
+        feat = feat.detach()
+        q_cost = self.critic_cost(feat, BATCH.action)
         q_target = self.critic_cost_target(feat_, action_target)
         dc_r = q_target_func(BATCH.cost,
                              self.gamma,
@@ -185,15 +180,21 @@ class PD_DDPG(Off_Policy):
                              q_target)
         td_error_cost = q_cost - dc_r
         cost_loss = 0.5 * (td_error_cost.square() * isw).mean()
+        self.cost_critic_oplr.step(cost_loss)
 
         q_loss = reward_loss + cost_loss
 
+        if self.is_continuous:
+            mu = self.actor(feat)
+        else:
+            logits = self.actor(feat)
+            _pi = logits.softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(logits.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            mu = _pi_diff + _pi
         reward_actor = self.critic_reward(feat, mu)
         cost_actor = self.critic_cost(feat, mu)
         actor_loss = -(reward_actor - self._lambda * cost_actor).mean()
-
-        self.reward_critic_oplr.step(reward_loss)
-        self.cost_critic_oplr.step(cost_loss)
         self.actor_oplr.step(actor_loss)
 
         # update dual variable

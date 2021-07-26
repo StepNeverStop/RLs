@@ -256,16 +256,17 @@ class CURL(Off_Policy):
         q1_loss = (td_error1.square() * isw).mean()
         q2_loss = (td_error2.square() * isw).mean()
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+        self.critic_oplr.step(critic_loss)
 
+        vis_feat = vis_feat.detach()    # TODO:
         z_a = vis_feat  # [B, N]
         z_out = self.encoder_target(pos)
         logits = z_a @ (self.curl_w @ z_out.T)
         logits -= logits.max(-1, keepdim=True)[0]
         curl_loss = t.nn.functional.cross_entropy(logits, t.arange(self.batch_size))
-
-        self.critic_oplr.step(critic_loss)
         self.curl_oplr.step(curl_loss)
 
+        feat = feat.detach()
         if self.is_continuous:
             mu, log_std = self.actor(feat)
             pi, log_pi = squash_rsample(mu, log_std)

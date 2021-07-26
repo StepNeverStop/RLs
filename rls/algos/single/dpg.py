@@ -104,25 +104,17 @@ class DPG(Off_Policy):
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        output = self.actor(feat)
         feat_, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         if self.is_continuous:
             action_target = self.actor(feat_)
             if self.use_target_action_noise:
                 action_target = self.target_noised_action(action_target)
-            mu = output
         else:
             target_logits = self.actor(feat_)
             target_cate_dist = td.categorical.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
-
-            logits = output
-            _pi = logits.softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(logits.argmax(-1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            mu = _pi_diff + _pi
         q_target = self.critic(feat_, action_target)
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
@@ -131,10 +123,19 @@ class DPG(Off_Policy):
         q = self.critic(feat, BATCH.action)
         td_error = dc_r - q
         q_loss = 0.5 * (td_error.square() * isw).mean()
+        self.critic_oplr.step(q_loss)
+
+        feat = feat.detach()
+        if self.is_continuous:
+            mu = self.actor(feat)
+        else:
+            logits = self.actor(feat)
+            _pi = logits.softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(logits.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            mu = _pi_diff + _pi
         q_actor = self.critic(feat, mu)
         actor_loss = -q_actor.mean()
-
-        self.critic_oplr.step(q_loss)
         self.actor_oplr.step(actor_loss)
 
         self.global_step.add_(1)

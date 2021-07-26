@@ -28,7 +28,7 @@ class MLP(Sequential):
         """
         super().__init__()
         ins = [input_dim] + hidden_units[:-1]
-        outs = hidden_units[1:]
+        outs = hidden_units
         for i, (_in, _out) in enumerate(zip(ins, outs)):
             self.add_module(f'{layer}_{i}', Layer_REGISTER[layer](_in, _out))
             self.add_module(f'{act_fn}_{i}', Act_REGISTER[act_fn]())

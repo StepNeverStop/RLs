@@ -168,31 +168,18 @@ class SAC(Off_Policy):
     def train_continuous(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+
+        q1 = self.critic(feat, BATCH.action)
+        q2 = self.critic2(feat, BATCH.action)
         if self.is_continuous:
-            mu, log_std = self.actor(feat)
-            pi, log_pi = squash_rsample(mu, log_std)
-            entropy = gaussian_entropy(log_std)
             target_mu, target_log_std = self.actor(feat_)
             target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
         else:
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            pi = _pi_diff + _pi
-            log_pi = (logp_all * pi).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-
             target_logits = self.actor(feat_)
             target_cate_dist = td.categorical.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()
-        q1 = self.critic(feat, BATCH.action)
-        q2 = self.critic2(feat, BATCH.action)
-        q_s_pi = t.minimum(self.critic(feat, pi), self.critic2(feat, pi))
         q1_target = self.critic_target(feat_, target_pi)
         q2_target = self.critic2_target(feat_, target_pi)
         q_target = t.minimum(q1_target, q2_target)
@@ -205,9 +192,26 @@ class SAC(Off_Policy):
         q1_loss = (td_error1.square() * isw).mean()
         q2_loss = (td_error2.square() * isw).mean()
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+        self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        if self.is_continuous:
+            mu, log_std = self.actor(feat)
+            pi, log_pi = squash_rsample(mu, log_std)
+            entropy = gaussian_entropy(log_std)
+        else:
+            logits = self.actor(feat)
+            logp_all = logits.log_softmax(-1)
+            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
+            _pi_diff = (_pi_true_one_hot - _pi).detach()
+            pi = _pi_diff + _pi
+            log_pi = (logp_all * pi).sum(1, keepdim=True)
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
+        q_s_pi = t.minimum(self.critic(feat, pi), self.critic2(feat, pi))
         actor_loss = -(q_s_pi - self.alpha * log_pi).mean()
 
-        self.critic_oplr.step(critic_loss)
         self.actor_oplr.step(actor_loss)
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()
@@ -236,13 +240,9 @@ class SAC(Off_Policy):
     def train_discrete(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+
         q1_all = self.critic(feat)
         q2_all = self.critic2(feat)  # [B, A]
-
-        logits = self.actor(feat)
-        logp_all = logits.log_softmax(-1)
-        entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)    # [B, 1]
-        q_all = t.minimum(q1_all, q2_all)  # [B, A]
 
         def q_function(x): return (x * BATCH.action).sum(-1, keepdim=True)  # [B, 1]
         q1 = q_function(q1_all)
@@ -264,12 +264,20 @@ class SAC(Off_Policy):
         td_error2 = q2 - dc_r
         q1_loss = (td_error1.square() * isw).mean()
         q2_loss = (td_error2.square() * isw).mean()
-
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
+        self.critic_oplr.step(critic_loss)
+
+        feat = feat.detach()
+        q1_all = self.critic(feat)
+        q2_all = self.critic2(feat)  # [B, A]
+
+        logits = self.actor(feat)
+        logp_all = logits.log_softmax(-1)
+        entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)    # [B, 1]
+        q_all = t.minimum(q1_all, q2_all)  # [B, A]
         actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum().mean()  # [B, A] => [B,]
         # actor_loss = - (q_all + self.alpha * entropy).mean()
 
-        self.critic_oplr.step(critic_loss)
         self.actor_oplr.step(actor_loss)
         if self.auto_adaption:
             corr = (self.target_entropy - entropy).detach()
