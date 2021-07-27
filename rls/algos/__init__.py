@@ -8,10 +8,10 @@ from rls.algos.register import register, get_model_info
 # On-policy Algorithms
 register(
     name='pg',
+    folder='single',
+    is_multi=False,
     algo_class='PG',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='single',
     logo='''
     　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -30,10 +30,10 @@ register(
 
 register(
     name='trpo',
+    folder='single',
+    is_multi=False,
     algo_class='TRPO',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='single',
     logo='''
 　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　
@@ -52,10 +52,10 @@ register(
 
 register(
     name='ppo',
+    folder='single',
+    is_multi=False,
     algo_class='PPO',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='single',
     logo='''
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　
 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　
@@ -74,10 +74,10 @@ register(
 
 register(
     name='a2c',
+    folder='single',
+    is_multi=False,
     algo_class='A2C',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='single',
     logo='''
 　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -96,10 +96,10 @@ register(
 
 register(
     name='cem',
+    folder='single',
+    is_multi=False,
     algo_class='CEM',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　　　　　ＯＯＯＯ　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯ　　　ＯＯＯ　　　　　　　　ＯＯＯＯ　　　　　ＯＯＯＯ　　
@@ -118,10 +118,10 @@ register(
 
 register(
     name='aoc',
+    folder='hierarchical',
+    is_multi=False,
     algo_class='AOC',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='hierarchical',
     logo='''
 　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -140,10 +140,10 @@ register(
 
 register(
     name='ppoc',
+    folder='hierarchical',
+    is_multi=False,
     algo_class='PPOC',
     policy_mode='on-policy',
-    update_mode='perEpisode',
-    policy_type='hierarchical',
     logo='''
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -164,10 +164,10 @@ register(
 
 register(
     name='qs',
+    folder='single',
+    is_multi=False,
     algo_class='QS',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　
@@ -188,10 +188,10 @@ register(
 
 register(
     name='ac',
+    folder='single',
+    is_multi=False,
     algo_class='AC',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -210,10 +210,10 @@ register(
 
 register(
     name='dpg',
+    folder='single',
+    is_multi=False,
     algo_class='DPG',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -232,10 +232,10 @@ register(
 
 register(
     name='ddpg',
+    folder='single',
+    is_multi=False,
     algo_class='DDPG',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -254,10 +254,10 @@ register(
 
 register(
     name='pd_ddpg',
+    folder='single',
+    is_multi=False,
     algo_class='PD_DDPG',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -275,10 +275,10 @@ register(
 
 register(
     name='td3',
+    folder='single',
+    is_multi=False,
     algo_class='TD3',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯ　　　　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯ　　　　　　
@@ -297,10 +297,10 @@ register(
 
 register(
     name='sac_v',
+    folder='single',
+    is_multi=False,
     algo_class='SAC_V',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　
 　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　
@@ -319,10 +319,10 @@ register(
 
 register(
     name='sac',
+    folder='single',
+    is_multi=False,
     algo_class='SAC',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ
 　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ
@@ -341,10 +341,10 @@ register(
 
 register(
     name='tac',
+    folder='single',
+    is_multi=False,
     algo_class='TAC',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -363,10 +363,10 @@ register(
 
 register(
     name='dqn',
+    folder='single',
+    is_multi=False,
     algo_class='DQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -387,10 +387,10 @@ register(
 
 register(
     name='ddqn',
+    folder='single',
+    is_multi=False,
     algo_class='DDQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -411,10 +411,10 @@ register(
 
 register(
     name='dddqn',
+    folder='single',
+    is_multi=False,
     algo_class='DDDQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯＯ　　　　　　　ＯＯＯ　　　ＯＯＯ　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -433,10 +433,10 @@ register(
 
 register(
     name='averaged_dqn',
+    folder='single',
+    is_multi=False,
     algo_class='AveragedDQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　 　ＯＯ　　　　　　　　　　　　 　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -457,10 +457,10 @@ register(
 
 register(
     name='c51',
+    folder='single',
+    is_multi=False,
     algo_class='C51',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯ　　　　　　　　
@@ -479,10 +479,10 @@ register(
 
 register(
     name='qrdqn',
+    folder='single',
+    is_multi=False,
     algo_class='QRDQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -503,10 +503,10 @@ register(
 
 register(
     name='rainbow',
+    folder='single',
+    is_multi=False,
     algo_class='RAINBOW',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
     ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　ＯＯＯＯＯ　ＯＯＯＯＯ
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　　　　　　　ＯＯ　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　ＯＯＯＯ　　　ＯＯＯ　
@@ -525,10 +525,10 @@ register(
 
 register(
     name='iqn',
+    folder='single',
+    is_multi=False,
     algo_class='IQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -549,10 +549,10 @@ register(
 
 register(
     name='maxsqn',
+    folder='single',
+    is_multi=False,
     algo_class='MAXSQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
     ＯＯＯＯ　　　　　　ＯＯＯＯ　　　　　　　　　　ＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　ＯＯＯＯ　　　　　ＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯ　　　ＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -573,10 +573,10 @@ register(
 
 register(
     name='sql',
+    folder='single',
+    is_multi=False,
     algo_class='SQL',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　
 　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　
@@ -597,10 +597,10 @@ register(
 
 register(
     name='bootstrappeddqn',
+    folder='single',
+    is_multi=False,
     algo_class='BootstrappedDQN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　　　ＯＯ　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -621,10 +621,10 @@ register(
 
 register(
     name='curl',
+    folder='single',
+    is_multi=False,
     algo_class='CURL',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='single',
     logo='''
 　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯ　　　　　　　　　　
@@ -643,10 +643,10 @@ register(
 
 register(
     name='oc',
+    folder='hierarchical',
+    is_multi=False,
     algo_class='OC',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='hierarchical',
     logo='''
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -665,10 +665,10 @@ register(
 
 register(
     name='ioc',
+    folder='hierarchical',
+    is_multi=False,
     algo_class='IOC',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='hierarchical',
     logo='''
 　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -687,10 +687,10 @@ register(
 
 register(
     name='hiro',
+    folder='hierarchical',
+    is_multi=False,
     algo_class='HIRO',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='hierarchical',
     logo='''
 　　　ＯＯＯＯＯ　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　
 　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　
@@ -709,10 +709,10 @@ register(
 
 register(
     name='maddpg',
+    folder='multi',
+    is_multi=True,
     algo_class='MADDPG',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='multi',
     logo='''
     ＯＯＯＯ　　　　　　ＯＯＯＯ　　　　　　　　　　ＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 　　　ＯＯＯＯ　　　　　ＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
@@ -731,10 +731,10 @@ register(
 
 register(
     name='vdn',
+    folder='multi',
+    is_multi=True,
     algo_class='VDN',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='multi',
     logo='''
 　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -755,8 +755,8 @@ register(
     name='iql',
     algo_class='IQL',
     policy_mode='off-policy',
-    update_mode='perStep',
-    policy_type='multi',
+    folder='multi',
+    is_multi=True,
     logo='''
 　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　

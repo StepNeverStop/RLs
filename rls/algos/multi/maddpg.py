@@ -106,7 +106,6 @@ class MADDPG(MultiAgentOffPolicy):
 
         # TODO: 添加动作类型判断
         self.noised_actions = [Noise_action_REGISTER[noise_action](**noise_params) for i in range(self.n_models_percopy)]
-        self.gumbel_dists = [td.gumbel.Gumbel(0, 1) for i in range(self.n_models_percopy)]
 
         self._worker_modules.update({f"repnet_{i}": self.rep_nets[i] for i in range(self.n_models_percopy)})
         self._worker_modules.update({f"actor_{i}": self.actors[i] for i in range(self.n_models_percopy)})
@@ -136,7 +135,7 @@ class MADDPG(MultiAgentOffPolicy):
             else:
                 logits = output
                 mu = logits.argmax(1)
-                cate_dist = td.categorical.Categorical(logits=logits)
+                cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()
             actions.append(mu if evaluation else pi)
         return actions
@@ -172,7 +171,7 @@ class MADDPG(MultiAgentOffPolicy):
                 target_actions.append(self.actor_targets[j](feat_))
             else:
                 target_logits = self.actor_targets[j](feat_)
-                target_cate_dist = td.categorical.Categorical(logits=target_logits)
+                target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()
                 action_target = t.nn.functional.one_hot(target_pi, self.envspecs[i].a_dim).float()
                 target_actions.append(action_target)
@@ -188,9 +187,9 @@ class MADDPG(MultiAgentOffPolicy):
             if self.envspecs[i].is_continuous:
                 mu = self.actors[j](feats[i])
             else:
-                gumbel_noise = self.gumbel_dists[j].sample(BATCHs[i].action.shape)
                 logits = self.actors[j](feats[i])
                 logp_all = logits.log_softmax(-1)
+                gumbel_noise = td.Gumbel(0, 1).sample(BATCHs[i].action.shape)
                 _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
                 _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.envspecs[i].a_dim).float()
                 _pi_diff = (_pi_true_one_hot - _pi).detach()

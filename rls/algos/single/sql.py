@@ -62,7 +62,7 @@ class SQL(Off_Policy):
         q_values = self.q_net(feat)
         logits = ((q_values - self.get_v(q_values)) / self.alpha).exp()    # > 0
         logits /= logits.sum()
-        cate_dist = td.categorical.Categorical(logits=logits)
+        cate_dist = td.Categorical(logits=logits)
         pi = cate_dist.sample()
         return pi
 

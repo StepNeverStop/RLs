@@ -25,7 +25,7 @@ def gym_train(env, model,
               render: bool,
               render_episode: int,
               save_frequency: int,
-              max_step_per_episode: int,
+              episode_length: int,
               max_train_episode: int,
               eval_while_train: bool,
               max_eval_episode: int,
@@ -52,7 +52,7 @@ def gym_train(env, model,
         model.reset()
         obs = env.reset()
         recoder.episode_reset(episode=episode)
-        for _ in range(max_step_per_episode):
+        for i in range(episode_length):
             if render or episode > render_episode:
                 env.render(record=False)
             action = model(obs=obs)
@@ -70,10 +70,10 @@ def gym_train(env, model,
                 if recoder.total_step % off_policy_train_interval == 0:
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
-                if train_step % save_frequency == 0:
-                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
+                    if train_step % save_frequency == 0:
+                        model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 if off_policy_eval_interval > 0 and train_step % off_policy_eval_interval == 0:
-                    gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, max_step_per_episode)
+                    gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, episode_length)
 
             frame_step += env.n
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
@@ -99,13 +99,13 @@ def gym_train(env, model,
         if eval_while_train and env.reward_threshold is not None:
             if recoder.total_returns.max() >= env.reward_threshold:
                 print_func(f'-------------------------------------------Evaluate episode: {episode:3d}--------------------------------------------------')
-                gym_evaluate(env, model, max_step_per_episode, max_eval_episode, print_func)
+                gym_evaluate(env, model, episode_length, max_eval_episode, print_func)
 
 
 def gym_step_eval(env, model,
                   train_step: int,
                   episodes_num: int,
-                  max_step_per_episode: int) -> NoReturn:
+                  episode_length: int) -> NoReturn:
     '''
     1个环境的推断模式
     '''
@@ -118,7 +118,7 @@ def gym_step_eval(env, model,
         obs = env.reset()
         returns = 0.
         step = 0
-        for _ in range(max_step_per_episode):
+        for _ in range(episode_length):
             action = model(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)
@@ -142,7 +142,7 @@ def gym_step_eval(env, model,
 
 
 def gym_evaluate(env, model,
-                 max_step_per_episode: int,
+                 episode_length: int,
                  max_eval_episode: int,
                  print_func: Callable[[str], None]) -> NoReturn:
     total_r = np.zeros(env.n)
@@ -154,7 +154,7 @@ def gym_evaluate(env, model,
         dones_flag = np.zeros(env.n)
         steps = np.zeros(env.n)
         returns = np.zeros(env.n)
-        for _ in range(max_step_per_episode):
+        for _ in range(episode_length):
             action = model(obs=obs, evaluation=True)
             ret = env.step(action)
             model.partial_reset(ret.done)

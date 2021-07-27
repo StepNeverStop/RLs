@@ -19,20 +19,43 @@ from rls.common.specs import EnvGroupArgs
 
 
 class MultiAgentPolicy(Base):
-    def __init__(self, envspecs: List[EnvGroupArgs], **kwargs):
+    def __init__(self,
+                 envspecs: List[EnvGroupArgs],
+                 batch_size=128,
+                 gamma=0.999,
+                 max_train_step=1e18,
+                 decay_lr=False,
+                 representation_net_params={
+                     'use_encoder': False,
+                     'use_rnn': False,  # always false, using -r to active RNN
+                     'vector_net_params': {
+                         'network_type': 'adaptive'  # rls.nn.vector_nets
+                     },
+                     'visual_net_params': {
+                         'visual_feature': 128,
+                         'network_type': 'simple'  # rls.nn.visual_nets
+                     },
+                     'encoder_net_params': {
+                         'output_dim': 16
+                     },
+                     'memory_net_params': {
+                         'rnn_units': 16,
+                         'network_type': 'lstm'
+                     }},
+                 **kwargs):
         super().__init__(**kwargs)
 
         self.envspecs = envspecs
         self.n_copys = envspecs[0].n_copys
         self.n_agents_percopy = len(envspecs)
 
-        self.batch_size = int(kwargs.get('batch_size', 128))
-        self.gamma = float(kwargs.get('gamma', 0.999))
+        self.batch_size = batch_size
+        self.gamma = gamma
         self.train_step = 0
-        self.max_train_step = int(kwargs.get('max_train_step', 1000))
-        self.delay_lr = bool(kwargs.get('decay_lr', True))
+        self.max_train_step = max_train_step
+        self.delay_lr = decay_lr
 
-        self.representation_net_params = dict(kwargs.get('representation_net_params', defaultdict(dict)))
+        self.representation_net_params = dict(representation_net_params)
 
         self.writers = [self._create_writer(self.log_dir + f'_{i}') for i in range(self.n_agents_percopy)]
 

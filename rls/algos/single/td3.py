@@ -56,7 +56,6 @@ class TD3(Off_Policy):
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_continuous']).to(self.device)
-            self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         self.actor_target = deepcopy(self.actor)
         self.actor_target.eval()
@@ -109,7 +108,7 @@ class TD3(Off_Policy):
         else:
             logits = output
             mu = logits.argmax(1)
-            cate_dist = td.categorical.Categorical(logits=logits)
+            cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
         return mu if evaluation else pi
 
@@ -135,7 +134,7 @@ class TD3(Off_Policy):
                 action_target = self.target_noised_action(self.actor_target(feat_))
             else:
                 target_logits = self.actor_target(feat_)
-                target_cate_dist = td.categorical.Categorical(logits=target_logits)
+                target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()
                 target_log_pi = target_cate_dist.log_prob(target_pi)
                 action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
@@ -157,9 +156,9 @@ class TD3(Off_Policy):
         if self.is_continuous:
             mu = self.actor(feat)
         else:
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
             logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)
+            gumbel_noise = td.Gumbel(0, 1).sample(BATCH.action.shape)
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
             _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
             _pi_diff = (_pi_true_one_hot - _pi).detach()

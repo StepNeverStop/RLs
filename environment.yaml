@@ -26,7 +26,6 @@ dependencies:
     - cloudpickle==1.2.2
     - decorator==4.4.2
     - dm-tree==0.1.5
-    - docopt==0.6.2
     - future==0.18.2
     - gast==0.3.3
     - google-auth==1.23.0

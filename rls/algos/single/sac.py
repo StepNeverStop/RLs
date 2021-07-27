@@ -7,8 +7,7 @@ import torch as t
 from copy import deepcopy
 from torch import distributions as td
 
-from rls.utils.torch_utils import (squash_rsample,
-                                   gaussian_entropy,
+from rls.utils.torch_utils import (squash_action,
                                    q_target_func,
                                    sync_params_pairs)
 from rls.algos.base.off_policy import Off_Policy
@@ -99,8 +98,6 @@ class SAC(Off_Policy):
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
-            if self.use_gumbel:
-                self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         self._pairs = [(self._target_rep_net, self.rep_net),
                        (self.critic_target, self.critic),
@@ -127,12 +124,12 @@ class SAC(Off_Policy):
         feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
         if self.is_continuous:
             mu, log_std = self.actor(feat)
-            pi, _ = squash_rsample(mu, log_std)
+            pi = td.Normal(mu, log_std.exp()).sample().tanh()
             mu.tanh_()  # squash mu
         else:
             logits = self.actor(feat)
             mu = logits.argmax(1)
-            cate_dist = td.categorical.Categorical(logits=logits)
+            cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
         return mu if evaluation else pi
 
@@ -173,10 +170,12 @@ class SAC(Off_Policy):
         q2 = self.critic2(feat, BATCH.action)
         if self.is_continuous:
             target_mu, target_log_std = self.actor(feat_)
-            target_pi, target_log_pi = squash_rsample(target_mu, target_log_std)
+            dist = td.Normal(target_mu, target_log_std.exp())
+            target_pi = dist.sample()
+            target_pi, target_log_pi = squash_action(target_pi, dist.log_prob(target_pi))
         else:
             target_logits = self.actor(feat_)
-            target_cate_dist = td.categorical.Categorical(logits=target_logits)
+            target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()
@@ -197,12 +196,14 @@ class SAC(Off_Policy):
         feat = feat.detach()
         if self.is_continuous:
             mu, log_std = self.actor(feat)
-            pi, log_pi = squash_rsample(mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            dist = td.Normal(mu, log_std.exp())
+            pi = dist.rsample()
+            pi, log_pi = squash_action(pi, dist.log_prob(pi))
+            entropy = dist.entropy().mean()
         else:
             logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)
-            gumbel_noise = self.gumbel_dist.sample(BATCH.action.shape)
+            gumbel_noise = td.Gumbel(0, 1).sample(BATCH.action.shape)
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
             _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
             _pi_diff = (_pi_true_one_hot - _pi).detach()

@@ -10,10 +10,7 @@ from dataclasses import dataclass
 
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import (gaussian_clip_rsample,
-                                   gaussian_likelihood_sum,
-                                   gaussian_entropy,
-                                   q_target_func,
+from rls.utils.torch_utils import (q_target_func,
                                    sync_params_pairs)
 from rls.common.specs import BatchExperiences
 from rls.nn.models import (OcIntraOption,
@@ -131,19 +128,20 @@ class OC(Off_Policy):
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
-            log_std = self.log_std[self.options]
             mu = pi.tanh()
-            a, _ = gaussian_clip_rsample(mu, log_std)
+            log_std = self.log_std[self.options]
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            a = dist.sample().clamp(-1, 1)
         else:
             pi = pi / self.boltzmann_temperature
-            dist = td.categorical.Categorical(logits=pi)  # [B, ]
+            dist = td.Categorical(logits=pi)  # [B, ]
             a = dist.sample()
         max_options = q.argmax(-1).int()  # [B, P] => [B, ]
         if self.use_eps_greedy:
             new_options = max_options
         else:
             beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
-            beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
+            beta_dist = td.Bernoulli(probs=beta_probs)
             new_options = t.where(beta_dist.sample() < 1, self.options, max_options)
         self.options = to_numpy(new_options)
 
@@ -213,10 +211,11 @@ class OC(Off_Policy):
         options_onehot_expanded = options_onehot.unsqueeze(-1)   # [B, P] => [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, P, A] => [B, A]
         if self.is_continuous:
-            log_std = self.log_std[options]
             mu = pi.tanh()
-            log_p = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            log_std = self.log_std[options]
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            log_p = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             pi = pi / self.boltzmann_temperature
             log_pi = pi.log_softmax(-1)  # [B, A]

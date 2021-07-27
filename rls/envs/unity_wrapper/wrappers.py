@@ -13,54 +13,68 @@ from mlagents_envs.side_channel.environment_parameters_channel import Environmen
 # from mlagents_envs.base_env import (ActionTuple,
 #                                     ActionSpec)  # TODO
 
-from rls.common.yaml_ops import load_yaml
+from rls.common.yaml_ops import load_config
 from rls.utils.np_utils import get_discrete_action_list
 from rls.common.specs import (ObsSpec,
-                             EnvGroupArgs,
-                             ModelObservations,
-                             SingleModelInformation,
-                             generate_obs_dataformat)
+                              EnvGroupArgs,
+                              ModelObservations,
+                              SingleModelInformation,
+                              generate_obs_dataformat)
 from rls.envs.unity_wrapper.core import (ObservationWrapper,
                                          ActionWrapper)
 
 
 class BasicUnityEnvironment(object):
 
-    def __init__(self, kwargs):
+    def __init__(self,
+                 file_name=None,
+                 port=5005,
+                 render=False,
+                 seed=42,
+                 worker_id=0,
+                 timeout_wait=60,
+                 env_copys=1,
+                 env_name='3DBall',
+                 initialize_config={},
+                 engine_config={
+                     'width': 84,
+                     'height': 84,
+                     'quality_level': 5,
+                     'time_scale': 20,
+                     'target_frame_rate': -1,
+                     'capture_frame_rate': 60
+                 },
+                 *args, **kwargs):
         # TODO: optimize
-        self._n_copys = kwargs.get('initialize_config', {}).get('env_copys', 1)
+        self._n_copys = env_copys
 
-        self._side_channels = self.initialize_all_side_channels(kwargs)
-
-        env_kwargs = dict(seed=int(kwargs['env_seed']),
-                          worker_id=int(kwargs['worker_id']),
-                          timeout_wait=int(kwargs['timeout_wait']),
+        self._side_channels = self.initialize_all_side_channels(initialize_config)
+        env_kwargs = dict(seed=seed,
+                          worker_id=worker_id,
+                          timeout_wait=timeout_wait,
                           side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
-        if kwargs['file_name'] is not None:
-            unity_env_dict = load_yaml('rls/envs/unity_env_dict.yaml')
-            env_kwargs.update(file_name=kwargs['file_name'],
-                              base_port=kwargs['port'],
-                              no_graphics=not kwargs['render'],
+
+        if file_nameis not None:
+            env_dict = load_config('rls/configs/unity/env_dict.yaml')
+            env_kwargs.update(file_name=file_name
+                              base_port=port,
+                              no_graphics=not render,
                               additional_args=[
-                '--scene', str(unity_env_dict.get(kwargs.get('env_name', '3DBall'), 'None'))
-            ])
+                                  '--scene', str(env_dict.get(env_name, 'None'))
+                              ])
         self.env = UnityEnvironment(**env_kwargs)
         self.env.reset()
         self.initialize_environment()
 
-    def initialize_all_side_channels(self, kwargs):
+    def initialize_all_side_channels(self, initialize_config, engine_config):
         '''
         初始化所有的通讯频道
         '''
         engine_configuration_channel = EngineConfigurationChannel()
-        engine_configuration_channel.set_configuration_parameters(width=kwargs['width'],
-                                                                  height=kwargs['height'],
-                                                                  quality_level=kwargs['quality_level'],
-                                                                  time_scale=1 if bool(kwargs.get('inference', False)) else kwargs['time_scale'],
-                                                                  target_frame_rate=kwargs['target_frame_rate'],
-                                                                  capture_frame_rate=kwargs['capture_frame_rate'])
+        engine_configuration_channel.set_configuration_parameters(**engine_config)
         float_properties_channel = EnvironmentParametersChannel()
-        for k, v in kwargs.get('initialize_config', {}).items():
+        float_properties_channel.set_float_parameter('env_copys', self._n_copys)
+        for k, v in initialize_config.items():
             float_properties_channel.set_float_parameter(k, v)
         return dict(engine_configuration_channel=engine_configuration_channel,
                     float_properties_channel=float_properties_channel)

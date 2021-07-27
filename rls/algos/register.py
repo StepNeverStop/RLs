@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-# algorithms based on TF 2.x
+# algorithms based on PyTorch
 
 import importlib
 
@@ -9,7 +9,7 @@ from typing import (Tuple,
                     Callable,
                     Dict)
 
-from rls.common.yaml_ops import load_yaml
+from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
@@ -49,16 +49,6 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
         policy_type of policy, `on-policy` or `off-policy`
     '''
     algo_info = registry.get_model_info(name)
-    class_name = algo_info['algo_class']
-    policy_mode = algo_info['policy_mode']
-    policy_type = algo_info['policy_type']
-    LOGO = algo_info.get('logo', '')
-    logger.info(colorize(LOGO, color='green'))
-    # TODO:
-    model = getattr(importlib.import_module(f'rls.algos.{policy_type}.{name}'), class_name)
-
-    algo_config = {}
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')['general'])
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[policy_mode.replace('-', '_')])
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[name])
-    return model, algo_config, policy_mode, policy_type
+    logger.info(colorize(algo_info.get('logo', ''), color='green'))
+    model_class = getattr(importlib.import_module(f"rls.algos.{algo_info['folder']}.{name}"), algo_info['algo_class'])
+    return model_class, algo_info['policy_mode'], algo_info['is_multi']

@@ -19,10 +19,10 @@ general:
         use_encoder: false
         use_rnn: false # always false, using -r to active RNN
         vector_net_params:
-            network_type: adaptive # rls.nn.__init__
+            network_type: adaptive # rls.nn.vector_nets
         visual_net_params:
             visual_feature: 128
-            network_type: simple # rls.nn.__init__
+            network_type: simple # rls.nn.visual_nets
         encoder_net_params:
             output_dim: 16
         memory_net_params:
@@ -395,7 +395,7 @@ ppo:
     value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
-    max_grad_norm: null
+    max_grad_norm: ~
 
     # duel clip
     use_duel_clip: false

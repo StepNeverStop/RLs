@@ -11,9 +11,6 @@ from typing import (Union,
                     NoReturn)
 from dataclasses import dataclass
 
-from rls.utils.torch_utils import (gaussian_clip_rsample,
-                                   gaussian_likelihood_sum,
-                                   gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import (ModelObservations,
                               Data,
@@ -184,19 +181,20 @@ class PPO(On_Policy):
             else:
                 mu, log_std = self.actor(feat)
                 value = self.critic(feat)
-            sample_op, _ = gaussian_clip_rsample(mu, log_std)
-            log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            sample_op = dist.sample().clamp(-1, 1)
+            log_prob = dist.log_prob(sample_op).unsqueeze(-1)
         else:
             if self.share_net:
                 logits, value = self.net(feat)
             else:
                 logits = self.actor(feat)
                 value = self.critic(feat)
-            norm_dist = td.categorical.Categorical(logits=logits)
+            norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
         self._value = to_numpy(value)
-        self._log_prob = to_numpy(log_prob) + 1e-10
+        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
         return sample_op
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
@@ -289,8 +287,9 @@ class PPO(On_Policy):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std, value = self.net(feat)
-            new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             logits, value = self.net(feat)
             logp_all = logits.log_softmax(-1)
@@ -345,8 +344,9 @@ class PPO(On_Policy):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std = self.actor(feat)
-            new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)

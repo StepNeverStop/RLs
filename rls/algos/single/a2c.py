@@ -7,9 +7,6 @@ import torch as t
 from torch import distributions as td
 from dataclasses import dataclass
 
-from rls.utils.torch_utils import (gaussian_clip_rsample,
-                                   gaussian_likelihood_sum,
-                                   gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import (Data,
                               ModelObservations)
@@ -75,10 +72,11 @@ class A2C(On_Policy):
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
-            sample_op, _ = gaussian_clip_rsample(mu, log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            sample_op = dist.sample().clamp(-1, 1)
         else:
             logits = output
-            norm_dist = td.categorical.Categorical(logits=logits)
+            norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
         return sample_op
 
@@ -126,8 +124,9 @@ class A2C(On_Policy):
         feat = feat.detach()
         if self.is_continuous:
             mu, log_std = self.actor(feat)
-            log_act_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             logits = self.actor(feat)
             logp_all = logits.log_softmax(-1)

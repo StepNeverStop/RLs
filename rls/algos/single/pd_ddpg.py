@@ -73,7 +73,6 @@ class PD_DDPG(Off_Policy):
             self.actor = ActorDct(self.rep_net.h_dim,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
-            self.gumbel_dist = td.gumbel.Gumbel(0, 1)
 
         self.critic_reward = CriticQvalueOne(self.rep_net.h_dim,
                                              action_dim=self.a_dim,
@@ -128,7 +127,7 @@ class PD_DDPG(Off_Policy):
         else:
             logits = output
             mu = logits.argmax(1)
-            cate_dist = td.categorical.Categorical(logits=logits)
+            cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
         return mu if evaluation else pi
 
@@ -157,7 +156,7 @@ class PD_DDPG(Off_Policy):
                 action_target = self.target_noised_action(action_target)
         else:
             target_logits = self.actor_target(feat_)
-            target_cate_dist = td.categorical.Categorical(logits=target_logits)
+            target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()
             target_log_pi = target_cate_dist.log_prob(target_pi)
             action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()

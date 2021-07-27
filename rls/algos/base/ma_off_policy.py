@@ -12,25 +12,31 @@ from typing import (List,
                     NoReturn)
 
 from rls.algos.base.ma_policy import MultiAgentPolicy
-from rls.common.yaml_ops import load_yaml
+from rls.common.yaml_ops import load_config
 from rls.memories.multi_replay_buffers import MultiAgentExperienceReplay
 from rls.common.specs import BatchExperiences
 
 
 class MultiAgentOffPolicy(MultiAgentPolicy):
-    def __init__(self, envspecs, **kwargs):
+    def __init__(self,
+                 envspecs,
+                 buffer_size=10000,
+                 n_step=1,
+                 burn_in_time_step=10,
+                 train_time_step=10,
+                 episode_batch_size=32,
+                 episode_buffer_size=10000,
+                 train_times_per_step=1,
+                 **kwargs):
         super().__init__(envspecs=envspecs, **kwargs)
 
-        self.buffer_size = int(kwargs.get('buffer_size', 10000))
-
-        self.n_step = int(kwargs.get('n_step', 1))
-
-        self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 10))
-        self.train_time_step = int(kwargs.get('train_time_step', 10))
-        self.episode_batch_size = int(kwargs.get('episode_batch_size', 32))
-        self.episode_buffer_size = int(kwargs.get('episode_buffer_size', 10000))
-
-        self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
+        self.buffer_size = buffer_size
+        self.n_step = n_step
+        self.burn_in_time_step = burn_in_time_step
+        self.train_time_step = train_time_step
+        self.episode_batch_size = episode_batch_size
+        self.episode_buffer_size = episode_buffer_size
+        self.train_times_per_step = train_times_per_step
 
     def initialize_data_buffer(self) -> NoReturn:
         '''
@@ -63,7 +69,7 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
             )
             self.gamma = self.gamma ** self.n_step
 
-        default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')['MultiAgentExperienceReplay'][_type]
+        default_buffer_args = load_config(f'rls/configs/off_policy_buffer.yaml')['MultiAgentExperienceReplay'][_type]
         default_buffer_args.update(_buffer_args)
 
         self.data = MultiAgentExperienceReplay(n_agents=self.n_agents_percopy,

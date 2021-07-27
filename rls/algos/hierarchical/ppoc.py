@@ -7,9 +7,6 @@ import torch as t
 from torch import distributions as td
 from dataclasses import dataclass
 
-from rls.utils.torch_utils import (gaussian_clip_rsample,
-                                   gaussian_likelihood_sum,
-                                   gaussian_entropy)
 from rls.algos.base.on_policy import On_Policy
 from rls.common.specs import (ModelObservations,
                               Data,
@@ -138,30 +135,31 @@ class PPOC(On_Policy):
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
-            log_std = self.log_std[self.options]
             mu = pi
-            sample_op, _ = gaussian_clip_rsample(mu, log_std)
-            log_prob = gaussian_likelihood_sum(sample_op, mu, log_std)
+            log_std = self.log_std[self.options]
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            sample_op = dist.sample().clamp(-1, 1)
+            log_prob = dist.log_prob(sample_op).unsqueeze(-1)
         else:
             logits = pi
-            norm_dist = td.categorical.Categorical(logits=logits)
+            norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
         o_log_prob = (o * options_onehot).sum(-1, keepdim=True)   # [B, 1]
         q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
         beta_adv = q_o - (q * o.exp()).sum(-1, keepdim=True)   # [B, 1]
-        option_norm_dist = td.categorical.Categorical(logits=o)
+        option_norm_dist = td.Categorical(logits=o)
         sample_options = option_norm_dist.sample()
         max_options = q.argmax(-1)  # [B, P] => [B, ]
         beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
-        beta_dist = td.bernoulli.Bernoulli(probs=beta_probs)
+        beta_dist = td.Bernoulli(probs=beta_probs)
         new_options = t.where(beta_dist.sample() < 1, self.options, sample_options)    # <1 则不改变op， =1 则改变op
 
         new_options = t.where(self._done_mask, max_options, new_options)
         self._done_mask = np.full(self.n_copys, False)
         self._value = to_numpy(q_o)
-        self._log_prob = to_numpy(log_prob) + 1e-10
-        self._o_log_prob = to_numpy(o_log_prob) + 1e-10
+        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
+        self._o_log_prob = to_numpy(o_log_prob) + np.finfo(np.float32).eps
         self._beta_adv = to_numpy(beta_adv) + self.dc
         self.oc_mask = to_numpy(new_options == self.options)  # equal means no change
         self.options = to_numpy(new_options)
@@ -244,10 +242,11 @@ class PPOC(On_Policy):
         value = (q * options_onehot).sum(1, keepdim=True)    # [B, 1]
 
         if self.is_continuous:
-            log_std = self.log_std[options]
             mu = pi  # [B, A]
-            new_log_prob = gaussian_likelihood_sum(BATCH.action, mu, log_std)
-            entropy = gaussian_entropy(log_std)
+            log_std = self.log_std[options]
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
+            entropy = dist.entropy().mean()
         else:
             logits = pi  # [B, A]
             logp_all = logits.log_softmax(-1)

@@ -177,50 +177,60 @@ For now, these algorithms are available:
 
 ```python
 """
-Usage:
-    python [options]
+usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity}]
+              [-a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}]
+              [-d DEVICE] [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE]
+              [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname] [--no-save] [--info INFO]
+              [-e ENV] [-f FILE_NAME]
 
-Options:
-    -h,--help                   show help info
-    -a,--algorithm=<name>       specify the training algorithm [default: ppo]
-    -c,--copys=<n>              nums of environment copys that collect data in parallel [default: 1]
-    -d, --device=<str>          specify the device that operate Torch.Tensor [default: None]
-    -e, --env=<name>            specify the environment name [default: CartPole-v0]
-    -f,--file-name=<file>       specify the path of builded training environment of UNITY3D [default: None]
-    -g,--graphic                whether show graphic interface when using UNITY3D [default: False]
-    -i,--inference              inference the trained model, not train policies [default: False]
-    -p,--platform=<str>         specify the platform of training environment [default: gym]
-    -l,--load=<name>            specify the name of pre-trained model that need to load [default: None]
-    -m,--models=<n>             specify the number of trails that using different random seeds [default: 1]
-    -n,--name=<name>            specify the name of this training task [default: None]
-    -r,--rnn                    whether use rnn[GRU, LSTM, ...] or not [default: False]
-    -s,--save-frequency=<n>     specify the interval that saving model checkpoint [default: None]
-    -t,--train-step=<n>         specify the training step that optimize the policy model [default: None]
-    -u,--unity                  whether training with UNITY3D editor [default: False]
-    --port=<n>                  specify the port that communicate with training environment of UNITY3D [default: 5005]
-    --apex=<str>                i.e. "learner"/"worker"/"buffer"/"evaluator" [default: None]
-    --config-file=<file>        specify the path of training configuration file [default: None]
-    --store-dir=<file>          specify the directory that store model, log and others [default: None]
-    --seed=<n>                  specify the random seed of module random, numpy and pytorch [default: 42]
-    --env-seed=<n>              specify the environment random seed [default: 42]
-    --max-step=<n>              specify the maximum step per episode [default: None]
-    --train-episode=<n>         specify the training maximum episode [default: None]
-    --train-frame=<n>           specify the training maximum steps interacting with environment [default: None]
-    --prefill-steps=<n>         specify the number of experiences that should be collected before start training, use for off-policy algorithms [default: None]
-    --prefill-choose            whether choose action using model or choose randomly [default: False]
-    --render-episode=<n>        specify when to render the graphic interface of gym environment [default: None]
-    --info=<str>                write another information that describe this training task [default: None]
-    --hostname                  whether concatenate hostname with the training name [default: False]
-    --no-save                   specify whether save models/logs/summaries while training or not [default: False]
+optional arguments:
+  -h, --help            show this help message and exit
+  -c COPYS, --copys COPYS
+                        nums of environment copys that collect data in parallel
+  --seed SEED           specify the random seed of module random, numpy and pytorch
+  -r, --render          whether render game interface
+  -p {gym,unity}, --platform {gym,unity}
+                        specify the platform of training environment
+  -a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}, --algorithm {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}
+                        specify the training algorithm
+  -d DEVICE, --device DEVICE
+                        specify the device that operate Torch.Tensor
+  -i, --inference       inference the trained model, not train policies
+  -l LOAD_PATH, --load-path LOAD_PATH
+                        specify the name of pre-trained model that need to load
+  -m MODELS, --models MODELS
+                        specify the number of trails that using different random seeds
+  -n NAME, --name NAME  specify the name of this training task
+  -s SAVE_FREQUENCY, --save-frequency SAVE_FREQUENCY
+                        specify the interval that saving model checkpoint
+  --apex {learner,worker,buffer,evaluator}
+  --config-file CONFIG_FILE
+                        specify the path of training configuration file
+  --store-dir STORE_DIR
+                        specify the directory that store model, log and others
+  --episode-length EPISODE_LENGTH
+                        specify the maximum step per episode
+  --prefill-steps PREFILL_STEPS
+                        specify the number of experiences that should be collected before start training, use for off-policy algorithms
+  --prefill-choose      whether choose action using model or choose randomly
+  --hostname            whether concatenate hostname with the training name
+  --no-save             specify whether save models/logs/summaries while training or not
+  --info INFO           write another information that describe this training task
+  -e ENV, --env ENV     specify the environment name
+  -f FILE_NAME, --file-name FILE_NAME
+                        specify the path of builded training environment of UNITY3D
+```
+
+```python
+"""
 Example:
     python run.py
+    python run.py --config-file 'rls/configs/examples/gym_config.yaml'
     python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole --no-save
     python run.py -p unity -a ppo -n run_with_unity
     python run.py -p unity --file-name /root/env/3dball.app -a sac -n run_with_execution_file
 """
 ```
-
-If you specify **gym**, **unity**, and **environment executable file path** simultaneously, the following priorities will be followed: gym > unity > unity_env.
 
 ## Notes
 
@@ -236,7 +246,6 @@ If you specify **gym**, **unity**, and **environment executable file path** simu
 7. set algorithms' hyper-parameters in [rls/configs/algorithms.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/configs/algorithms.yaml)
 8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
 9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
-10. MADDPG is only suitable for Unity3D ML-Agents for now.
 
 ## Ongoing things
 

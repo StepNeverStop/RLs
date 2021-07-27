@@ -92,7 +92,7 @@ class MAXSQN(Off_Policy):
         else:
             feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
             q = self.critic(feat)
-            cate_dist = td.categorical.Categorical(logits=(q / self.alpha))
+            cate_dist = td.Categorical(logits=(q / self.alpha))
             pi = cate_dist.sample()
             mu = q.argmax(1)
             a = pi
@@ -124,7 +124,7 @@ class MAXSQN(Off_Policy):
         q1_target = self.critic_target(feat_)
         q1_target = self.critic2_target(feat_)
         q1_target_max = q1_target.max(1, keepdim=True)[0]
-        q1_target_log_probs = (q1_target / (self.alpha + 1e-8)).log_softmax(-1)
+        q1_target_log_probs = (q1_target / (self.alpha + t.finfo().eps)).log_softmax(-1)
         q1_target_entropy = -(q1_target_log_probs.exp() * q1_target_log_probs).sum(1, keepdim=True).mean()
 
         q2_target_max = q2_target.max(1, keepdim=True)[0]
@@ -152,7 +152,7 @@ class MAXSQN(Off_Policy):
             ['Statistics/q_max', t.maximum(q1, q2).mean()]
         ])
         if self.auto_adaption:
-            q1_log_probs = (q1 / (self.alpha + 1e-8)).log_softmax(-1)
+            q1_log_probs = (q1 / (self.alpha + t.finfo().eps)).log_softmax(-1)
             q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(1, keepdim=True).mean()
             alpha_loss = -(self.alpha * (self.target_entropy - q1_entropy).detach()).mean()
             self.alpha_oplr.step(alpha_loss)
