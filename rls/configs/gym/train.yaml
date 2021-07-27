@@ -1,0 +1,7 @@
+render: false
+render_episode: 1.e+18 # if render_episode equals 0, it will be set to sys.maxsize, otherwise it will be set to render_episode if --render-episode is not specified through cmd line.
+eval_while_train: false
+max_eval_episode: 100
+# off-policy
+off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
+off_policy_step_eval_episodes: 100

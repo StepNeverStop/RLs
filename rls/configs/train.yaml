@@ -1,0 +1,37 @@
+# command
+platform: gym
+algorithm: ppo
+render: false
+copys: 1
+device: cpu
+env_name: CartPole-v0
+file_name: ~
+inference: false
+load_path: ~
+models: 1
+seed: 42
+name: default_train
+save_frequency: 100 # save training model every `save_frequency` train steps. Should larger for off-policy algorithms, and smaller for on-policy algorithms
+apex: ~
+config_file: ~
+store_dir: ./data
+# episode_length, max_train_step, max_frame_step, max_train_episode are set to sys.maxsize if default value is set to zero.
+episode_length: 1000 # episode_length per episode, if gym.env.max_episode_steps > episode_length, then PEB(Partial Episode Bootstraping), else TimeLimit.
+pre_fill_steps: 10000 # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
+prefill_choose: false
+hostname: false
+no_save: true
+info: ''
+# 
+
+max_train_step: 1.e+18 # if max_train_step > 0, then training will stop when training steps > max_train_step.
+max_frame_step: 1.e+18
+max_train_episode: 1.e+18
+inference_episode: 1.e+18
+moving_average_episode: 100
+allow_print: true
+add_noise2buffer: false # add some noise data (obtain by random action) into replay buffer, in order to prevent overfitting
+add_noise2buffer_episode_interval: 10 # episode interval when adding noise into replay buffer while training
+add_noise2buffer_steps: 1000 # how many steps should be added into replay buffer
+# off-policy
+off_policy_train_interval: 1 # train policy every interval times

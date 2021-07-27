@@ -33,18 +33,13 @@ class Base:
         super().__init__()
         self.no_save = bool(kwargs.get('no_save', False))
         self.base_dir = base_dir = kwargs.get('base_dir')
-        self.device = kwargs.get('device', None) or ("cuda" if t.cuda.is_available() else "cpu")
+        self.device = kwargs.get('device', 'cpu')
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
 
         if not self.no_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
-
-        if 1 == 0:  # Not used
-            import pandas as pd
-            check_or_create(self.excel_dir, 'excel')
-            self.excel_writer = pd.ExcelWriter(self.excel_dir + '/data.xlsx')
 
         self.global_step = t.tensor(0, dtype=t.int64)
         self._worker_modules = {}
@@ -81,9 +76,9 @@ class Base:
                 logger.error(e)
                 raise Exception(colorize(f'Resume model from {ckpt_path} FAILED.', color='red'))
             else:
-                logger.info(colorize(f'Resume model from {ckpt_path} SUCCUESS.', color='green'))
+                logger.info(colorize(f'Resume model from {ckpt_path} SUCCESSFULLY.', color='green'))
         else:
-            logger.info(colorize('Initialize model SUCCUESS.', color='green'))
+            logger.info(colorize('Initialize model SUCCESSFULLY.', color='green'))
 
     def save(self, **kwargs) -> NoReturn:
         """

@@ -9,9 +9,8 @@ from typing import (Callable,
 
 from rls.common.recoder import (SimpleMovingAverageRecoder,
                                 SimpleMovingAverageMultiAgentRecoder)
-from rls.utils.logging_utils import get_logger
 from rls.common.specs import BatchExperiences
-
+from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
@@ -22,7 +21,7 @@ def unity_train(env, model,
                 begin_frame_step: int,
                 begin_episode: int,
                 save_frequency: int,
-                max_step_per_episode: int,
+                episode_length: int,
                 max_train_episode: int,
                 policy_mode: str,
                 moving_average_episode: int,
@@ -40,7 +39,7 @@ def unity_train(env, model,
         env:                    Environment for interaction.
         model:                  all model for this training task.
         save_frequency:         how often to save checkpoints.
-        max_step_per_episode:   maximum number of steps for an episode.
+        episode_length:   maximum number of steps for an episode.
         resampling_interval:    how often to resample parameters for env reset.
     """
     frame_step = begin_frame_step
@@ -53,7 +52,7 @@ def unity_train(env, model,
         ret = env.reset(reset_config={})
         recoder.episode_reset(episode=episode)
 
-        for _ in range(max_step_per_episode):
+        for _ in range(episode_length):
             obs = ret.corrected_obs
             action = model(obs=obs)
             ret = env.step(action, step_config={})
@@ -69,8 +68,8 @@ def unity_train(env, model,
                 if recoder.total_step % off_policy_train_interval == 0:
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
-                if train_step % save_frequency == 0:
-                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
+                    if train_step % save_frequency == 0:
+                        model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
             frame_step += env._n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
@@ -138,7 +137,7 @@ def unity_inference(env, model,
         ret = env.reset(reset_config={})
         while True:
             action = model(obs=ret.corrected_obs,
-                                         evaluation=True)
+                           evaluation=True)
             ret = env.step(action, step_config={})
             model.partial_reset(ret.done)
 
@@ -181,7 +180,7 @@ def ma_unity_train(env, model,
                    begin_frame_step: int,
                    begin_episode: int,
                    save_frequency: int,
-                   max_step_per_episode: int,
+                   episode_length: int,
                    max_train_episode: int,
                    policy_mode: str,
                    moving_average_episode: int,
@@ -196,7 +195,7 @@ def ma_unity_train(env, model,
         env:                    Environment for interaction.
         model:                  all model for this training task.
         save_frequency:         how often to save checkpoints.
-        max_step_per_episode:   maximum number of steps for an episode.
+        episode_length:   maximum number of steps for an episode.
         resampling_interval:    how often to resample parameters for env reset.
     """
     frame_step = begin_frame_step
@@ -212,7 +211,7 @@ def ma_unity_train(env, model,
         rets = env.reset(is_single=False, reset_config={})
         recoder.episode_reset(episode=episode)
 
-        for _ in range(max_step_per_episode):
+        for _ in range(episode_length):
             pre_obss = [ret.corrected_obs for ret in rets]
             actions = model(obs=pre_obss)
             rets = env.step(actions, is_single=False, step_config={})
@@ -234,8 +233,8 @@ def ma_unity_train(env, model,
                 if recoder.total_step % off_policy_train_interval == 0:
                     model.learn(episode=episode, train_step=train_step)
                     train_step += 1
-                if train_step % save_frequency == 0:
-                    model.save(train_step=train_step, episode=episode, frame_step=frame_step)
+                    if train_step % save_frequency == 0:
+                        model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
             frame_step += env._n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
@@ -267,6 +266,6 @@ def ma_unity_inference(env, model,
         rets = env.reset(is_single=False, reset_config={})
         while True:
             actions = model(obs=[ret.corrected_obs for ret in rets],
-                                          evaluation=True)
+                            evaluation=True)
             rets = env.step(actions, is_single=False, step_config={})
             model.partial_reset([ret.done for ret in rets])

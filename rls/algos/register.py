@@ -9,7 +9,7 @@ from typing import (Tuple,
                     Callable,
                     Dict)
 
-from rls.common.yaml_ops import load_yaml
+from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
@@ -58,7 +58,7 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     model = getattr(importlib.import_module(f'rls.algos.{policy_type}.{name}'), class_name)
 
     algo_config = {}
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')['general'])
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[policy_mode.replace('-', '_')])
-    algo_config.update(load_yaml(f'rls/configs/algorithms.yaml')[name])
+    algo_config.update(load_config(f'rls/configs/algorithms.yaml')['general'])
+    algo_config.update(load_config(f'rls/configs/algorithms.yaml')[policy_mode.replace('-', '_')])
+    algo_config.update(load_config(f'rls/configs/algorithms.yaml')[name])
     return model, algo_config, policy_mode, policy_type

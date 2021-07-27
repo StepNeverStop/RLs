@@ -13,7 +13,7 @@ from typing import (Dict,
 
 from rls.utils.np_utils import int2one_hot
 from rls.algos.base.policy import Policy
-from rls.common.yaml_ops import load_yaml
+from rls.common.yaml_ops import load_config
 from rls.common.specs import BatchExperiences
 
 
@@ -68,7 +68,7 @@ class Off_Policy(Policy):
                 )
                 self.gamma = self.gamma ** self.n_step
 
-        default_buffer_args = load_yaml(f'rls/configs/off_policy_buffer.yaml')[_type]
+        default_buffer_args = load_config(f'rls/configs/off_policy_buffer.yaml')[_type]
         default_buffer_args.update(_buffer_args)
 
         Buffer = getattr(importlib.import_module(f'rls.memories.single_replay_buffers'), _type)

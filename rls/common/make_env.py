@@ -10,9 +10,9 @@ logger = get_logger(__name__)
 
 def make_env(env_kargs: Dict):
     logger.info('Initialize environment begin...')
-    if env_kargs['type'] == 'gym':
+    if env_kargs['platform'] == 'gym':
         env = make_gym_env(env_kargs)
-    elif env_kargs['type'] == 'unity':
+    elif env_kargs['platform'] == 'unity':
         env = make_unity_env(env_kargs)
     else:
         raise Exception('Unknown environment type.')

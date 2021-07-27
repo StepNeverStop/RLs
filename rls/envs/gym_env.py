@@ -74,7 +74,7 @@ class gym_envs(object):
             n: environment number
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
-        self.n = config['env_num']  # environments number
+        self.n = config['env_copys']  # environments number
         render_mode = config.get('render_mode', 'first')
 
         self.info_env = build_env(config)
@@ -84,7 +84,7 @@ class gym_envs(object):
 
         self.vector_env_type = GymVectorizedType(str(config.get('vector_env_type', 'vector')))
 
-        self.envs = get_vectorized_env_class(self.vector_env_type)(build_env, config, self.n, config['env_seed'])
+        self.envs = get_vectorized_env_class(self.vector_env_type)(build_env, config, self.n, config['seed'])
         self._get_render_index(render_mode)
 
     def _initialize(self, env):

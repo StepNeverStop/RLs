@@ -263,7 +263,7 @@ class CURL(Off_Policy):
         z_out = self.encoder_target(pos)
         logits = z_a @ (self.curl_w @ z_out.T)
         logits -= logits.max(-1, keepdim=True)[0]
-        curl_loss = t.nn.functional.cross_entropy(logits, t.arange(self.batch_size))
+        curl_loss = t.nn.functional.cross_entropy(logits, t.arange(logits.shape[0]))
         self.curl_oplr.step(curl_loss)
 
         feat = feat.detach()
