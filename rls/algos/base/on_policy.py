@@ -16,9 +16,12 @@ from rls.common.specs import BatchExperiences
 
 
 class On_Policy(Policy):
-    def __init__(self, envspec, **kwargs):
+    def __init__(self,
+                 envspec,
+                 rnn_time_step=8,
+                 **kwargs):
         super().__init__(envspec=envspec, **kwargs)
-        self.rnn_time_step = int(kwargs.get('rnn_time_step', 8))
+        self.rnn_time_step = rnn_time_step
 
     def initialize_data_buffer(self, store_data_type=BatchExperiences, sample_data_type=BatchExperiences) -> NoReturn:
         self.data = DataBuffer(n_copys=self.n_copys, rnn_cell_nums=self.rnn_cell_nums,

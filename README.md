@@ -225,6 +225,7 @@ optional arguments:
 """
 Example:
     python run.py
+    python run.py --config-file 'rls/configs/examples/gym_config.yaml'
     python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole --no-save
     python run.py -p unity -a ppo -n run_with_unity
     python run.py -p unity --file-name /root/env/3dball.app -a sac -n run_with_execution_file

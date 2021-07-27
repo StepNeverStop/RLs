@@ -21,11 +21,14 @@ pre_fill_steps: 10000 # pre_fill_steps should be set to an integer multiple of '
 prefill_choose: false
 hostname: false
 no_save: true
-info: ''
-# 
+info: ""
+#
 
+begin_train_step: 0
 max_train_step: 1.e+18 # if max_train_step > 0, then training will stop when training steps > max_train_step.
+begin_frame_step: 0
 max_frame_step: 1.e+18
+begin_episode: 0
 max_train_episode: 1.e+18
 inference_episode: 1.e+18
 moving_average_episode: 100

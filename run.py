@@ -80,64 +80,61 @@ def get_args():
     return parser.parse_args()
 
 
-def agent_run(*args):
-    '''
-    Start a training task
-    '''
-    Trainer(*args)()
-
-
 def main():
     args = get_args()
     assert args.platform in platform_list, "assert args.platform in platform_list"
-    show_dict(args.__dict__)
 
     train_args = NamedDict()
     train_args.update(load_config(f'rls/configs/train.yaml'))
     train_args.update(load_config(f'rls/configs/{args.platform}/train.yaml'))
-    train_args.update(args.__dict__)
 
     env_args = NamedDict()
     env_args.update(load_config(f'rls/configs/env.yaml'))
     env_args.update(load_config(f'rls/configs/{args.platform}/env.yaml'))
 
-    # env
-    env_args.platform = args.platform
-    env_args.env_copys = args.copys  # Environmental copies of vectorized training.
-    env_args.seed = args.seed
-    env_args.inference = args.inference
+    if args.config_file is not None:
+        custome_config = load_config(args.config_file)
+        train_args.update(custome_config['train'])
+        env_args.update(custome_config['environment'])
+    else:
+        train_args.update(args.__dict__)
+        # env
+        env_args.platform = args.platform
+        env_args.env_copys = args.copys  # Environmental copies of vectorized training.
+        env_args.seed = args.seed
+        env_args.inference = args.inference
 
-    if env_args.platform == 'gym':
-        env_args.env_name = args.env_name
-    elif env_args.platform == 'unity':
-        env_args.env_name = 'UnityEditor'
-        env_args.file_name = args.file_name
+        if env_args.platform == 'gym':
+            env_args.env_name = args.env_name
+        elif env_args.platform == 'unity':
+            env_args.env_name = 'UnityEditor'
+            env_args.file_name = args.file_name
 
-        if env_args.inference:
-            env_args.engine_config.time_scale = 1   # TODO: test
-        if env_args.file_name is not None:
-            if os.path.exists(env_args.file_name):
-                env_args.env_name = args.env_name or os.path.join(
-                    *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
-            else:
-                raise Exception('can not find the executable file.')
-        # if traing with visual input but do not render the environment, all 0 obs will be passed.
-        env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
+            if env_args.inference:
+                env_args.engine_config.time_scale = 1   # TODO: test
+            if env_args.file_name is not None:
+                if os.path.exists(env_args.file_name):
+                    env_args.env_name = args.env_name or os.path.join(
+                        *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
+                else:
+                    raise Exception('can not find the executable file.')
+            # if traing with visual input but do not render the environment, all 0 obs will be passed.
+            env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
 
-    # train
-    if args.apex is not None:
-        train_args.name = f'{args.apex}/' + train_args.name
-    if args.hostname:
-        import socket
-        train_args.name += ('-' + str(socket.gethostname()))
-    train_args.base_dir = os.path.join(args.store_dir,
-                                       train_args.platform,
-                                       env_args.env_name,
-                                       train_args.algorithm,
-                                       train_args.name)
-    if train_args.load_path is not None and not os.path.exists(train_args.load_path):   # 如果不是绝对路径，就拼接load的训练相对路径
-        train_args.load_path = os.path.join(train_args.base_dir, train_args.load_path)
-    train_args.index = 0
+        # train
+        if args.apex is not None:
+            train_args.name = f'{args.apex}/' + train_args.name
+        if args.hostname:
+            import socket
+            train_args.name += ('-' + str(socket.gethostname()))
+        train_args.base_dir = os.path.join(args.store_dir,
+                                           train_args.platform,
+                                           env_args.env_name,
+                                           train_args.algorithm,
+                                           train_args.name)
+        if train_args.load_path is not None and not os.path.exists(train_args.load_path):   # 如果不是绝对路径，就拼接load的训练相对路径
+            train_args.load_path = os.path.join(train_args.base_dir, train_args.load_path)
+        train_args.index = 0
 
     # start training
     if args.inference:
@@ -164,6 +161,13 @@ def main():
                     time.sleep(10)
                     processes.append(p)
                 [p.join() for p in processes]
+
+
+def agent_run(*args):
+    '''
+    Start a training task
+    '''
+    Trainer(*args)()
 
 
 if __name__ == "__main__":

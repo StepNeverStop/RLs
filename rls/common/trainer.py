@@ -41,62 +41,58 @@ class Trainer:
         '''
         self.env_args = env_args
         self.train_args = train_args
-        set_global_seeds(int(self.train_args.seed))
-
-        self._name = self.train_args.name
-        self._allow_print = bool(self.train_args.get('allow_print', False))
+        set_global_seeds(self.train_args.seed)
 
         # ENV
         self.env = make_env(self.env_args)
 
         # ALGORITHM CONFIG
-        self.agent_class, self.algo_args, self.train_args['policy_mode'], _policy_type = get_model_info(self.train_args['algorithm'])
-        self.multi_agents_training = _policy_type == 'multi'
+        self.agent_class, self.policy_mode, self.is_multi = get_model_info(self.train_args.algorithm)
 
-        if self.train_args['config_file'] is not None:
-            self.algo_args.update(load_config(self.train_args['config_file'])['algorithm'])  # TODO
-        self.algo_args['no_save'] = self.train_args['no_save']
-        self.algo_args['device'] = self.train_args['device']
-        show_dict(self.algo_args)
+        self.algo_args = NamedDict()
+        default_algo_args = load_config(f'rls/configs/algorithms.yaml')
+        self.algo_args.update(default_algo_args['general'])
+        self.algo_args.update(default_algo_args[self.policy_mode.replace('-', '_')])
+        self.algo_args.update(default_algo_args[self.train_args.algorithm])
+        if self.train_args.config_file is not None:
+            self.algo_args.update(load_config(self.train_args.config_file)['algorithm'])
 
-        if self.train_args['policy_mode'] == 'on-policy':
-            self.train_args['pre_fill_steps'] = 0  # if on-policy, prefill experience replay is no longer needed.
+        self.records_dict = {
+            'environment': dict(self.env_args),
+            'train': dict(self.train_args),
+            'algorithm': dict(self.algo_args)
+        }
+        show_dict(self.records_dict)
+
+        if self.is_multi:  # TODO: Optimization
+            self.algo_args.update({'envspecs': self.env.GroupsSpec})
+        else:
+            self.algo_args.update({'envspec': self.env.GroupSpec})
+        self.algo_args.update({'no_save': self.train_args.no_save,
+                               'device': self.train_args.device,
+                               'max_train_step': self.train_args.max_train_step,
+                               'base_dir': self.train_args.base_dir})
+
+        if self.policy_mode == 'on-policy':
+            self.train_args.pre_fill_steps = 0  # if on-policy, prefill experience replay is no longer needed.
 
         self.initialize()
         self.start_time = time.time()
 
     def initialize(self):
-        if self.multi_agents_training:  # TODO: Optimization
-            self.algo_args.update({'envspecs': self.env.GroupsSpec})
-        else:
-            self.algo_args.update({'envspec': self.env.GroupSpec})
-
-        self.algo_args.update({
-            'max_train_step': self.train_args.max_train_step,
-            'base_dir': self.train_args.base_dir
-        })
         self.model = self.agent_class(**self.algo_args)
         self.model.resume(self.train_args.load_path)
 
         _train_info = self.model.get_init_training_info()
-        self.train_args['begin_train_step'] = _train_info['train_step']
-        self.train_args['begin_frame_step'] = _train_info['frame_step']
-        self.train_args['begin_episode'] = _train_info['episode']
-        if not self.train_args['inference'] and not self.train_args['no_save']:
-            if self.multi_agents_training:  # TODO: Optimization
-                self.algo_args['envspecs'] = str(self.algo_args['envspecs'])
-            else:
-                self.algo_args['envspec'] = str(self.algo_args['envspec'])
-            records_dict = {
-                'environment': dict(self.env_args),
-                'train': dict(self.train_args),
-                'algorithm': dict(self.algo_args)
-            }
-            save_config(os.path.join(self.train_args.base_dir, 'config'), records_dict)
+        self.train_args.begin_train_step = _train_info['train_step']
+        self.train_args.begin_frame_step = _train_info['frame_step']
+        self.train_args.begin_episode = _train_info['episode']
+        if not self.train_args.inference and not self.train_args.no_save:
+            save_config(os.path.join(self.train_args.base_dir, 'config'), self.records_dict)
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
-        if self._allow_print:
-            model_info = f'{self._name} '
+        if self.train_args.allow_print:
+            model_info = f'{self.train_args.name} '
             if out_time:
                 model_info += f'T: {get_time_hhmmss(self.start_time)} '
             logger.info(''.join([model_info, *args]))
@@ -129,7 +125,7 @@ class Trainer:
                     max_eval_episode=int(self.train_args['max_eval_episode']),
                     off_policy_step_eval_episodes=int(self.train_args['off_policy_step_eval_episodes']),
                     off_policy_train_interval=int(self.train_args['off_policy_train_interval']),
-                    policy_mode=str(self.train_args['policy_mode']),
+                    policy_mode=str(self.policy_mode),
                     moving_average_episode=int(self.train_args['moving_average_episode']),
                     add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                     add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
@@ -142,7 +138,7 @@ class Trainer:
                 self.model.close()
                 self.env.close()
         else:
-            if self.multi_agents_training:
+            if self.is_multi:
                 try:
                     ma_unity_no_op(
                         env=self.env,
@@ -163,7 +159,7 @@ class Trainer:
                         max_train_step=int(self.train_args['max_train_step']),
                         max_frame_step=int(self.train_args['max_frame_step']),
                         max_train_episode=int(self.train_args['max_train_episode']),
-                        policy_mode=str(self.train_args['policy_mode']),
+                        policy_mode=str(self.policy_mode),
                         moving_average_episode=int(self.train_args['moving_average_episode']),
                         real_done=bool(self.train_args['real_done']),
                         off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
@@ -190,7 +186,7 @@ class Trainer:
                         save_frequency=int(self.train_args['save_frequency']),
                         episode_length=int(self.train_args['episode_length']),
                         max_train_episode=int(self.train_args['max_train_episode']),
-                        policy_mode=str(self.train_args['policy_mode']),
+                        policy_mode=str(self.policy_mode),
                         moving_average_episode=int(self.train_args['moving_average_episode']),
                         add_noise2buffer=bool(self.train_args['add_noise2buffer']),
                         add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
@@ -216,7 +212,7 @@ class Trainer:
                 self.model.close()
                 self.env.close()
         else:
-            if self.multi_agents_training:
+            if self.is_multi:
                 try:
                     ma_unity_inference(
                         env=self.env,
@@ -238,7 +234,7 @@ class Trainer:
                     self.env.close()
 
     def apex(self) -> NoReturn:
-        if self.train_args['policy_mode'] != 'off-policy':
+        if self.policy_mode != 'off-policy':
             raise Exception('Ape-X only suitable for off-policy algorithms.')
 
         if self.train_args['apex'] == 'learner':

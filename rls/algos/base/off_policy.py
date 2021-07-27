@@ -18,21 +18,28 @@ from rls.common.specs import BatchExperiences
 
 
 class Off_Policy(Policy):
-    def __init__(self, envspec, **kwargs):
+    def __init__(self,
+                 envspec,
+                 buffer_size=10000,
+                 n_step=1,
+                 use_priority=False,
+                 use_isw=False,
+                 burn_in_time_step=10,
+                 train_time_step=10,
+                 episode_batch_size=32,
+                 episode_buffer_size=10000,
+                 train_times_per_step=1,
+                 **kwargs):
         super().__init__(envspec=envspec, **kwargs)
-        self.buffer_size = int(kwargs.get('buffer_size', 10000))
-
-        self.n_step = int(kwargs.get('n_step', 1))
-
-        self.use_priority = kwargs.get('use_priority', False)
-        self.use_isw = bool(kwargs.get('use_isw', False))
-
-        self.burn_in_time_step = int(kwargs.get('burn_in_time_step', 10))
-        self.train_time_step = int(kwargs.get('train_time_step', 10))
-        self.episode_batch_size = int(kwargs.get('episode_batch_size', 32))
-        self.episode_buffer_size = int(kwargs.get('episode_buffer_size', 10000))
-
-        self.train_times_per_step = int(kwargs.get('train_times_per_step', 1))
+        self.buffer_size = buffer_size
+        self.n_step = n_step
+        self.use_priority = use_priority
+        self.use_isw = use_isw
+        self.burn_in_time_step = burn_in_time_step
+        self.train_time_step = train_time_step
+        self.episode_batch_size = episode_batch_size
+        self.episode_buffer_size = episode_buffer_size
+        self.train_times_per_step = train_times_per_step
 
     def initialize_data_buffer(self) -> NoReturn:
         '''

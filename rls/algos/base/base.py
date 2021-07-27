@@ -24,16 +24,20 @@ logger = get_logger(__name__)
 
 class Base:
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self,
+                 no_save=False,
+                 base_dir='',
+                 device='cpu',
+                 logger2file=False):
         '''
         inputs:
             a_dim: action spaces
             base_dir: the directory that store data, like model, logs, and other data
         '''
         super().__init__()
-        self.no_save = bool(kwargs.get('no_save', False))
-        self.base_dir = base_dir = kwargs.get('base_dir')
-        self.device = kwargs.get('device', 'cpu')
+        self.no_save = no_save
+        self.base_dir = base_dir
+        self.device = device
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
 
         self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
@@ -46,7 +50,7 @@ class Base:
         self._trainer_modules = {'global_step': self.global_step}
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
-        if bool(kwargs.get('logger2file', False)):
+        if logger2file:
             set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
 
     def _create_writer(self, log_dir: str) -> SummaryWriter:
