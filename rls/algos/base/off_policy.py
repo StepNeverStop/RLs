@@ -185,7 +185,7 @@ class Off_Policy(Policy):
             # --------------------------------------
 
             # --------------------------------------写summary到tensorboard
-            self.write_training_summaries(self.global_step, self.summaries)
+            self.write_summaries(self.global_step, self.summaries)
             # --------------------------------------
 
     def _apex_learn(self, function_dict: Dict, data: BatchExperiences, priorities) -> np.ndarray:
@@ -209,7 +209,7 @@ class Off_Policy(Policy):
 
         self._target_params_update()
         self.summaries.update(_summary)
-        self.write_training_summaries(self.global_step, self.summaries)
+        self.write_summaries(self.global_step, self.summaries)
 
         return np.squeeze(td_error.numpy())
 

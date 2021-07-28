@@ -200,6 +200,10 @@ class BasicUnityEnvironment(object):
         return self.GroupsSpec[0]
 
     @property
+    def is_multi(self):
+        return len(self.GroupsSpec) > 1
+
+    @property
     def n_agents(self):
         '''
         返回需要控制几个智能体

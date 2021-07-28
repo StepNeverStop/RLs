@@ -157,7 +157,6 @@ For now, these algorithms are available:
 |             Rainbow             |    √     |            |   √   |  √   |      rainbow      |
 |               DPG               |    √     |     √      |   √   |  √   |        dpg        |
 |              DDPG               |    √     |     √      |   √   |  √   |       ddpg        |
-|             PD-DDPG             |    √     |     √      |   √   |  √   |      pd_ddpg      |
 |               TD3               |    √     |     √      |   √   |  √   |        td3        |
 |       SAC(has V network)        |    √     |     √      |   √   |  √   |       sac_v       |
 |               SAC               |    √     |     √      |   √   |  √   |        sac        |
@@ -169,7 +168,6 @@ For now, these algorithms are available:
 |               IOC               |    √     |     √      |   √   |  √   |        ioc        |
 |              HIRO               |    √     |     √      |       |      |       hiro        |
 |              CURL               |    √     |     √      |   √   |      |       curl        |
-|               IQL               |    √     |            |   √   |      |        iql        |
 |               VDN               |    √     |            |   √   |      |        vdn        |
 |             MADDPG              |    √     |     √      |   √   |      |      maddpg       |
 
@@ -178,7 +176,7 @@ For now, these algorithms are available:
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity}]
-              [-a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}]
+              [-a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}]
               [-d DEVICE] [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE]
               [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname] [--no-save] [--info INFO]
               [-e ENV] [-f FILE_NAME]
@@ -191,7 +189,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity}, --platform {gym,unity}
                         specify the platform of training environment
-  -a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}, --algorithm {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,pd_ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn,iql}
+  -a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}, --algorithm {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}
                         specify the training algorithm
   -d DEVICE, --device DEVICE
                         specify the device that operate Torch.Tensor
@@ -225,7 +223,7 @@ optional arguments:
 """
 Example:
     python run.py
-    python run.py --config-file 'rls/configs/examples/gym_config.yaml'
+    python run.py --config-file rls/configs/examples/gym_config.yaml
     python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole --no-save
     python run.py -p unity -a ppo -n run_with_unity
     python run.py -p unity --file-name /root/env/3dball.app -a sac -n run_with_execution_file

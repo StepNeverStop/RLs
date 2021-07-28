@@ -165,26 +165,25 @@ class SimpleMovingAverageMultiAgentRecoder(Recoder):
 
     @property
     def summary_dict(self):
-        _dicts = []
+        _dicts = {}
         for i in range(self.n_agents):
-            _dict = dict(
-                total_rt_mean=self.total_returns[i].mean(),
-                total_rt_min=self.total_returns[i].min(),
-                total_rt_max=self.total_returns[i].max(),
-                discounted_rt_mean=self.discounted_returns[i].mean(),
-                discounted_rt_min=self.discounted_returns[i].min(),
-                discounted_rt_max=self.discounted_returns[i].max(),
-                sma_max=self.max[i],
-                sma_min=self.min[i],
-                sma_mean=self.mean[i]
-            )
-            # TODO: check
+            _dicts[i] = dict([
+                ['AGENT/total_rt_mean', self.total_returns[i].mean()],
+                ['AGENT/total_rt_min', self.total_returns[i].min()],
+                ['AGENT/total_rt_max', self.total_returns[i].max()],
+                ['AGENT/discounted_rt_mean', self.discounted_returns[i].mean()],
+                ['AGENT/discounted_rt_min', self.discounted_returns[i].min()],
+                ['AGENT/discounted_rt_max', self.discounted_returns[i].max()],
+                ['AGENT/sma_max', self.max[i]],
+                ['AGENT/sma_min', self.min[i]],
+                ['AGENT/sma_mean', self.mean[i]]
+            ])
+            # # TODO: check
             # if self.verbose:
-            #     _dict.update(dict(
-            #         first_done_step=self.steps[self.already_dones[i] > 0].min() if self.has_done else -1,
-            #         last_done_step=self.steps[self.already_dones[i] > 0].max() if self.has_done else -1
-            #     ))
-            _dicts.append(_dict)
+            #     _dicts[i].update(dict([
+            #         'AGENT/first_done_step':self.steps[self.already_dones[i] > 0].min() if self.has_done else -1,
+            #         'AGENT/last_done_step':self.steps[self.already_dones[i] > 0].max() if self.has_done else -1
+            #     ]))
         return _dicts
 
     def __str__(self):

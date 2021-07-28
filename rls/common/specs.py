@@ -14,8 +14,21 @@ from dataclasses import (dataclass,
                          asdict,
                          is_dataclass,
                          make_dataclass)
+from collections import defaultdict
 
 from rls.utils.sundry_utils import nested_tuple
+
+
+class NamedDict(defaultdict):
+
+    def __getattr__(self, name):
+        if name in self.keys():
+            return self[name]
+        else:
+            raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {name}')
+
+    def __setattr__(self, name, value):
+        self[name] = value
 
 
 @dataclass(frozen=True)
