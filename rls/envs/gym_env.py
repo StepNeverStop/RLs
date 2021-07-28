@@ -74,7 +74,7 @@ class gym_envs(object):
             n: environment number
             render_mode: mode of rendering, optional: first, last, all, random_[num] -> i.e. random_2, [list] -> i.e. [0, 2, 4]
         '''
-        self.n = config['env_copys']  # environments number
+        self._n_copys = config['env_copys']  # environments number
         render_mode = config.get('render_mode', 'first')
 
         self.info_env = build_env(config)
@@ -84,8 +84,12 @@ class gym_envs(object):
 
         self.vector_env_type = GymVectorizedType(str(config.get('vector_env_type', 'vector')))
 
-        self.envs = get_vectorized_env_class(self.vector_env_type)(build_env, config, self.n, config['seed'])
+        self.envs = get_vectorized_env_class(self.vector_env_type)(build_env, config, self._n_copys, config['seed'])
         self._get_render_index(render_mode)
+
+    @property
+    def n_copys(self):
+        return self._n_copys
 
     def _initialize(self, env):
         assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
@@ -104,10 +108,10 @@ class gym_envs(object):
             self.obs_type = 'vector'
             self.visual_dims = []
 
-        self.vector_info_type = generate_obs_dataformat(n_copys=self.n,
+        self.vector_info_type = generate_obs_dataformat(n_copys=self._n_copys,
                                                         item_nums=1 if self.obs_type == 'vector' else 0,
                                                         name='vector')
-        self.visual_info_type = generate_obs_dataformat(n_copys=self.n,
+        self.visual_info_type = generate_obs_dataformat(n_copys=self._n_copys,
                                                         item_nums=1 if self.obs_type == 'visual' else 0,
                                                         name='visual')
 
@@ -138,7 +142,7 @@ class gym_envs(object):
                              visual_dims=self.visual_dims),
             a_dim=self.a_dim,
             is_continuous=self._is_continuous,
-            n_copys=self.n
+            n_copys=self._n_copys
         )
         self.GroupsSpec = [self.GroupSpec]
 
@@ -158,7 +162,7 @@ class gym_envs(object):
         if isinstance(render_mode, list):
             assert all([isinstance(i, int) for i in render_mode]), 'items in render list must have type of int'
             assert min(index) >= 0, 'index must larger than zero'
-            assert max(index) <= self.n, 'render index cannot larger than environment number.'
+            assert max(index) <= self._n_copys, 'render index cannot larger than environment number.'
             self.render_index = render_mode
         elif isinstance(render_mode, str):
             if render_mode == 'first':
@@ -166,12 +170,12 @@ class gym_envs(object):
             elif render_mode == 'last':
                 self.render_index = [-1]
             elif render_mode == 'all':
-                self.render_index = [i for i in range(self.n)]
+                self.render_index = [i for i in range(self._n_copys)]
             else:
                 a, b = render_mode.split('_')
-                if a == 'random' and 0 < int(b) <= self.n:
+                if a == 'random' and 0 < int(b) <= self._n_copys:
                     import random
-                    self.render_index = random.sample([i for i in range(self.n)], int(b))
+                    self.render_index = random.sample([i for i in range(self._n_copys)], int(b))
         else:
             raise Exception('render_mode must be first, last, all, [list] or random_[num]')
 
@@ -208,7 +212,7 @@ class gym_envs(object):
             if self.action_type == 'discrete':
                 actions = actions.reshape(-1,)
             elif self.action_type == 'Tuple(Discrete)':
-                actions = actions.reshape(self.n, -1).tolist()
+                actions = actions.reshape(self._n_copys, -1).tolist()
 
         results = self.envs.step(actions)
 

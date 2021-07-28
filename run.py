@@ -19,7 +19,8 @@ from rls.common.yaml_ops import (save_config,
                                  load_config)
 from rls.algos.register import registry
 from rls.utils.display import show_dict
-from rls.utils.logging_utils import set_log_level
+from rls.utils.logging_utils import (set_log_level,
+                                     set_log_file)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 platform_list = ['gym', 'unity']
@@ -154,6 +155,9 @@ def main():
     show_dict(records_dict)
     if not train_args.inference and not train_args.no_save:
         save_config(train_args.base_dir, records_dict, 'config.yaml')
+    # save log
+    if train_args.logger2file:
+        set_log_file(log_file=os.path.join(train_args.base_dir, 'log.txt'))
 
     # start training
     if args.inference:

@@ -26,7 +26,7 @@ class EvalProc(object):
             setattr(self, k, v)
 
     def run(self):
-        n = self.env.n
+        n = self.env.n_copys
         i = 1 if self.env.obs_type == 'visual' else 0
         state = [np.full((n, 0), []), np.full((n, 0), [])]
         sma = SMA(100)
@@ -40,9 +40,9 @@ class EvalProc(object):
             episode += 1
             self.model.reset()
             state[i] = self.env.reset()
-            dones_flag = np.zeros(self.env.n)
+            dones_flag = np.zeros(self.env.n_copys)
             step = 0
-            rets = np.zeros(self.env.n)
+            rets = np.zeros(self.env.n_copys)
             last_done_step = -1
             while True:
                 step += 1

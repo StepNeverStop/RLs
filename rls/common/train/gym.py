@@ -43,7 +43,7 @@ def gym_train(env, model,
     TODO: Annotation
     """
 
-    recoder = SimpleMovingAverageRecoder(n_copys=env.n, gamma=0.99, verbose=True,
+    recoder = SimpleMovingAverageRecoder(n_copys=env.n_copys, gamma=0.99, verbose=True,
                                          length=moving_average_episode)
     frame_step = begin_frame_step
     train_step = begin_train_step
@@ -75,7 +75,7 @@ def gym_train(env, model,
                 if off_policy_eval_interval > 0 and train_step % off_policy_eval_interval == 0:
                     gym_step_eval(deepcopy(env), model, train_step, off_policy_step_eval_episodes, episode_length)
 
-            frame_step += env.n
+            frame_step += env.n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
                 model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
@@ -145,15 +145,15 @@ def gym_evaluate(env, model,
                  episode_length: int,
                  max_eval_episode: int,
                  print_func: Callable[[str], None]) -> NoReturn:
-    total_r = np.zeros(env.n)
-    total_steps = np.zeros(env.n)
+    total_r = np.zeros(env.n_copys)
+    total_steps = np.zeros(env.n_copys)
 
     for _ in trange(max_eval_episode, ncols=80, desc='evaluating', bar_format=bar_format):
         model.reset()
         obs = env.reset()
-        dones_flag = np.zeros(env.n)
-        steps = np.zeros(env.n)
-        returns = np.zeros(env.n)
+        dones_flag = np.zeros(env.n_copys)
+        steps = np.zeros(env.n_copys)
+        returns = np.zeros(env.n_copys)
         for _ in range(episode_length):
             action = model(obs=obs, evaluation=True)
             ret = env.step(action)
@@ -185,7 +185,7 @@ def gym_no_op(env, model,
     model.reset()
     obs = env.reset()
 
-    for _ in trange(0, pre_fill_steps, env.n, unit_scale=env.n, ncols=80, desc=desc, bar_format=bar_format):
+    for _ in trange(0, pre_fill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
         if prefill_choose:
             action = model(obs=obs, evaluation=True)
         else:
@@ -205,8 +205,8 @@ def gym_inference(env, model, episodes: int) -> NoReturn:
         step = 0
         model.reset()
         obs = env.reset()
-        dones_flag = np.zeros(env.n)
-        returns = np.zeros(env.n)
+        dones_flag = np.zeros(env.n_copys)
+        returns = np.zeros(env.n_copys)
         while True:
             env.render(record=False)
             action = model(obs=obs, evaluation=True)

@@ -35,7 +35,7 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym{MuJoCo, [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
+- Gym{MuJoCo(v2.0.2.13), [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
@@ -83,9 +83,15 @@ If using ml-agents:
 $ pip install -e .[unity]
 ```
 
-If using atari:
+If using mujoco:
 ```bash
-$ pip install -e .[atari]
+$ pip install -e .[mujoco]
+```
+
+If using atari/box2d:
+```bash
+$ pip install gym[atari]
+$ pip install gym[box2d]
 ```
 
 You can download the builded docker image from [here](https://hub.docker.com/r/keavnn/rls):

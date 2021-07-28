@@ -16,7 +16,6 @@ algorithm:
   eps_mid: 0.2
   gamma: 0.99
   init2mid_annealing_step: 100
-  logger2file: false
   lr: 0.0005
   max_train_step: 999999999999999999
   n_step: 4
@@ -65,6 +64,7 @@ environment:
   stack: 4
   vector_env_type: multiprocessing
 train:
+  logger2file: false
   add_noise2buffer: false
   add_noise2buffer_episode_interval: 10
   add_noise2buffer_steps: 1000
