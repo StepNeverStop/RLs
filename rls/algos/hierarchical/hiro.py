@@ -280,7 +280,7 @@ class HIRO(Off_Policy):
                     ['LEARNING_RATE/high_actor_lr', self.high_actor_oplr.lr],
                     ['LEARNING_RATE/high_critic_lr', self.high_critic_oplr.lr]
                 ]))
-                self.write_training_summaries(self.global_step, self.summaries)
+                self.write_summaries(self.global_step, self.summaries)
 
     @iTensor_oNumpy
     def train_low(self, BATCH: Low_BatchExperiences):

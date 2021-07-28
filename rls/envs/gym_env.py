@@ -15,11 +15,11 @@ from rls.utils.display import colorize
 from rls.envs.gym_wrapper.utils import build_env
 from rls.utils.np_utils import get_discrete_action_list
 from rls.common.specs import (ObsSpec,
-                             EnvGroupArgs,
-                             ModelObservations,
-                             SingleModelInformation,
-                             GymVectorizedType,
-                             generate_obs_dataformat)
+                              EnvGroupArgs,
+                              ModelObservations,
+                              SingleModelInformation,
+                              GymVectorizedType,
+                              generate_obs_dataformat)
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
@@ -141,6 +141,10 @@ class gym_envs(object):
             n_copys=self.n
         )
         self.GroupsSpec = [self.GroupSpec]
+
+    @property
+    def is_multi(self):
+        return len(self.GroupsSpec) > 1
 
     @property
     def is_continuous(self):

@@ -14,8 +14,9 @@ from copy import deepcopy
 from multiprocessing import Process
 
 from rls.common.trainer import Trainer
-from rls.common.config import NamedDict
-from rls.common.yaml_ops import load_config
+from rls.common.specs import NamedDict
+from rls.common.yaml_ops import (save_config,
+                                 load_config)
 from rls.algos.register import registry
 from rls.utils.display import show_dict
 from rls.utils.logging_utils import set_log_level
@@ -42,8 +43,6 @@ def get_args():
                         help='specify the platform of training environment')
     parser.add_argument('-a', '--algorithm', type=str, default='ppo', choices=registry.algo_specs.keys(),
                         help='specify the training algorithm')
-    parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
-                        help='specify the device that operate Torch.Tensor')
     parser.add_argument('-i', '--inference', default=False, action='store_true',
                         help='inference the trained model, not train policies')
     parser.add_argument('-l', '--load-path', type=str, default=None,
@@ -58,7 +57,7 @@ def get_args():
                         help='')
     parser.add_argument('--config-file', type=str, default=None,
                         help='specify the path of training configuration file')
-    parser.add_argument('--store-dir', type=str, default='C:\RLData' if platform.system() == "Windows" else os.environ['HOME'] + '/RLData',
+    parser.add_argument('--store-dir', type=str, default='./data',
                         help='specify the directory that store model, log and others')  # TODO
     parser.add_argument('--episode-length', type=int, default=1000,
                         help='specify the maximum step per episode')
@@ -68,8 +67,6 @@ def get_args():
                         help='whether choose action using model or choose randomly')
     parser.add_argument('--hostname', default=False, action='store_true',
                         help='whether concatenate hostname with the training name')
-    parser.add_argument('--no-save', default=False, action='store_true',
-                        help='specify whether save models/logs/summaries while training or not')
     parser.add_argument('--info', type=str, default='',
                         help='write another information that describe this training task')
     # env
@@ -77,6 +74,11 @@ def get_args():
                         help='specify the environment name')
     parser.add_argument('-f', '--file-name', type=str, default=None,
                         help='specify the path of builded training environment of UNITY3D')
+    # algo
+    parser.add_argument('--no-save', default=False, action='store_true',
+                        help='specify whether save models/logs/summaries while training or not')
+    parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
+                        help='specify the device that operate Torch.Tensor')
     return parser.parse_args()
 
 
@@ -92,13 +94,18 @@ def main():
     env_args.update(load_config(f'rls/configs/env.yaml'))
     env_args.update(load_config(f'rls/configs/{args.platform}/env.yaml'))
 
+    algo_args = NamedDict()
+
     if args.config_file is not None:
         custome_config = load_config(args.config_file)
         train_args.update(custome_config['train'])
         env_args.update(custome_config['environment'])
+        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
+        algo_args.update(custome_config['algorithm'])
     else:
         train_args.update(args.__dict__)
-        # env
+        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
+        # env config
         env_args.platform = args.platform
         env_args.env_copys = args.copys  # Environmental copies of vectorized training.
         env_args.seed = args.seed
@@ -121,7 +128,7 @@ def main():
             # if traing with visual input but do not render the environment, all 0 obs will be passed.
             env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
 
-        # train
+        # train config
         if args.apex is not None:
             train_args.name = f'{args.apex}/' + train_args.name
         if args.hostname:
@@ -134,29 +141,41 @@ def main():
                                            train_args.name)
         if train_args.load_path is not None and not os.path.exists(train_args.load_path):   # 如果不是绝对路径，就拼接load的训练相对路径
             train_args.load_path = os.path.join(train_args.base_dir, train_args.load_path)
-        train_args.index = 0
+        # algo config
+        algo_args.update({'no_save': args.no_save,
+                          'device': args.device,
+                          'max_train_step': train_args.max_train_step,
+                          'base_dir': train_args.base_dir})
+
+    # show and save config
+    records_dict = {'train': dict(train_args),
+                    'environment': dict(env_args),
+                    'algorithm': dict(algo_args)}
+    show_dict(records_dict)
+    if not train_args.inference and not train_args.no_save:
+        save_config(train_args.base_dir, records_dict, 'config.yaml')
 
     # start training
     if args.inference:
-        Trainer(env_args, train_args).evaluate()
+        Trainer(env_args, train_args, algo_args).evaluate()
     else:
         if args.apex is not None:
             train_args.update(load_config(f'rls/distribute/apex/config.yaml'))    # TODO:
-            Trainer(env_args, train_args).apex()
+            Trainer(env_args, train_args, algo_args).apex()
         else:
             trails = args.models if args.models > 0 else 1
             if trails == 1:
-                agent_run(env_args, train_args)
+                agent_run(env_args, train_args, algo_args)
             elif trails > 1:
                 processes = []
                 for i in range(trails):
-                    _env_args, _train_args = map(deepcopy, [env_args, train_args])
+                    _env_args, _train_args, _algo_args = map(deepcopy, [env_args, train_args, algo_args])
                     _train_args.seed += i * 10
                     _train_args.name += f'/{_train_args.seed}'
                     _train_args.allow_print = True  # NOTE: set this could block other processes' print function
                     if args.platform == 'unity':
                         _env_args.worker_id = env_args.worker_id + i
-                    p = Process(target=agent_run, args=(_env_args, _train_args))
+                    p = Process(target=agent_run, args=(_env_args, _train_args, _algo_args))
                     p.start()
                     time.sleep(10)
                     processes.append(p)
@@ -194,6 +213,7 @@ if __name__ == "__main__":
         colored_traceback.add_hook()
     except ImportError:
         pass
+
     try:
         main()
     except Exception as e:

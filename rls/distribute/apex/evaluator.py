@@ -62,7 +62,7 @@ class EvalProc(object):
                     break
 
             sma.update(rets)
-            self.model.writer_summary(
+            self.model.write_summaries(
                 episode,
                 dict(
                     reward_mean=rets.mean(),

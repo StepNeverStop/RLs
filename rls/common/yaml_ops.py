@@ -10,10 +10,10 @@ from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def save_config(dicpath: str, config: Dict) -> NoReturn:
+def save_config(dicpath: str, config: Dict, filename: str) -> NoReturn:
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
-    with open(os.path.join(dicpath, 'config.yaml'), 'w', encoding='utf-8') as fw:
+    with open(os.path.join(dicpath, filename), 'w', encoding='utf-8') as fw:
         yaml.dump(config, fw)
     logger.info(colorize(f'save config to {dicpath} successfully', color='green'))
 

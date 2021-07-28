@@ -137,5 +137,5 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
                 self.summaries[k].update(v)
 
             # --------------------------------------写summary到tensorboard
-            self.write_training_summaries(self.global_step, self.summaries)
+            self.write_summaries(self.global_step, self.summaries)
             # --------------------------------------

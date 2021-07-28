@@ -95,21 +95,14 @@ class MultiAgentPolicy(Base):
         '''
         raise NotImplementedError
 
-    def writer_summary(self, global_step: Union[int, t.Tensor], summaries) -> NoReturn:
-        """
-        record the data used to show in the tensorboard
-        """
-        for i, summary in enumerate(summaries):
-            super().writer_summary(global_step, summaries=summary, writer=self.writers[i])
-
-    def write_training_summaries(self,
-                                 global_step: Union[int, t.Tensor],
-                                 summaries: Dict,
-                                 writer=None) -> NoReturn:
+    def write_summaries(self,
+                        global_step: Union[int, t.Tensor],
+                        summaries: Dict,
+                        writer=None) -> NoReturn:
         '''
         write tf summaries showing in tensorboard.
         '''
-        super().write_training_summaries(global_step, summaries=summaries.get('model', {}), writer=self.writer)
+        if 'model' in summaries.keys():  
+            super().write_summaries(global_step, summaries=summaries.pop('model'), writer=self.writer)
         for i, summary in summaries.items():
-            if i != 'model':  # TODO: Optimization
-                super().write_training_summaries(global_step, summaries=summary, writer=self.writers[i])
+            super().write_summaries(global_step, summaries=summary, writer=self.writers[i])

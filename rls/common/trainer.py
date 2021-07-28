@@ -10,10 +10,10 @@ from typing import (Dict,
                     NoReturn,
                     Optional)
 
-from rls.utils.display import show_dict
 from rls.utils.sundry_utils import set_global_seeds
 from rls.utils.time import get_time_hhmmss
 from rls.algos import get_model_info
+from rls.algos.wrapper.IndependentMA import IndependentMA
 from rls.common.train.unity import (unity_train,
                                     unity_no_op,
                                     unity_inference,
@@ -23,16 +23,18 @@ from rls.common.train.unity import (unity_train,
 from rls.common.train.gym import (gym_train,
                                   gym_no_op,
                                   gym_inference)
-from rls.common.yaml_ops import (save_config,
-                                 load_config)
+from rls.common.yaml_ops import load_config
 from rls.common.make_env import make_env
-from rls.common.config import NamedDict
+from rls.common.specs import NamedDict
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
 class Trainer:
-    def __init__(self, env_args: NamedDict, train_args: NamedDict):
+    def __init__(self,
+                 env_args: NamedDict,
+                 train_args: NamedDict,
+                 algo_args: NamedDict):
         '''
         Initilize an agent that consists of training environments, algorithm model.
         params:
@@ -41,6 +43,7 @@ class Trainer:
         '''
         self.env_args = env_args
         self.train_args = train_args
+        self.algo_args = algo_args
         set_global_seeds(self.train_args.seed)
 
         # ENV
@@ -49,46 +52,27 @@ class Trainer:
         # ALGORITHM CONFIG
         self.agent_class, self.policy_mode, self.is_multi = get_model_info(self.train_args.algorithm)
 
-        self.algo_args = NamedDict()
-        default_algo_args = load_config(f'rls/configs/algorithms.yaml')
-        self.algo_args.update(default_algo_args['general'])
-        self.algo_args.update(default_algo_args[self.policy_mode.replace('-', '_')])
-        self.algo_args.update(default_algo_args[self.train_args.algorithm])
-        if self.train_args.config_file is not None:
-            self.algo_args.update(load_config(self.train_args.config_file)['algorithm'])
-
-        self.records_dict = {
-            'environment': dict(self.env_args),
-            'train': dict(self.train_args),
-            'algorithm': dict(self.algo_args)
-        }
-        show_dict(self.records_dict)
-
         if self.is_multi:  # TODO: Optimization
             self.algo_args.update({'envspecs': self.env.GroupsSpec})
         else:
             self.algo_args.update({'envspec': self.env.GroupSpec})
-        self.algo_args.update({'no_save': self.train_args.no_save,
-                               'device': self.train_args.device,
-                               'max_train_step': self.train_args.max_train_step,
-                               'base_dir': self.train_args.base_dir})
 
-        if self.policy_mode == 'on-policy':
+        if self.policy_mode == 'on-policy':  # TODO:
             self.train_args.pre_fill_steps = 0  # if on-policy, prefill experience replay is no longer needed.
 
         self.initialize()
         self.start_time = time.time()
 
     def initialize(self):
-        self.model = self.agent_class(**self.algo_args)
+        if not self.is_multi and self.env.is_multi:
+            self.model = IndependentMA(self.agent_class, self.algo_args, len(self.env.GroupsSpec))
+        else:
+            self.model = self.agent_class(**self.algo_args)
         self.model.resume(self.train_args.load_path)
-
         _train_info = self.model.get_init_training_info()
-        self.train_args.begin_train_step = _train_info['train_step']
-        self.train_args.begin_frame_step = _train_info['frame_step']
-        self.train_args.begin_episode = _train_info['episode']
-        if not self.train_args.inference and not self.train_args.no_save:
-            save_config(os.path.join(self.train_args.base_dir, 'config'), self.records_dict)
+        self.begin_train_step = _train_info['train_step']
+        self.begin_frame_step = _train_info['frame_step']
+        self.begin_episode = _train_info['episode']
 
     def pwi(self, *args, out_time: bool = False) -> NoReturn:
         if self.train_args.allow_print:
@@ -103,99 +87,87 @@ class Trainer:
         '''
         if self.train_args['platform'] == 'gym':
             try:
-                gym_no_op(
-                    env=self.env,
-                    model=self.model,
-                    pre_fill_steps=int(self.train_args['pre_fill_steps']),
-                    prefill_choose=bool(self.train_args['prefill_choose'])
-                )
-                gym_train(
-                    env=self.env,
-                    model=self.model,
-                    print_func=self.pwi,
-                    begin_train_step=int(self.train_args['begin_train_step']),
-                    begin_frame_step=int(self.train_args['begin_frame_step']),
-                    begin_episode=int(self.train_args['begin_episode']),
-                    render=bool(self.train_args['render']),
-                    render_episode=int(self.train_args.get('render_episode', sys.maxsize)),
-                    save_frequency=int(self.train_args['save_frequency']),
-                    episode_length=int(self.train_args['episode_length']),
-                    max_train_episode=int(self.train_args['max_train_episode']),
-                    eval_while_train=bool(self.train_args['eval_while_train']),
-                    max_eval_episode=int(self.train_args['max_eval_episode']),
-                    off_policy_step_eval_episodes=int(self.train_args['off_policy_step_eval_episodes']),
-                    off_policy_train_interval=int(self.train_args['off_policy_train_interval']),
-                    policy_mode=str(self.policy_mode),
-                    moving_average_episode=int(self.train_args['moving_average_episode']),
-                    add_noise2buffer=bool(self.train_args['add_noise2buffer']),
-                    add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
-                    add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
-                    off_policy_eval_interval=int(self.train_args['off_policy_eval_interval']),
-                    max_train_step=int(self.train_args['max_train_step']),
-                    max_frame_step=int(self.train_args['max_frame_step'])
-                )
+                gym_no_op(env=self.env,
+                          model=self.model,
+                          pre_fill_steps=self.train_args.pre_fill_steps,
+                          prefill_choose=self.train_args.prefill_choose)
+                gym_train(env=self.env,
+                          model=self.model,
+                          print_func=self.pwi,
+                          begin_train_step=self.begin_train_step,
+                          begin_frame_step=self.begin_frame_step,
+                          begin_episode=self.begin_episode,
+                          render=self.train_args.render,
+                          render_episode=self.train_args.render_episode,
+                          save_frequency=self.train_args.save_frequency,
+                          episode_length=self.train_args.episode_length,
+                          max_train_episode=self.train_args.max_train_episode,
+                          eval_while_train=self.train_args.eval_while_train,
+                          max_eval_episode=self.train_args.max_eval_episode,
+                          off_policy_step_eval_episodes=self.train_args.off_policy_step_eval_episodes,
+                          off_policy_train_interval=self.train_args.off_policy_train_interval,
+                          policy_mode=self.policy_mode,
+                          moving_average_episode=self.train_args.moving_average_episode,
+                          add_noise2buffer=self.train_args.add_noise2buffer,
+                          add_noise2buffer_episode_interval=self.train_args.add_noise2buffer_episode_interval,
+                          add_noise2buffer_steps=self.train_args.add_noise2buffer_steps,
+                          off_policy_eval_interval=self.train_args.off_policy_eval_interval,
+                          max_train_step=self.train_args.max_train_step,
+                          max_frame_step=self.train_args.max_frame_step)
             finally:
                 self.model.close()
                 self.env.close()
         else:
             if self.is_multi:
                 try:
-                    ma_unity_no_op(
-                        env=self.env,
-                        model=self.model,
-                        pre_fill_steps=int(self.train_args['pre_fill_steps']),
-                        prefill_choose=bool(self.train_args['prefill_choose']),
-                        real_done=bool(self.train_args['real_done'])
-                    )
-                    ma_unity_train(
-                        env=self.env,
-                        model=self.model,
-                        print_func=self.pwi,
-                        begin_train_step=int(self.train_args['begin_train_step']),
-                        begin_frame_step=int(self.train_args['begin_frame_step']),
-                        begin_episode=int(self.train_args['begin_episode']),
-                        save_frequency=int(self.train_args['save_frequency']),
-                        episode_length=int(self.train_args['episode_length']),
-                        max_train_step=int(self.train_args['max_train_step']),
-                        max_frame_step=int(self.train_args['max_frame_step']),
-                        max_train_episode=int(self.train_args['max_train_episode']),
-                        policy_mode=str(self.policy_mode),
-                        moving_average_episode=int(self.train_args['moving_average_episode']),
-                        real_done=bool(self.train_args['real_done']),
-                        off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
-                    )
+                    ma_unity_no_op(env=self.env,
+                                   model=self.model,
+                                   pre_fill_steps=self.train_args.pre_fill_steps,
+                                   prefill_choose=self.train_args.prefill_choose,
+                                   real_done=self.train_args.real_done)
+                    ma_unity_train(env=self.env,
+                                   model=self.model,
+                                   print_func=self.pwi,
+                                   begin_train_step=self.begin_train_step,
+                                   begin_frame_step=self.begin_frame_step,
+                                   begin_episode=self.begin_episode,
+                                   save_frequency=self.train_args.save_frequency,
+                                   episode_length=self.train_args.episode_length,
+                                   max_train_step=self.train_args.max_train_step,
+                                   max_frame_step=self.train_args.max_frame_step,
+                                   max_train_episode=self.train_args.max_train_episode,
+                                   policy_mode=self.policy_mode,
+                                   moving_average_episode=self.train_args.moving_average_episode,
+                                   real_done=self.train_args.real_done,
+                                   off_policy_train_interval=self.train_args.off_policy_train_interval)
                 finally:
                     self.model.close()
                     self.env.close()
             else:
                 try:
-                    unity_no_op(
-                        env=self.env,
-                        model=self.model,
-                        pre_fill_steps=int(self.train_args['pre_fill_steps']),
-                        prefill_choose=bool(self.train_args['prefill_choose']),
-                        real_done=bool(self.train_args['real_done'])
-                    )
-                    unity_train(
-                        env=self.env,
-                        model=self.model,
-                        print_func=self.pwi,
-                        begin_train_step=int(self.train_args['begin_train_step']),
-                        begin_frame_step=int(self.train_args['begin_frame_step']),
-                        begin_episode=int(self.train_args['begin_episode']),
-                        save_frequency=int(self.train_args['save_frequency']),
-                        episode_length=int(self.train_args['episode_length']),
-                        max_train_episode=int(self.train_args['max_train_episode']),
-                        policy_mode=str(self.policy_mode),
-                        moving_average_episode=int(self.train_args['moving_average_episode']),
-                        add_noise2buffer=bool(self.train_args['add_noise2buffer']),
-                        add_noise2buffer_episode_interval=int(self.train_args['add_noise2buffer_episode_interval']),
-                        add_noise2buffer_steps=int(self.train_args['add_noise2buffer_steps']),
-                        max_train_step=int(self.train_args['max_train_step']),
-                        max_frame_step=int(self.train_args['max_frame_step']),
-                        real_done=bool(self.train_args['real_done']),
-                        off_policy_train_interval=int(self.train_args['off_policy_train_interval'])
-                    )
+                    unity_no_op(env=self.env,
+                                model=self.model,
+                                pre_fill_steps=self.train_args.pre_fill_steps,
+                                prefill_choose=self.train_args.prefill_choose,
+                                real_done=self.train_args.real_done)
+                    unity_train(env=self.env,
+                                model=self.model,
+                                print_func=self.pwi,
+                                begin_train_step=self.begin_train_step,
+                                begin_frame_step=self.begin_frame_step,
+                                begin_episode=self.begin_episode,
+                                save_frequency=self.train_args.save_frequency,
+                                episode_length=self.train_args.episode_length,
+                                max_train_episode=self.train_args.max_train_episode,
+                                policy_mode=self.policy_mode,
+                                moving_average_episode=self.train_args.moving_average_episode,
+                                add_noise2buffer=self.train_args.add_noise2buffer,
+                                add_noise2buffer_episode_interval=self.train_args.add_noise2buffer_episode_interval,
+                                add_noise2buffer_steps=self.train_args.add_noise2buffer_steps,
+                                max_train_step=self.train_args.max_train_step,
+                                max_frame_step=self.train_args.max_frame_step,
+                                real_done=self.train_args.real_done,
+                                off_policy_train_interval=self.train_args.off_policy_train_interval)
                 finally:
                     self.model.close()
                     self.env.close()
@@ -203,32 +175,26 @@ class Trainer:
     def evaluate(self) -> NoReturn:
         if self.train_args['platform'] == 'gym':
             try:
-                gym_inference(
-                    env=self.env,
-                    model=self.model,
-                    episodes=self.train_args['inference_episode']
-                )
+                gym_inference(env=self.env,
+                              model=self.model,
+                              episodes=self.train_args.inference_episode)
             finally:
                 self.model.close()
                 self.env.close()
         else:
             if self.is_multi:
                 try:
-                    ma_unity_inference(
-                        env=self.env,
-                        model=self.model,
-                        episodes=self.train_args['inference_episode']
-                    )
+                    ma_unity_inference(env=self.env,
+                                       model=self.model,
+                                       episodes=self.train_args.inference_episode)
                 finally:
                     self.model.close()
                     self.env.close()
             else:
                 try:
-                    unity_inference(
-                        env=self.env,
-                        model=self.model,
-                        episodes=self.train_args['inference_episode']
-                    )
+                    unity_inference(env=self.env,
+                                    model=self.model,
+                                    episodes=self.train_args.inference_episode)
                 finally:
                     self.model.close()
                     self.env.close()

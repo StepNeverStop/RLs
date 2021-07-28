@@ -86,7 +86,7 @@ def unity_train(env, model,
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(episode, recoder.summary_dict)
+        model.write_summaries(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
         if add_noise2buffer and episode % add_noise2buffer_episode_interval == 0:
@@ -251,7 +251,7 @@ def ma_unity_train(env, model,
             train_step += 1
             if train_step % save_frequency == 0:
                 model.save(train_step=train_step, episode=episode, frame_step=frame_step)
-        model.writer_summary(episode, recoder.summary_dict)
+        model.write_summaries(episode, recoder.summary_dict)
         print_func(str(recoder), out_time=True)
 
 

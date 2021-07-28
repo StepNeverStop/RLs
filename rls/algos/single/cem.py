@@ -91,7 +91,7 @@ class CEM(On_Policy):
         self.sigma = np.var(elites_weights, axis=0)
         self._update_models_weights()
         self._reset_variables()
-        self.write_training_summaries(self.train_step, dict([
+        self.write_summaries(self.train_step, dict([
             ['Statistics/mu', self.mu.mean()],
             ['Statistics/sigma', self.sigma.mean()],
             ['Statistics/sample_std', self.sample_std.mean()]

@@ -40,7 +40,7 @@ class Base:
         self.device = device
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
 
-        self.cp_dir, self.log_dir, self.excel_dir = [os.path.join(base_dir, i) for i in ['model', 'log', 'excel']]
+        self.cp_dir, self.log_dir = [os.path.join(base_dir, i) for i in ['model', 'log']]
 
         if not self.no_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
@@ -121,22 +121,10 @@ class Base:
         with open(f'{self.base_dir}/step.json', 'w') as f:
             json.dump(data, f)
 
-    def writer_summary(self,
-                       global_step: Union[int, t.Tensor],
-                       summaries: Dict = {},
-                       writer: Optional[SummaryWriter] = None) -> NoReturn:
-        """
-        record the data used to show in the tensorboard
-        """
-        if not self.no_save:
-            writer = writer or self.writer
-            for k, v in summaries.items():
-                writer.add_scalar('AGENT/' + k, v, global_step=global_step)
-
-    def write_training_summaries(self,
-                                 global_step: Union[int, t.Tensor],
-                                 summaries: Dict = {},
-                                 writer: Optional[SummaryWriter] = None) -> NoReturn:
+    def write_summaries(self,
+                        global_step: Union[int, t.Tensor],
+                        summaries: Dict = {},
+                        writer: Optional[SummaryWriter] = None) -> NoReturn:
         '''
         write tf summaries showing in tensorboard.
         '''

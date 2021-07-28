@@ -51,7 +51,7 @@ class GymCollector(object):
                     break
 
             sma.update(rets)
-            model.writer_summary(
+            model.write_summaries(
                 episode,
                 dict(
                     reward_mean=rets.mean(),

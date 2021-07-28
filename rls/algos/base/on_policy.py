@@ -78,6 +78,6 @@ class On_Policy(Policy):
         self.summaries.update(summaries)
         self.summaries.update(_summary)
 
-        self.write_training_summaries(self.train_step, self.summaries)
+        self.write_summaries(self.train_step, self.summaries)
 
         self.data.clear()
