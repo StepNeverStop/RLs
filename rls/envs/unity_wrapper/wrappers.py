@@ -66,6 +66,10 @@ class BasicUnityEnvironment(object):
         self.env.reset()
         self.initialize_environment()
 
+    @property
+    def n_copys(self):
+        return self._n_copys
+
     def initialize_all_side_channels(self, initialize_config, engine_config):
         '''
         初始化所有的通讯频道

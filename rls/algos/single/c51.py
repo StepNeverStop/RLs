@@ -78,7 +78,7 @@ class C51(Off_Policy):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             feat, self.cell_state = self.rep_net(obs, self.cell_state)
-            feat = q_net(feat)
+            feat = self.q_net(feat)
             q = (self.zb * feat).sum(-1)  # [B, A, N] => [B, A]
             a = q.argmax(-1)  # [B, 1]
         return a
@@ -96,9 +96,9 @@ class C51(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        batch_size = BATCH.action.shape[0]
+        batch_size = len(BATCH)
         indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_state=cell_states['obs'])
+        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         q_dist = self.q_net(feat)  # [B, A, N]
         q_dist = (q_dist.permute(2, 0, 1) * BATCH.action).sum(-1).T  # [B, N]
@@ -118,8 +118,10 @@ class C51(Off_Policy):
         index_help = index_help.unsqueeze(-1)  # [B, N, 1]
         u_id = t.cat([index_help, u_id.unsqueeze(-1)], -1)    # [B, N, 2]
         l_id = t.cat([index_help, l_id.unsqueeze(-1)], -1)    # [B, N, 2]
-        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id.long().T)].log()\
-            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id.long().T)].log()  # [B, N]
+        u_id = u_id.long().permute(2, 0, 1) # [2, B, N]
+        l_id = l_id.long().permute(2, 0, 1) # [2, B, N]
+        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log()\
+            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [B, N]
         cross_entropy = -_cross_entropy.sum(-1)  # [B,]
         loss = (cross_entropy * isw).mean()
         td_error = cross_entropy

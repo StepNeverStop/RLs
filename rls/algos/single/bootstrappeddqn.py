@@ -43,7 +43,7 @@ class BootstrappedDQN(Off_Policy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self.head_num = head_num
-        self._probs = [1. / head_num for _ in range(head_num)]
+        self._probs = t.FloatTensor([1. / head_num for _ in range(head_num)])
         self.now_head = 0
 
         self.q_net = CriticQvalueBootstrap(self.rep_net.h_dim,
@@ -80,8 +80,7 @@ class BootstrappedDQN(Off_Policy):
         else:
             feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
             q_values = self.q_net(feat)  # [H, B, A]
-            q_values = to_numpy(q_values)
-            a = np.argmax(q_values[self.now_head], axis=1)  # [H, B, A] => [B, A] => [B, ]
+            a = q_values[self.now_head].argmax(-1)  # [H, B, A] => [B, A] => [B, ]
         return a
 
     def _target_params_update(self):
@@ -97,7 +96,7 @@ class BootstrappedDQN(Off_Policy):
 
     @iTensor_oNumpy
     def _train(self, BATCH, isw, cell_states):
-        batch_size = BATCH.action.shape[0]
+        batch_size = len(BATCH)
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         q = self.q_net(feat)   # [H, B, A]
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
@@ -110,7 +109,7 @@ class BootstrappedDQN(Off_Policy):
         td_error = q_target - q_eval    # [H, B, 1]
         td_error = td_error.sum(-1)  # [H, B]
 
-        mask_dist = td.Bernoulli(probs=self._probs)
+        mask_dist = td.Bernoulli(probs=self._probs) # TODO:
         mask = mask_dist.sample([batch_size]).T   # [H, B]
         q_loss = (td_error.square() * isw).mean()
 

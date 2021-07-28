@@ -396,7 +396,7 @@ class C51Distributional(t.nn.Module):
             self.outputs.append(
                 Sequential(
                     Linear(ins, atoms),
-                    Softmax()
+                    Softmax(-1)
                 )
             )
 

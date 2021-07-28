@@ -64,7 +64,7 @@ class MAXSQN(Off_Policy):
         self.critic2_target = deepcopy(self.critic2)
         self.critic2_target.eval()
 
-        self._pairs = [(self.critic_target, self.critic)
+        self._pairs = [(self.critic_target, self.critic),
                        (self.critic2_target, self.critic2),
                        (self._target_rep_net, self.rep_net)]
         sync_params_pairs(self._pairs)
@@ -120,9 +120,11 @@ class MAXSQN(Off_Policy):
         q1_eval = (q1 * BATCH.action).sum(1, keepdim=True)
         q2_eval = (q2 * BATCH.action).sum(1, keepdim=True)
 
-        ret = self.critic_target(BATCH.obs_, cell_state=cell_states['obs_'])
+        q1_log_probs = (q1 / (self.alpha + t.finfo().eps)).log_softmax(-1)
+        q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(1, keepdim=True).mean()
+
         q1_target = self.critic_target(feat_)
-        q1_target = self.critic2_target(feat_)
+        q2_target = self.critic2_target(feat_)
         q1_target_max = q1_target.max(1, keepdim=True)[0]
         q1_target_log_probs = (q1_target / (self.alpha + t.finfo().eps)).log_softmax(-1)
         q1_target_entropy = -(q1_target_log_probs.exp() * q1_target_log_probs).sum(1, keepdim=True).mean()
@@ -152,11 +154,8 @@ class MAXSQN(Off_Policy):
             ['Statistics/q_max', t.maximum(q1, q2).mean()]
         ])
         if self.auto_adaption:
-            q1_log_probs = (q1 / (self.alpha + t.finfo().eps)).log_softmax(-1)
-            q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(1, keepdim=True).mean()
             alpha_loss = -(self.alpha * (self.target_entropy - q1_entropy).detach()).mean()
             self.alpha_oplr.step(alpha_loss)
-
             summaries.update({
                 'LOSS/alpha_loss': alpha_loss
             })

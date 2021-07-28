@@ -343,7 +343,7 @@ class HIRO(Off_Policy):
         # BATCH.obs_ : [B, N]
         # BATCH.obs, BATCH.action [B, T, *]
         # TODO:
-        batchs = BATCH.obs.shape[0]
+        batchs = len(BATCH)
 
         s = BATCH.obs[:, 0]                                # [B, N]
         true_end = (BATCH.obs_ - s)[:, self.fn_goal_dim:]

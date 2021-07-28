@@ -18,7 +18,7 @@ class GymCollector(object):
 
     @staticmethod
     def evaluate(env, model):
-        n = env.n
+        n = env.n_copys
         i = 1 if env.obs_type == 'visual' else 0
         state = [np.full((n, 0), []), np.full((n, 0), [])]
         sma = SMA(100)
@@ -29,9 +29,9 @@ class GymCollector(object):
             episode += 1
             model.reset()
             state[i] = env.reset()
-            dones_flag = np.zeros(env.n)
+            dones_flag = np.zeros(env.n_copys)
             step = 0
-            rets = np.zeros(env.n)
+            rets = np.zeros(env.n_copys)
             last_done_step = -1
             while True:
                 step += 1
@@ -66,7 +66,7 @@ class GymCollector(object):
 
     @staticmethod
     def run_exps_stream(env, model):
-        n = env.n
+        n = env.n_copys
         i = 1 if env.obs_type == 'visual' else 0
         state = [np.full((n, 0), []), np.full((n, 0), [])]
         new_state = [np.full((n, 0), []), np.full((n, 0), [])]
@@ -93,7 +93,7 @@ class GymCollector(object):
 
     @staticmethod
     def run_trajectory(env, model):
-        n = env.n
+        n = env.n_copys
         i = 1 if env.obs_type == 'visual' else 0
         state = [np.full((n, 0), []), np.full((n, 0), [])]
         new_state = [np.full((n, 0), []), np.full((n, 0), [])]

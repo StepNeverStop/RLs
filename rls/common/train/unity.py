@@ -44,7 +44,7 @@ def unity_train(env, model,
     """
     frame_step = begin_frame_step
     train_step = begin_train_step
-    recoder = SimpleMovingAverageRecoder(n_copys=env._n_copys, gamma=0.99, verbose=True,
+    recoder = SimpleMovingAverageRecoder(n_copys=env.n_copys, gamma=0.99, verbose=True,
                                          length=moving_average_episode)
 
     for episode in range(begin_episode, max_train_episode):
@@ -71,7 +71,7 @@ def unity_train(env, model,
                     if train_step % save_frequency == 0:
                         model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
-            frame_step += env._n_copys
+            frame_step += env.n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
                 model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')
@@ -104,7 +104,7 @@ def unity_no_op(env, model,
     Make sure steps is greater than n-step if using any n-step ReplayBuffer.
     '''
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-    n = env._n_copys
+    n = env.n_copys
 
     if pre_fill_steps == 0:
         return
@@ -148,7 +148,7 @@ def ma_unity_no_op(env, model,
                    real_done: bool,
                    desc: str = 'Pre-filling') -> NoReturn:
     assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'no_op.steps must have type of int and larger than/equal 0'
-    n = env._n_copys
+    n = env.n_copys
 
     if pre_fill_steps == 0:
         return
@@ -200,7 +200,7 @@ def ma_unity_train(env, model,
     """
     frame_step = begin_frame_step
     train_step = begin_train_step
-    recoder = SimpleMovingAverageMultiAgentRecoder(n_copys=env._n_copys,
+    recoder = SimpleMovingAverageMultiAgentRecoder(n_copys=env.n_copys,
                                                    n_agents=env.n_agents,
                                                    gamma=0.99,
                                                    verbose=True,
@@ -236,7 +236,7 @@ def ma_unity_train(env, model,
                     if train_step % save_frequency == 0:
                         model.save(train_step=train_step, episode=episode, frame_step=frame_step)
 
-            frame_step += env._n_copys
+            frame_step += env.n_copys
             if 0 < max_train_step <= train_step or 0 < max_frame_step <= frame_step:
                 model.save(train_step=train_step, episode=episode, frame_step=frame_step)
                 logger.info(f'End Training, learn step: {train_step}, frame_step: {frame_step}')

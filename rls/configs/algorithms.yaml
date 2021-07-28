@@ -13,7 +13,6 @@ general: &general
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
 
     normalize_vector_obs: false
-    logger2file: false
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     representation_net_params: &representation_net_params
         use_encoder: false
@@ -680,7 +679,6 @@ vdn:
     buffer_size: 100000
     assign_interval: 1000
     share_params: true
-    network_settings: [64, 64]
     network_settings:
         share: [64]
         v: [64]

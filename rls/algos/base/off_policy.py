@@ -172,7 +172,7 @@ class Off_Policy(Policy):
 
             # --------------------------------------优先经验回放的更新部分
             if self.use_priority:
-                td_error = np.squeeze(td_error.numpy())
+                td_error = np.squeeze(td_error)
                 self.data.update(td_error)
             # --------------------------------------
 
@@ -211,7 +211,7 @@ class Off_Policy(Policy):
         self.summaries.update(_summary)
         self.write_summaries(self.global_step, self.summaries)
 
-        return np.squeeze(td_error.numpy())
+        return np.squeeze(td_error)
 
     def _apex_cal_td(self, data: BatchExperiences, function_dict: Dict = {}) -> np.ndarray:
         '''
@@ -221,4 +221,4 @@ class Off_Policy(Policy):
 
         cell_state = None
         td_error = self._cal_td(data, cell_state)
-        return np.squeeze(td_error.numpy())
+        return np.squeeze(td_error)

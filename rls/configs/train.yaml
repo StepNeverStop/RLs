@@ -24,6 +24,7 @@ no_save: true
 info: ""
 #
 
+logger2file: false
 max_train_step: 999999999999999999 # if max_train_step > 0, then training will stop when training steps > max_train_step.
 max_frame_step: 999999999999999999
 max_train_episode: 999999999999999999

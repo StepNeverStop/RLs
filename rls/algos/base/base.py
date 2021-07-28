@@ -17,8 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from rls.utils.display import colorize
 from rls.utils.sundry_utils import check_or_create
-from rls.utils.logging_utils import (get_logger,
-                                     set_log_file)
+from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
@@ -27,8 +26,7 @@ class Base:
     def __init__(self,
                  no_save=False,
                  base_dir='',
-                 device='cpu',
-                 logger2file=False):
+                 device='cpu'):
         '''
         inputs:
             a_dim: action spaces
@@ -49,9 +47,6 @@ class Base:
         self._worker_modules = {}
         self._trainer_modules = {'global_step': self.global_step}
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
-
-        if logger2file:
-            set_log_file(log_file=os.path.join(self.log_dir, 'log.txt'))
 
     def _create_writer(self, log_dir: str) -> SummaryWriter:
         if not self.no_save:
