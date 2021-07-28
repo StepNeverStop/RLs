@@ -4,6 +4,8 @@
 import numpy as np
 import torch as t
 
+from copy import deepcopy
+
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import (sync_params_pairs,
@@ -42,7 +44,7 @@ class DDDQN(Off_Policy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
 
-        self.q_net = CriticDueling(self.rep_net.hdim,
+        self.q_net = CriticDueling(self.rep_net.h_dim,
                                    output_shape=self.a_dim,
                                    network_settings=network_settings).to(self.device)
         self.q_target_net = deepcopy(self.q_net)

@@ -4,6 +4,7 @@
 import numpy as np
 import torch as t
 
+from copy import deepcopy
 from torch import distributions as td
 
 from rls.algos.base.off_policy import Off_Policy

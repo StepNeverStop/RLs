@@ -85,7 +85,7 @@ class Trainer:
         '''
         train
         '''
-        if self.train_args['platform'] == 'gym':
+        if self.train_args.platform == 'gym':
             try:
                 gym_no_op(env=self.env,
                           model=self.model,
@@ -118,7 +118,7 @@ class Trainer:
                 self.model.close()
                 self.env.close()
         else:
-            if self.is_multi:
+            if self.env.is_multi:
                 try:
                     ma_unity_no_op(env=self.env,
                                    model=self.model,
@@ -173,7 +173,7 @@ class Trainer:
                     self.env.close()
 
     def evaluate(self) -> NoReturn:
-        if self.train_args['platform'] == 'gym':
+        if self.train_args.platform == 'gym':
             try:
                 gym_inference(env=self.env,
                               model=self.model,
@@ -182,7 +182,7 @@ class Trainer:
                 self.model.close()
                 self.env.close()
         else:
-            if self.is_multi:
+            if self.env.is_multi:
                 try:
                     ma_unity_inference(env=self.env,
                                        model=self.model,

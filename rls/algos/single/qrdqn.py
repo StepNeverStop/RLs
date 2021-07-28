@@ -97,7 +97,7 @@ class QRDQN(Off_Policy):
     def _train(self, BATCH, isw, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        batch_size = BATCH.action.shape[0]
+        batch_size = len(BATCH)
         indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]
         q_dist = self.q_net(feat)  # [B, A, N]
         q_dist = (q_dist.permute(2, 0, 1) * BATCH.action).sum(-1).T  # [B, N]

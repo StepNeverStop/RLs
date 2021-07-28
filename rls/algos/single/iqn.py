@@ -4,11 +4,13 @@
 import numpy as np
 import torch as t
 
+from copy import deepcopy
+
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import (huber_loss,
                                    q_target_func,
-                                   sync_params)
+                                   sync_params_pairs)
 from rls.nn.models import IqnNet
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
@@ -83,7 +85,7 @@ class IQN(Off_Policy):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
             a = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            batch_size = obs.shape[0]   # TODO
+            batch_size = len(obs)
             _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
                 batch_size=batch_size,
                 quantiles_num=self.select_quantiles,
@@ -91,7 +93,7 @@ class IQN(Off_Policy):
             )
             # [B, A]
             feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-            (_, q_values) = self.q_net(feat, elect_quantiles_tiled, quantiles_num=self.select_quantiles)
+            (_, q_values) = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)
             a = q_values.argmax(-1)  # [B,]
         return a
 
@@ -121,7 +123,7 @@ class IQN(Off_Policy):
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
 
-        batch_size = BATCH.action.shape[0]
+        batch_size = len(BATCH)
         quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
             batch_size=batch_size,
             quantiles_num=self.online_quantiles,
@@ -148,7 +150,7 @@ class IQN(Off_Policy):
         )
 
         target_quantiles_value, target_q = self.q_target_net(feat_, target_quantiles_tiled, quantiles_num=self.target_quantiles)  # [N', B, A], [B, A]
-        target_quantiles_value = (arget_quantiles_value * _next_max_action).sum(-1, keepdim=True)   # [N', B, A] => [N', B, 1]
+        target_quantiles_value = (target_quantiles_value * _next_max_action).sum(-1, keepdim=True)   # [N', B, A] => [N', B, 1]
         target_q = (target_q * BATCH.action).sum(-1, keepdim=True)  # [B, A] => [B, 1]
         q_target = q_target_func(BATCH.reward,
                                  self.gamma,

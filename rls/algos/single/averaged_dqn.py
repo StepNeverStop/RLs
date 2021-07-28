@@ -114,6 +114,7 @@ class AveragedDQN(Off_Policy):
                                  BATCH.done,
                                  q_next.max(-1, keepdim=True)[0])
         td_error = q_target - q_eval
+        q_loss = (td_error.square() * isw).mean()
 
         self.oplr.step(q_loss)
         self.global_step.add_(1)

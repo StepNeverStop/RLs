@@ -4,6 +4,8 @@
 import numpy as np
 import torch as t
 
+from copy import deepcopy
+
 from rls.algos.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import sync_params_pairs
@@ -106,7 +108,7 @@ class RAINBOW(Off_Policy):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
         feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        batch_size = BATCH.action.shape[0]
+        batch_size = len(BATCH)
         indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]
         q_dist = self.rainbow_net(feat)  # [B, A, N]
         q_dist = (q_dist.permute(2, 0, 1) * BATCH.action).sum(-1).T  # [B, N]
@@ -128,12 +130,13 @@ class RAINBOW(Off_Policy):
         index_help = index_help.unsqueeze(-1)  # [B, N, 1]
         u_id = t.cat([index_help, u_id.unsqueeze(-1)], -1)    # [B, N, 2]
         l_id = t.cat([index_help, l_id.unsqueeze(-1)], -1)    # [B, N, 2]
-        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id.long().T)].log() \
-            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id.long().T)].log()  # [B, N]
+        u_id = u_id.long().permute(2, 0, 1) # [2, B, N]
+        l_id = l_id.long().permute(2, 0, 1) # [2, B, N]
+        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log() \
+            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [B, N]
         cross_entropy = -_cross_entropy.sum(-1)  # [B,]
         loss = (cross_entropy * isw).mean()
         td_error = cross_entropy
-
         self.oplr.step(loss)
         self.global_step.add_(1)
         return td_error, dict([
