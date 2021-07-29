@@ -35,15 +35,14 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 
 This project supports:
 - Unity3D ml-agents.
-- Gym{MuJoCo(v2.0.2.13), [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support 99.65% environment settings of Gym(except `Blackjack-v0`, `KellyCoinflip-v0`, and `KellyCoinflipGeneralized-v0`). Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
+- Gym{MuJoCo(v2.0.2.13), [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
     - Discrete -> Discrete (observation type -> action type)
     - Discrete -> Box
     - Box -> Discrete
     - Box -> Box
     - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
-- MultiAgent training. One group controls multiple agents.
-- MultiBrain training. Brains' model should be same algorithm or have the same learning-progress(perStep or perEpisode).
-- MultiImage input(only for ml-agents). Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
+- MultiAgent training.
+- MultiImage input. Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
 - Four types of Replay Buffer, Default is ER: 
     - ER
     - n-step ER
@@ -135,14 +134,12 @@ For now, these algorithms are available:
     - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
     - [Interest-Option-Critic, IOC](http://arxiv.org/abs/2001.00271)
     - [HIerarchical Reinforcement learning with Off-policy correction, HIRO](http://arxiv.org/abs/1805.08296)
-- Multi-Agent training algorithms(*only Unity3D, not support visual input yet*):
+- Multi-Agent training algorithms:
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
-- Safe Reinforcement Learning algorithms(*not stable yet*):
-    - [Primal-Dual Deep Deterministic Policy Gradient, PD-DDPG](http://arxiv.org/abs/1802.06480)
 
 
 
-|         Algorithms(29)          | Discrete | Continuous | Image | RNN  | Command parameter |
+|         Algorithms(30)          | Discrete | Continuous | Image | RNN  | Command parameter |
 | :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
 | Q-Learning/Sarsa/Expected Sarsa |    √     |            |       |      |        qs         |
 |            ~~CEM~~              |    √     |     √      |       |      |        cem        |
@@ -183,9 +180,10 @@ For now, these algorithms are available:
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity}]
               [-a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}]
-              [-d DEVICE] [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE]
-              [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname] [--no-save] [--info INFO]
-              [-e ENV] [-f FILE_NAME]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY]
+              [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE] [--store-dir STORE_DIR]
+              [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname]
+              [--info INFO] [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -197,8 +195,6 @@ optional arguments:
                         specify the platform of training environment
   -a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}, --algorithm {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}
                         specify the training algorithm
-  -d DEVICE, --device DEVICE
-                        specify the device that operate Torch.Tensor
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH
                         specify the name of pre-trained model that need to load
@@ -215,14 +211,18 @@ optional arguments:
   --episode-length EPISODE_LENGTH
                         specify the maximum step per episode
   --prefill-steps PREFILL_STEPS
-                        specify the number of experiences that should be collected before start training, use for off-policy algorithms
+                        specify the number of experiences that should be collected before start training, use for
+                        off-policy algorithms
   --prefill-choose      whether choose action using model or choose randomly
   --hostname            whether concatenate hostname with the training name
-  --no-save             specify whether save models/logs/summaries while training or not
   --info INFO           write another information that describe this training task
-  -e ENV, --env ENV     specify the environment name
+  -e ENV_NAME, --env-name ENV_NAME
+                        specify the environment name
   -f FILE_NAME, --file-name FILE_NAME
                         specify the path of builded training environment of UNITY3D
+  --no-save             specify whether save models/logs/summaries while training or not
+  -d DEVICE, --device DEVICE
+                        specify the device that operate Torch.Tensor
 ```
 
 ```python
@@ -238,18 +238,15 @@ Example:
 
 ## Notes
 
-1. log, model, training parameter configuration, and data are stored in `C:\RLData` for Windows, or `$HOME/RLData` for Linux/OSX
-2. maybe need to use command `su` or `sudo` to run on a Linux/OSX
-3. record directory format is `RLData/Environment/Algorithm/Behavior name(for ml-agents)/Training name/config&log&model`
-4. make sure brains' number > 1 if specifying `ma*` algorithms like maddpg
-5. multi-agents algorithms doesn't support visual input and PER for now
-6. **need 3 steps to implement a new algorithm**
-    1. write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy`, `Off_Policy` or other super-class defined in `rls/algos/base`
-    2. write default configuration in `rls/configs/algorithms.yaml`
-    3. register new algorithm at dictionary *algos* in `rls/algos/__init__.py`, make sure the class name matches the name of the algorithm class
-7. set algorithms' hyper-parameters in [rls/configs/algorithms.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/configs/algorithms.yaml)
-8. set training default configuration in [config.yaml](https://github.com/StepNeverStop/RLs/blob/master/config.yaml)
-9. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
+1. record directory format is `Platform/Environment/Algorithm/Training name/log&model`
+2. multi-agents algorithms doesn't support PER for now
+3. **need 3 steps to implement a new algorithm**
+    1. **policy** write `.py` in `rls/algos/{single/multi/hierarchical}` directory and make the policy inherit from class `Policy`, `On_Policy`, `Off_Policy` or other super-class defined in `rls/algos/base`
+    2. **config** write default configuration in `rls/configs/algorithms.yaml`
+    3. **register** register new algorithm at dictionary *algos* in `rls/algos/__init__.py`, make sure the class name matches the name of the algorithm class
+4. set algorithms' hyper-parameters in [rls/configs/algorithms.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/configs/algorithms.yaml)
+5. set training default configuration in [rls/configs/train.yaml](https://github.com/StepNeverStop/RLs/blob/master/rls/configs/train.yaml)
+6. change neural network structure in [rls/nn/models.py](https://github.com/StepNeverStop/RLs/blob/master/rls/nn/models.py)
 
 ## Ongoing things
 

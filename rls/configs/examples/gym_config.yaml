@@ -65,9 +65,6 @@ environment:
   vector_env_type: multiprocessing
 train:
   logger2file: false
-  add_noise2buffer: false
-  add_noise2buffer_episode_interval: 10
-  add_noise2buffer_steps: 1000
   algorithm: dqn
   allow_print: true
   apex: null
@@ -77,14 +74,12 @@ train:
   device: cpu
   env_name: CartPole-v0
   episode_length: 1000
-  eval_while_train: false
   file_name: null
   hostname: false
   inference: false
   inference_episode: 999999999999999999
   info: ''
   load_path: null
-  max_eval_episode: 100
   max_frame_step: 999999999999999999
   max_train_episode: 999999999999999999
   max_train_step: 999999999999999999
@@ -104,3 +99,5 @@ train:
   save_frequency: 100
   seed: 42
   store_dir: ./data
+  reset_config: {}
+  step_config: {}

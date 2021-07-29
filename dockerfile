@@ -48,7 +48,7 @@ RUN . /opt/conda/etc/profile.d/conda.sh && \
     pip install -e . && \
     /opt/conda/bin/conda build purge-all && \
     rm -rf ~/.cache/pip/* && \
-    python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --no-save && \
+    python run.py --config-file rls/configs/examples/test.yaml && \
     echo -e "\033[4;41;32m run rls successed. \033[0m"
 
 # 22:ssh 6006:tensorboard 8888:jupyter lab

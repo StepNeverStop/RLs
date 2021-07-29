@@ -1,0 +1,103 @@
+algorithm:
+  assign_interval: 1000
+  base_dir: ./data/gym/CartPole-v0/dqn/test
+  batch_size: 2
+  buffer_size: 100
+  burn_in_time_step: 4
+  curiosity_beta: 0.2
+  curiosity_lr: 0.001
+  curiosity_reward_eta: 0.01
+  decay_lr: false
+  device: cpu
+  episode_batch_size: 32
+  episode_buffer_size: 10000
+  eps_final: 0.01
+  eps_init: 1
+  eps_mid: 0.2
+  gamma: 0.99
+  init2mid_annealing_step: 100
+  lr: 0.0005
+  max_train_step: 1000
+  n_step: 4
+  network_settings:
+  - 64
+  - 64
+  no_save: true
+  normalize_vector_obs: false
+  representation_net_params:
+    encoder_net_params:
+      output_dim: 16
+    memory_net_params:
+      network_type: lstm
+      rnn_units: 16
+    use_encoder: false
+    use_rnn: false
+    vector_net_params:
+      network_type: adaptive
+    visual_net_params:
+      network_type: nature
+      visual_feature: 128
+  train_time_step: 5
+  train_times_per_step: 1
+  use_curiosity: false
+  use_isw: false
+  use_priority: false
+environment:
+  action_skip: false
+  env_copys: 4
+  env_name: CartPole-v0
+  inference: false
+  max_episode_steps: null
+  noop: false
+  noop_max: 30
+  obs_grayscale: false
+  obs_resize: false
+  obs_scale: false
+  obs_stack: false
+  platform: gym
+  render_mode: random_1
+  resize:
+  - 84
+  - 84
+  seed: 42
+  skip: 4
+  stack: 4
+  vector_env_type: multiprocessing
+train:
+  logger2file: false
+  algorithm: dqn
+  allow_print: true
+  apex: null
+  base_dir: ./data/gym/CartPole-v0/dqn/test
+  config_file: null
+  copys: 4
+  device: cpu
+  env_name: CartPole-v0
+  episode_length: 1000
+  file_name: null
+  hostname: false
+  inference: false
+  inference_episode: 999999999999999999
+  info: ''
+  load_path: null
+  max_frame_step: 999999999999999999
+  max_train_episode: 999999999999999999
+  max_train_step: 1000
+  models: 1
+  moving_average_episode: 100
+  name: 'test'
+  no_save: true
+  off_policy_eval_interval: 0
+  off_policy_step_eval_episodes: 100
+  off_policy_train_interval: 1
+  platform: gym
+  pre_fill_steps: 1000
+  prefill_choose: true
+  prefill_steps: 10000
+  render: false
+  render_episode: 999999999999999999
+  save_frequency: 100
+  seed: 42
+  store_dir: ./data
+  reset_config: {}
+  step_config: {}
