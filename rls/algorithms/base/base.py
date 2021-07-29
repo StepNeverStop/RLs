@@ -53,7 +53,7 @@ class Base:
             check_or_create(log_dir, 'logs(summaries)')
             return SummaryWriter(log_dir)
 
-    def resume(self, base_dir: Optional[str] = None) -> NoReturn:
+    def resume(self, base_dir: Optional[str] = None) -> Dict:
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
@@ -79,6 +79,16 @@ class Base:
         else:
             logger.info(colorize('Initialize model SUCCESSFULLY.', color='green'))
 
+        path = f'{self.base_dir}/step.json'
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                data = json.load(f)
+        else:
+            data = {}
+        return dict(train_step=int(data.get('train_step', 0)),
+                    frame_step=int(data.get('frame_step', 0)),
+                    episode=int(data.get('episode', 0)))
+
     def save(self, **kwargs) -> NoReturn:
         """
         save the training model 
@@ -93,28 +103,9 @@ class Base:
                     data[k] = v
             t.save(data, os.path.join(self.cp_dir, 'checkpoint.pth'))
             logger.info(colorize(f'Save checkpoint success. Training step: {train_step}', color='green'))
-            self.write_training_info(kwargs)
 
-    def get_init_training_info(self) -> Dict:
-        '''
-        TODO: Annotation
-        '''
-        path = f'{self.base_dir}/step.json'
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                data = json.load(f)
-        else:
-            data = {}
-        return dict(train_step=int(data.get('train_step', 0)),
-                    frame_step=int(data.get('frame_step', 0)),
-                    episode=int(data.get('episode', 0)))
-
-    def write_training_info(self, data: Dict) -> NoReturn:
-        '''
-        TODO: Annotation
-        '''
-        with open(f'{self.base_dir}/step.json', 'w') as f:
-            json.dump(data, f)
+            with open(f'{self.base_dir}/step.json', 'w') as f:
+                json.dump(kwargs, f)
 
     def write_summaries(self,
                         global_step: Union[int, t.Tensor],

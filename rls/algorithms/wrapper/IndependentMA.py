@@ -60,14 +60,13 @@ class IndependentMA:
         for model in self.models:
             model.save(**kwargs)
 
-    def resume(self, base_dir: Optional[str] = None) -> NoReturn:
+    def resume(self, base_dir: Optional[str] = None) -> Dict:
         for i, model in enumerate(self.models):
             if self._n_agents > 1:
                 base_dir += f'/i{model.__class__.__name__}-{i}'
-            model.resume(base_dir)
-
-    def get_init_training_info(self) -> Dict:
-        return self.models[0].get_init_training_info()
+            training_info = model.resume(base_dir)
+        else:
+            return training_info
 
     def write_summaries(self,
                         global_step: Union[int, t.Tensor],

@@ -57,8 +57,7 @@ class Trainer:
             self.model = IndependentMA(self.agent_class, self.env.GroupsSpec, self.algo_args)
         else:
             self.model = self.agent_class(envspecs=self.env.GroupsSpec, **self.algo_args)
-        self.model.resume(self.train_args.load_path)
-        _train_info = self.model.get_init_training_info()
+        _train_info = self.model.resume(self.train_args.load_path)
         self.begin_train_step = _train_info['train_step']
         self.begin_frame_step = _train_info['frame_step']
         self.begin_episode = _train_info['episode']
