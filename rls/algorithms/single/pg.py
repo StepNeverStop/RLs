@@ -30,7 +30,11 @@ class PG(On_Policy):
                  lr=5.0e-4,
                  epoch=5,
                  network_settings={
-                     'actor_continuous': [32, 32],
+                     'actor_continuous': {
+                         'hidden_units': [32, 32],
+                         'condition_sigma': False,
+                         'log_std_bound': [-20, 2]
+                     },
                      'actor_discrete': [32, 32]
                  },
                  **kwargs):

@@ -84,8 +84,7 @@ setup(
         'tqdm',
         'tensorboard',
         'colored_traceback',
-        'pyglet',
-        'imageio'
+        # 'imageio'
     ],
     extras_require=extras,
 )

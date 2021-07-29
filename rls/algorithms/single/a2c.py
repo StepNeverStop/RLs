@@ -33,7 +33,11 @@ class A2C(On_Policy):
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  network_settings={
-                     'actor_continuous': [32, 32],
+                     'actor_continuous': {
+                         'hidden_units': [64, 64],
+                         'condition_sigma': False,
+                         'log_std_bound': [-20, 2]
+                     },
                      'actor_discrete': [32, 32],
                      'critic': [32, 32]
                  },
