@@ -22,8 +22,8 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
                  envspecs,
                  buffer_size=10000,
                  n_step=1,
-                 burn_in_time_step=10,
-                 train_time_step=10,
+                 burn_in_time_steps=10,
+                 rnn_time_steps=10,
                  episode_batch_size=32,
                  episode_buffer_size=10000,
                  train_times_per_step=1,
@@ -32,8 +32,8 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
 
         self.buffer_size = buffer_size
         self.n_step = n_step
-        self.burn_in_time_step = burn_in_time_step
-        self.train_time_step = train_time_step
+        self.burn_in_time_steps = burn_in_time_steps
+        self.rnn_time_steps = rnn_time_steps
         self.episode_batch_size = episode_batch_size
         self.episode_buffer_size = episode_buffer_size
         self.train_times_per_step = train_times_per_step
@@ -48,8 +48,8 @@ class MultiAgentOffPolicy(MultiAgentPolicy):
         #     _buffer_args.update(
         #         batch_size=self.episode_batch_size,
         #         capacity=self.episode_buffer_size,
-        #         burn_in_time_step=self.burn_in_time_step,
-        #         train_time_step=self.train_time_step,
+        #         burn_in_time_steps=self.burn_in_time_steps,
+        #         rnn_time_steps=self.rnn_time_steps,
         #         n_copys=self.n_copys
         #     )
         # else:

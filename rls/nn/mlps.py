@@ -1,4 +1,3 @@
-import uuid
 import torch as t
 
 from torch.nn import Sequential
@@ -33,7 +32,7 @@ class MLP(Sequential):
             self.add_module(f'{layer}_{i}', Layer_REGISTER[layer](_in, _out))
             self.add_module(f'{act_fn}_{i}', Act_REGISTER[act_fn]())
 
-        input_dim = outs[-1] or input_dim
+        input_dim = outs[-1] if len(outs) > 0 else input_dim
         if output_shape:
             self.add_module('out_layer', Layer_REGISTER[layer](input_dim, output_shape))
             if out_act:

@@ -17,7 +17,7 @@ class UnityEnv(EnvBase):
     def __init__(self,
                  obs_scale=False,
                  **kwargs):
-        self.env = BasicUnityEnvironment(kwargs)
+        self.env = BasicUnityEnvironment(**kwargs)
         if obs_scale:
             self.env = ScaleVisualWrapper(env)
 

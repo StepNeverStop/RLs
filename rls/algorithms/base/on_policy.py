@@ -18,14 +18,14 @@ from rls.common.specs import BatchExperiences
 class On_Policy(Policy):
     def __init__(self,
                  envspec,
-                 rnn_time_step=8,
+                 rnn_time_steps=8,
                  **kwargs):
         super().__init__(envspec=envspec, **kwargs)
-        self.rnn_time_step = rnn_time_step
+        self.rnn_time_steps = rnn_time_steps
 
     def initialize_data_buffer(self, store_data_type=BatchExperiences, sample_data_type=BatchExperiences) -> NoReturn:
-        self.data = DataBuffer(n_copys=self.n_copys, rnn_cell_nums=self.rnn_cell_nums,
-                               batch_size=self.batch_size, rnn_time_step=self.rnn_time_step,
+        self.data = DataBuffer(n_copys=self.n_copys,
+                               batch_size=self.batch_size, rnn_time_steps=self.rnn_time_steps,
                                store_data_type=store_data_type, sample_data_type=sample_data_type)
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
@@ -58,7 +58,8 @@ class On_Policy(Policy):
 
         if self.use_curiosity and not self.use_rnn:
             curiosity_data = self.data.get_curiosity_data()
-            cell_states['obs'] = cell_states['obs_'] = self.initial_cell_state(batch=self.n_copys)
+            cell_states = {'obs': self.initial_cell_state(batch=self.n_copys),
+                           'obs_': self.initial_cell_state(batch=self.n_copys)}
             crsty_r, crsty_summaries = self.curiosity_model(curiosity_data, cell_states)
             self.data.update_reward(crsty_r.numpy())
             # self.data.r += crsty_r.numpy().reshape([self.data.eps_len, -1])

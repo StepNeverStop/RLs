@@ -61,9 +61,9 @@ class SAC_V(Off_Policy):
         self.annealing = annealing
 
         if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True)
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
         else:
-            self.log_alpha = t.tensor(alpha).log()
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
@@ -126,9 +126,13 @@ class SAC_V(Off_Policy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        mu, pi, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return mu if evaluation else pi
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         if self.is_continuous:
             mu, log_std = self.actor(feat)
             pi = td.Normal(mu, log_std.exp()).sample().tanh()
@@ -138,7 +142,7 @@ class SAC_V(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu if evaluation else pi
+        return mu, pi, cell_state
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)

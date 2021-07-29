@@ -43,11 +43,11 @@ class ActorMuLogstd(t.nn.Module):
             ins = network_settings['hidden_units'][-1]
         else:
             ins = vector_dim
-        self.mu = MLP(ins, output_shape=output_shape, out_act='tanh')
+        self.mu = MLP(ins, [], output_shape=output_shape, out_act='tanh')
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = -0.5 * t.nn.Parameter(t.ones((1, output_shape)), requires_grad=True)
+            self.log_std = t.nn.Parameter(-0.5 * t.ones((1, output_shape)))
 
     def forward(self, x):
         x = self.share(x)
@@ -56,7 +56,7 @@ class ActorMuLogstd(t.nn.Module):
             log_std = self.log_std(x)
         else:
             log_std = self.log_std
-        log_std.clamp_(self.log_std_min, self.log_std_max)
+        log_std = log_std.clamp(self.log_std_min, self.log_std_max)
         batch_size = mu.shape[0]
         if batch_size:
             log_std = log_std.repeat(batch_size, 1)  # [1, N] => [B, N]
@@ -335,7 +335,7 @@ class ActorCriticValueCts(t.nn.Module):
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = -0.5 * t.nn.Parameter(t.ones((1, output_shape)), requires_grad=True)
+            self.log_std = t.nn.Parameter(-0.5 * t.ones((1, output_shape)))
 
     def forward(self, x):
         x = self.share(x)
@@ -349,7 +349,7 @@ class ActorCriticValueCts(t.nn.Module):
             batch_size = mu.shape[0]
             if batch_size:
                 log_std = log_std.repeat(batch_size, 1)  # [1, N] => [B, N]
-        log_std.clamp_(self.log_std_min, self.log_std_max)
+        log_std = log_std.clamp(self.log_std_min, self.log_std_max)
         return (mu, log_std, v)
 
 

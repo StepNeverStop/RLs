@@ -15,6 +15,7 @@ from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.policy import Policy
 from rls.common.yaml_ops import load_config
 from rls.common.specs import BatchExperiences
+from rls.common.decorator import iTensor_oNumpy
 
 
 class Off_Policy(Policy):
@@ -24,8 +25,8 @@ class Off_Policy(Policy):
                  n_step=1,
                  use_priority=False,
                  use_isw=False,
-                 burn_in_time_step=10,
-                 train_time_step=10,
+                 burn_in_time_steps=10,
+                 rnn_time_steps=10,
                  episode_batch_size=32,
                  episode_buffer_size=10000,
                  train_times_per_step=1,
@@ -35,8 +36,8 @@ class Off_Policy(Policy):
         self.n_step = n_step
         self.use_priority = use_priority
         self.use_isw = use_isw
-        self.burn_in_time_step = burn_in_time_step
-        self.train_time_step = train_time_step
+        self.burn_in_time_steps = burn_in_time_steps
+        self.rnn_time_steps = rnn_time_steps
         self.episode_batch_size = episode_batch_size
         self.episode_buffer_size = episode_buffer_size
         self.train_times_per_step = train_times_per_step
@@ -51,8 +52,8 @@ class Off_Policy(Policy):
             _buffer_args.update(
                 batch_size=self.episode_batch_size,
                 capacity=self.episode_buffer_size,
-                burn_in_time_step=self.burn_in_time_step,
-                train_time_step=self.train_time_step,
+                burn_in_time_steps=self.burn_in_time_steps,
+                rnn_time_steps=self.rnn_time_steps,
                 n_copys=self.n_copys
             )
         else:
@@ -134,17 +135,18 @@ class Off_Policy(Policy):
         if self.data.can_sample:
             self.intermediate_variable_reset()
             data = self.get_transitions()
-            cell_states = {}
+            cell_states = {'obs': self.initial_cell_state(batch=self.episode_batch_size),
+                           'obs_': self.initial_cell_state(batch=self.episode_batch_size)}
 
             # --------------------------------------burn in隐状态部分
-            cell_states['obs'] = self.initial_cell_state(batch=self.episode_batch_size)
-            cell_states['obs_'] = self.initial_cell_state(batch=self.episode_batch_size)
-            if self.use_rnn and self.burn_in_time_step > 0:
+            if self.use_rnn and self.burn_in_time_steps > 0:
                 _burn_in_data = self.get_burn_in_transitions()
-                _, cell_states['obs'] = self.rep_net(obs=_burn_in_data.obs,
-                                                     cell_state=cell_states['obs'])
-                _, cell_states['obs_'] = self.rep_net(obs=_burn_in_data.obs_,
-                                                      cell_state=cell_states['obs_'])
+                _, cell_states['obs'] = iTensor_oNumpy(self.rep_net)(obs=_burn_in_data.obs,
+                                                                     cell_state=cell_states['obs'],
+                                                                     device=self.device)
+                _, cell_states['obs_'] = iTensor_oNumpy(self.rep_net)(obs=_burn_in_data.obs_,
+                                                                      cell_state=cell_states['obs_'],
+                                                                      device=self.device)
             # --------------------------------------
 
             # --------------------------------------好奇心部分

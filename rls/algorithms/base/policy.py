@@ -95,13 +95,6 @@ class Policy(Base):
         '''reset model for each new episode.'''
         self.cell_state = self.next_cell_state = self.initial_cell_state(batch=self.n_copys)
 
-    @property
-    def rnn_cell_nums(self):
-        if self.use_rnn:
-            return self.rep_net.memory_net.cell_nums
-        else:
-            return 0
-
     def initial_cell_state(self, batch: int) -> Tuple[t.Tensor]:
         if self.use_rnn:
             return self.rep_net.memory_net.initial_cell_state(batch=batch)

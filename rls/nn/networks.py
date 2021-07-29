@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import uuid
 import torch as t
+import numpy as np
 
 from typing import Tuple
 
@@ -84,17 +84,19 @@ class MemoryNetwork(t.nn.Module):
             self.rnn = t.nn.LSTMCell(feat_dim, rnn_units)
 
     def forward(self, feat, cell_state=None):
-        # feat: [B, T, x]
+        # feat: [T, B, x]
         output = []
-        for i in range(feat.shape[1]):
-            cell_state = self.rnn(feat[:, i], cell_state)
+        for i in range(feat.shape[0]):
+            cell_state = self.rnn(feat[i, ...], cell_state)
             if self.network_type == 'gru':
                 output.append(cell_state)
             elif self.network_type == 'lstm':
                 output.append(cell_state[0])
         output = t.stack(output, dim=0)  # [T, B, N]
-        output.permute(1, 0, 2)  # [B, T, N]
         return output, cell_state
 
-    def initial_cell_state(self, batch: int) -> Tuple[t.Tensor]:
-        return tuple(t.zeros((batch, self.h_dim)).float() for _ in range(self.cell_nums))
+    def initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
+        if self.cell_nums > 1:
+            return tuple(np.zeros((batch, self.h_dim)) for _ in range(self.cell_nums))
+        else:
+            return np.zeros((batch, self.h_dim))

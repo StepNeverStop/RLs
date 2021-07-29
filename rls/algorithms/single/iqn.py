@@ -44,7 +44,6 @@ class IQN(Off_Policy):
                  **kwargs):
         assert not envspec.is_continuous, 'iqn only support discrete action space'
         super().__init__(envspec=envspec, **kwargs)
-        self.pi = t.tensor(np.pi)
         self.online_quantiles = online_quantiles
         self.target_quantiles = target_quantiles
         self.select_quantiles = select_quantiles
@@ -80,27 +79,31 @@ class IQN(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            batch_size = len(obs)
-            _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-                batch_size=batch_size,
-                quantiles_num=self.select_quantiles,
-                quantiles_idx=self.quantiles_idx
-            )
-            # [B, A]
-            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-            (_, q_values) = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)
-            a = q_values.argmax(-1)  # [B,]
-        return a
+            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        batch_size = len(obs)
+        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
+            batch_size=batch_size,
+            quantiles_num=self.select_quantiles,
+            quantiles_idx=self.quantiles_idx
+        )
+        # [B, A]
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        (_, q_values) = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)
+        a = q_values.argmax(-1)  # [B,]
+        return a, cell_state
 
     def _generate_quantiles(self, batch_size, quantiles_num, quantiles_idx):
         _quantiles = t.rand([batch_size * quantiles_num, 1])  # [N*B, 1]
         _quantiles_tiled = _quantiles.repeat(1, quantiles_idx)  # [N*B, 1] => [N*B, 64]
-        _quantiles_tiled = t.arange(quantiles_idx) * self.pi * _quantiles_tiled  # pi * i * tau [N*B, 64] * [64, ] => [N*B, 64]
+        _quantiles_tiled = t.arange(quantiles_idx) * np.pi * _quantiles_tiled  # pi * i * tau [N*B, 64] * [64, ] => [N*B, 64]
         _quantiles_tiled.cos_()   # [N*B, 64]
         _quantiles = _quantiles.view(batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
         return _quantiles, _quantiles_tiled

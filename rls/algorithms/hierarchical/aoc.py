@@ -13,7 +13,6 @@ from rls.common.specs import (ModelObservations,
                               BatchExperiences)
 from rls.nn.models import AocShare
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -81,7 +80,7 @@ class AOC(On_Policy):
         self.kl_reverse = kl_reverse
         self.kl_target = kl_target
         self.kl_alpha = kl_alpha
-        self.kl_coef = t.tensor(kl_coef).float()
+        self.kl_coef = kl_coef
 
         self.kl_cutoff = kl_target * kl_target_cutoff
         self.kl_stop = kl_target * kl_target_earlystop
@@ -110,8 +109,8 @@ class AOC(On_Policy):
 
         self.initialize_data_buffer(store_data_type=AOC_Store_BatchExperiences,
                                     sample_data_type=AOC_Train_BatchExperiences)
-        self.oc_mask = t.tensor(np.zeros(self.n_copys)).int()
-        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
+        self.oc_mask = np.zeros(self.n_copys)
+        self.options = np.random.randint(0, self.options_num, self.n_copys)
 
     def reset(self):
         super().reset()
@@ -121,18 +120,23 @@ class AOC(On_Policy):
         super().partial_reset(done)
         self._done_mask = done
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         self.last_options = self.options
+        rets = self.call(obs, cell_state=self.cell_state, options=self.options, _done_mask=self._done_mask)
+        action, self.next_cell_state, self._value, self._log_prob, self._beta_adv, self.oc_mask, self.options = rets
+        self._done_mask = np.full(self.n_copys, False)
+        return action
 
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
+    @iTensor_oNumpy
+    def call(self, obs, cell_state, options, _done_mask):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)  # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta) = self.net(feat)
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
             mu = pi
-            log_std = self.log_std[self.options]
+            log_std = self.log_std[options]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             sample_op = dist.sample().clamp(-1, 1)
             log_prob = dist.log_prob(sample_op).unsqueeze(-1)
@@ -146,16 +150,9 @@ class AOC(On_Policy):
         max_options = q.argmax(-1)  # [B, P] => [B, ]
         beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
         beta_dist = td.Bernoulli(probs=beta_probs)
-        new_options = t.where(beta_dist.sample() < 1, self.options, max_options)    # <1 则不改变op， =1 则改变op
-
-        new_options = t.where(self._done_mask, max_options, new_options)
-        self._done_mask = np.full(self.n_copys, False)
-        self._value = to_numpy(value)
-        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
-        self._beta_adv = to_numpy(beta_adv) + self.dc
-        self.oc_mask = to_numpy(new_options == self.options)  # equal means no change
-        self.options = to_numpy(new_options)
-        return sample_op
+        new_options = t.where(beta_dist.sample() < 1, options, max_options)    # <1 则不改变op， =1 则改变op
+        new_options = t.where(_done_mask, max_options, new_options)
+        return sample_op, cell_state, value, log_prob+t.finfo().eps, beta_adv+self.dc, new_options == options, new_options
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -188,7 +185,7 @@ class AOC(On_Policy):
         def _train(data, cell_state):
             early_step = 0
             for i in range(self.epoch):
-                loss, pi_loss, q_loss, beta_loss, entropy, kl = self.train(data, cell_state, self.kl_coef)
+                loss, pi_loss, q_loss, beta_loss, entropy, kl = self.train(data, cell_state)
                 if kl > self.kl_stop:
                     early_step = i
                     break
@@ -219,7 +216,7 @@ class AOC(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train(self, BATCH, cell_states, kl_coef):
+    def train(self, BATCH, cell_states):
         last_options = BATCH.last_options  # [B,]
         options = BATCH.options
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])  # [B, P], [B, P, A], [B, P], [B, P]
@@ -259,7 +256,7 @@ class AOC(On_Policy):
             surrogate,
             ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
         ).mean()
-        kl_loss = kl_coef * kl
+        kl_loss = self.kl_coef * kl
         extra_loss = 1000.0 * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square()
         pi_loss = pi_loss + kl_loss + extra_loss
         q_loss = 0.5 * td_square.mean()

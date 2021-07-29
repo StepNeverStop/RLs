@@ -28,6 +28,7 @@ def iTensor_oNumpy(func, dtype=t.float32, device='cpu'):
             device = getattr(args[0], 'device')
             args = [args[0]] + [to_tensor(x, dtype=dtype, device=device) for x in args[1:]]
         else:
+            device = kwargs.pop('device') # TODO: try catch
             args = [to_tensor(x, dtype=dtype, device=device) for x in args]
         kwargs = {k: to_tensor(v, dtype=dtype, device=device) for k, v in kwargs.items()}
         output = func(*args, **kwargs)

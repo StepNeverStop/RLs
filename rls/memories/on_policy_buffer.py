@@ -22,9 +22,8 @@ class DataBuffer(object):
 
     def __init__(self,
                  n_copys: int = 1,
-                 rnn_cell_nums: int = 0,
                  batch_size: int = 32,
-                 rnn_time_step: int = 8,
+                 rnn_time_steps: int = 8,
                  store_data_type: Data = BatchExperiences,
                  sample_data_type: Data = BatchExperiences):
         '''
@@ -35,12 +34,11 @@ class DataBuffer(object):
 
         self.data_buffer = defaultdict(list)
         self.n_copys = n_copys
-        self.rnn_cell_nums = rnn_cell_nums
-        self.cell_state_buffer = [[] for _ in range(self.rnn_cell_nums)]
+        self.cell_state_buffer = []
         self.eps_len = 0
 
         self.batch_size = batch_size
-        self.rnn_time_step = rnn_time_step
+        self.rnn_time_steps = rnn_time_steps
 
         self.store_data_type = store_data_type
         self.sample_data_type = sample_data_type
@@ -55,8 +53,7 @@ class DataBuffer(object):
 
     def add_cell_state(self, cell_states):
         '''存储LSTM隐状态'''
-        for l, cs in zip(self.cell_state_buffer, cell_states):
-            l.append(cs)
+        self.cell_state_buffer.append(cell_states)
 
     def cal_dc_r(self, gamma, init_value, normalize=False):
         '''
@@ -194,17 +191,17 @@ class DataBuffer(object):
                 data.append(buffer[k][_idxs])
             yield self.sample_data_type(*data), None
 
-    def sample_generater_rnn(self, batch_size: int = None, rnn_time_step: int = None):
+    def sample_generater_rnn(self, batch_size: int = None, rnn_time_steps: int = None):
         '''
         create rnn sampling data iterator.
 
         params:
-            rnn_time_step: the length of time slide window
+            rnn_time_steps: the length of time slide window
         return:
             sampled data.
         '''
         batch_size = batch_size or self.batch_size
-        rnn_time_step = rnn_time_step or self.rnn_time_step
+        rnn_time_steps = rnn_time_steps or self.rnn_time_steps
 
         # TODO: 未done导致的episode切换需要严谨处理
         # T * [B, 1] => [T, B] => [B, T]
@@ -219,8 +216,8 @@ class DataBuffer(object):
         for i in range(B):
             idxs = [-1] + done_dict[i] + [T - 1]
             for x, y in zip(idxs[:-1], idxs[1:]):
-                if y - rnn_time_step + 1 > x:
-                    available_sample_range[i].append([x + 1, y - rnn_time_step + 1])    # 左开右开
+                if y - rnn_time_steps + 1 > x:
+                    available_sample_range[i].append([x + 1, y - rnn_time_steps + 1])    # 左开右开
                     count += (y - x) // 2
 
         # prevent total_eps_num is smaller than batch_size
@@ -238,17 +235,26 @@ class DataBuffer(object):
                 sample_exp = {}
                 for k in self.sample_data_type.__dataclass_fields__.keys():
                     assert k in self.data_buffer.keys(), f"assert {k} in self.data_buffer.keys()"
-                    d = self.data_buffer[k][time_idx:time_idx + rnn_time_step]    # T * [B, N]
-                    d = [_d[batch_idx] for _d in d]
+                    d = self.data_buffer[k][time_idx:time_idx + rnn_time_steps]    # T * [B, N]
+                    d = [_d[batch_idx] for _d in d]  # [T, N]
                     if isinstance(self.data_buffer[k][0], Data):
                         sample_exp[k] = Data.pack(d)   # [T, N]
                     else:
                         sample_exp[k] = np.asarray(d)
-                samples.append(self.sample_data_type(**sample_exp))
+                samples.append(self.sample_data_type(**sample_exp))  # [B, T, N]
 
-                sample_cs.append((cs[time_idx][batch_idx] for cs in self.cell_state_buffer))
-            cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # [B, N]
-            yield Data.pack(samples, func=np.concatenate), cs    # [B*T, N]
+                if isinstance(self.cell_state_buffer[0], (list, tuple)):    # TODO: optimize
+                    sample_cs.append((cs[batch_idx] for cs in self.cell_state_buffer[time_idx]))
+                else:
+                    sample_cs.append(self.cell_state_buffer[time_idx][batch_idx])
+
+            if isinstance(self.cell_state_buffer[0], (list, tuple)):
+                cs = tuple(np.asarray(x) for x in zip(*sample_cs))   # tuple([B, N], ...)
+            else:
+                cs = np.asarray(sample_cs)  # [B, N]
+            samples = Data.pack(samples)  # [B, T, N]
+            samples.convert_(lambda x: x.swapaxes(0, 1))  # [B, T, N] => [T, B, N]
+            yield samples, cs
 
     def clear(self):
         '''
@@ -257,8 +263,7 @@ class DataBuffer(object):
         self.eps_len = 0
         for k in self.data_buffer.keys():
             self.data_buffer[k].clear()
-        for l in self.cell_state_buffer:
-            l.clear()
+        self.cell_state_buffer.clear()
 
     def __getattr__(self, name):
         '''

@@ -122,9 +122,14 @@ class MADDPG(MultiAgentOffPolicy):
         for noised_action in self.noised_actions:
             noised_action.reset()
 
-    @iTensor_oNumpy
     def __call__(self, obs: List, evaluation=False):
-        actions = []
+        mus, pis = self.call(obs)
+        return mus if evaluation else pis
+
+    @iTensor_oNumpy
+    def call(self, obs):
+        mus = []
+        pis = []
         for i in range(self.n_agents_percopy):
             j = 0 if self.share_params else i
             feat, _ = self.rep_nets[j](obs[i])
@@ -137,8 +142,9 @@ class MADDPG(MultiAgentOffPolicy):
                 mu = logits.argmax(1)
                 cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()
-            actions.append(mu if evaluation else pi)
-        return actions
+            mus.append(mu)
+            pis.append(pi)
+        return mus, pis
 
     def _target_params_update(self):
         for i in range(self.n_models_percopy):

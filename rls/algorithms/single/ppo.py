@@ -21,7 +21,6 @@ from rls.nn.models import (ActorCriticValueCts,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -79,6 +78,8 @@ class PPO(On_Policy):
                  network_settings: Dict = {
                      'share': {
                          'continuous': {
+                             'condition_sigma': False,
+                             'log_std_bound': [-20, 2],
                              'share': [32, 32],
                              'mu': [32, 32],
                              'v': [32, 32]
@@ -89,7 +90,11 @@ class PPO(On_Policy):
                              'v': [32, 32]
                          }
                      },
-                     'actor_continuous': [32, 32],
+                     'actor_continuous': {
+                         'hidden_units': [64, 64],
+                         'condition_sigma': False,
+                         'log_std_bound': [-20, 2]
+                     },
                      'actor_discrete': [32, 32],
                      'critic': [32, 32]
                  },
@@ -107,7 +112,7 @@ class PPO(On_Policy):
         self.kl_reverse = kl_reverse
         self.kl_target = kl_target
         self.kl_alpha = kl_alpha
-        self.kl_coef = t.tensor(kl_coef).float()
+        self.kl_coef = kl_coef
         self.extra_coef = extra_coef
         self.vf_coef = vf_coef
         self.max_grad_norm = max_grad_norm
@@ -172,9 +177,13 @@ class PPO(On_Policy):
         self.initialize_data_buffer(store_data_type=PPO_Store_BatchExperiences,
                                     sample_data_type=PPO_Train_BatchExperiences)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.next_cell_state, self._value, self._log_prob = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         if self.is_continuous:
             if self.share_net:
                 mu, log_std, value = self.net(feat)
@@ -193,9 +202,7 @@ class PPO(On_Policy):
             norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
-        self._value = to_numpy(value)
-        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
-        return sample_op
+        return sample_op, cell_state, value, log_prob+t.finfo().eps
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         # self._running_average()
@@ -229,13 +236,13 @@ class PPO(On_Policy):
             early_step = 0
             if self.share_net:
                 for i in range(self.policy_epoch):
-                    actor_loss, critic_loss, entropy, kl = self.train_share(data, cell_states, self.kl_coef)
+                    actor_loss, critic_loss, entropy, kl = self.train_share(data, cell_states)
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
             else:
                 for i in range(self.policy_epoch):
-                    actor_loss, entropy, kl = self.train_actor(data, cell_states, self.kl_coef)
+                    actor_loss, entropy, kl = self.train_actor(data, cell_states)
                     if self.use_early_stop and kl > self.kl_stop:
                         early_step = i
                         break
@@ -283,7 +290,7 @@ class PPO(On_Policy):
         })
 
     @iTensor_oNumpy
-    def train_share(self, BATCH, cell_states, kl_coef):
+    def train_share(self, BATCH, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std, value = self.net(feat)
@@ -327,7 +334,7 @@ class PPO(On_Policy):
             td_square = td_error.square()
 
         if self.use_kl_loss:
-            kl_loss = kl_coef * kl
+            kl_loss = self.kl_coef * kl
             actor_loss += kl_loss
 
         if self.use_extra_loss:
@@ -340,7 +347,7 @@ class PPO(On_Policy):
         return actor_loss, value_loss, entropy, kl
 
     @iTensor_oNumpy
-    def train_actor(self, BATCH, cell_states, kl_coef):
+    def train_actor(self, BATCH, cell_states):
         feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
         if self.is_continuous:
             mu, log_std = self.actor(feat)
@@ -368,7 +375,7 @@ class PPO(On_Policy):
         actor_loss = -(clipped_surrogate.mean() + self.ent_coef * entropy)
 
         if self.use_kl_loss:
-            kl_loss = kl_coef * kl
+            kl_loss = self.kl_coef * kl
             actor_loss += kl_loss
         if self.use_extra_loss:
             extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square()

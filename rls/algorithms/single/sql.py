@@ -57,15 +57,19 @@ class SQL(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         q_values = self.q_net(feat)
         logits = ((q_values - self.get_v(q_values)) / self.alpha).exp()    # > 0
         logits /= logits.sum()
         cate_dist = td.Categorical(logits=logits)
         pi = cate_dist.sample()
-        return pi
+        return pi, cell_state
 
     def get_v(self, q):
         v = self.alpha * (q / self.alpha).exp().mean(1, keepdim=True).log()

@@ -1,6 +1,5 @@
 
 import math
-import uuid
 
 from torch.nn import (Sequential,
                       Linear)

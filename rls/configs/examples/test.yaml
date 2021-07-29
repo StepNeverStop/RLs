@@ -3,7 +3,7 @@ algorithm:
   base_dir: ./data/gym/CartPole-v0/dqn/test
   batch_size: 2
   buffer_size: 100
-  burn_in_time_step: 4
+  burn_in_time_steps: 4
   curiosity_beta: 0.2
   curiosity_lr: 0.001
   curiosity_reward_eta: 0.01
@@ -37,7 +37,7 @@ algorithm:
     visual_net_params:
       network_type: nature
       visual_feature: 128
-  train_time_step: 5
+  rnn_time_steps: 5
   train_times_per_step: 1
   use_curiosity: false
   use_isw: false

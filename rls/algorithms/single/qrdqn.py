@@ -40,7 +40,7 @@ class QRDQN(Off_Policy):
         super().__init__(envspec=envspec, **kwargs)
         self.nums = nums
         self.huber_delta = huber_delta
-        self.quantiles = t.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().view(-1, self.nums)  # [1, N]
+        self.quantiles = t.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().view(-1, self.nums).to(self.device)  # [1, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -71,16 +71,20 @@ class QRDQN(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-            q_values = self.q_net(feat)
-            q = q_values.mean(-1)  # [B, A, N] => [B, A]
-            a = q.argmax(-1)  # [B, 1]
-        return a
+            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        q_values = self.q_net(feat)
+        q = q_values.mean(-1)  # [B, A, N] => [B, A]
+        a = q.argmax(-1)  # [B, 1]
+        return a, cell_state
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

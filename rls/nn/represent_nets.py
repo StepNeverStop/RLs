@@ -71,11 +71,8 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
 
     def forward(self, obs, cell_state):
         '''
-        params:
-            cell_state: Tuple([B, z],)
         return:
-            feat: [B, a]
-            cell_state: Tuple([B, z],)
+            feat: [B, N]
         '''
         if self.obs_spec.has_vector_observation and self.obs_spec.has_visual_observation:
             vec_feat = self.vector_net(*obs.vector.__dict__.values())
@@ -89,16 +86,17 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
             raise Exception("observation must not be empty.")
 
         if self.use_encoder:
-            feat = self.encoder_net(feat)  # [B*T, X]
+            feat = self.encoder_net(feat)  # [T*B, X]
 
         if self.use_rnn:
-            # TODO: 
-            batch_size = cell_state[0].shape[0]
-            # reshape feature from [B*T, x] to [B, T, x]
-
-            feat = feat.view(batch_size, -1, feat.shape[-1])
+            if isinstance(cell_state, (list, tuple)):
+                batch_size = cell_state[0].shape[0]
+            else:
+                batch_size = cell_state.shape[0]
+            # reshape feature from [T*B, x] to [T, B, x]
+            feat = feat.view(-1, batch_size, feat.shape[-1])    # [T, B, x]
             feat, cell_state = self.memory_net(feat, cell_state)
-            # reshape feature from [B, T, x] to [B*T, x]
+            # reshape feature from [T, B, x] to [T*B, x]
             feat = feat.view(-1, feat.shape[-1])
 
         return feat, cell_state

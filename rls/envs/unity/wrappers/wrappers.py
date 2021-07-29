@@ -27,13 +27,13 @@ from rls.envs.unity.wrappers.core import (ObservationWrapper,
 class BasicUnityEnvironment(object):
 
     def __init__(self,
+                 worker_id=0,
                  file_name=None,
                  port=5005,
                  render=False,
                  seed=42,
-                 worker_id=0,
                  timeout_wait=60,
-                 env_copys=1,
+                 env_copys=12,
                  env_name='3DBall',
                  real_done=True,
                  initialize_config={},
@@ -50,15 +50,14 @@ class BasicUnityEnvironment(object):
         self._n_copys = env_copys
         self._real_done = real_done
 
-        self._side_channels = self.initialize_all_side_channels(initialize_config)
+        self._side_channels = self.initialize_all_side_channels(initialize_config, engine_config)
         env_kwargs = dict(seed=seed,
                           worker_id=worker_id,
                           timeout_wait=timeout_wait,
                           side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
-
-        if file_nameis not None:
+        if file_name is not None:
             env_dict = load_config('rls/configs/unity/env_dict.yaml')
-            env_kwargs.update(file_name=file_name
+            env_kwargs.update(file_name=file_name,
                               base_port=port,
                               no_graphics=not render,
                               additional_args=[
@@ -109,13 +108,13 @@ class BasicUnityEnvironment(object):
             self.behavior_agents[bn] = len(ds)
             self.behavior_ids[bn] = ds.agent_id_to_index
 
-            for i, shape in enumerate(spec.observation_shapes):
-                if len(shape) == 1:
+            for i, obs_spec in enumerate(spec.observation_specs):   # TODO: optimize
+                if len(obs_spec.shape) == 1:
                     self.vector_idxs[bn].append(i)
-                    self.vector_dims[bn].append(shape[0])
-                elif len(shape) == 3:
+                    self.vector_dims[bn].append(obs_spec.shape[0])
+                elif len(obs_spec.shape) == 3:
                     self.visual_idxs[bn].append(i)
-                    self.visual_dims[bn].append(list(shape))
+                    self.visual_dims[bn].append(list(obs_spec.shape))
                 else:
                     raise ValueError("shape of observation cannot be understood.")
             self.vector_info_type[bn] = generate_obs_dataformat(n_copys=self.behavior_agents[bn],
@@ -253,7 +252,7 @@ class BasicUnityEnvironment(object):
                 all_reward.append(reward[idxs])
                 # all_info.append(dict(max_step=info_max_step[idxs]))
         if only_obs:
-            return corrected_obs
+            return all_corrected_obs
         else:
             rets = []
             for corrected_obs, obs, reward in zip(all_corrected_obs, all_obs, all_reward):

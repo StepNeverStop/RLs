@@ -3,7 +3,6 @@
 
 import sys
 import numpy as np
-import torch as t
 
 from typing import (Any,
                     NoReturn,
@@ -12,6 +11,7 @@ from typing import (Any,
                     Tuple,
                     Optional)
 from copy import deepcopy
+from functools import partial
 
 from rls.memories.sum_tree import Sum_Tree
 from rls.memories.base_replay_buffer import ReplayBuffer
@@ -311,13 +311,13 @@ class EpisodeExperienceReplay(ReplayBuffer):
                  batch_size: int,
                  capacity: int,
                  n_copys: int,
-                 burn_in_time_step: int,
-                 train_time_step: int):
+                 burn_in_time_steps: int,
+                 rnn_time_steps: int):
         super().__init__(batch_size, capacity)
         self.n_copys = n_copys
-        self.burn_in_time_step = burn_in_time_step
-        self.train_time_step = train_time_step
-        self.timestep = burn_in_time_step + train_time_step
+        self.burn_in_time_steps = burn_in_time_steps
+        self.rnn_time_steps = rnn_time_steps
+        self.timestep = burn_in_time_steps + rnn_time_steps
         self.queue = [[] for _ in range(n_copys)]
         self._data_pointer = 0
         self._buffer = np.empty(capacity, dtype=object)
@@ -361,29 +361,30 @@ class EpisodeExperienceReplay(ReplayBuffer):
         n_sample = self.batch_size if self.can_sample else self._size
         trajs = np.random.choice(self._buffer[:self._size], size=n_sample, replace=False)   # 选n_sample条轨迹
 
-        def f(v, l):    # [B, T, N]
-            return lambda x: tf.keras.preprocessing.sequence.pad_sequences(x, padding='pre', dtype='float32', value=v, maxlen=l, truncating='pre')
-
         def truncate(traj):
             idx = np.random.randint(max(1, len(traj) - self.timestep + 1))  # [min, max)
-            return traj[idx:idx + self.timestep]
+            return traj[idx:idx + self.timestep]    # [t<=T, N]
+
+        def _pad(x, length, value=0.):
+            pad_width = [(length-x.shape[0], 0)] + [(0, 0)]*(x.ndim-1)
+            return np.pad(x, pad_width=pad_width, mode='constant', constant_values=value)
 
         datas = []  # [B, 不定长时间步, N]
         for traj in trajs:
             data = Data.pack(truncate(traj))
+            data.convert_(partial(_pad, length=self.timestep, value=1.), ['done'])  # [T, N]
+            data.convert_(partial(_pad, length=self.timestep, value=0.))    # [T, N]
             datas.append(data)
 
-        sample_data = Data.pack(datas)
-        sample_data.convert_(f(v=1., l=self.timestep), ['done'])   # [B, T, N]
-        sample_data.convert_(f(v=0., l=self.timestep))     # [B, T, N]
+        sample_data = Data.pack(datas)  # [B, T, N]
+        sample_data.convert_(lambda x: x.swapaxes(0, 1))  # [B, T, N] => [T, B, N]
 
-        self.burn_in_data = deepcopy(sample_data)
-        train_data = deepcopy(sample_data)
+        self.burn_in_data = sample_data.convert(lambda x: x[:self.burn_in_time_steps, ...])
+        self.burn_in_data.convert_(lambda x: x.reshape(np.prod(x.shape[:2]), *x.shape[2:]))
 
-        self.burn_in_data.convert_(lambda x: x[:, :self.burn_in_time_step])
-        self.burn_in_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
-        train_data.convert_(lambda x: x[:, self.burn_in_time_step:])
-        train_data.convert_(lambda x: x.view(-1, *x.shape[2:]))
+        train_data = sample_data.convert(lambda x: x[self.burn_in_time_steps:, ...])
+        train_data.convert_(lambda x: x.reshape(np.prod(x.shape[:2]), *x.shape[2:]))
+        # train_data.convert(lambda x: print(x.shape))
         return train_data
 
     def get_burn_in_data(self) -> BatchExperiences:

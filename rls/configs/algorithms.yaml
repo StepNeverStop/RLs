@@ -16,7 +16,7 @@ general: &general
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     representation_net_params: &representation_net_params
         use_encoder: false
-        use_rnn: false # always false, using -r to active RNN
+        use_rnn: false
         vector_net_params:
             network_type: adaptive # rls.nn.vector_nets
         visual_net_params:
@@ -31,7 +31,7 @@ general: &general
 
 on_policy: &on_policy
     <<: *general
-    rnn_time_step: 8
+    rnn_time_steps: 8
 
 off_policy: &off_policy
     <<: *general
@@ -39,8 +39,8 @@ off_policy: &off_policy
     # PER
     use_isw: false
     # rnn
-    burn_in_time_step: 4
-    train_time_step: 5
+    burn_in_time_steps: 4
+    rnn_time_steps: 5
     episode_batch_size: 32
     episode_buffer_size: 10000
 

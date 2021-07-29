@@ -95,9 +95,13 @@ class DDPG(Off_Policy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        mu, pi, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return mu if evaluation else pi
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu = output
@@ -107,7 +111,7 @@ class DDPG(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu if evaluation else pi
+        return mu, pi cell_state
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)
