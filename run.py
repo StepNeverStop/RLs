@@ -17,13 +17,13 @@ from rls.common.trainer import Trainer
 from rls.common.specs import NamedDict
 from rls.common.yaml_ops import (save_config,
                                  load_config)
-from rls.algos.register import registry
+from rls.algorithms.register import registry
+from rls.envs import platform_list
 from rls.utils.display import show_dict
 from rls.utils.logging_utils import (set_log_level,
                                      set_log_file)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
-platform_list = ['gym', 'unity']
 set_log_level(logging.INFO)
 
 

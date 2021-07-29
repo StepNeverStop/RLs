@@ -23,6 +23,6 @@ def load_config(filename: str) -> Dict:
         with open(filename, 'r', encoding='utf-8') as f:
             x = yaml.safe_load(f.read())
         logger.info(colorize(f'load config from {filename} successfully', color='green'))
-        return x
+        return x or {}
     else:
         raise Exception('cannot find this config.')

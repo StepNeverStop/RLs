@@ -207,10 +207,3 @@ class SingleModelInformation:
     reward: np.ndarray
     done: np.ndarray
     info: Dict
-
-
-class GymVectorizedType(Enum):
-    RAY = 'ray'
-    VECTOR = 'vector'
-    MULTITHREADING = 'multithreading'
-    MULTIPROCESSING = 'multiprocessing'

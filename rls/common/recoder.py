@@ -27,89 +27,6 @@ class SimpleMovingAverageRecoder(Recoder):
 
     def __init__(self,
                  n_copys,
-                 gamma=0.99,
-                 verbose=False,
-                 length=10):
-        super().__init__()
-        self.n_copys = n_copys
-        self.gamma = gamma
-        self.verbose = verbose
-        self.total_step = 0
-        self.length = length
-        self.now = 0
-        self.r_list = []
-        self.max, self.min, self.mean = 0, 0, 0
-        self.episode_reset()
-
-    def episode_reset(self, episode=0):
-        self.episode = episode
-        self.steps = np.zeros(self.n_copys, dtype=int)
-        self.total_returns = np.zeros(self.n_copys, dtype=float)
-        self.discounted_returns = np.zeros(self.n_copys, dtype=float)
-        self.already_dones = np.zeros(self.n_copys)
-
-    def step_update(self, rewards, dones):
-        self.discounted_returns += (self.gamma ** self.steps) * (1 - self.already_dones) * np.asarray(rewards)
-        self.total_step += 1
-        self.steps += (1 - self.already_dones).astype(int)
-        self.total_returns += (1 - self.already_dones) * np.asarray(rewards)
-        self.already_dones = np.sign(self.already_dones + np.asarray(dones))
-
-    def episode_end(self):
-        # TODO: optimize
-        self.r_list.append(self.total_returns.copy())
-        if self.now >= self.length:
-            r_old = self.r_list.pop(0)
-            self.max += (self.total_returns.max() - r_old.max()) / self.length
-            self.min += (self.total_returns.min() - r_old.min()) / self.length
-            self.mean += (self.total_returns.mean() - r_old.mean()) / self.length
-        else:
-            self.now = min(self.now + 1, self.length)
-            self.max += (self.total_returns.max() - self.max) / self.now
-            self.min += (self.total_returns.min() - self.min) / self.now
-            self.mean += (self.total_returns.mean() - self.mean) / self.now
-
-    @property
-    def is_all_done(self):
-        return all(self.already_dones)
-
-    @property
-    def has_done(self):
-        return any(self.already_dones)
-
-    @property
-    def summary_dict(self):
-        _dict = dict(
-            total_rt_mean=self.total_returns.mean(),
-            total_rt_min=self.total_returns.min(),
-            total_rt_max=self.total_returns.max(),
-            discounted_rt_mean=self.discounted_returns.mean(),
-            discounted_rt_min=self.discounted_returns.min(),
-            discounted_rt_max=self.discounted_returns.max(),
-            sma_max=self.max,
-            sma_min=self.min,
-            sma_mean=self.mean
-        )
-        if self.verbose:
-            _dict.update(dict(
-                first_done_step=self.steps[self.already_dones > 0].min() if self.has_done else -1,
-                last_done_step=self.steps[self.already_dones > 0].max() if self.has_done else -1
-            ))
-        return _dict
-
-    def __str__(self):
-        _str = f'Eps: {self.episode:3d} | S: {self.steps.max():4d} | R: {arrprint(self.total_returns, 2)}'
-        if self.verbose:
-            first_done_step = self.steps[self.already_dones > 0].min() if self.has_done else -1
-            last_done_step = self.steps[self.already_dones > 0].max() if self.has_done else -1
-            _str += f' | FDS {first_done_step:4d} | LDS {last_done_step:4d}'
-        return _str
-
-
-class SimpleMovingAverageMultiAgentRecoder(Recoder):
-
-    def __init__(self,
-                 n_copys,
                  n_agents,
                  gamma=0.99,
                  verbose=False,
@@ -123,7 +40,7 @@ class SimpleMovingAverageMultiAgentRecoder(Recoder):
         self.length = length
         self.now = 0
         self.r_list = []
-        self.max, self.min, self.mean = 0, 0, 0
+        self.max, self.min, self.mean = np.zeros(self.n_agents), np.zeros(self.n_agents), np.zeros(self.n_agents)
         self.episode_reset()
 
     def episode_reset(self, episode=0):
@@ -156,42 +73,40 @@ class SimpleMovingAverageMultiAgentRecoder(Recoder):
             self.mean += (self.total_returns.mean(-1) - self.mean) / self.now
 
     @property
-    def is_all_done(self):
+    def is_all_done(self):  # TODO:
         return all(self.already_dones.ravel())
 
     @property
     def has_done(self):
-        return any(self.already_dones.ravel())
+        return self.already_dones.any(-1)
 
-    @property
-    def summary_dict(self):
+    def summary_dict(self, title='Agent'):
         _dicts = {}
         for i in range(self.n_agents):
             _dicts[i] = dict([
-                ['AGENT/total_rt_mean', self.total_returns[i].mean()],
-                ['AGENT/total_rt_min', self.total_returns[i].min()],
-                ['AGENT/total_rt_max', self.total_returns[i].max()],
-                ['AGENT/discounted_rt_mean', self.discounted_returns[i].mean()],
-                ['AGENT/discounted_rt_min', self.discounted_returns[i].min()],
-                ['AGENT/discounted_rt_max', self.discounted_returns[i].max()],
-                ['AGENT/sma_max', self.max[i]],
-                ['AGENT/sma_min', self.min[i]],
-                ['AGENT/sma_mean', self.mean[i]]
+                [f'{title}/total_rt_mean', self.total_returns[i].mean()],
+                [f'{title}/total_rt_min', self.total_returns[i].min()],
+                [f'{title}/total_rt_max', self.total_returns[i].max()],
+                [f'{title}/discounted_rt_mean', self.discounted_returns[i].mean()],
+                [f'{title}/discounted_rt_min', self.discounted_returns[i].min()],
+                [f'{title}/discounted_rt_max', self.discounted_returns[i].max()],
+                [f'{title}/sma_max', self.max[i]],
+                [f'{title}/sma_min', self.min[i]],
+                [f'{title}/sma_mean', self.mean[i]]
             ])
-            # # TODO: check
-            # if self.verbose:
-            #     _dicts[i].update(dict([
-            #         'AGENT/first_done_step':self.steps[self.already_dones[i] > 0].min() if self.has_done else -1,
-            #         'AGENT/last_done_step':self.steps[self.already_dones[i] > 0].max() if self.has_done else -1
-            #     ]))
+            if self.verbose:
+                _dicts[i].update(dict([
+                    [f'{title}/first_done_step', self.steps[i][self.already_dones[i] > 0].min() if self.has_done[i] else -1],
+                    [f'{title}/last_done_step', self.steps[i][self.already_dones[i] > 0].max() if self.has_done[i] else -1]
+                ]))
         return _dicts
 
     def __str__(self):
         _str = f'Eps: {self.episode:3d}'
         for i in range(self.n_agents):
-            _str += f'\nAgent: {i:3d} | S: {self.steps[i].max():4d} | R: {arrprint(self.total_returns[i], 2)}'
-        # if self.verbose:
-        #     first_done_step = self.steps[self.already_dones > 0].min() if self.has_done else -1
-        #     last_done_step = self.steps[self.already_dones > 0].max() if self.has_done else -1
-        #     _str += f' | FDS {first_done_step:4d} | LDS {last_done_step:4d}'
+            _str += f'\n    Agent: {i:3d} | S: {self.steps[i].max():4d} | R: {arrprint(self.total_returns[i], 2)}'
+            if self.verbose:
+                first_done_step = self.steps[i][self.already_dones[i] > 0].min() if self.has_done[i] else -1
+                last_done_step = self.steps[i][self.already_dones[i] > 0].max() if self.has_done[i] else -1
+                _str += f' | FDS {first_done_step:4d} | LDS {last_done_step:4d}'
         return _str

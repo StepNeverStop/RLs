@@ -6,7 +6,7 @@ import torch as t
 
 from rls.utils.converter import (to_numpy,
                                  to_tensor)
-from rls.algos.base.base import Base
+from rls.algorithms.base.base import Base
 
 
 def lazy_property(func):
