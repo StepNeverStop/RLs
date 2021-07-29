@@ -73,7 +73,7 @@ class IndependentMA:
                         summaries: Dict,
                         writer=None) -> NoReturn:
         '''
-        write tf summaries showing in tensorboard.
+        write summaries showing in tensorboard.
         '''
         for i, summary in summaries.items():
             self.models[i].write_summaries(global_step, summaries=summary)

@@ -16,7 +16,6 @@ from rls.common.specs import BatchExperiences
 from rls.nn.models import (OcIntraOption,
                            CriticQvalueAll)
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -114,22 +113,30 @@ class OC(Off_Policy):
         self.options = self._generate_random_options()
 
     def _generate_random_options(self):
-        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
+        return np.random.randint(0, self.options_num, self.n_copys)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         self.last_options = self.options
 
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        action, self.cell_state, self.options = self.call(obs, cell_state=self.cell_state, options=self.options)
+
+        if self.use_eps_greedy:
+            if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
+                self.options = self._generate_random_options()
+        return action
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state, options):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         q = self.q_net(feat)  # [B, P]
         pi = self.intra_option_net(feat)  # [B, P, A]
         beta = self.termination_net(feat)  # [B, P]
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
             mu = pi.tanh()
-            log_std = self.log_std[self.options]
+            log_std = self.log_std[options]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             a = dist.sample().clamp(-1, 1)
         else:
@@ -142,13 +149,8 @@ class OC(Off_Policy):
         else:
             beta_probs = (beta * options_onehot).sum(1)   # [B, P] => [B,]
             beta_dist = td.Bernoulli(probs=beta_probs)
-            new_options = t.where(beta_dist.sample() < 1, self.options, max_options)
-        self.options = to_numpy(new_options)
-
-        if self.use_eps_greedy:
-            if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):   # epsilon greedy
-                self.options = self._generate_random_options()
-        return a
+            new_options = t.where(beta_dist.sample() < 1, options, max_options)
+        return a, cell_state, new_options
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

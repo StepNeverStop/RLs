@@ -13,7 +13,6 @@ from rls.utils.torch_utils import (sync_params_pairs,
                                    q_target_func)
 from rls.nn.models import CriticQvalueBootstrap
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -73,15 +72,19 @@ class BootstrappedDQN(Off_Policy):
         super().reset()
         self.now_head = np.random.randint(self.head_num)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-            q_values = self.q_net(feat)  # [H, B, A]
-            a = q_values[self.now_head].argmax(-1)  # [H, B, A] => [B, A] => [B, ]
-        return a
+            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        q_values = self.q_net(feat)  # [H, B, A]
+        a = q_values[self.now_head].argmax(-1)  # [H, B, A] => [B, A] => [B, ]
+        return a, cell_state
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -109,7 +112,7 @@ class BootstrappedDQN(Off_Policy):
         td_error = q_target - q_eval    # [H, B, 1]
         td_error = td_error.sum(-1)  # [H, B]
 
-        mask_dist = td.Bernoulli(probs=self._probs) # TODO:
+        mask_dist = td.Bernoulli(probs=self._probs)  # TODO:
         mask = mask_dist.sample([batch_size]).T   # [H, B]
         q_loss = (td_error.square() * isw).mean()
 

@@ -58,9 +58,13 @@ class PG(On_Policy):
         self._trainer_modules.update(self._worker_modules)
         self._trainer_modules.update(oplr=self.oplr)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.next_cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         output = self.net(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -70,7 +74,7 @@ class PG(On_Policy):
             logits = output
             norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
-        return sample_op
+        return sample_op, cell_state
 
     def calculate_statistics(self):
         self.data.cal_dc_r(self.gamma, 0., normalize=True)

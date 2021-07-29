@@ -106,21 +106,24 @@ class IOC(Off_Policy):
                                      interest_oplr=self.interest_oplr)
         self.initialize_data_buffer()
 
-        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).int()
+        self.options = np.random.randint(0, self.options_num, self.n_copys)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         self.last_options = self.options
+        action, self.cell_state, self.options = self.call(obs, cell_state=self.cell_state, options=self.options)
+        return action
 
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+    @iTensor_oNumpy
+    def call(self, obs, cell_state, options):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         q = self.q_net(feat)  # [B, P]
         pi = self.intra_option_net(feat)  # [B, P, A]
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(1)  # [B, A]
         if self.is_continuous:
             mu = pi.tanh()
-            log_std = self.log_std[self.options]
+            log_std = self.log_std[options]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             a = dist.sample().clamp(-1, 1)
         else:
@@ -129,8 +132,8 @@ class IOC(Off_Policy):
             a = dist.sample()
         interests = self.interest_net(feat)  # [B, P]
         op_logits = interests * q  # [B, P] or q.softmax(-1)
-        self.options = td.Categorical(logits=op_logits).sample()
-        return a
+        new_options = td.Categorical(logits=op_logits).sample()
+        return a, cell_state, new_options
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:

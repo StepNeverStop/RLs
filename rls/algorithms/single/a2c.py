@@ -70,9 +70,13 @@ class A2C(On_Policy):
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.next_cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -82,7 +86,7 @@ class A2C(On_Policy):
             logits = output
             norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
-        return sample_op
+        return sample_op, cell_state
 
     @iTensor_oNumpy
     def _get_value(self, obs):

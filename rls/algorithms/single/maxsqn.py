@@ -46,7 +46,7 @@ class MAXSQN(Off_Policy):
                                                           max_step=self.max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
-        self.log_alpha = alpha if not auto_adaption else t.tensor(0., requires_grad=True)
+        self.log_alpha = alpha if not auto_adaption else t.tensor(0., requires_grad=True).to(self.device)
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
@@ -85,18 +85,21 @@ class MAXSQN(Off_Policy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if self.use_epsilon and np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
-            q = self.critic(feat)
-            cate_dist = td.Categorical(logits=(q / self.alpha))
-            pi = cate_dist.sample()
-            mu = q.argmax(1)
-            a = pi
-        return a
+            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        q = self.critic(feat)
+        cate_dist = td.Categorical(logits=(q / self.alpha))
+        pi = cate_dist.sample()
+        mu = q.argmax(1)
+        return pi, cell_state
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)

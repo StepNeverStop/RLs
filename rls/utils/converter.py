@@ -12,9 +12,9 @@ logger = get_logger(__name__)
 
 def to_numpy(x):
     try:
-        if isinstance(x, t.Tensor): # tensor -> numpy
+        if isinstance(x, t.Tensor):  # tensor -> numpy
             return x.detach().cpu().numpy()
-        elif isinstance(x, np.ndarray):  # second often case
+        elif isinstance(x, np.ndarray) or x is None:  # second often case
             return x
         elif isinstance(x, (np.number, np.bool_, Number)):
             return np.asanyarray(x)
@@ -36,7 +36,7 @@ def to_tensor(x, dtype=t.float32, device='cpu'):
         if isinstance(x, Data):
             return x.convert(func=lambda y: t.as_tensor(y, dtype=dtype, device=device))
         elif isinstance(x, np.ndarray):
-            x = t.as_tensor(x, dtype=dtype, device=device)
+            return t.from_numpy(x).type(dtype).to(device)
         elif isinstance(x, t.Tensor):
             return x.type(dtype).to(device)
         elif isinstance(x, dict):

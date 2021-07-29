@@ -117,9 +117,9 @@ class CURL(Off_Policy):
         self.vis_feat_size = network_settings['encoder']
 
         if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True)
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
         else:
-            self.log_alpha = t.tensor(alpha).log()
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1.0e6)
 
@@ -150,7 +150,7 @@ class CURL(Off_Policy):
         self.encoder = VisualEncoder(self.img_dim, self.vis_feat_size).to(self.device)
         self.encoder_target = VisualEncoder(self.img_dim, self.vis_feat_size).to(self.device)
 
-        self.curl_w = t.tensor(t.randn(self.vis_feat_size, self.vis_feat_size), requires_grad=True)
+        self.curl_w = t.tensor(t.randn(self.vis_feat_size, self.vis_feat_size), requires_grad=True).to(self.device)
 
         self._pairs = [(self.critic_target, self.critic),
                        (self.critic2_target, self.critic2),
@@ -160,7 +160,7 @@ class CURL(Off_Policy):
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.critic2, self.encoder], critic_lr)
         self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
-        self.curl_oplr = OPLR([self.w, self.encoder], curl_lr)
+        self.curl_oplr = OPLR([self.curl_w, self.encoder], curl_lr)
 
         self._worker_modules.update(actor=self.actor,
                                     encoder=self.encoder)

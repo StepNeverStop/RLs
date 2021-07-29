@@ -98,9 +98,13 @@ class TD3(Off_Policy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        mu, pi, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return mu if evaluation else pi
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu = output
@@ -110,7 +114,7 @@ class TD3(Off_Policy):
             mu = logits.argmax(1)
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()
-        return mu if evaluation else pi
+        return mu, pi, cell_state
 
     def _target_params_update(self):
         sync_params_pairs(self._pairs, self.ployak)
@@ -142,9 +146,9 @@ class TD3(Off_Policy):
             q2 = self.critic2(feat, BATCH.action)
             q_target = t.minimum(self.critic_target(feat_, action_target), self.critic2_target(feat_, action_target))
             dc_r = q_target_func(BATCH.reward,
-                                self.gamma,
-                                BATCH.done,
-                                q_target)
+                                 self.gamma,
+                                 BATCH.done,
+                                 q_target)
             td_error1 = q1 - dc_r
             td_error2 = q2 - dc_r
             q1_loss = (td_error1.square() * isw).mean()

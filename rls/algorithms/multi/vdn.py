@@ -80,8 +80,12 @@ class VDN(MultiAgentOffPolicy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
+        actions = self.call(obs, evaluation)
+        return actions
+
+    @iTensor_oNumpy  # TODO: optimization
+    def call(self, obs, evaluation):
         actions = []
         for i in range(self.n_agents_percopy):
             j = 0 if self.share_params else i

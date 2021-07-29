@@ -15,7 +15,6 @@ from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -139,26 +138,31 @@ class TRPO(On_Policy):
         self._trainer_modules.update(critic=self.critic,
                                      critic_oplr=self.critic_oplr)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
-        self._value = to_numpy(self.critic(feat))
+        actions, self.next_cell_state, self._value, self._log_prob, ret = self.call(obs, cell_state=self.cell_state)
+        if self.is_continuous:
+            self._mu, self._log_std = ret
+        else:
+            self._logp_all = ret
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        value = self.critic(feat)
         if self.is_continuous:
             mu, log_std = output
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             sample_op = dist.sample().clamp(-1, 1)
             log_prob = dist.log_prob(sample_op).unsqueeze(-1)
-            self._mu = to_numpy(mu)
-            self._log_std = to_numpy(log_std)
+            ret = (mu, log_std)
         else:
             logits = output
             logp_all = logits.log_softmax(-1)
-            self._logp_all = to_numpy(logp_all)
+            ret = logp_all
             norm_dist = td.Categorical(logits=logp_all)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
-        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
-        return sample_op
+        return sample_op, cell_state, value, log_prob+t.finfo().eps, ret
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()
@@ -190,7 +194,6 @@ class TRPO(On_Policy):
             actor_loss, entropy, gradients = self.train_actor(data, cell_state)
 
             x = self.cg(self.Hx, gradients.numpy(), data, cell_state)
-            x = t.tensor(x)
             alpha = np.sqrt(2 * self.delta / (np.dot(x, self.Hx(x, data, cell_state)) + np.finfo(np.float32).eps))
             for i in range(self.backtrack_iters):
                 assign_params_from_flat(alpha * x * (self.backtrack_coeff ** i), self.actor)
@@ -275,7 +278,7 @@ class TRPO(On_Policy):
         p = r.copy()
         r_dot_old = np.dot(r, r)
         for _ in range(self.cg_iters):
-            z = Ax(t.tensor(p), BATCH, cell_state)
+            z = Ax(p, BATCH, cell_state)
             alpha = r_dot_old / (np.dot(p, z) + np.finfo(np.float32).eps)
             x += alpha * p
             r -= alpha * z

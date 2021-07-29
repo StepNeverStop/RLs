@@ -70,12 +70,12 @@ class CEM(On_Policy):
         self._build()
 
     def __call__(self, obs, evaluation=False):
-        a = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
+        actions = [model(s_).numpy() for model, s_ in zip(self.cem_models, np.split(obs.flatten_vector(), self.populations, axis=0))]
         if self.is_continuous:
-            a = np.vstack(a)
+            actions = np.vstack(actions)
         else:
-            a = np.hstack(a)
-        return a
+            actions = np.hstack(actions)
+        return actions
 
     def store_data(self, exps: BatchExperiences):
         self.returns += exps.reward * (1 - self.dones)

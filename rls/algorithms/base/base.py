@@ -112,7 +112,7 @@ class Base:
                         summaries: Dict = {},
                         writer: Optional[SummaryWriter] = None) -> NoReturn:
         '''
-        write tf summaries showing in tensorboard.
+        write summaries showing in tensorboard.
         '''
         if not self.no_save:
             writer = writer or self.writer

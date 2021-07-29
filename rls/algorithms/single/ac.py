@@ -14,7 +14,6 @@ from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticQvalueOne)
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -66,14 +65,17 @@ class AC(Off_Policy):
                                      critic_oplr=self.critic_oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         """
         choose an action according to a given observation
         :param obs: 
         :param evaluation:
         """
-        feat, self.cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.cell_state, self._log_prob = self.call(obs, cell_state=self.cell_state)
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         output = self.actor(feat)
         if self.is_continuous:
             mu, log_std = output
@@ -85,8 +87,7 @@ class AC(Off_Policy):
             norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
-        self._log_prob = to_numpy(log_prob)
-        return sample_op
+        return sample_op, cell_state, log_prob
 
     def store_data(self, exps: BatchExperiences):
         # self._running_average()

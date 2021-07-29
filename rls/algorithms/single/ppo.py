@@ -21,7 +21,6 @@ from rls.nn.models import (ActorCriticValueCts,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
-from rls.utils.converter import to_numpy
 from rls.common.decorator import iTensor_oNumpy
 
 
@@ -178,9 +177,13 @@ class PPO(On_Policy):
         self.initialize_data_buffer(store_data_type=PPO_Store_BatchExperiences,
                                     sample_data_type=PPO_Train_BatchExperiences)
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
-        feat, self.next_cell_state = self.rep_net(obs, cell_state=self.cell_state)
+        actions, self.next_cell_state, self._value, self._log_prob = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
         if self.is_continuous:
             if self.share_net:
                 mu, log_std, value = self.net(feat)
@@ -199,9 +202,7 @@ class PPO(On_Policy):
             norm_dist = td.Categorical(logits=logits)
             sample_op = norm_dist.sample()
             log_prob = norm_dist.log_prob(sample_op)
-        self._value = to_numpy(value)
-        self._log_prob = to_numpy(log_prob) + np.finfo(np.float32).eps
-        return sample_op
+        return sample_op, cell_state, value, log_prob+t.finfo().eps
 
     def store_data(self, exps: BatchExperiences) -> NoReturn:
         # self._running_average()

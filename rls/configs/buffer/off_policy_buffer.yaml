@@ -18,8 +18,8 @@ NStepPrioritizedExperienceReplay: &NStepPrioritizedExperienceReplay
 
 # off-policy with rnn
 EpisodeExperienceReplay: &EpisodeExperienceReplay
-  burn_in_time_step: 20
-  train_time_step: 40 # ~
+  burn_in_time_steps: 20
+  rnn_time_steps: 40 # ~
 
 # Multi-Agents
 

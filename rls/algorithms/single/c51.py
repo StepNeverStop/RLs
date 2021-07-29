@@ -40,7 +40,7 @@ class C51(Off_Policy):
         self.v_max = v_max
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
-        self.z = t.tensor([self.v_min + i * self.delta_z for i in range(self.atoms)]).float().view(-1, self.atoms)  # [1, N]
+        self.z = t.tensor([self.v_min + i * self.delta_z for i in range(self.atoms)]).float().view(-1, self.atoms).to(self.device)  # [1, N]
         self.zb = self.z.repeat(self.a_dim, 1)  # [A, N]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
@@ -72,16 +72,20 @@ class C51(Off_Policy):
         self._trainer_modules.update(oplr=self.oplr)
         self.initialize_data_buffer()
 
-    @iTensor_oNumpy
     def __call__(self, obs, evaluation=False):
         if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-            a = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            feat, self.cell_state = self.rep_net(obs, self.cell_state)
-            feat = self.q_net(feat)
-            q = (self.zb * feat).sum(-1)  # [B, A, N] => [B, A]
-            a = q.argmax(-1)  # [B, 1]
-        return a
+            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
+        return actions
+
+    @iTensor_oNumpy
+    def call(self, obs, cell_state):
+        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+        feat = self.q_net(feat)
+        q = (self.zb * feat).sum(-1)  # [B, A, N] => [B, A]
+        a = q.argmax(-1)  # [B, 1]
+        return a, cell_state
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
@@ -118,8 +122,8 @@ class C51(Off_Policy):
         index_help = index_help.unsqueeze(-1)  # [B, N, 1]
         u_id = t.cat([index_help, u_id.unsqueeze(-1)], -1)    # [B, N, 2]
         l_id = t.cat([index_help, l_id.unsqueeze(-1)], -1)    # [B, N, 2]
-        u_id = u_id.long().permute(2, 0, 1) # [2, B, N]
-        l_id = l_id.long().permute(2, 0, 1) # [2, B, N]
+        u_id = u_id.long().permute(2, 0, 1)  # [2, B, N]
+        l_id = l_id.long().permute(2, 0, 1)  # [2, B, N]
         _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log()\
             + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [B, N]
         cross_entropy = -_cross_entropy.sum(-1)  # [B,]

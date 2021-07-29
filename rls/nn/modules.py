@@ -1,5 +1,4 @@
 
-import uuid
 import torch as t
 
 from torch.nn import (Sequential,

@@ -59,16 +59,16 @@ class QS:
         if self.mode == 'q':
             return self._get_action(s, evaluation)
         elif self.mode == 'sarsa' or self.mode == 'expected_sarsa':
-            a = self._get_action(s, evaluation)
-            self.next_a[self.mask] = a[self.mask]
+            actions = self._get_action(s, evaluation)
+            self.next_a[self.mask] = actions[self.mask]
             return self.next_a
 
     def _get_action(self, s, evaluation=False, _max=False):
-        a = np.array([np.argmax(self.table[i, :]) for i in s])
+        actions = np.array([np.argmax(self.table[i, :]) for i in s])
         if not _max:
             if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
-                a = np.random.randint(0, self.a_dim, self.n_copys)
-        return a
+                actions = np.random.randint(0, self.a_dim, self.n_copys)
+        return actions
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

@@ -100,7 +100,7 @@ class MultiAgentPolicy(Base):
                         summaries: Dict,
                         writer=None) -> NoReturn:
         '''
-        write tf summaries showing in tensorboard.
+        write summaries showing in tensorboard.
         '''
         if 'model' in summaries.keys():  
             super().write_summaries(global_step, summaries=summaries.pop('model'), writer=self.writer)
