@@ -8,7 +8,7 @@ from copy import deepcopy
 from torch import distributions as td
 
 from rls.algorithms.base.off_policy import Off_Policy
-from rls.utils.torch_utils import (sync_params_pairs,
+from rls.utils.torch_utils import (sync_params_list,
                                    q_target_func)
 from rls.nn.models import CriticQvalueAll
 from rls.nn.utils import OPLR
@@ -44,9 +44,9 @@ class SQL(Off_Policy):
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()
 
-        self._pairs = [(self.q_target_net, self.q_net),
-                       (self._target_rep_net, self.rep_net)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self.q_target_net, self._target_rep_net),
+                       (self.q_net, self.rep_net)]
+        sync_params_list(self._pairs)
 
         self.oplr = OPLR([self.q_net, self.rep_net], lr)
 
@@ -76,7 +76,7 @@ class SQL(Off_Policy):
         return v
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

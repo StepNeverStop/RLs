@@ -11,7 +11,7 @@ from rls.algorithms.base.off_policy import Off_Policy
 from rls.utils.torch_utils import (squash_action,
                                    tsallis_entropy_log_q,
                                    q_target_func,
-                                   sync_params_pairs)
+                                   sync_params_list)
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.nn.models import (ActorCts,
                            ActorDct,
@@ -87,10 +87,9 @@ class TAC(Off_Policy):
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        self._pairs = [(self._target_rep_net, self.rep_net),
-                       (self.critic_target, self.critic),
-                       (self.critic2_target, self.critic2)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self._target_rep_net, self.critic_target, self.critic2_target),
+                       (self.rep_net, self.critic, self.critic2)]
+        sync_params_list(self._pairs)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.rep_net, self.critic, self.critic2], critic_lr)
@@ -131,7 +130,7 @@ class TAC(Off_Policy):
         return mu, pi, cell_state
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

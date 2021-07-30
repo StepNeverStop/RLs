@@ -9,7 +9,7 @@ from torch import distributions as td
 
 from rls.nn.noised_actions import ClippedNormalNoisedAction
 from rls.algorithms.base.off_policy import Off_Policy
-from rls.utils.torch_utils import (sync_params_pairs,
+from rls.utils.torch_utils import (sync_params_list,
                                    q_target_func)
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.models import (CriticQvalueOne,
@@ -73,10 +73,9 @@ class DDPG(Off_Policy):
         self.critic_target = deepcopy(self.critic)
         self.critic_target.eval()
 
-        self._pairs = [(self._target_rep_net, self.rep_net),
-                       (self.actor_target, self.actor),
-                       (self.critic_target, self.critic)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self._target_rep_net, self.actor_target, self.critic_target),
+                       (self.rep_net, self.actor, self.critic)]
+        sync_params_list(self._pairs)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
@@ -114,7 +113,7 @@ class DDPG(Off_Policy):
         return mu, pi cell_state
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

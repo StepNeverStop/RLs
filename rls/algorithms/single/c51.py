@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from rls.algorithms.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import sync_params_pairs
+from rls.utils.torch_utils import sync_params_list
 from rls.nn.models import C51Distributional
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
@@ -59,9 +59,9 @@ class C51(Off_Policy):
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()
 
-        self._pairs = [(self.q_target_net, self.q_net),
-                       (self._target_rep_net, self.rep_net)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self.q_target_net, self._target_rep_net),
+                       (self.q_net, self.rep_net)]
+        sync_params_list(self._pairs)
 
         self.oplr = OPLR([self.q_net, self.rep_net], lr)
 
@@ -89,7 +89,7 @@ class C51(Off_Policy):
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            sync_params_pairs(self._pairs)
+            sync_params_list(self._pairs)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

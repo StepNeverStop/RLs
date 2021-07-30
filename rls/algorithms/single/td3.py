@@ -8,7 +8,7 @@ from copy import deepcopy
 from torch import distributions as td
 
 from rls.algorithms.base.off_policy import Off_Policy
-from rls.utils.torch_utils import (sync_params_pairs,
+from rls.utils.torch_utils import (sync_params_list,
                                    q_target_func)
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.models import (ActorDPG,
@@ -74,11 +74,9 @@ class TD3(Off_Policy):
         self._target_rep_net = deepcopy(self.rep_net)
         self._target_rep_net.eval()
 
-        self._pairs = [(self._target_rep_net, self.rep_net),
-                       (self.critic_target, self.critic),
-                       (self.critic2_target, self.critic2),
-                       (self.actor_target, self.actor)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self._target_rep_net, self.critic_target, self.critic2_target, self.actor_target),
+                       (self.rep_net, self.critic, self.critic2, self.actor)]
+        sync_params_list(self._pairs)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.critic2, self.rep_net],  critic_lr)
@@ -117,7 +115,7 @@ class TD3(Off_Policy):
         return mu, pi, cell_state
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

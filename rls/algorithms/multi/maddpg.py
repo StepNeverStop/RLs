@@ -5,6 +5,7 @@ import numpy as np
 import torch as t
 
 from copy import deepcopy
+from collections import defaultdict
 from torch import distributions as td
 from typing import (List,
                     Union,
@@ -14,7 +15,7 @@ from typing import (List,
 from rls.nn.represent_nets import (DefaultRepresentationNetwork,
                                    MultiAgentCentralCriticRepresentationNetwork)
 from rls.algorithms.base.ma_off_policy import MultiAgentOffPolicy
-from rls.utils.torch_utils import sync_params
+from rls.utils.torch_utils import sync_params_list
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.models import (CriticQvalueOne,
                            ActorDct,
@@ -52,56 +53,48 @@ class MADDPG(MultiAgentOffPolicy):
         super().__init__(envspecs=envspecs, **kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
-        self.share_params = share_params
-        self.n_models_percopy = 1 if self.share_params else self.n_agents_percopy
+        self.share_params = share_params and self._is_envspecs_all_equal
+        self.agents_indexs = list(range(self.n_agents_percopy))
+        if self.share_params:
+            self.n_models_percopy = 1
+            self.models_indexs = [0] * self.n_agents_percopy
+        else:
+            self.n_models_percopy = self.n_agents_percopy
+            self.models_indexs = self.agents_indexs
 
-        self.rep_nets = []
-        self.target_rep_nets = []
-
-        self.actors = []
-        self.actor_targets = []
-        self.critics = []
-        self.critic_targets = []
-
-        self.actor_oplrs = []
-        self.critic_oplrs = []
-
-        for i in range(self.n_models_percopy):
-            rep_net = DefaultRepresentationNetwork(obs_spec=self.envspecs[i].obs_spec,
+        def build_nets(envspec):
+            rep_net = DefaultRepresentationNetwork(obs_spec=envspec.obs_spec,
                                                    representation_net_params=self.representation_net_params).to(self.device)
-            if self.envspecs[i].is_continuous:
+            target_rep_net = deepcopy(rep_net)
+            target_rep_net.eval()
+
+            if envspec.is_continuous:
                 actor = ActorDPG(rep_net.h_dim,
-                                 output_shape=self.envspecs[i].a_dim,
+                                 output_shape=envspec.a_dim,
                                  network_settings=network_settings['actor_continuous']).to(self.device)
             else:
                 actor = ActorDct(rep_net.h_dim,
-                                 output_shape=self.envspecs[i].a_dim,
+                                 output_shape=envspec.a_dim,
                                  network_settings=network_settings['actor_discrete']).to(self.device)
-            critic = CriticQvalueOne(rep_net.h_dim*self.n_models_percopy,
-                                     action_dim=sum([envspec.a_dim for envspec in self.envspecs]),
-                                     network_settings=network_settings['q']).to(self.device)
-            target_rep_net = deepcopy(rep_net)
-            target_rep_net.eval()
-            critic_target = deepcopy(critic)
-            critic_target.eval()
             actor_target = deepcopy(actor)
             actor_target.eval()
-            self.rep_nets.append(rep_net)
-            self.critics.append(critic)
-            self.target_rep_nets.append(target_rep_net)
-            self.critic_targets.append(critic_target)
-            self.actors.append(actor)
-            self.actor_targets.append(actor_target)
 
-            actor_oplr = OPLR(actor, actor_lr)
-            critic_oplr = OPLR([rep_net, critic], critic_lr)
-            self.actor_oplrs.append(actor_oplr)
-            self.critic_oplrs.append(critic_oplr)
+            critic = CriticQvalueOne(rep_net.h_dim*self.n_agents_percopy,
+                                     action_dim=sum([envspec.a_dim for envspec in self.envspecs]),
+                                     network_settings=network_settings['q']).to(self.device)
+            critic_target = deepcopy(critic)
+            critic_target.eval()
+            return (rep_net, actor, critic, target_rep_net, actor_target, critic_target)
 
-        for i in range(self.n_models_percopy):
-            sync_params(self.actor_targets[i], self.actors[i])
-            sync_params(self.critic_targets[i], self.critics[i])
-            sync_params(self.target_rep_nets[i], self.rep_nets[i])
+        rets = [build_nets(self.envspecs[i]) for i in range(self.n_models_percopy)]
+        self.rep_nets, self.actors, self.critics, self.target_rep_nets, \
+            self.actor_targets, self.critic_targets = tuple(zip(*rets))
+
+        self.actor_oplr = OPLR(self.actors, actor_lr)
+        self.critic_oplr = OPLR(self.rep_nets+self.critics, critic_lr)
+
+        sync_params_list([self.rep_nets+self.actors+self.critics,
+                         self.target_rep_nets+self.actor_targets+self.critic_targets])
 
         # TODO: 添加动作类型判断
         self.noised_actions = [Noise_action_REGISTER[noise_action](**noise_params) for i in range(self.n_models_percopy)]
@@ -111,8 +104,8 @@ class MADDPG(MultiAgentOffPolicy):
         self._worker_modules.update({f"critic_{i}": self.critics[i] for i in range(self.n_models_percopy)})
 
         self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update({f'actor_oplr-{i}': self.actor_oplrs[i] for i in range(self.n_models_percopy)})
-        self._trainer_modules.update({f'critic_oplr-{i}': self.critic_oplrs[i] for i in range(self.n_models_percopy)})
+        self._trainer_modules.update(actor_oplr=self.actor_oplr)
+        self._trainer_modules.update(critic_oplr=self.critic_oplr)
 
         self.initialize_data_buffer()
 
@@ -129,8 +122,7 @@ class MADDPG(MultiAgentOffPolicy):
     def call(self, obs):
         mus = []
         pis = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
+        for i, j in zip(self.agents_indexs, self.models_indexs):
             feat, _ = self.rep_nets[j](obs[i])
             output = self.actors[j](feat)
             if self.envspecs[i].is_continuous:
@@ -146,10 +138,8 @@ class MADDPG(MultiAgentOffPolicy):
         return mus, pis
 
     def _target_params_update(self):
-        for i in range(self.n_models_percopy):
-            sync_params(self.actor_targets[i], self.actors[i], self.ployak)
-            sync_params(self.critic_targets[i], self.critics[i], self.ployak)
-            sync_params(self.target_rep_nets[i], self.rep_nets[i], self.ployak)
+        sync_params_list([self.rep_nets+self.actors+self.critics,
+                         self.target_rep_nets+self.actor_targets+self.critic_targets])
 
     def learn(self, **kwargs) -> NoReturn:
         self.train_step = kwargs.get('train_step')
@@ -161,12 +151,11 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         TODO: Annotation
         '''
-        summaries = {}
+        summaries = defaultdict(dict)
         target_actions = []
         feats = []
         feats_ = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
+        for i, j in zip(self.agents_indexs, self.models_indexs):
             feat, _ = self.rep_nets[j](BATCHs[i].obs)
             feat_, _ = self.target_rep_nets[j](BATCHs[i].obs_)
             feats.append(feat)
@@ -182,30 +171,26 @@ class MADDPG(MultiAgentOffPolicy):
                 target_actions.append(action_target)
         target_actions = t.cat(target_actions, -1)
 
-        q_targets = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-            q_targets.append(self.critic_targets[j](t.cat(feats_, -1), target_actions))
-
         q_loss = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
+        for i, j in zip(self.agents_indexs, self.models_indexs):
+            q_target = self.critic_targets[j](t.cat(feats_, -1), target_actions)
             q = self.critics[j](
                 t.cat(feats, -1),
                 t.cat([BATCH.action for BATCH in BATCHs], -1)
             )
-            dc_r = (BATCHs[i].reward + self.gamma * q_targets[i] * (1 - BATCHs[i].done)).detach()
-
+            dc_r = (BATCHs[i].reward + self.gamma * q_target * (1 - BATCHs[i].done)).detach()
             td_error = dc_r - q
             q_loss.append(0.5 * td_error.square().mean())
-        if self.share_params:
-            self.critic_oplrs[0].step(sum(q_loss))
+            summaries[i].update(dict([
+                ['Statistics/q_min', q.min()],
+                ['Statistics/q_mean', q.mean()],
+                ['Statistics/q_max', q.max()]
+            ]))
+        self.critic_oplr.step(sum(q_loss))
 
         actor_loss = []
         feats = [feat.detach() for feat in feats]
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-
+        for i, j in zip(self.agents_indexs, self.models_indexs):
             if self.envspecs[i].is_continuous:
                 mu = self.actors[j](feats[i])
             else:
@@ -222,15 +207,20 @@ class MADDPG(MultiAgentOffPolicy):
                 t.cat([BATCH.action for BATCH in BATCHs[:i]]+[mu]+[BATCH.action for BATCH in BATCHs[i+1:]], -1)
             )
             actor_loss.append(-q_actor.mean())
-        if self.share_params:
-            self.actor_oplrs[0].step(sum(actor_loss))
 
-        # summaries[i] = dict([
-        #     ['LOSS/actor_loss', actor_loss],
-        #     ['LOSS/critic_loss', q_loss],
-        #     ['Statistics/q_min', q.min()],
-        #     ['Statistics/q_mean', q.mean()],
-        #     ['Statistics/q_max', q.max()]
-        # ])
+        self.actor_oplr.step(sum(actor_loss))
+
+        for i in self.agents_indexs:
+            summaries[i].update(dict([
+                ['LOSS/actor_loss', actor_loss[i]],
+                ['LOSS/critic_loss', q_loss[i]],
+                # ['Statistics/q_min', q.min()],
+                # ['Statistics/q_mean', q.mean()],
+                # ['Statistics/q_max', q.max()]
+            ]))
+        summaries['model'].update(dict([
+            ['LOSS/actor_loss', sum(actor_loss)],
+            ['LOSS/critic_loss', sum(q_loss)]
+        ]))
         self.global_step.add_(1)
         return summaries

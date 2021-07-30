@@ -10,7 +10,7 @@ from torch import distributions as td
 from rls.algorithms.base.off_policy import Off_Policy
 from rls.utils.torch_utils import (squash_action,
                                    q_target_func,
-                                   sync_params_pairs)
+                                   sync_params_list)
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.nn.models import (CriticValue,
                            ActorDct,
@@ -101,9 +101,9 @@ class SAC_V(Off_Policy):
                                           action_dim=self.a_dim,
                                           network_settings=network_settings['q']).to(self.device)
 
-        self._pairs = [(self.v_target_net, self.v_net),
-                       (self._target_rep_net, self.rep_net)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self.v_target_net, self._target_rep_net),
+                       (self.v_net, self.rep_net)]
+        sync_params_list(self._pairs)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.rep_net, self.q_net, self.q_net2, self.v_net], critic_lr)
@@ -145,7 +145,7 @@ class SAC_V(Off_Policy):
         return mu, pi, cell_state
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

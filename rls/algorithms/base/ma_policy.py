@@ -46,6 +46,7 @@ class MultiAgentPolicy(Base):
         super().__init__(**kwargs)
 
         self.envspecs = envspecs
+        self._is_envspecs_all_equal = all([envspec == self.envspecs[0] for envspec in self.envspecs])   # TODO: Annotation
         self.n_copys = envspecs[0].n_copys
         self.n_agents_percopy = len(envspecs)
 

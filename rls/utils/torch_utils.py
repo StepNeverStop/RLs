@@ -7,6 +7,7 @@ import torch as t
 
 from typing import (List,
                     Tuple,
+                    Union,
                     Optional,
                     NoReturn)
 
@@ -120,12 +121,12 @@ def sync_params(tge: t.nn.Module, src: t.nn.Module, ployak: float = 0.) -> NoRet
         _t.data.copy_(_t.data * ployak + _s.data * (1. - ployak))
 
 
-def sync_params_pairs(pairs: List[Tuple], ployak: float = 0.) -> NoReturn:
+def sync_params_list(nets_list: List[Union[List, Tuple]], ployak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
     ployak = 1 - tau
     '''
-    for tge, src in pairs:
+    for tge, src in zip(*nets_list):
         sync_params(tge, src, ployak)
 
 

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from rls.algorithms.base.off_policy import Off_Policy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import (q_target_func,
-                                   sync_params_pairs)
+                                   sync_params_list)
 from rls.common.specs import BatchExperiences
 from rls.nn.models import (OcIntraOption,
                            CriticQvalueAll)
@@ -92,9 +92,9 @@ class OC(Off_Policy):
         if self.is_continuous:
             self.log_std = -0.5 * t.ones((self.options_num, self.a_dim), requires_grad=True)   # [P, A]
 
-        self._pairs = [(self.q_target_net, self.q_net),
-                       (self._target_rep_net, self.rep_net)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self.q_target_net, self._target_rep_net),
+                       (self.q_net, self.rep_net)]
+        sync_params_list(self._pairs)
 
         self.q_oplr = OPLR([self.rep_net, self.q_net], q_lr, clipvalue=5.)
         self.intra_option_oplr = OPLR([self.intra_option_net, self.log_std], intra_option_lr, clipvalue=5.)
@@ -154,7 +154,7 @@ class OC(Off_Policy):
 
     def _target_params_update(self):
         if self.global_step % self.assign_interval == 0:
-            sync_params_pairs(self._pairs)
+            sync_params_list(self._pairs)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')

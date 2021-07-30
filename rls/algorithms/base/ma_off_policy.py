@@ -11,6 +11,7 @@ from typing import (List,
                     Union,
                     NoReturn)
 
+from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.ma_policy import MultiAgentPolicy
 from rls.common.yaml_ops import load_config
 from rls.memories.multi_replay_buffers import MultiAgentExperienceReplay

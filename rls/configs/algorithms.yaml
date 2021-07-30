@@ -663,7 +663,7 @@ maddpg:
     batch_size: 4
     buffer_size: 100000
     n_step: 4
-    share_params: false
+    share_params: true
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]

@@ -12,7 +12,7 @@ from rls.nn.noised_actions import ClippedNormalNoisedAction
 from rls.algorithms.base.off_policy import Off_Policy
 from rls.memories.single_replay_buffers import ExperienceReplay
 from rls.utils.np_utils import int2one_hot
-from rls.utils.torch_utils import (sync_params_pairs,
+from rls.utils.torch_utils import (sync_params_list,
                                    q_target_func)
 from rls.common.specs import (BatchExperiences,
                               ModelObservations,
@@ -130,14 +130,12 @@ class HIRO(Off_Policy):
         self.low_critic2_target = deepcopy(self.low_critic2)
         self.low_critic2_target.eval()
 
-        self._high_pairs = [(self.high_critic_target, self.high_critic),
-                            (self.high_critic2_target, self.high_critic2)
-                            (self.high_actor_target, self.high_actor)]
-        self._low_pairs = [(self.low_critic_target, self.low_critic),
-                           (self.low_critic2_target, self.low_critic2)
-                           (self.low_actor_target, self.low_actor)]
-        sync_params_pairs(self._high_pairs)
-        sync_params_pairs(self._low_pairs)
+        self._high_pairs = [(self.high_critic_target, self.high_critic2_target, self.high_actor_target),
+                            (self.high_critic, self.high_critic2, self.high_actor)]
+        self._low_pairs = [(self.low_critic_target, self.low_critic2_target, self.low_actor_target),
+                           (self.low_critic, self.low_critic2, self.low_actor)]
+        sync_params_list(self._high_pairs)
+        sync_params_list(self._low_pairs)
 
         self.low_actor_oplr = OPLR(self.low_actor, low_actor_lr)
         self.low_critic_oplr = OPLR([self.low_critic, self.low_critic2], low_critic_lr)
@@ -271,12 +269,12 @@ class HIRO(Off_Policy):
                 summaries = self.train_low(low_data)
 
                 self.summaries.update(summaries)
-                sync_params_pairs(self._low_pairs, self.ployak)
+                sync_params_list(self._low_pairs, self.ployak)
                 if self.counts % self.sub_goal_steps == 0:
                     self.counts = 0
                     high_summaries = self.train_high(high_data)
                     self.summaries.update(high_summaries)
-                    sync_params_pairs(self._high_pairs, self.ployak)
+                    sync_params_list(self._high_pairs, self.ployak)
                 self.counts += 1
                 self.summaries.update(dict([
                     ['LEARNING_RATE/low_actor_lr', self.low_actor_oplr.lr],

@@ -13,7 +13,7 @@ from skimage.util.shape import view_as_windows
 
 from rls.utils.torch_utils import (squash_action,
                                    q_target_func,
-                                   sync_params_pairs)
+                                   sync_params_list)
 from rls.algorithms.base.off_policy import Off_Policy
 from rls.utils.sundry_utils import LinearAnnealing
 from rls.common.specs import BatchExperiences
@@ -152,10 +152,9 @@ class CURL(Off_Policy):
 
         self.curl_w = t.tensor(t.randn(self.vis_feat_size, self.vis_feat_size), requires_grad=True).to(self.device)
 
-        self._pairs = [(self.critic_target, self.critic),
-                       (self.critic2_target, self.critic2),
-                       (self.encoder_target, self.encoder)]
-        sync_params_pairs(self._pairs)
+        self._pairs = [(self.critic_target, self.critic2_target, self.encoder_target),
+                       (self.critic, self.critic2, self.encoder)]
+        sync_params_list(self._pairs)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.critic2, self.encoder], critic_lr)
@@ -198,7 +197,7 @@ class CURL(Off_Policy):
         return visual, visual_, pos
 
     def _target_params_update(self):
-        sync_params_pairs(self._pairs, self.ployak)
+        sync_params_list(self._pairs, self.ployak)
 
     def learn(self, **kwargs):
         self.train_step = kwargs.get('train_step')
