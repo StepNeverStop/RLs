@@ -105,20 +105,20 @@ def train(env, model,
 
 
 def prefill(env, model,
-            pre_fill_steps: int,
+            prefill_steps: int,
             prefill_choose: bool,
             reset_config: dict,
             step_config: dict,
             desc: str = 'Pre-filling') -> NoReturn:
 
-    assert isinstance(pre_fill_steps, int) and pre_fill_steps >= 0, 'prefill.steps must have type of int and larger than/equal 0'
+    assert isinstance(prefill_steps, int) and prefill_steps >= 0, 'prefill.steps must have type of int and larger than/equal 0'
 
-    if pre_fill_steps == 0:
+    if prefill_steps == 0:
         return
     model.reset()
     obs = env.reset(reset_config={})
 
-    for _ in trange(0, pre_fill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
+    for _ in trange(0, prefill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
 
         if prefill_choose:
             actions = model(obs=obs, evaluation=True)

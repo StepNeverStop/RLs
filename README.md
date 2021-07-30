@@ -41,6 +41,7 @@ This project supports:
     - Box -> Discrete
     - Box -> Box
     - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
+- [PettingZoo](https://www.pettingzoo.ml/#)
 - MultiAgent training.
 - MultiImage input. Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
 - Four types of Replay Buffer, Default is ER: 
@@ -91,6 +92,10 @@ If using atari/box2d:
 ```bash
 $ pip install gym[atari]
 $ pip install gym[box2d]
+```
+
+```bash
+$ pip install pettingzoo[all]
 ```
 
 You can download the builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
@@ -178,12 +183,11 @@ For now, these algorithms are available:
 
 ```python
 """
-usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity}]
+usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
               [-a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}]
-              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY]
-              [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE] [--store-dir STORE_DIR]
-              [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname]
-              [--info INFO] [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--apex {learner,worker,buffer,evaluator}] [--config-file CONFIG_FILE]
+              [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--prefill-steps PREFILL_STEPS] [--prefill-choose] [--hostname] [--info INFO]
+              [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -191,7 +195,7 @@ optional arguments:
                         nums of environment copys that collect data in parallel
   --seed SEED           specify the random seed of module random, numpy and pytorch
   -r, --render          whether render game interface
-  -p {gym,unity}, --platform {gym,unity}
+  -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
   -a {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}, --algorithm {pg,trpo,ppo,a2c,cem,aoc,ppoc,qs,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,curl,oc,ioc,hiro,maddpg,vdn}
                         specify the training algorithm
@@ -211,8 +215,7 @@ optional arguments:
   --episode-length EPISODE_LENGTH
                         specify the maximum step per episode
   --prefill-steps PREFILL_STEPS
-                        specify the number of experiences that should be collected before start training, use for
-                        off-policy algorithms
+                        specify the number of experiences that should be collected before start training, use for off-policy algorithms
   --prefill-choose      whether choose action using model or choose randomly
   --hostname            whether concatenate hostname with the training name
   --info INFO           write another information that describe this training task
@@ -223,6 +226,7 @@ optional arguments:
   --no-save             specify whether save models/logs/summaries while training or not
   -d DEVICE, --device DEVICE
                         specify the device that operate Torch.Tensor
+"""
 ```
 
 ```python

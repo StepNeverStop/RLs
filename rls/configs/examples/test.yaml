@@ -55,7 +55,7 @@ environment:
   obs_scale: false
   obs_stack: false
   platform: gym
-  render_mode: random_1
+  render_all: false
   resize:
   - 84
   - 84
@@ -91,7 +91,7 @@ train:
   off_policy_step_eval_episodes: 100
   off_policy_train_interval: 1
   platform: gym
-  pre_fill_steps: 1000
+  prefill_steps: 1000
   prefill_choose: true
   prefill_steps: 10000
   render: false

@@ -27,7 +27,8 @@ extras = {
     'mujoco': ['mujoco_py'],
     'pybullet': ['PyBullet'],
     'gym-minigrid': ['gym-minigrid'],
-    'gym_donkeycar': ['gym_donkeycar']
+    'gym_donkeycar': ['gym_donkeycar'],
+    'pettingzoo': ['pettingzoo']
 }
 
 all_deps = []

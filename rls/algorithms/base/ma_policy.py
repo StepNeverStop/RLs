@@ -102,7 +102,7 @@ class MultiAgentPolicy(Base):
         '''
         write summaries showing in tensorboard.
         '''
-        if 'model' in summaries.keys():  
+        if 'model' in summaries.keys():
             super().write_summaries(global_step, summaries=summaries.pop('model'), writer=self.writer)
         for i, summary in summaries.items():
             super().write_summaries(global_step, summaries=summary, writer=self.writers[i])

@@ -62,7 +62,7 @@ class VDN(MultiAgentOffPolicy):
             target_rep_net.eval()
             q_target_net = deepcopy(q_net)
             q_target_net.eval()
-            self.rep_nets.append(ep_net)
+            self.rep_nets.append(rep_net)
             self.q_nets.append(q_net)
             self.target_rep_nets.append(target_rep_net)
             self.q_target_nets.append(q_target_net)

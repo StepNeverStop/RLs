@@ -40,7 +40,6 @@ class MultiProcessingEnv:
             op, data = conn.recv()
             if op == OP.SEED:
                 env.seed(data)
-                env.action_space.np_random.seed(data)
             elif op == OP.RESET:
                 conn.send(env.reset())
             elif op == OP.STEP:
@@ -82,7 +81,7 @@ class MultiProcessingEnv:
         for i in (idxs or self.idxs):
             self.parent_conns[i].send((OP.CLOSE, None))
 
-    def sample(self, idxs=[]):
+    def action_sample(self, idxs=[]):
         ret = []
         for i in (idxs or self.idxs):
             self.parent_conns[i].send((OP.SAMPLE, None))

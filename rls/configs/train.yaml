@@ -17,7 +17,7 @@ config_file: ~
 store_dir: ./data
 # episode_length, max_train_step, max_frame_step, max_train_episode are set to sys.maxsize if default value is set to zero.
 episode_length: 1000 # episode_length per episode, if gym.env.max_episode_steps > episode_length, then PEB(Partial Episode Bootstraping), else TimeLimit.
-pre_fill_steps: 10000 # pre_fill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
+prefill_steps: 10000 # prefill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
 prefill_choose: false
 hostname: false
 no_save: true

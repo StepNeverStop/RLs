@@ -99,4 +99,4 @@ class OrnsteinUhlenbeckNoisedAction(NormalNoisedAction):
 
 Noise_action_REGISTER['normal'] = NormalNoisedAction
 Noise_action_REGISTER['clip_normal'] = ClippedNormalNoisedAction
-Noise_action_REGISTER['OU'] = OrnsteinUhlenbeckNoisedAction
+Noise_action_REGISTER['ou'] = OrnsteinUhlenbeckNoisedAction

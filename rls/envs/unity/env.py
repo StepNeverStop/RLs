@@ -50,4 +50,4 @@ class UnityEnv(EnvBase):
 
     @property
     def is_multi(self) -> bool:
-        return len(self.GroupsSpec) > 1
+        return self.n_agents > 1

@@ -43,7 +43,7 @@ def get_discrete_action_list(action_dim_list):
         [2 1 0]
         [2 1 1]]
     """
-    return np.array(list(itertools.product(*[list(range(l)) for l in action_dim_list])))
+    return np.squeeze(list(itertools.product(*[list(range(l)) for l in action_dim_list])))
 
 
 def int2one_hot(x, act_nums):

@@ -111,10 +111,9 @@ def main():
         env_args.env_copys = args.copys  # Environmental copies of vectorized training.
         env_args.seed = args.seed
         env_args.inference = args.inference
+        env_args.env_name = args.env_name
 
-        if env_args.platform == 'gym':
-            env_args.env_name = args.env_name
-        elif env_args.platform == 'unity':
+        if env_args.platform == 'unity':
             env_args.env_name = 'UnityEditor'
             env_args.file_name = args.file_name
 

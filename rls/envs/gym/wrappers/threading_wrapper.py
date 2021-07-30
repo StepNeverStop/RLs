@@ -29,7 +29,6 @@ class MultiThreadEnv:
         self.envs = [make_func(idx, **config) for idx in range(n)]
         for i in range(n):
             self.envs[i].seed(seed + i)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-            self.envs.action_space.np_random.seed(seed + i)
 
     def reset(self, idxs=[]):
         threadpool = []
@@ -67,7 +66,7 @@ class MultiThreadEnv:
         for th in threadpool:
             th.join()
 
-    def sample(self, idxs=[]):
+    def action_sample(self, idxs=[]):
         threadpool = []
         for i in (idxs or self.idxs):
             threadpool.append(FakeMultiThread(self.envs[i].action_sample, args=()))

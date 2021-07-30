@@ -42,21 +42,24 @@ class Trainer:
 
         # ENV
         self.env = make_env(self.env_args)
+        # logger.info(self.env.GroupsSpec)
 
         # ALGORITHM CONFIG
         self.agent_class, self.policy_mode, self.is_multi = get_model_info(self.train_args.algorithm)
 
         if self.policy_mode == 'on-policy':  # TODO:
-            self.train_args.pre_fill_steps = 0  # if on-policy, prefill experience replay is no longer needed.
+            self.train_args.prefill_steps = 0  # if on-policy, prefill experience replay is no longer needed.
 
         self.initialize()
         self.start_time = time.time()
 
     def initialize(self):
+        logger.info('Initialize Agent Begin.')
         if not self.is_multi:
             self.model = IndependentMA(self.agent_class, self.env.GroupsSpec, self.algo_args)
         else:
             self.model = self.agent_class(envspecs=self.env.GroupsSpec, **self.algo_args)
+        logger.info('Initialize Agent Successfully.')
         _train_info = self.model.resume(self.train_args.load_path)
         self.begin_train_step = _train_info['train_step']
         self.begin_frame_step = _train_info['frame_step']
@@ -78,7 +81,7 @@ class Trainer:
                     model=self.model,
                     reset_config=self.train_args.reset_config,
                     step_config=self.train_args.step_config,
-                    pre_fill_steps=self.train_args.pre_fill_steps,
+                    prefill_steps=self.train_args.prefill_steps,
                     prefill_choose=self.train_args.prefill_choose)
             train(env=self.env,
                   model=self.model,

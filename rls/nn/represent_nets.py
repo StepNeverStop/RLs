@@ -69,7 +69,7 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
             logger.debug('initialize memory network successfully.')
             self.h_dim = self.memory_net.h_dim
 
-    def forward(self, obs, cell_state):
+    def forward(self, obs, cell_state=None):
         '''
         return:
             feat: [B, N]

@@ -86,15 +86,14 @@ class MADDPG(MultiAgentOffPolicy):
             critic_target.eval()
             actor_target = deepcopy(actor)
             actor_target.eval()
-            self.rep_nets.append(ep_net)
+            self.rep_nets.append(rep_net)
             self.critics.append(critic)
             self.target_rep_nets.append(target_rep_net)
             self.critic_targets.append(critic_target)
             self.actors.append(actor)
             self.actor_targets.append(actor_target)
 
-            actor_oplr = OPLR(actor,
-                              actor_lr)
+            actor_oplr = OPLR(actor, actor_lr)
             critic_oplr = OPLR([rep_net, critic], critic_lr)
             self.actor_oplrs.append(actor_oplr)
             self.critic_oplrs.append(critic_oplr)
@@ -188,8 +187,25 @@ class MADDPG(MultiAgentOffPolicy):
             j = 0 if self.share_params else i
             q_targets.append(self.critic_targets[j](t.cat(feats_, -1), target_actions))
 
+        q_loss = []
         for i in range(self.n_agents_percopy):
             j = 0 if self.share_params else i
+            q = self.critics[j](
+                t.cat(feats, -1),
+                t.cat([BATCH.action for BATCH in BATCHs], -1)
+            )
+            dc_r = (BATCHs[i].reward + self.gamma * q_targets[i] * (1 - BATCHs[i].done)).detach()
+
+            td_error = dc_r - q
+            q_loss.append(0.5 * td_error.square().mean())
+        if self.share_params:
+            self.critic_oplrs[0].step(sum(q_loss))
+
+        actor_loss = []
+        feats = [feat.detach() for feat in feats]
+        for i in range(self.n_agents_percopy):
+            j = 0 if self.share_params else i
+
             if self.envspecs[i].is_continuous:
                 mu = self.actors[j](feats[i])
             else:
@@ -205,26 +221,16 @@ class MADDPG(MultiAgentOffPolicy):
                 t.cat(feats, -1),
                 t.cat([BATCH.action for BATCH in BATCHs[:i]]+[mu]+[BATCH.action for BATCH in BATCHs[i+1:]], -1)
             )
-            actor_loss = -q_actor.mean()
+            actor_loss.append(-q_actor.mean())
+        if self.share_params:
+            self.actor_oplrs[0].step(sum(actor_loss))
 
-            q = self.critics[j](
-                t.cat(feats, -1),
-                t.cat([BATCH.action for BATCH in BATCHs], -1)
-            )
-            dc_r = (BATCHs[i].reward + self.gamma * q_targets[i] * (1 - BATCHs[i].done)).detach()
-
-            td_error = dc_r - q
-            q_loss = 0.5 * td_error.square().mean()
-
-            self.critic_oplrs[j].step(q_loss)
-            self.actor_oplrs[j].step(actor_loss)
-
-            summaries[i] = dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', q_loss],
-                ['Statistics/q_min', q.min()],
-                ['Statistics/q_mean', q.mean()],
-                ['Statistics/q_max', q.max()]
-            ])
+        # summaries[i] = dict([
+        #     ['LOSS/actor_loss', actor_loss],
+        #     ['LOSS/critic_loss', q_loss],
+        #     ['Statistics/q_min', q.min()],
+        #     ['Statistics/q_mean', q.mean()],
+        #     ['Statistics/q_max', q.max()]
+        # ])
         self.global_step.add_(1)
         return summaries

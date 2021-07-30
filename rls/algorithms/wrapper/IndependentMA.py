@@ -62,7 +62,7 @@ class IndependentMA:
 
     def resume(self, base_dir: Optional[str] = None) -> Dict:
         for i, model in enumerate(self.models):
-            if self._n_agents > 1:
+            if self._n_agents > 1 and base_dir is not None:
                 base_dir += f'/i{model.__class__.__name__}-{i}'
             training_info = model.resume(base_dir)
         else:

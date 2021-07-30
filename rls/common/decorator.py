@@ -32,10 +32,7 @@ def iTensor_oNumpy(func, dtype=t.float32, device='cpu'):
             args = [to_tensor(x, dtype=dtype, device=device) for x in args]
         kwargs = {k: to_tensor(v, dtype=dtype, device=device) for k, v in kwargs.items()}
         output = func(*args, **kwargs)
-        if isinstance(output, (tuple, list)):
-            output = [to_numpy(x) for x in output]
-        else:
-            output = to_numpy(output)
+        output = to_numpy(output)
         return output
 
     return wrapper

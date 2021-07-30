@@ -13,7 +13,6 @@ class Env:
 
     def seed(self, s):
         self.env.seed(s)
-        self.env.action_space.np_random.seed(s)
 
     def reset(self):
         return self.env.reset()
@@ -27,7 +26,7 @@ class Env:
     def close(self):
         self.env.close()
 
-    def sample(self):
+    def action_sample(self):
         return self.env.action_sample()
 
 
@@ -58,5 +57,5 @@ class RayEnv:
         ray.get([self.envs[i].close.remote() for i in (idxs or self.idxs)])
         ray.shutdown()
 
-    def sample(self, idxs=[]):
-        return ray.get([self.envs[i].sample.remote() for i in (idxs or self.idxs)])
+    def action_sample(self, idxs=[]):
+        return ray.get([self.envs[i].action_sample.remote() for i in (idxs or self.idxs)])

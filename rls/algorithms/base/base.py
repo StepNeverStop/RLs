@@ -26,7 +26,8 @@ class Base:
     def __init__(self,
                  no_save=False,
                  base_dir='',
-                 device='cpu'):
+                 device='cpu',
+                 **kwargs): # TODO: remove this
         '''
         inputs:
             a_dim: action spaces

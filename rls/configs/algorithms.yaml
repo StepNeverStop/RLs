@@ -1,10 +1,10 @@
-# algorithm config = general UNION on_policy/off_policy UNION specific algorithm config
-# if same key happened in multiple configurations, then specific algorithm config override on_policy/off_policy override general
+# algorithm config = policy UNION on_policy/off_policy UNION specific algorithm config
+# if same key happened in multiple configurations, then specific algorithm config override on_policy/off_policy override policy
 # priority 1: specific algorithm config
 # priority 2: on_policy/off_policy
-# priority 3: general
+# priority 3: policy
 
-general: &general
+policy: &policy
     decay_lr: false
 
     use_curiosity: false # whether to use ICM or not
@@ -13,6 +13,7 @@ general: &general
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
 
     normalize_vector_obs: false
+
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     representation_net_params: &representation_net_params
         use_encoder: false
@@ -30,11 +31,11 @@ general: &general
     # -----
 
 on_policy: &on_policy
-    <<: *general
+    <<: *policy
     rnn_time_steps: 8
 
 off_policy: &off_policy
-    <<: *general
+    <<: *policy
     train_times_per_step: 1 # train multiple times per agent step
     # PER
     use_isw: false
@@ -662,7 +663,7 @@ maddpg:
     batch_size: 4
     buffer_size: 100000
     n_step: 4
-    share_params: true
+    share_params: false
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]

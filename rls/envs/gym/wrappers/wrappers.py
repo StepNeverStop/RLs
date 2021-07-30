@@ -222,7 +222,6 @@ class BoxActEnv(gym.ActionWrapper):
         self._sigma = (asp.high - asp.low) / 2
 
     def action_sample(self):
-        a = self.env.action_space.sample()
         return (self.env.action_space.sample() - self._mu) / self._sigma
 
     def step(self, action):
@@ -230,6 +229,29 @@ class BoxActEnv(gym.ActionWrapper):
 
     def action(self, action):
         return self._sigma * action + self._mu
+
+
+class DiscreteActEnv(gym.ActionWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        asp = env.action_space
+        assert isinstance(asp, Discrete) or (isinstance(asp, Tuple) and all([isinstance(x) for x in asp]))
+        self._is_tuple = not isinstance(asp, Discrete)
+        if self._is_tuple:
+            discrete_action_dim_list = [i.n for i in asp]
+        else:
+            discrete_action_dim_list = [asp.n]
+        from rls.utils.np_utils import get_discrete_action_list
+        self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
+
+    def step(self, action):
+        return self.env.step(self.action(action))
+
+    def action(self, action):
+        action = self.discrete_action_list[action]
+        if isinstance(action, np.ndarray):
+            action = action.tolist()
+        return action
 
 
 class TimeLimit(gym.Wrapper):

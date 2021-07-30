@@ -1,4 +1,5 @@
 import torch as t
+import numpy as np
 
 from torch.nn import (Sequential,
                       Conv2d,
