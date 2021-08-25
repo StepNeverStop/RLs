@@ -11,11 +11,9 @@ load_path: ~
 models: 1
 seed: 42
 name: default_train
-save_frequency: 100 # save training model every `save_frequency` train steps. Should larger for off-policy algorithms, and smaller for on-policy algorithms
-apex: ~
 config_file: ~
 store_dir: ./data
-# episode_length, max_train_step, max_frame_step, max_train_episode are set to sys.maxsize if default value is set to zero.
+max_train_step: 999999999999999999 # if max_train_step > 0, then training will stop when training steps > max_train_step.
 episode_length: 1000 # episode_length per episode, if gym.env.max_episode_steps > episode_length, then PEB(Partial Episode Bootstraping), else TimeLimit.
 prefill_steps: 10000 # prefill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
 prefill_choose: false
@@ -25,17 +23,8 @@ info: ""
 #
 
 logger2file: false
-max_train_step: 999999999999999999 # if max_train_step > 0, then training will stop when training steps > max_train_step.
-max_frame_step: 999999999999999999
-max_train_episode: 999999999999999999
 inference_episode: 999999999999999999
 moving_average_episode: 100
 allow_print: true
-# off-policy
-off_policy_train_interval: 1 # train policy every interval times
-render_episode: 999999999999999999 # if render_episode equals 0, it will be set to sys.maxsize, otherwise it will be set to render_episode if --render-episode is not specified through cmd line.
-# off-policy
-off_policy_eval_interval: 0 # only for off-policy algorithms, if LARGER THAN 0, then evaluate policy every `off_policy_eval_interval` training step
-off_policy_step_eval_episodes: 100
 reset_config: {}
 step_config: {}

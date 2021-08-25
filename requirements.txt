@@ -2,4 +2,4 @@ numpy
 pyyaml
 tqdm
 colored_traceback
-gym>=0.15.0, <=0.15.3
+gym>=0.15.4

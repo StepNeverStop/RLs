@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+# encoding: utf-8
+
+import importlib
+import numpy as np
+import torch as t
+
+from abc import abstractmethod
+from typing import (List,
+                    Dict,
+                    Union,
+                    NoReturn)
+
+from rls.utils.np_utils import int2one_hot
+from rls.algorithms.base.marl_policy import MarlPolicy
+from rls.common.yaml_ops import load_config
+from rls.common.specs import Data
+from rls.common.decorator import iTensor_oNumpy
+
+
+class MultiAgentOffPolicy(MarlPolicy):
+
+    def __init__(self,
+                 n_time_step=4,
+                 epochs=1,
+                 batch_size=256,
+                 buffer_size=100000,
+                 use_priority=False,
+                 **kwargs):
+        self.n_time_step = n_time_step
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
+        self.use_priority = use_priority
+        super().__init__(**kwargs)
+
+    def _build_buffer(self):
+        if self.use_priority == True:
+            from rls.memories.per_buffer import PrioritizedDataBuffer
+            buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
+                                           batch_size=self.batch_size,
+                                           buffer_size=self.buffer_size,
+                                           time_step=self.n_time_step,
+                                           max_train_step=self.max_train_step,
+                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
+        else:
+            from rls.memories.er_buffer import DataBuffer
+            buffer = DataBuffer(n_copys=self.n_copys,
+                                batch_size=self.batch_size,
+                                buffer_size=self.buffer_size,
+                                time_step=self.n_time_step)
+        return buffer
+
+    def episode_step(self, obs, acts: Dict[str, np.ndarray], env_rets: Dict[str, Data]):
+        super().episode_step(obs, acts, env_rets)
+        if self._is_train_mode and self._buffer.can_sample:
+            self.learn(self._buffer.sample())
+
+    def learn(self, BATCH_DICT: Data):
+        BATCH_DICT = self._preprocess_BATCH(BATCH_DICT)
+        for _ in range(self.epochs):
+            BATCH_DICT = self._before_train(BATCH_DICT)
+            summaries = self._train(BATCH_DICT)
+            self.summaries.update(summaries)
+            self._after_train()
+
+    # customed
+
+    def _preprocess_BATCH(self, BATCH_DICT):  # [B, *] or [T, B, *]
+        for id in self.agent_ids:
+            if not self.is_continuouss[id]:
+                shape = BATCH_DICT[id].action.shape
+                # [T, B, 1] or [T, B] => [T, B, N]
+                BATCH_DICT[id].action = int2one_hot(
+                    BATCH_DICT[id].action, self.a_dims[id])
+        return BATCH_DICT
+
+    def _before_train(self, BATCH_DICT):
+        self.summaries = {}
+        return BATCH_DICT
+
+    @iTensor_oNumpy
+    def _train(self, BATCH_DICT):
+        raise NotImplementedError
+
+    def _after_train(self):
+        self._write_train_summaries(self.cur_train_step, self.summaries)
+        self.cur_train_step += 1
+        if self.cur_train_step % self.save_frequency == 0:
+            self.save()

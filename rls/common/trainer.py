@@ -30,7 +30,7 @@ class Trainer:
                  train_args: NamedDict,
                  algo_args: NamedDict):
         '''
-        Initilize an agent that consists of training environments, algorithm model.
+        Initilize an agent that consists of training environments, algorithm agent.
         params:
             env_args: configurations of training environments
             train_args: configurations of training
@@ -42,30 +42,28 @@ class Trainer:
 
         # ENV
         self.env = make_env(self.env_args)
-        # logger.info(self.env.GroupsSpec)
+        # logger.info(self.env.AgentSpecs)
 
         # ALGORITHM CONFIG
-        self.agent_class, self.policy_mode, self.is_multi = get_model_info(self.train_args.algorithm)
+        self.agent_class, self.is_multi = get_model_info(self.train_args.algorithm)
+        if self.agent_class.policy_mode == 'on-policy':
+            self.algo_args.buffer_size = self.train_args.episode_length * self.algo_args.n_copys
 
-        if self.policy_mode == 'on-policy':  # TODO:
-            self.train_args.prefill_steps = 0  # if on-policy, prefill experience replay is no longer needed.
-
-        self.initialize()
-        self.start_time = time.time()
-
-    def initialize(self):
         logger.info('Initialize Agent Begin.')
         if not self.is_multi:
-            self.model = IndependentMA(self.agent_class, self.env.GroupsSpec, self.algo_args)
+            self.agent = IndependentMA(self.agent_class,
+                                       self.env.AgentSpecs,
+                                       self.algo_args)
         else:
-            self.model = self.agent_class(envspecs=self.env.GroupsSpec, **self.algo_args)
+            self.agent = self.agent_class(agent_specs=self.env.AgentSpecs,
+                                          state_spec=self.env.StateSpec,
+                                          **self.algo_args)
         logger.info('Initialize Agent Successfully.')
-        _train_info = self.model.resume(self.train_args.load_path)
-        self.begin_train_step = _train_info['train_step']
-        self.begin_frame_step = _train_info['frame_step']
-        self.begin_episode = _train_info['episode']
+        self.agent.resume(self.train_args.load_path)
 
-    def pwi(self, *args, out_time: bool = False) -> NoReturn:
+        self.start_time = time.time()
+
+    def print_function(self, *args, out_time: bool = False) -> NoReturn:
         if self.train_args.allow_print:
             model_info = f'{self.train_args.name} '
             if out_time:
@@ -78,88 +76,31 @@ class Trainer:
         '''
         try:
             prefill(env=self.env,
-                    model=self.model,
+                    agent=self.agent,
                     reset_config=self.train_args.reset_config,
                     step_config=self.train_args.step_config,
-                    prefill_steps=self.train_args.prefill_steps,
-                    prefill_choose=self.train_args.prefill_choose)
+                    prefill_steps=self.train_args.prefill_steps)
             train(env=self.env,
-                  model=self.model,
-                  print_func=self.pwi,
-                  begin_train_step=self.begin_train_step,
-                  begin_frame_step=self.begin_frame_step,
-                  begin_episode=self.begin_episode,
-                  save_frequency=self.train_args.save_frequency,
+                  agent=self.agent,
+                  print_func=self.print_function,
                   episode_length=self.train_args.episode_length,
-                  max_train_episode=self.train_args.max_train_episode,
-                  policy_mode=self.policy_mode,
                   moving_average_episode=self.train_args.moving_average_episode,
-                  max_train_step=self.train_args.max_train_step,
-                  max_frame_step=self.train_args.max_frame_step,
-                  off_policy_train_interval=self.train_args.off_policy_train_interval,
                   render=self.train_args.render,
-                  render_episode=self.train_args.render_episode,
                   reset_config=self.train_args.reset_config,
-                  step_config=self.train_args.step_config,
-
-                  off_policy_step_eval_episodes=self.train_args.off_policy_step_eval_episodes,
-                  off_policy_eval_interval=self.train_args.off_policy_eval_interval)
+                  step_config=self.train_args.step_config)
         finally:
-            self.model.close()
+            self.agent.close()
             self.env.close()
 
     def evaluate(self) -> NoReturn:
         try:
             inference(env=self.env,
-                      model=self.model,
-                      print_func=self.pwi,
+                      agent=self.agent,
+                      print_func=self.print_function,
+                      moving_average_episode=self.train_args.moving_average_episode,
                       reset_config=self.train_args.reset_config,
                       step_config=self.train_args.step_config,
                       episodes=self.train_args.inference_episode)
         finally:
-            self.model.close()
+            self.agent.close()
             self.env.close()
-
-    def apex(self) -> NoReturn:
-        if self.policy_mode != 'off-policy':
-            raise Exception('Ape-X only suitable for off-policy algorithms.')
-
-        if self.train_args['apex'] == 'learner':
-            from rls.distribute.apex.learner import learner
-            learner(
-                env=self.env,
-                model=self.model,
-                ip=self.train_args['apex_learner_ip'],
-                port=self.train_args['apex_learner_port']
-            )
-        elif self.train_args['apex'] == 'worker':
-            from rls.distribute.apex.worker import worker
-            worker(
-                env=self.env,
-                model=self.model,
-                learner_ip=self.train_args['apex_learner_ip'],
-                learner_port=self.train_args['apex_learner_port'],
-                buffer_ip=self.train_args['apex_buffer_ip'],
-                buffer_port=self.train_args['apex_buffer_port'],
-                worker_args=self.train_args['apex_worker_args']
-            )
-        elif self.train_args['apex'] == 'buffer':
-            from rls.distribute.apex.buffer import buffer
-            buffer(
-                ip=self.train_args['apex_buffer_ip'],
-                port=self.train_args['apex_buffer_port'],
-                learner_ip=self.train_args['apex_learner_ip'],
-                learner_port=self.train_args['apex_learner_port'],
-                buffer_args=self.train_args['apex_buffer_args']
-            )
-        elif self.train_args['apex'] == 'evaluator':
-            from rls.distribute.apex.evaluator import evaluator
-            evaluator(
-                env=self.env,
-                model=self.model,
-                learner_ip=self.train_args['apex_learner_ip'],
-                learner_port=self.train_args['apex_learner_port'],
-                evaluator_args=self.train_args['apex_evaluator_args']
-            )
-
-        return

@@ -9,6 +9,7 @@ from typing import (Union,
 
 from rls.nn.learningrates import LR_REGISTER
 from rls.nn.optimizers import OP_REGISTER
+from rls.nn.modules.wrappers import TargetTwin
 
 
 class OPLR:
@@ -17,8 +18,9 @@ class OPLR:
                  models: Union[
                      t.Tensor,
                      t.nn.Module,
-                     List[Union[t.Tensor, t.nn.Module]],
-                     Tuple[Union[t.Tensor, t.nn.Module]]
+                     TargetTwin,
+                     List[Union[t.Tensor, t.nn.Module, TargetTwin]],
+                     Tuple[Union[t.Tensor, t.nn.Module, TargetTwin]]
                  ],
                  lr: float,
                  scheduler: str = 'default',

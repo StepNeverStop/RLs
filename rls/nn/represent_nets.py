@@ -11,23 +11,13 @@ from rls.nn.networks import (MultiVectorNetwork,
                              EncoderNetwork,
                              MemoryNetwork)
 from rls.utils.logging_utils import get_logger
-from rls.common.specs import ObsSpec
+from rls.common.specs import SensorSpec
 logger = get_logger(__name__)
 
 Rep_REGISTER = {}
 
 
 class RepresentationNetwork(t.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-        self.h_dim = None
-
-    def forward(self):
-        pass
-
-
-class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
@@ -36,69 +26,71 @@ class DefaultRepresentationNetwork(RepresentationNetwork):
     '''
 
     def __init__(self,
-                 obs_spec: ObsSpec,
-                 representation_net_params: Dict):
+                 obs_spec: SensorSpec,
+                 rep_net_params: Dict):
         super().__init__()
 
         self.obs_spec = obs_spec
-        self.representation_net_params = representation_net_params
+        self.rep_net_params = rep_net_params
+        self.h_dim = 0
 
-        vector_net_params = dict(representation_net_params.get('vector_net_params', {}))
-        visual_net_params = dict(representation_net_params.get('visual_net_params', {}))
+        if self.obs_spec.has_vector_observation:
+            vector_net_params = dict(rep_net_params.get('vector_net_params', {}))
+            logger.debug('initialize vector network begin.')
+            self.vector_net = MultiVectorNetwork(obs_spec.vector_dims, **vector_net_params)
+            logger.debug('initialize vector network successfully.')
+            self.h_dim += self.vector_net.h_dim
 
-        logger.debug('initialize vector network begin.')
-        self.vector_net = MultiVectorNetwork(obs_spec.vector_dims, **vector_net_params)
-        logger.debug('initialize vector network successfully.')
+        elif self.obs_spec.has_visual_observation:
+            visual_net_params = dict(rep_net_params.get('visual_net_params', {}))
+            logger.debug('initialize visual network begin.')
+            self.visual_net = MultiVisualNetwork(obs_spec.visual_dims, **visual_net_params)
+            logger.debug('initialize visual network successfully.')
+            self.h_dim += self.visual_net.h_dim
 
-        logger.debug('initialize visual network begin.')
-        self.visual_net = MultiVisualNetwork(obs_spec.visual_dims, **visual_net_params)
-        logger.debug('initialize visual network successfully.')
+        else:
+            raise ValueError  # TODO: change error type
 
-        self.h_dim = self.vector_net.h_dim + self.visual_net.h_dim
-        self.use_encoder = bool(representation_net_params.get('use_encoder', False))
+        self.use_encoder = bool(rep_net_params.get('use_encoder', False))
         if self.use_encoder:
-            encoder_net_params = dict(representation_net_params.get('encoder_net_params', {}))
+            encoder_net_params = dict(rep_net_params.get('encoder_net_params', {}))
             self.encoder_net = EncoderNetwork(self.h_dim, **encoder_net_params)
             logger.debug('initialize encoder network successfully.')
             self.h_dim = self.encoder_net.h_dim
 
-        self.use_rnn = bool(representation_net_params.get('use_rnn', False))
+        self.use_rnn = bool(rep_net_params.get('use_rnn', False))
         if self.use_rnn:
-            memory_net_params = dict(representation_net_params.get('memory_net_params', {}))
+            memory_net_params = dict(rep_net_params.get('memory_net_params', {}))
             self.memory_net = MemoryNetwork(self.h_dim, **memory_net_params)
             logger.debug('initialize memory network successfully.')
             self.h_dim = self.memory_net.h_dim
 
     def forward(self, obs, cell_state=None):
         '''
+        params:
+            obs: [T, B, *] or [B, *]
         return:
-            feat: [B, N]
+            feat: [T, B, *] or [B, *]
         '''
-        if self.obs_spec.has_vector_observation and self.obs_spec.has_visual_observation:
-            vec_feat = self.vector_net(*obs.vector.__dict__.values())
-            vis_feat = self.visual_net(*obs.visual.__dict__.values())
-            feat = t.cat([vec_feat, vis_feat], -1)
-        elif self.obs_spec.has_vector_observation:
-            feat = self.vector_net(*obs.vector.__dict__.values())
+        feat_list = []
+        if self.obs_spec.has_vector_observation:
+            feat_list.append(self.vector_net(*obs.vector.values()))
         elif self.obs_spec.has_visual_observation:
-            feat = self.visual_net(*obs.visual.__dict__.values())
+            feat_list.append(self.visual_net(*obs.visual.values()))
         else:
             raise Exception("observation must not be empty.")
 
+        feat = t.cat(feat_list, -1)  # [T, B, *] or [B, *]
+
         if self.use_encoder:
-            feat = self.encoder_net(feat)  # [T*B, X]
+            feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
         if self.use_rnn:
-            if isinstance(cell_state, (list, tuple)):
-                batch_size = cell_state[0].shape[0]
-            else:
-                batch_size = cell_state.shape[0]
-            # reshape feature from [T*B, x] to [T, B, x]
-            feat = feat.view(-1, batch_size, feat.shape[-1])    # [T, B, x]
-            feat, cell_state = self.memory_net(feat, cell_state)
-            # reshape feature from [T, B, x] to [T*B, x]
-            feat = feat.view(-1, feat.shape[-1])
-
+            if feat.ndim == 2: # [B, *]
+                feat = feat.unsqueeze(0)    # [B, *] => [T, B, *]
+                if cell_state:
+                    cell_state = {k: v.unsqueeze(0) for k, v in cell_state.items()}
+            feat, cell_state = self.memory_net(feat, cell_state)    # [T, B, *] or [B, *]
         return feat, cell_state
 
 
@@ -111,16 +103,16 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
     '''
 
     def __init__(self,
-                 obs_spec_list: List[ObsSpec],
-                 representation_net_params: Dict):
+                 obs_spec_list: List[SensorSpec],
+                 rep_net_params: Dict):
         super().__init__()
 
         self.obs_spec_list = obs_spec_list
         self.representation_nets = []
         for i, obs_spec in enumerate(self.obs_spec_list):
             self.representation_nets.append(
-                DefaultRepresentationNetwork(obs_spec=obs_spec,
-                                             representation_net_params=representation_net_params)
+                RepresentationNetwork(obs_spec=obs_spec,
+                                      rep_net_params=rep_net_params)
             )
         self.h_dim = sum([rep_net.h_dim for rep_net in self.representation_nets])
 
@@ -133,5 +125,5 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
         return feats, cell_state
 
 
-Rep_REGISTER['default'] = DefaultRepresentationNetwork
+Rep_REGISTER['default'] = RepresentationNetwork
 Rep_REGISTER['multi'] = MultiAgentCentralCriticRepresentationNetwork

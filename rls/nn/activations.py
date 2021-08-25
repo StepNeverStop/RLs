@@ -14,7 +14,7 @@ Act_REGISTER['tanh'] = t.nn.Tanh
 Act_REGISTER['softplus'] = t.nn.Softplus
 Act_REGISTER['mish'] = t.nn.Mish
 Act_REGISTER['sigmoid'] = t.nn.Sigmoid
-Act_REGISTER['log_softmax'] = t.nn.LogSoftmax
+Act_REGISTER['log_softmax'] = lambda: t.nn.LogSoftmax(-1)
 
 
 class Swish(t.nn.Module):

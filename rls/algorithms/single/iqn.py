@@ -4,27 +4,25 @@
 import numpy as np
 import torch as t
 
-from copy import deepcopy
-
-from rls.algorithms.base.off_policy import Off_Policy
+from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import (huber_loss,
-                                   q_target_func,
-                                   sync_params_list)
+                                   q_target_func)
 from rls.nn.models import IqnNet
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.nn.modules.wrappers import TargetTwin
+from rls.common.specs import Data
 
 
-class IQN(Off_Policy):
+class IQN(SarlOffPolicy):
     '''
     Implicit Quantile Networks, https://arxiv.org/abs/1806.06923
     Double DQN
     '''
+    policy_mode = 'off-policy'
 
     def __init__(self,
-                 envspec,
-
                  online_quantiles=8,
                  target_quantiles=8,
                  select_quantiles=32,
@@ -42,8 +40,8 @@ class IQN(Off_Policy):
                      'tile': [64]
                  },
                  **kwargs):
-        assert not envspec.is_continuous, 'iqn only support discrete action space'
-        super().__init__(envspec=envspec, **kwargs)
+        super().__init__(**kwargs)
+        assert not self.is_continuous, 'iqn only support discrete action space'
         self.online_quantiles = online_quantiles
         self.target_quantiles = target_quantiles
         self.select_quantiles = select_quantiles
@@ -55,132 +53,109 @@ class IQN(Off_Policy):
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
+        self.q_net = TargetTwin(IqnNet(self.obs_spec,
+                                       rep_net_params=self.rep_net_params,
+                                       action_dim=self.a_dim,
+                                       quantiles_idx=self.quantiles_idx,
+                                       network_settings=network_settings)).to(self.device)
+        self.oplr = OPLR(self.q_net, lr)
+        self._trainer_modules.update(model=self.q_net,
+                                     oplr=self.oplr)
 
-        self.q_net = IqnNet(self.rep_net.h_dim,
-                            action_dim=self.a_dim,
-                            quantiles_idx=self.quantiles_idx,
-                            network_settings=network_settings).to(self.device)
-        self.q_target_net = deepcopy(self.q_net)
-        self.q_target_net.eval()
-
-        self._target_rep_net = deepcopy(self.rep_net)
-        self._target_rep_net.eval()
-
-        self._pairs = [(self.q_target_net, self._target_rep_net),
-                       (self.q_net, self.rep_net)]
-        sync_params_list(self._pairs)
-
-        self.oplr = OPLR([self.q_net, self.rep_net], lr)
-
-        self._worker_modules.update(rep_net=self.rep_net,
-                                    model=self.q_net)
-
-        self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update(oplr=self.oplr)
-        self.initialize_data_buffer()
-
-    def __call__(self, obs, evaluation=False):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
+    @iTensor_oNumpy
+    def __call__(self, obs):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
-        return actions
+            _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
+                batch_size=self.n_copys,
+                quantiles_num=self.select_quantiles
+            )
+            q_values = self.q_net(obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
+            self.next_cell_state = self.q_net.get_cell_state()
+            actions = q_values.mean(0).argmax(-1)  # [N, B, A] => [B, A] => [B,]
+        return Data(action=actions)
 
-    @iTensor_oNumpy
-    def call(self, obs, cell_state):
-        batch_size = len(obs)
-        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-            batch_size=batch_size,
-            quantiles_num=self.select_quantiles,
-            quantiles_idx=self.quantiles_idx
-        )
-        # [B, A]
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
-        (_, q_values) = self.q_net(feat, select_quantiles_tiled, quantiles_num=self.select_quantiles)
-        a = q_values.argmax(-1)  # [B,]
-        return a, cell_state
+    def _generate_quantiles(self, batch_size, quantiles_num):
+        _quantiles = t.rand([quantiles_num*batch_size, 1])  # [N*B, 1]
+        _quantiles_tiled = _quantiles.repeat(1, self.quantiles_idx)  # [N*B, 1] => [N*B, X]
 
-    def _generate_quantiles(self, batch_size, quantiles_num, quantiles_idx):
-        _quantiles = t.rand([batch_size * quantiles_num, 1])  # [N*B, 1]
-        _quantiles_tiled = _quantiles.repeat(1, quantiles_idx)  # [N*B, 1] => [N*B, 64]
-        _quantiles_tiled = t.arange(quantiles_idx) * np.pi * _quantiles_tiled  # pi * i * tau [N*B, 64] * [64, ] => [N*B, 64]
-        _quantiles_tiled.cos_()   # [N*B, 64]
+        _quantiles_tiled = t.arange(self.quantiles_idx) * np.pi * _quantiles_tiled  # pi * i * tau [N*B, X] * [X, ] => [N*B, X]
+        _quantiles_tiled.cos_()   # [N*B, X]
+
         _quantiles = _quantiles.view(batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
-        return _quantiles, _quantiles_tiled
-
-    def _target_params_update(self):
-        if self.global_step % self.assign_interval == 0:
-            sync_params_list(self._pairs)
-
-    def learn(self, **kwargs):
-        self.train_step = kwargs.get('train_step')
-        for i in range(self.train_times_per_step):
-            self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
-            })
+        return _quantiles, _quantiles_tiled  # [B, N, 1], [N*B, X]
 
     @iTensor_oNumpy
-    def _train(self, BATCH, isw, cell_states):
+    def _train(self, BATCH):
+        time_step = BATCH.reward.shape[0]
+        batch_size = BATCH.reward.shape[1]
 
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
+        quantiles, quantiles_tiled = self._generate_quantiles(   # [T*B, N, 1], [N*T*B, X]
+            batch_size=time_step*batch_size,
+            quantiles_num=self.online_quantiles)
+        quantiles = quantiles.view(time_step, batch_size, -1, 1)    # [T*B, N, 1] => [T, B, N, 1]
+        quantiles_tiled = quantiles_tiled.view(time_step, -1, self.quantiles_idx)    # [N*T*B, X] => [T, N*B, X]
 
-        batch_size = len(BATCH)
-        quantiles, quantiles_tiled = self._generate_quantiles(   # [B, N, 1], [N*B, 64]
-            batch_size=batch_size,
-            quantiles_num=self.online_quantiles,
-            quantiles_idx=self.quantiles_idx
-        )
-        quantiles_value, q = self.q_net(feat, quantiles_tiled, quantiles_num=self.online_quantiles)    # [N, B, A], [B, A]
-        _a = BATCH.action.repeat(self.online_quantiles, 1).view(self.online_quantiles, -1, self.a_dim)  # [B, A] => [N*B, A] => [N, B, A]
-        quantiles_value = (quantiles_value * _a).sum(-1, keepdim=True)   # [N, B, A] => [N, B, 1]
-        q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [B, A] => [B, 1]
+        quantiles_value = self.q_net(BATCH.obs, quantiles_tiled)    # [T, N, B, A]
+        # [T, N, B, A] => [N, T, B, A] * [T, B, A] => [N, T, B, 1]
+        quantiles_value = (quantiles_value.swapaxes(0, 1) * BATCH.action).sum(-1, keepdim=True)
+        q_eval = quantiles_value.mean(0)  # [N, T, B, 1] => [T, B, 1]
 
-        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, 64]
-            batch_size=batch_size,
-            quantiles_num=self.select_quantiles,
-            quantiles_idx=self.quantiles_idx
-        )
-        _, q_values = self.q_net(feat__, select_quantiles_tiled, quantiles_num=self.select_quantiles)  # [B, A]
-        next_max_action = q_values.argmax(-1)   # [B,]
-        next_max_action = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [B, A]
-        _next_max_action = next_max_action.repeat(self.target_quantiles, 1).view(self.target_quantiles, -1, self.a_dim)  # [B, A] => [N'*B, A] => [N', B, A]
-        _, target_quantiles_tiled = self._generate_quantiles(   # [N'*B, 64]
-            batch_size=batch_size,
-            quantiles_num=self.target_quantiles,
-            quantiles_idx=self.quantiles_idx
-        )
+        _, select_quantiles_tiled = self._generate_quantiles(   # [N*T*B, X]
+            batch_size=time_step*batch_size,
+            quantiles_num=self.select_quantiles)
+        select_quantiles_tiled = select_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N*T*B, X] => [T, N*B, X]
 
-        target_quantiles_value, target_q = self.q_target_net(feat_, target_quantiles_tiled, quantiles_num=self.target_quantiles)  # [N', B, A], [B, A]
-        target_quantiles_value = (target_quantiles_value * _next_max_action).sum(-1, keepdim=True)   # [N', B, A] => [N', B, 1]
-        target_q = (target_q * BATCH.action).sum(-1, keepdim=True)  # [B, A] => [B, 1]
-        q_target = q_target_func(BATCH.reward,
+        q_values = self.q_net(BATCH.obs_, select_quantiles_tiled)  # [T, N, B, A]
+        q_values = q_values.mean(1)  # [T, N, B, A] => [T, B, A]
+        next_max_action = q_values.argmax(-1)   # [T, B]
+        next_max_action = t.nn.functional.one_hot(next_max_action, self.a_dim).float()  # [T, B, A]
+
+        _, target_quantiles_tiled = self._generate_quantiles(   # [N'*T*B, X]
+            batch_size=time_step*batch_size,
+            quantiles_num=self.target_quantiles)
+        target_quantiles_tiled = target_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N'*T*B, X] => [T, N'*B, X]
+        target_quantiles_value = self.q_net.t(BATCH.obs_, target_quantiles_tiled)  # [T, N', B, A]
+        target_quantiles_value = target_quantiles_value.swapaxes(0, 1)  # [T, N', B, A] => [N', T, B, A]
+        target_quantiles_value = (target_quantiles_value * next_max_action).sum(-1, keepdim=True)   # [N', T, B, 1]
+
+        target_q = target_quantiles_value.mean(0)  # [T, B, 1]
+        q_target = q_target_func(BATCH.reward,  # [T, B, 1]
                                  self.gamma,
-                                 BATCH.done,
-                                 target_q)   # [B, 1]
-        td_error = q_target - q_eval    # [B, 1]
+                                 BATCH.done,    # [T, B, 1]
+                                 target_q,  # [T, B, 1]
+                                 BATCH.begin_mask,  # [T, B, 1]
+                                 use_rnn=self.use_rnn)   # [T, B, 1]
+        td_error = q_target - q_eval    # [T, B, 1]
 
-        _r = BATCH.reward.repeat(self.target_quantiles, 1).view(self.target_quantiles, -1, 1)  # [B, 1] => [N'*B, 1] => [N', B, 1]
-        _done = BATCH.done.repeat(self.target_quantiles, 1).view(self.target_quantiles, -1, 1)    # [B, 1] => [N'*B, 1] => [N', B, 1]
-
-        quantiles_value_target = q_target_func(_r,
+        target_quantiles_value = target_quantiles_value.squeeze(-1)  # [N', T, B, 1] => [N', T, B]
+        target_quantiles_value = target_quantiles_value.permute(1, 2, 0)    # [N', T, B] => [T, B, N']
+        quantiles_value_target = q_target_func(BATCH.reward.repeat(1, 1, self.target_quantiles),
                                                self.gamma,
-                                               _done,
-                                               target_quantiles_value)  # [N', B, 1]
-        quantiles_value_target = quantiles_value_target.permute(1, 2, 0)    # [B, 1, N']
-        quantiles_value_online = quantiles_value.permute(1, 0, 2)   # [B, N, 1]
-        quantile_error = quantiles_value_online - quantiles_value_target    # [B, N, 1] - [B, 1, N'] => [B, N, N']
-        huber = huber_loss(quantile_error, delta=self.huber_delta)  # [B, N, N']
-        huber_abs = (quantiles - t.where(quantile_error < 0, 1., 0.)).abs()   # [B, N, 1] - [B, N, N'] => [B, N, N']
-        loss = (huber_abs * huber).mean(-1)  # [B, N, N'] => [B, N]
-        loss = loss.sum(-1)  # [B, N] => [B, ]
-        loss = (loss * isw).mean()  # [B, ] => 1
+                                               BATCH.done.repeat(1, 1, self.target_quantiles),
+                                               target_quantiles_value,
+                                               BATCH.begin_mask.repeat(1, 1, self.target_quantiles),
+                                               use_rnn=self.use_rnn)  # [T, B, N']
+        quantiles_value_target = quantiles_value_target.unsqueeze(-2)    # [T, B, N'] => [T, B, 1, N']
+        quantiles_value_online = quantiles_value.permute(1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
+        quantile_error = quantiles_value_online - quantiles_value_target    # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
+        huber = huber_loss(quantile_error, delta=self.huber_delta)  # [T, B, N, N']
+        huber_abs = (quantiles - t.where(quantile_error < 0, 1., 0.)).abs()   # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
+        loss = (huber_abs * huber).mean(-1)  # [T, B, N, N'] => [T, B, N]
+        loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
+
+        loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1
         self.oplr.step(loss)
-        self.global_step.add_(1)
         return td_error, dict([
+            ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],
             ['Statistics/q_max', q_eval.max()],
             ['Statistics/q_min', q_eval.min()],
             ['Statistics/q_mean', q_eval.mean()]
         ])
+
+    def _after_train(self):
+        super()._after_train()
+        if self.cur_train_step % self.assign_interval == 0:
+            self.q_net.sync()

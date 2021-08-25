@@ -12,7 +12,9 @@ logger = get_logger(__name__)
 
 def to_numpy(x):
     try:
-        if isinstance(x, t.Tensor):  # tensor -> numpy
+        if isinstance(x, Data):
+            return x.convert(func=lambda y: to_numpy(y))
+        elif isinstance(x, t.Tensor):  # tensor -> numpy
             return x.detach().cpu().numpy()
         elif isinstance(x, np.ndarray) or x is None:  # second often case
             return x

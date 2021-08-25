@@ -1,28 +1,26 @@
-# algorithm config = policy UNION on_policy/off_policy UNION specific algorithm config
-# if same key happened in multiple configurations, then specific algorithm config override on_policy/off_policy override policy
+# algorithm config = policy UNION sarl_on_policy/sarl_off_policy UNION specific algorithm config
+# if same key happened in multiple configurations, then specific algorithm config override sarl_on_policy/sarl_off_policy override policy
 # priority 1: specific algorithm config
-# priority 2: on_policy/off_policy
+# priority 2: sarl_on_policy/sarl_off_policy
 # priority 3: policy
 
 policy: &policy
+    max_frame_step: 999999999999999999
+    max_train_episode: 999999999999999999
+    save_frequency: 100
+    gamma: 0.99
     decay_lr: false
-
-    use_curiosity: false # whether to use ICM or not
-    curiosity_lr: 1.0e-3 # the learning rate for ICM
-    curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
-    curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
-
     normalize_vector_obs: false
 
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
-    representation_net_params: &representation_net_params
+    rep_net_params: &rep_net_params
         use_encoder: false
         use_rnn: false
         vector_net_params:
-            network_type: adaptive # rls.nn.vector_nets
+            network_type: adaptive # rls.nn.represents.vectors
         visual_net_params:
             visual_feature: 128
-            network_type: simple # rls.nn.visual_nets
+            network_type: simple # rls.nn.represents.visuals
         encoder_net_params:
             output_dim: 16
         memory_net_params:
@@ -30,78 +28,41 @@ policy: &policy
             network_type: lstm
     # -----
 
-on_policy: &on_policy
+sarl_policy: &sarl_policy
     <<: *policy
-    rnn_time_steps: 8
+    use_curiosity: false # whether to use ICM or not
+    curiosity_lr: 1.0e-3 # the learning rate for ICM
+    curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
+    curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
 
-off_policy: &off_policy
+marl_policy: &marl_policy
     <<: *policy
-    train_times_per_step: 1 # train multiple times per agent step
-    # PER
-    use_isw: false
-    # rnn
-    burn_in_time_steps: 4
-    rnn_time_steps: 5
-    episode_batch_size: 32
-    episode_buffer_size: 10000
+    share_params: true
 
-hiro:
-    <<: *off_policy
-    gamma: 0.99
-    intrinsic_reward_mode: os # os or cos
-    ployak: 0.995
-    discrete_tau: 1.0
-    high_scale: 1.0
-    reward_scale: 1.0
-    sample_g_nums: 100
-    sub_goal_steps: 10
-    # 指定从第几位之后开始是真实目标信息
-    fn_goal_dim: 1
-    high_batch_size: 128
-    high_buffer_size: 100000
-    low_batch_size: 128
-    low_buffer_size: 100000
-    high_actor_lr: 1.0e-4
-    high_critic_lr: 1.0e-3
-    low_actor_lr: 1.0e-4
-    low_critic_lr: 1.0e-3
-    network_settings:
-        high_actor: [64, 64]
-        high_critic: [64, 64]
-        low_actor: [64, 64]
-        low_critic: [64, 64]
+sarl_on_policy: &sarl_on_policy
+    <<: *sarl_policy
+    epochs: 4 # train multiple times per agent step
+    n_time_step: 4 # n-step or rnn length
+    batch_size: 256
 
-curl:
-    <<: *off_policy
-    alpha: 0.2
-    auto_adaption: true
-    annealing: true
-    last_alpha: 0.01
-    actor_lr: 5.0e-4
-    critic_lr: 1.0e-3
-    alpha_lr: 5.0e-4
-    curl_lr: 5.0e-4
-    gamma: 0.99
-    ployak: 0.995
-    discrete_tau: 1.0
-    batch_size: 8
-    buffer_size: 1000
-    img_size: 64
+sarl_off_policy: &sarl_off_policy
+    <<: *sarl_policy
+    n_time_step: 4 # n-step or rnn length
+    epochs: 1 # train multiple times per agent step
+    batch_size: 16
+    buffer_size: 100000
     use_priority: false
-    n_step: 1
-    network_settings:
-        actor_continuous:
-            share: [64, 64]
-            mu: [64]
-            log_std: [64]
-            soft_clip: False
-            log_std_bound: [-20, 2]
-        actor_discrete: [64, 64]
-        q: [64, 64]
-        encoder: 128
+
+marl_off_policy: &marl_off_policy
+    <<: *marl_policy
+    n_time_step: 4
+    epochs: 1
+    batch_size: 256
+    buffer_size: 100000
+    use_priority: false
 
 cem:
-    <<: *on_policy
+    <<: *sarl_on_policy
     frac: 0.2
     init_var: 1
     extra_std: 1
@@ -109,32 +70,17 @@ cem:
     extra_var_last_multiplier: 0.2
     network_settings: [32, 32]
 
-qs:
-    <<: *off_policy
-    mode: "q" # 'q', 'sarsa', 'expected_sarsa'
-    lr: 0.2
-    gamma: 0.99
-    eps_init: 1
-    eps_mid: 0.2
-    eps_final: 0.01
-    init2mid_annealing_step: 100
-
 dqn: &dqn
-    <<: *off_policy
+    <<: *sarl_off_policy
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
-    representation_net_params:
-        <<: *representation_net_params
+    rep_net_params:
+        <<: *rep_net_params
         visual_net_params:
             visual_feature: 128
             network_type: nature
@@ -157,12 +103,11 @@ bootstrappeddqn:
     <<: *dqn
 
 oc:
-    <<: *off_policy
+    <<: *sarl_off_policy
     q_lr: 5.0e-3
     intra_option_lr: 5.0e-4
     termination_lr: 5.0e-4
     use_eps_greedy: false
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
@@ -174,23 +119,18 @@ oc:
     termination_regularizer: 0.01
     init2mid_annealing_step: 100
     options_num: 4
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q: [32, 32]
         intra_option: [32, 32]
         termination: [32, 32]
 
 ioc:
-    <<: *off_policy
+    <<: *sarl_off_policy
     q_lr: 5.0e-3
     intra_option_lr: 5.0e-4
     termination_lr: 5.0e-4
     interest_lr: 5.0e-4
-    gamma: 0.99
     ent_coff: 0.01
     boltzmann_temperature: 1.0
     use_baseline: true
@@ -198,11 +138,7 @@ ioc:
     double_q: false
     termination_regularizer: 0.01
     options_num: 4
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q: [32, 32]
         intra_option: [32, 32]
@@ -210,19 +146,16 @@ ioc:
         interest: [32, 32]
 
 aoc:
-    <<: *on_policy
+    <<: *sarl_on_policy
     options_num: 4
     dc: 0.01
     terminal_mask: false
     eps: 0.1
     epsilon: 0.2
     value_epsilon: 0.2
-    gamma: 0.99
     pi_beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 256
-    epoch: 4 # very important
     kl_reverse: false
     kl_target: 0.02
     kl_target_cutoff: 2
@@ -237,19 +170,16 @@ aoc:
         termination: [32, 32]
 
 ppoc:
-    <<: *on_policy
+    <<: *sarl_on_policy
     options_num: 4
     dc: 0.01
     terminal_mask: false
     o_beta: 1.0e-3
     epsilon: 0.2
     value_epsilon: 0.2
-    gamma: 0.99
     pi_beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 256
-    epoch: 4 # very important
     kl_reverse: false
     kl_target: 0.02
     kl_target_cutoff: 2
@@ -265,102 +195,74 @@ ppoc:
         o: [32, 32]
 
 sql:
-    <<: *off_policy
+    <<: *sarl_off_policy
     lr: 5.0e-4
     alpha: 2
     ployak: 0.995
-    gamma: 0.99
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
 
 c51:
-    <<: *off_policy
+    <<: *sarl_off_policy
     v_min: -100
     v_max: 100
     atoms: 51
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [256, 256]
 
 rainbow:
-    <<: *off_policy
+    <<: *sarl_off_policy
     v_min: -100
     v_max: 100
     atoms: 51
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: true
-    n_step: 4
     network_settings:
         share: [128]
         v: [128, 128]
         adv: [128, 128]
 
 qrdqn:
-    <<: *off_policy
+    <<: *sarl_off_policy
     nums: 20
     huber_delta: 1.
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [256, 256]
 
 iqn:
-    <<: *off_policy
+    <<: *sarl_off_policy
     online_quantiles: 8 # quantile number of online network
     target_quantiles: 8 # quantile number of target network
     select_quantiles: 32 # quantile number for selecting actions
     quantiles_idx: 64 # trails
     huber_delta: 1. # delta for huber loss
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q_net: [128, &iqn_hm 64]
         quantile: [128, *iqn_hm]
         tile: [64]
 
 pg:
-    <<: *on_policy
+    <<: *sarl_on_policy
     lr: 5.0e-4
-    gamma: 0.99
-    batch_size: 64
-    epoch: 1 # very important
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -369,14 +271,9 @@ pg:
         actor_discrete: [64, 64]
 
 ac:
-    <<: *off_policy
+    <<: *sarl_off_policy
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    gamma: 0.99
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -386,13 +283,10 @@ ac:
         critic: [64, 64]
 
 a2c:
-    <<: *on_policy
+    <<: *sarl_on_policy
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    gamma: 0.99
     beta: 1.0e-3
-    batch_size: 64
-    epoch: 4 # very important
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -402,17 +296,13 @@ a2c:
         critic: [64, 64]
 
 ppo:
-    <<: *on_policy
+    <<: *sarl_on_policy
     share_net: true
     epsilon: 0.2
-    gamma: 0.99
     ent_coef: 0.005
     vf_coef: 0.5
     lr: 0.0003
     lambda_: 0.97
-    batch_size: 32
-    policy_epoch: 4 # very important
-    value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
     max_grad_norm: ~
@@ -422,7 +312,7 @@ ppo:
     duel_epsilon: 0.1
 
     # value function clip
-    use_vclip: true
+    use_vclip: false
     value_epsilon: 0.2
 
     # kl loss
@@ -462,9 +352,8 @@ ppo:
         critic: [64, 64]
 
 trpo:
-    <<: *on_policy
+    <<: *sarl_on_policy
     epsilon: 0.2
-    gamma: 0.99
     beta: 1.0e-3
     lr: 5.0e-4
     delta: 0.01
@@ -474,7 +363,6 @@ trpo:
     backtrack_iters: 10
     backtrack_coeff: 0.8
     train_v_iters: 10
-    batch_size: 64
     critic_lr: 1.0e-3
     network_settings:
         actor_continuous:
@@ -485,8 +373,7 @@ trpo:
         critic: [64, 64]
 
 dpg:
-    <<: *off_policy
-    gamma: 0.99
+    <<: *sarl_off_policy
     use_target_action_noise: False
     noise_action: "ou"
     noise_params:
@@ -494,38 +381,28 @@ dpg:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 ddpg:
-    <<: *off_policy
-    gamma: 0.99
+    <<: *sarl_off_policy
     ployak: 0.995
     use_target_action_noise: False
-    noise_action: "ou"
+    noise_action: "clip_normal"
     noise_params:
         sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 td3:
-    <<: *off_policy
-    gamma: 0.99
+    <<: *sarl_off_policy
     ployak: 0.995
     delay_num: 2
     noise_action: "clip_normal"
@@ -535,17 +412,13 @@ td3:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 sac:
-    <<: *off_policy
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
@@ -553,14 +426,9 @@ sac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    gamma: 0.99
     ployak: 0.995
-    use_gumbel: true
+    use_gumbel: false
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
@@ -572,22 +440,17 @@ sac:
         q: [64, 64]
 
 sac_v:
-    <<: *off_policy
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    gamma: 0.99
     ployak: 0.995
-    use_gumbel: true
+    use_gumbel: false
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
@@ -600,7 +463,7 @@ sac_v:
         v: [64, 64]
 
 tac:
-    <<: *off_policy
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
@@ -613,13 +476,8 @@ tac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    gamma: 0.99
     ployak: 0.995
     discrete_tau: 1.0
-    batch_size: 64
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
@@ -631,7 +489,7 @@ tac:
         q: [64, 64]
 
 maxsqn:
-    <<: *off_policy
+    <<: *sarl_off_policy
     alpha: 0.2
     beta: 0.1 # 0 <= beta < 1 when beta approaches 1 the distribution of convergence points is closer to uniform distribution means more entropy. when beta approaches 0 the final policy is more deterministic.
     use_epsilon: false
@@ -642,17 +500,11 @@ maxsqn:
     auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
-    gamma: 0.999
     ployak: 0.995
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
 
 maddpg:
-    <<: *off_policy
-    gamma: 0.99
+    <<: *marl_off_policy
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
@@ -660,27 +512,29 @@ maddpg:
     noise_action: "ou"
     noise_params:
         sigma: 0.2
-    batch_size: 4
-    buffer_size: 100000
-    n_step: 4
-    share_params: true
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
-vdn:
+vdn: &vdn
+    <<: *marl_off_policy
+    mixer: vdn
+    mixer_settings: {}
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    share_params: true
     network_settings:
         share: [64]
         v: [64]
         adv: [64]
+
+qmix:
+    <<: *vdn
+    mixer: qmix
+    mixer_settings:
+        mixing_embed_dim: 16
+        hidden_units: [16]

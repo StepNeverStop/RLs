@@ -44,11 +44,10 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     Args:
         name: name of algorithms
     Return:
-        algo_class of the algorithm model named `name`.
-        defaulf config of specified algorithm.
-        policy_type of policy, `on-policy` or `off-policy`
+        class of the algorithm model
+        whether algorithm is sarl or marl
     '''
     algo_info = registry.get_model_info(name)
     logger.info(colorize(algo_info.get('logo', ''), color='green'))
-    model_class = getattr(importlib.import_module(f"rls.algorithms.{algo_info['folder']}.{name}"), algo_info['algo_class'])
-    return model_class, algo_info['policy_mode'], algo_info['is_multi']
+    model_class = getattr(importlib.import_module(f"rls.algorithms.{algo_info['path']}"), algo_info['class_name'])
+    return model_class, algo_info['is_multi']

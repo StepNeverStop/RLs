@@ -3,12 +3,13 @@
 import numpy as np
 
 from typing import (List,
+                    Dict,
                     NoReturn)
 
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (EnvGroupArgs,
-                              ModelObservations,
-                              SingleModelInformation)
+from rls.common.specs import (Data,
+                              SensorSpec,
+                              EnvAgentSpec)
 
 
 class ExampleEnv(EnvBase):
@@ -16,23 +17,16 @@ class ExampleEnv(EnvBase):
     def __init__(self):
         raise NotImplementedError
 
-    def reset(self, **kwargs) -> List[ModelObservations]:
+    def reset(self, **kwargs) -> Dict[str, Data]:
         raise NotImplementedError
 
-    def step(self, actions: List[np.ndarray], **kwargs) -> List[SingleModelInformation]:
+    def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         raise NotImplementedError
 
     def close(self, **kwargs) -> NoReturn:
         raise NotImplementedError
 
-    def random_action(self, **kwargs) -> List[np.ndarray]:
-        raise NotImplementedError
-
     def render(self, **kwargs) -> NoReturn:
-        raise NotImplementedError
-
-    @property
-    def n_agents(self) -> int:
         raise NotImplementedError
 
     @property
@@ -40,11 +34,19 @@ class ExampleEnv(EnvBase):
         raise NotImplementedError
 
     @property
-    def GroupsSpec(self) -> List[EnvGroupArgs]:
+    def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:
+        raise NotImplementedError
+
+    @property
+    def StateSpec(self) -> SensorSpec:
         raise NotImplementedError
 
     @property
     def is_multi(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    def agent_ids(self) -> List[str]:
         raise NotImplementedError
 
     # TODO: implement

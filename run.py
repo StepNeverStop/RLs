@@ -17,7 +17,7 @@ from rls.common.trainer import Trainer
 from rls.common.specs import NamedDict
 from rls.common.yaml_ops import (save_config,
                                  load_config)
-from rls.algorithms.register import registry
+from rls.algorithms.register import registry as algo_registry
 from rls.envs import platform_list
 from rls.utils.display import show_dict
 from rls.utils.logging_utils import (set_log_level,
@@ -42,7 +42,7 @@ def get_args():
     # train
     parser.add_argument('-p', '--platform', type=str, default='gym', choices=platform_list,
                         help='specify the platform of training environment')
-    parser.add_argument('-a', '--algorithm', type=str, default='ppo', choices=registry.algo_specs.keys(),
+    parser.add_argument('-a', '--algorithm', type=str, default='ppo', choices=algo_registry.algo_specs.keys(),
                         help='specify the training algorithm')
     parser.add_argument('-i', '--inference', default=False, action='store_true',
                         help='inference the trained model, not train policies')
@@ -54,8 +54,6 @@ def get_args():
                         help='specify the name of this training task')
     parser.add_argument('-s', '--save-frequency', type=int, default=100,
                         help='specify the interval that saving model checkpoint')
-    parser.add_argument('--apex', type=str, default=None, choices=['learner', 'worker', 'buffer', 'evaluator'],
-                        help='')
     parser.add_argument('--config-file', type=str, default=None,
                         help='specify the path of training configuration file')
     parser.add_argument('--store-dir', type=str, default='./data',
@@ -64,8 +62,6 @@ def get_args():
                         help='specify the maximum step per episode')
     parser.add_argument('--prefill-steps', type=int, default=10000,
                         help='specify the number of experiences that should be collected before start training, use for off-policy algorithms')
-    parser.add_argument('--prefill-choose', default=False, action='store_true',
-                        help='whether choose action using model or choose randomly')
     parser.add_argument('--hostname', default=False, action='store_true',
                         help='whether concatenate hostname with the training name')
     parser.add_argument('--info', type=str, default='',
@@ -80,6 +76,8 @@ def get_args():
                         help='specify whether save models/logs/summaries while training or not')
     parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
                         help='specify the device that operate Torch.Tensor')
+    parser.add_argument('-t', '--max-train-step', type=int, default=sys.maxsize,
+                        help='specify the maximum training steps')
     return parser.parse_args()
 
 
@@ -104,14 +102,16 @@ def main():
         algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
         algo_args.update(custome_config['algorithm'])
     else:
+        copys = 1 if args.inference else args.copys
         train_args.update(args.__dict__)
         algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
+        algo_args.update(dict(n_copys=copys))
         # env config
-        env_args.platform = args.platform
-        env_args.env_copys = args.copys  # Environmental copies of vectorized training.
-        env_args.seed = args.seed
-        env_args.inference = args.inference
-        env_args.env_name = args.env_name
+        env_args.update(dict(platform=args.platform,
+                             env_copys=copys,  # Environmental copies of vectorized training.
+                             seed=args.seed,
+                             inference=args.inference,
+                             env_name=args.env_name))
 
         if env_args.platform == 'unity':
             env_args.env_name = 'UnityEditor'
@@ -129,8 +129,6 @@ def main():
             env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
 
         # train config
-        if args.apex is not None:
-            train_args.name = f'{args.apex}/' + train_args.name
         if args.hostname:
             import socket
             train_args.name += ('-' + str(socket.gethostname()))
@@ -144,7 +142,7 @@ def main():
         # algo config
         algo_args.update({'no_save': args.no_save,
                           'device': args.device,
-                          'max_train_step': train_args.max_train_step,
+                          'max_train_step': args.max_train_step,
                           'base_dir': train_args.base_dir})
 
     # show and save config
@@ -162,27 +160,23 @@ def main():
     if args.inference:
         Trainer(env_args, train_args, algo_args).evaluate()
     else:
-        if args.apex is not None:
-            train_args.update(load_config(f'rls/distribute/apex/config.yaml'))    # TODO:
-            Trainer(env_args, train_args, algo_args).apex()
-        else:
-            trails = args.models if args.models > 0 else 1
-            if trails == 1:
-                agent_run(env_args, train_args, algo_args)
-            elif trails > 1:
-                processes = []
-                for i in range(trails):
-                    _env_args, _train_args, _algo_args = map(deepcopy, [env_args, train_args, algo_args])
-                    _train_args.seed += i * 10
-                    _train_args.name += f'/{_train_args.seed}'
-                    _train_args.allow_print = True  # NOTE: set this could block other processes' print function
-                    if args.platform == 'unity':
-                        _env_args.worker_id = env_args.worker_id + i
-                    p = Process(target=agent_run, args=(_env_args, _train_args, _algo_args))
-                    p.start()
-                    time.sleep(10)
-                    processes.append(p)
-                [p.join() for p in processes]
+        trails = args.models if args.models > 0 else 1
+        if trails == 1:
+            agent_run(env_args, train_args, algo_args)
+        elif trails > 1:
+            processes = []
+            for i in range(trails):
+                _env_args, _train_args, _algo_args = map(deepcopy, [env_args, train_args, algo_args])
+                _train_args.seed += i * 10
+                _train_args.name += f'/{_train_args.seed}'
+                _train_args.allow_print = True  # NOTE: set this could block other processes' print function
+                if args.platform == 'unity':
+                    _env_args.worker_id = env_args.worker_id + i
+                p = Process(target=agent_run, args=(_env_args, _train_args, _algo_args))
+                p.start()
+                time.sleep(10)
+                processes.append(p)
+            [p.join() for p in processes]
 
 
 def agent_run(*args):

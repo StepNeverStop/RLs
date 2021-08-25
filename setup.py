@@ -22,7 +22,6 @@ systembased_extras = {
     'nowindows': []
 }
 extras = {
-    'ray': ['pytest-runner', 'ray'],
     'unity': ['mlagents-envs==0.27.0'],
     'mujoco': ['mujoco_py'],
     'pybullet': ['PyBullet'],

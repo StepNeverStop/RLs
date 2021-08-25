@@ -4,29 +4,28 @@
 import numpy as np
 import torch as t
 
-from copy import deepcopy
 from torch import distributions as td
 
 from rls.nn.noised_actions import ClippedNormalNoisedAction
-from rls.algorithms.base.off_policy import Off_Policy
-from rls.utils.torch_utils import (sync_params_list,
-                                   q_target_func)
+from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.utils.torch_utils import q_target_func
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.models import (CriticQvalueOne,
                            ActorDct,
                            ActorDPG)
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.nn.modules.wrappers import TargetTwin
+from rls.common.specs import Data
 
 
-class DDPG(Off_Policy):
+class DDPG(SarlOffPolicy):
     '''
     Deep Deterministic Policy Gradient, https://arxiv.org/abs/1509.02971
     '''
+    policy_mode = 'off-policy'
 
     def __init__(self,
-                 envspec,
-
                  ployak=0.995,
                  noise_action='ou',
                  noise_params={
@@ -42,134 +41,110 @@ class DDPG(Off_Policy):
                      'q': [32, 32]
                  },
                  **kwargs):
-        super().__init__(envspec=envspec, **kwargs)
+        super().__init__(**kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
         self.use_target_action_noise = use_target_action_noise
 
         if self.is_continuous:
-            self.actor = ActorDPG(self.rep_net.h_dim,
-                                  output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_continuous'])
+            actor = ActorDPG(self.obs_spec,
+                             rep_net_params=self.rep_net_params,
+                             output_shape=self.a_dim,
+                             network_settings=network_settings['actor_continuous'])
             self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
-            if noise_action == 'ou':
+            if noise_action in ['ou', 'clip_normal']:
                 self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
             elif noise_action == 'normal':
                 self.noised_action = self.target_noised_action
             else:
                 raise Exception(f'cannot use noised action type of {noise_action}')
         else:
-            self.actor = ActorDct(self.rep_net.h_dim,
-                                  output_shape=self.a_dim,
-                                  network_settings=network_settings['actor_discrete']).to(self.device)
-        self.critic = CriticQvalueOne(self.rep_net.h_dim,
-                                      action_dim=self.a_dim,
-                                      network_settings=network_settings['q']).to(self.device)
-
-        self._target_rep_net = deepcopy(self.rep_net)
-        self._target_rep_net.eval()
-        self.actor_target = deepcopy(self.actor)
-        self.actor_target.eval()
-        self.critic_target = deepcopy(self.critic)
-        self.critic_target.eval()
-
-        self._pairs = [(self._target_rep_net, self.actor_target, self.critic_target),
-                       (self.rep_net, self.actor, self.critic)]
-        sync_params_list(self._pairs)
+            actor = ActorDct(self.obs_spec,
+                             rep_net_params=self.rep_net_params,
+                             output_shape=self.a_dim,
+                             network_settings=network_settings['actor_discrete'])
+        self.actor = TargetTwin(actor, self.ployak).to(self.device)
+        self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
+                                                 rep_net_params=self.rep_net_params,
+                                                 action_dim=self.a_dim,
+                                                 network_settings=network_settings['q']),
+                                 self.ployak).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
-
-        self._worker_modules.update(rep_net=self.rep_net,
-                                    actor=self.actor)
-
-        self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update(critic=self.critic,
+        self.critic_oplr = OPLR(self.critic, critic_lr)
+        self._trainer_modules.update(actor=self.actor,
+                                     critic=self.critic,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
-        self.initialize_data_buffer()
 
-    def reset(self):
-        super().reset()
+    def episode_reset(self):
+        super().episode_reset()
         if self.is_continuous:
             self.noised_action.reset()
 
-    def __call__(self, obs, evaluation=False):
-        mu, pi, self.cell_state = self.call(obs, cell_state=self.cell_state)
-        return mu if evaluation else pi
-
     @iTensor_oNumpy
-    def call(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
-        output = self.actor(feat)
+    def __call__(self, obs):
+        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+        self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
-            mu = output
-            pi = self.noised_action(mu)
+            mu = output  # [B, A]
+            pi = self.noised_action(mu)  # [B, A]
         else:
-            logits = output
-            mu = logits.argmax(1)
+            logits = output  # [B, A]
+            mu = logits.argmax(-1)   # [B, ]
             cate_dist = td.Categorical(logits=logits)
-            pi = cate_dist.sample()
-        return mu, pi cell_state
-
-    def _target_params_update(self):
-        sync_params_list(self._pairs, self.ployak)
-
-    def learn(self, **kwargs):
-        self.train_step = kwargs.get('train_step')
-        for i in range(self.train_times_per_step):
-            self._learn(function_dict={
-                'summary_dict': dict([
-                    ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
-                    ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
-                ])
-            })
+            pi = cate_dist.sample()  # [B,]
+        actions = pi if self._is_train_mode else mu
+        return Data(action=actions)
 
     @iTensor_oNumpy
-    def _train(self, BATCH, isw, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-
+    def _train(self, BATCH):
         if self.is_continuous:
-            action_target = self.actor_target(feat_)
+            action_target = self.actor.t(BATCH.obs_)    # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(action_target)
+                action_target = self.target_noised_action(action_target)    # [T, B, A]
         else:
-            target_logits = self.actor_target(feat_)
+            target_logits = self.actor.t(BATCH.obs_)    # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
-            target_pi = target_cate_dist.sample()
-            target_log_pi = target_cate_dist.log_prob(target_pi)
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()
-        q = self.critic(feat, BATCH.action)
-        q_target = self.critic_target(feat_, action_target)
+            target_pi = target_cate_dist.sample()     # [T, B]
+            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+        q = self.critic(BATCH.obs, BATCH.action)    # [T, B, 1]
+        q_target = self.critic.t(BATCH.obs_, action_target)  # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
-                             q_target)
-        td_error = dc_r - q
-        q_loss = 0.5 * (td_error.square() * isw).mean()
+                             q_target,
+                             BATCH.begin_mask,
+                             use_rnn=self.use_rnn)   # [T, B, 1]
+        td_error = dc_r - q  # [T, B, 1]
+        q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(q_loss)
 
-        feat = feat.detach()
         if self.is_continuous:
-            mu = self.actor(feat)
+            mu = self.actor(BATCH.obs)  # [T, B, A]
         else:
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            gumbel_noise = td.Gumbel(0, 1).sample(BATCH.action.shape)
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()
-            _pi_diff = (_pi_true_one_hot - _pi).detach()
-            mu = _pi_diff + _pi
-        q_actor = self.critic(feat, mu)
-        actor_loss = -q_actor.mean()
+            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logp_all = logits.log_softmax(-1)   # [T, B, A]
+            gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
+            mu = _pi_diff + _pi  # [T, B, A]
+        q_actor = self.critic(BATCH.obs, mu)    # [T, B, 1]
+        actor_loss = -q_actor.mean()   # 1
         self.actor_oplr.step(actor_loss)
 
-        self.global_step.add_(1)
         return td_error, dict([
+            ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
+            ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', q_loss],
             ['Statistics/q_min', q.min()],
             ['Statistics/q_mean', q.mean()],
             ['Statistics/q_max', q.max()]
         ])
+
+    def _after_train(self):
+        super()._after_train()
+        self.actor.sync()
+        self.critic.sync()

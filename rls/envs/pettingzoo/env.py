@@ -4,6 +4,7 @@ import numpy as np
 
 from copy import deepcopy
 from typing import (List,
+                    Dict,
                     NoReturn)
 from collections import defaultdict
 from gym.spaces import (Box,
@@ -11,28 +12,10 @@ from gym.spaces import (Box,
                         Tuple)
 
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (ObsSpec,
-                              EnvGroupArgs,
-                              ModelObservations,
-                              SingleModelInformation,
-                              generate_obs_dataformat)
+from rls.common.specs import (Data,
+                              SensorSpec,
+                              EnvAgentSpec)
 from rls.envs.pettingzoo.wrappers import BasicWrapper
-
-
-def get_vectorized_env_class(vector_env_type):
-    '''Import gym env vectorize wrapper class'''
-    if vector_env_type == 'multiprocessing':
-        from rls.envs.gym.wrappers.multiprocessing_wrapper import MultiProcessingEnv as AsynVectorEnvClass
-    elif vector_env_type == 'multithreading':
-        from rls.envs.gym.wrappers.threading_wrapper import MultiThreadEnv as AsynVectorEnvClass
-    elif vector_env_type == 'ray':
-        from rls.envs.gym.wrappers.ray_wrapper import RayEnv as AsynVectorEnvClass
-    elif vector_env_type == 'vector':
-        from rls.envs.gym.wrappers.vector_wrapper import VectorEnv as AsynVectorEnvClass
-    else:
-        raise Exception('The vector_env_type doesn\'in the list of [multiprocessing, multithreading, ray, vector]. Please check your configurations.')
-
-    return AsynVectorEnvClass
 
 
 class PettingZooEnv(EnvBase):
@@ -40,7 +23,7 @@ class PettingZooEnv(EnvBase):
     def __init__(self,
                  env_copys=1,
                  seed=42,
-                 vector_env_type='vector',
+                 multiprocessing=True,
                  env_name='mpe.simple_v2',
                  env_config={},
                  **kwargs):
@@ -50,138 +33,156 @@ class PettingZooEnv(EnvBase):
         # NOTE: env_name should be formatted like `mpe.simple_v2`
         env_module = importlib.import_module(f"pettingzoo.{env_name}")
         env_module = env_module.parallel_env
-        def make_env(idx, **config): return BasicWrapper(env_module(**config))  # TODO:
+        def make_env(idx, **config): return BasicWrapper(env_module(**env_config))  # TODO:
 
-        self._initialize(env=make_env(0, **env_config))
-        self._envs = get_vectorized_env_class(vector_env_type)(make_env, env_config, self._n_copys, seed)
+        self._initialize(env=env_module(**env_config))
+        self._envs = [env_module(**env_config) for _ in range(self._n_copys)]
+        [env.seed(seed) for env in self._envs]
 
-    def reset(self, **kwargs) -> List[ModelObservations]:
-        ret = self._envs.reset()
-        obs = defaultdict(list)
+    def reset(self, **kwargs) -> Dict[str, Data]:
+        obss = [env.reset() for env in self._envs]
+        _obs = defaultdict(list)
         for k in self._agents:
-            for _ret in ret:
-                obs[k].append(_ret[k])
-            obs[k] = np.asarray(obs[k])
+            for obs in obss:
+                _obs[k].append(obs[k])
+            _obs[k] = np.asarray(_obs[k])
 
-        return [ModelObservations(vector=self.vector_info_type[k](*(obs[k],)),
-                                  visual=self.visual_info_type[k](*(obs[k],)))
-                for k in self._agents]
-
-    def step(self, actions: List[np.ndarray], **kwargs) -> List[SingleModelInformation]:
-        actions = np.asarray(actions)   # [N, B, *]
-        actions = actions.swapaxes(0, 1)    # [B, N, *]
-        new_actions = []
-        for action in actions:
-            new_actions.append(dict(list(zip(self._agents, action))))
-
-        results = self._envs.step(new_actions)  # [B, *]
-
-        obs = defaultdict(list)  # [N, B, *]
-        reward = defaultdict(list)
-        done = defaultdict(list)
-        info = defaultdict(list)
+        rets = {}
         for k in self._agents:
-            for _obs, _reward, _done, _info in results:
-                obs[k].append(_obs[k])
-                reward[k].append(_reward[k])
-                done[k].append(_done[k])
-                info[k].append(_info[k])   # TODO
-            obs[k] = np.asarray(obs[k])  # [B, *]
-            reward[k] = np.asarray(reward[k]).astype('float32')
-            done[k] = np.asarray(done[k])
-            info[k] = np.asarray(info[k])   # TODO
+            if self._is_obs_visual[k]:
+                rets[k] = Data(visual={'visual_0': _obs[k]})
+            else:
+                rets[k] = Data(vector={'vector_0': _obs[k]})
+        state = np.asarray([env.state() for env in self._envs])
+        if self._is_state_visual:
+            _state = Data(visual={'visual_0': state})
+        else:
+            _state = Data(vector={'vector_0': state})
+        rets.update({
+            'global': Data(obs=_state,
+                           begin_mask=np.full((self._n_copys, 1), True))
+        })
 
-        correct_new_obs = deepcopy(obs)
+        return rets
 
-        dones_flag = np.asarray(list(done.values())).any(0)  # [N, B] => [B, ]
-        if dones_flag.any():
-            dones_index = np.where(dones_flag)[0]
-            ret = self._envs.reset(dones_index.tolist())
-            reset_obs = defaultdict(list)   # [N, B, *]
+    def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
+        actions = deepcopy(actions)   # [N, B, *]
+
+        obss, rewards, dones, infos = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+        begin_mask = np.full((self._n_copys, 1), False)
+
+        for i, env in enumerate(self._envs):
+            action = {}
             for k in self._agents:
-                for _ret in ret:
-                    reset_obs[k].append(_ret[k])
-                correct_new_obs[k][dones_index] = np.asarray(reset_obs[k])
+                action[k] = actions[k][i]
+            obs, reward, done, info = env.step(action)
 
-        return [SingleModelInformation(corrected_obs=ModelObservations(vector=self.vector_info_type[k](*(correct_new_obs[k],)),
-                                                                       visual=self.visual_info_type[k](*(correct_new_obs[k],))),
-                                       obs=ModelObservations(vector=self.vector_info_type[k](*(obs[k],)),
-                                                             visual=self.visual_info_type[k](*(obs[k],))),
-                                       reward=reward[k],
-                                       done=done[k],
-                                       info=info[k])
-                for k in self._agents]
+            if any(list(done.values())):
+                obs = env.reset()
+                begin_mask[i] = True
+
+            for k in self._agents:
+                obss[k].append(obs[k])
+                rewards[k].append(reward[k])
+                dones[k].append(done[k])
+                infos[k].append(infos[k])
+
+        for k in self._agents:
+            obss[k] = np.asarray(obss[k])
+            rewards[k] = np.asarray(rewards[k])
+            dones[k] = np.asarray(dones[k])
+
+        rets = {}
+        for k in self._agents:
+            if self._is_obs_visual[k]:
+                _obs = Data(visual={'visual_0': obss[k]})
+            else:
+                _obs = Data(vector={'vector_0': obss[k]})
+            rets[k] = Data(obs=_obs,
+                           reward=rewards[k],
+                           done=dones[k],
+                           info=infos[k])
+        state = np.asarray([env.state() for env in self._envs])
+        if self._is_state_visual:
+            _state = Data(visual={'visual_0': state})
+        else:
+            _state = Data(vector={'vector_0': state})
+        rets.update({
+            'global': Data(obs=_state,
+                           begin_mask=begin_mask)
+        })
+        return rets
 
     def close(self, **kwargs) -> NoReturn:
-        self._envs.close()
-
-    def random_action(self, **kwargs) -> List[np.ndarray]:
-        ret = self._envs.action_sample()
-        actions = defaultdict(list)
-        for k in self._agents:
-            for _ret in ret:
-                actions[k].append(_ret[k])
-            actions[k] = np.asarray(actions[k])
-        return list(actions.values())
+        [env.close() for env in self._envs]
 
     def render(self, **kwargs) -> NoReturn:
-        record = kwargs.get('record', False)
-        self._envs.render(record, [0])
-
-    @property
-    def n_agents(self) -> int:
-        return len(self._agents)
+        self._envs[0].render()
 
     @property
     def n_copys(self) -> int:
         return self._n_copys
 
     @property
-    def GroupsSpec(self) -> List[EnvGroupArgs]:
-        return [EnvGroupArgs(
-            obs_spec=ObsSpec(vector_dims=self.vector_dims[k],
-                             visual_dims=self.visual_dims[k]),
+    def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:
+        return {k: EnvAgentSpec(
+            obs_spec=SensorSpec(vector_dims=self._vector_dims[k],
+                                visual_dims=self._visual_dims[k]),
             a_dim=self.a_dim[k],
-            is_continuous=self._is_continuous[k],
-            n_copys=self._n_copys
-        ) for k in self._agents]
+            is_continuous=self._is_continuous[k]
+        ) for k in self._agents}
+
+    @property
+    def StateSpec(self) -> SensorSpec:
+        return SensorSpec(vector_dims=self._state_vector_dims,
+                          visual_dims=self._state_visual_dims)
 
     @property
     def is_multi(self) -> bool:
-        return self.n_agents > 1
+        return len(self._agents) > 1
+
+    @property
+    def agent_ids(self) -> List[str]:
+        return self._agents
 
     # --- custome
 
     def _initialize(self, env):
-        self.vector_dims = defaultdict(list)
-        self.visual_dims = defaultdict(list)
-        self.vector_info_type = {}
-        self.visual_info_type = {}
+        self._is_obs_visual = {}
+        self._vector_dims = defaultdict(list)
+        self._visual_dims = defaultdict(list)
+
+        # process state
+        self._is_state_visual = False
+        self._state_vector_dims = []
+        self._state_visual_dims = []
+        StateSpec = env.state_space
+        if isinstance(StateSpec, Box):
+            if len(StateSpec.shape) == 1:
+                self._state_vector_dims = list(StateSpec.shape)
+            elif len(StateSpec.shape) == 3:
+                self._state_visual_dims = [list(StateSpec.shape)]
+                self._is_state_visual = True
+        else:
+            self._state_vector_dims = [int(StateSpec.n)]
 
         self.a_dim = defaultdict(int)
         self._is_continuous = {}
 
         self._agents = env.possible_agents
         for k in env.possible_agents:
+            # process observation
             ObsSpace = env.observation_spaces[k]
+            self._is_obs_visual[k] = False
             if isinstance(ObsSpace, Box):
                 if len(ObsSpace.shape) == 1:
-                    self.vector_dims[k] = [ObsSpace.shape[0]]
-                else:
-                    self.vector_dims[k] = []
+                    self._vector_dims[k] = list(ObsSpace.shape)
+                elif len(ObsSpace.shape) == 3:
+                    self._visual_dims[k] = [list(ObsSpace.shape)]
+                    self._is_obs_visual[k] = True
             else:
-                self.vector_dims[k] = [int(ObsSpace.n)]
-            if len(ObsSpace.shape) == 3:
-                self.visual_dims[k] = [list(ObsSpace.shape)]
-            else:
-                self.visual_dims[k] = []
+                self._vector_dims[k] = [int(ObsSpace.n)]
 
-            self.vector_info_type[k] = generate_obs_dataformat(n_copys=self._n_copys,
-                                                               item_nums=len(self.vector_dims[k]),
-                                                               name='vector')
-            self.visual_info_type[k] = generate_obs_dataformat(n_copys=self._n_copys,
-                                                               item_nums=len(self.visual_dims[k]),
-                                                               name='visual')
             # process action
             ActSpace = env.action_spaces[k]
             if isinstance(ActSpace, Box):
@@ -196,22 +197,3 @@ class PettingZooEnv(EnvBase):
                 self._is_continuous[k] = False
                 self.a_dim[k] = ActSpace.n
         env.close()
-
-
-if __name__ == '__main__':
-
-    env = PettingZooEnv(env_copys=10,
-                        seed=42,
-                        vector_env_type='vector',
-                        env_name='mpe.simple_adversary_v2',
-                        env_config={
-                            'continuous_actions': True
-                        })
-    print(env.GroupsSpec)
-    input()
-    while True:
-        obs = env.reset()
-        for i in range(100):
-            actions = env.random_action()
-            ret = env.step(actions)
-            print(i, [_ret.done for _ret in ret])
