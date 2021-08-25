@@ -2,137 +2,198 @@
 import numpy as np
 import torch as t
 
-from enum import Enum
 from typing import (Dict,
                     List,
                     Union,
                     Tuple,
+                    Optional,
                     Iterator,
                     Callable)
-from dataclasses import (dataclass,
-                         astuple,
-                         asdict,
-                         is_dataclass,
-                         make_dataclass)
+from dataclasses import dataclass
 from collections import defaultdict
-
-from rls.utils.sundry_utils import nested_tuple
 
 
 class NamedDict(defaultdict):
 
-    def __getattr__(self, name):
-        if name in self.keys():
-            return self[name]
+    def __getattr__(self, attr):
+        if attr in self.keys():
+            return self[attr]
         else:
-            raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {name}')
+            raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {attr}')
 
-    def __setattr__(self, name, value):
-        self[name] = value
+    def __setattr__(self, attr, value):
+        self[attr] = value
+
+# TODO:
+
+
+class Every:
+
+    def __init__(self, every):
+        self._every = every
+        self._last = None
+
+    def __call__(self, step):
+        if self._last is None:
+            self._last = step
+            return True
+        if step >= self._last + self._every:
+            self._last += self._every
+            return True
+        return False
+
+
+class Once:
+
+    def __init__(self):
+        self._once = True
+
+    def __call__(self):
+        if self._once:
+            self._once = False
+            return True
+        return False
 
 
 @dataclass(frozen=True)
-class ObsSpec:
-    vector_dims: List[int]
-    visual_dims: List[Union[List[int], Tuple[int]]]
+class SensorSpec:
+    vector_dims: Optional[List[int]]
+    visual_dims: Optional[List[Union[List[int], Tuple[int]]]]
 
     @property
     def total_vector_dim(self):
+        '''TODO: Remove'''
         return sum(self.vector_dims)
 
     @property
     def has_vector_observation(self):
-        return len(self.vector_dims) > 0
+        return self.vector_dims is not None
 
     @property
     def has_visual_observation(self):
-        return len(self.visual_dims) > 0
-
-    @staticmethod
-    def construct_same_concat(obs_spec, n: int):
-        # TODO: 优化，检查所有维度是否匹配
-        return ObsSpec(
-            vector_dims=[vec_dim * n for vec_dim in obs_spec.vector_dims],
-            visual_dims=[[vis_dim[0], vis_dim[1], vis_dim[-1] * n] if len(vis_dim) == 3 else [] for vis_dim in obs_spec.visual_dims],
-        )
+        return self.visual_dims is not None
 
 
 @dataclass(frozen=True)
-class EnvGroupArgs:
-    obs_spec: ObsSpec
+class EnvAgentSpec:
+    obs_spec: SensorSpec
     a_dim: int
     is_continuous: bool
-    n_copys: int
 
 
-@dataclass
 class Data:
 
-    @property
-    def tensor(self):
-        params = {}
-        for k, v in self.__dict__.items():
-            params[k] = v.tensor if isinstance(v, Data) else t.as_tensor(v).float()
-        return self.__class__(**params)
+    def __init__(self, data: "Data" = None, **kwargs):
+        self.update(data or kwargs)
 
-    @property
-    def numpy(self):
-        params = {}
-        for k, v in self.__dict__.items():
-            params[k] = v.numpy if isinstance(v, Data) else np.asarray(v)
-        return self.__class__(**params)
+    def update(self, data: Union["Data", Dict] = None, **kwargs):
+        _data = data or kwargs
+        for k, v in _data.items():
+            if isinstance(v, dict):
+                setattr(self, k, self.__class__(**v))
+            else:
+                setattr(self, k, v)
 
-    def asdict(self, recursive=False):
-        return asdict(self) if recursive else self.__dict__
-
-    def astuple(self, recursive=False):
-        return astuple(self) if recursive else self.__dict__.values()
-
-    def __getitem__(self, i):
-        params = {}
-        for k, v in self.asdict().items():
-            params[k] = v[i]
-        return self.__class__(**params)
-
-    def __setitem__(self, i, v):
-        '''TODO: Test'''
-        for k in self.__dict__.keys():
-            getattr(self, k)[i] = v[k]
-
-    def __len__(self):
-        for k, v in self.__dict__.items():
-            return len(v) if isinstance(v, Data) else v.shape[0]
-
-    def __eq__(self, other):
-        '''TODO: Annotation'''
-        for s, o in zip(nested_tuple(self.astuple(recursive=True)), nested_tuple(other.astuple(recursive=True))):
-            if not np.allclose(s, o, equal_nan=True):
-                return False
-        else:
-            return True
-
-    def convert_(self, func: Callable, keys=None):
-        keys = keys or self.__dict__.keys()
-        for k in keys:
+    def convert_(self, func, keys=None):
+        for k in keys or self.keys():
             v = getattr(self, k)
             if isinstance(v, Data):
-                v.convert_(func)
+                v.convert_(func)    # TODO: optimize
             else:
                 setattr(self, k, func(v))
 
-    def convert(self, func: Callable, keys=None):
+    def convert(self, func, keys=None):
         params = {}
-        keys = keys or self.__dict__.keys()
-        for k, v in self.__dict__.items():
-            if k not in keys:
-                params[k] = v
+        for k in keys or self.keys():
+            v = getattr(self, k)
+            if isinstance(v, Data):
+                params[k] = v.convert(func)
             else:
-                if isinstance(v, Data):
-                    params[k] = v.convert(func)
-                else:
-                    params[k] = func(v)
+                params[k] = func(v)
         return self.__class__(**params)
 
+    def keys(self):
+        return self.__dict__.keys()
+
+    def values(self):
+        return self.__dict__.values()
+
+    def items(self):
+        return self.__dict__.items()
+
+    def __getitem__(self, item):
+        params = {}
+        for k in self.keys():
+            params[k] = getattr(self, k)[item]
+        return self.__class__(**params)
+
+    def __setitem__(self, item, value):
+        for k in self.keys():
+            getattr(self, k)[item] = getattr(value, k)
+
+    def __repr__(self):
+        # TODO
+        str = ''
+        for k in self.keys():
+            str += f'{k}:\n  {getattr(self, k)}\n'
+        return str
+
+    def __eq__(self, other):
+        '''TODO: Annotation'''
+        assert isinstance(other, Data), 'assert isinstance(other, Data)'
+        for x, y in zip(self.values(), other.values()):
+            if isinstance(x, Data) and isinstance(y, Data):
+                return x == y
+            elif isinstance(x, np.ndarray):
+                return np.allclose(x, y, equal_nan=True)
+        return True
+
+    def __len__(self):
+        for v in self.values():
+            return len(v) if isinstance(v, Data) else v.shape[0]
+
+    def nested_dict(self, pre='', mark='!'):
+        x = dict()
+        for k, v in self.items():
+            if isinstance(v, Data):
+                x.update(v.nested_dict(pre=pre+f'{k}{mark}', mark=mark))
+            else:
+                x[pre+k] = v
+        return x
+
+    @staticmethod
+    def from_nested_dict(nested_dict, mark='!'):
+
+        def func3(params, value, keys=[]):
+            if keys[0] not in params.keys():
+                params[keys[0]] = {}
+            if len(keys) > 1:
+                params.update({keys[0]: func3(params[keys[0]], value, keys[1:])})
+            else:
+                params.update({keys[0]: value})
+            return params
+
+        params = dict()
+        for k, v in nested_dict.items():
+            func3(params, v, k.split(mark))
+        return __class__(**params)
+
+    def to_dict(self):
+        x = dict()
+        for k, v in self.items():
+            if isinstance(v, Data):
+                x[k] = v.to_dict()
+            else:
+                x[k] = v
+        return x
+
+    def get(self, name, value=None):
+        if name in self.keys():
+            return getattr(self, name)
+        else:
+            return value
+
+    # TODO: remove
     def unpack(self) -> Iterator:
         for i in range(len(self)):
             yield self[i]
@@ -147,63 +208,3 @@ class Data:
             d = [getattr(rds, k) for rds in ds]
             params[k] = Data.pack(d, func) if isinstance(v, Data) else func(d)
         return ds[0].__class__(**params)
-
-
-def generate_obs_dataformat(n_copys, item_nums, name='obs'):
-    if item_nums == 0:
-        return lambda *args: make_dataclass('dataclass', [name], bases=(Data,))(np.full((n_copys, 0), [], dtype=np.float32))
-    else:
-        return make_dataclass('dataclass', [name+f'_{str(i)}' for i in range(item_nums)], bases=(Data,))
-
-
-@dataclass(eq=False)
-class ModelObservations(Data):
-    '''
-        agent's observation
-    '''
-    vector: Data
-    visual: Data
-
-    def flatten_vector(self):
-        '''
-        TODO: Annotation
-        '''
-        func = np.hstack if isinstance(self.first_vector(), np.ndarray) \
-            else lambda x: t.cat(x, -1)
-        return func(self.vector.astuple(recursive=True))
-
-    def first_vector(self):
-        '''
-        TODO: Annotation
-        '''
-        return self.vector.astuple(recursive=True)[0]
-
-    def first_visual(self):
-        '''
-        TODO: Annotation
-        '''
-        return self.visual.astuple(recursive=True)[0]
-
-
-@dataclass(eq=False)
-class BatchExperiences(Data):
-    '''
-        format of experience that needed to be stored in replay buffer.
-    '''
-    obs: ModelObservations
-    action: np.ndarray
-    reward: np.ndarray
-    obs_: ModelObservations
-    done: np.ndarray
-
-
-@dataclass
-class SingleModelInformation:
-    '''
-        format of information received after each environment timestep
-    '''
-    corrected_obs: ModelObservations
-    obs: ModelObservations
-    reward: np.ndarray
-    done: np.ndarray
-    info: Dict

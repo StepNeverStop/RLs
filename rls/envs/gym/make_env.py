@@ -159,8 +159,13 @@ def make_env(index: int = 0,
             env = OneHotObsEnv(env)
         env = TimeLimit(env, max_episode_steps)
 
-    if isinstance(env.action_space, Box) and len(env.action_space.shape) == 1:
-        env = BoxActEnv(env)
+    if isinstance(env.action_space, Box):
+        if len(env.action_space.shape) == 1:
+            env = BoxActEnv(env)
+        else:
+            raise NotImplementedError
+    else:
+        env = DiscreteActEnv(env)
 
     if not (isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3):
         env = DtypeEnv(env)

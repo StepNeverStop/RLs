@@ -6,7 +6,6 @@ import torch as t
 
 from rls.utils.converter import (to_numpy,
                                  to_tensor)
-from rls.algorithms.base.base import Base
 
 
 def lazy_property(func):
@@ -24,18 +23,14 @@ def lazy_property(func):
 def iTensor_oNumpy(func, dtype=t.float32, device='cpu'):
 
     def wrapper(*args, **kwargs):
-        if args and isinstance(args[0], Base):
+        if args and hasattr(args[0], 'device'):
             device = getattr(args[0], 'device')
             args = [args[0]] + [to_tensor(x, dtype=dtype, device=device) for x in args[1:]]
         else:
-            device = kwargs.pop('device') # TODO: try catch
             args = [to_tensor(x, dtype=dtype, device=device) for x in args]
         kwargs = {k: to_tensor(v, dtype=dtype, device=device) for k, v in kwargs.items()}
         output = func(*args, **kwargs)
-        if isinstance(output, (tuple, list)):
-            output = [to_numpy(x) for x in output]
-        else:
-            output = to_numpy(output)
+        output = to_numpy(output)
         return output
 
     return wrapper

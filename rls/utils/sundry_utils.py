@@ -22,8 +22,7 @@ def check_or_create(dicpath: str, name: str = '') -> NoReturn:
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
         logger.info(colorize(
-            ''.join([f'create {name} directionary :', dicpath]
-                    ), color='green'))
+            ''.join([f'create {name} directionary :', dicpath]), color='green'))
 
 
 def set_global_seeds(seed: int) -> NoReturn:
@@ -33,6 +32,8 @@ def set_global_seeds(seed: int) -> NoReturn:
         seed: an integer refers to the random seed
     """
     t.manual_seed(seed)
+    t.cuda.manual_seed_all(seed)
+    t.backends.cudnn.deterministic = True
     np.random.seed(seed)
     random.seed(seed)
 

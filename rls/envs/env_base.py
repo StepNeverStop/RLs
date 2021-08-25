@@ -3,12 +3,13 @@
 import numpy as np
 
 from typing import (List,
+                    Dict,
                     NoReturn)
 from abc import ABC, abstractmethod
 
-from rls.common.specs import (EnvGroupArgs,
-                              ModelObservations,
-                              SingleModelInformation)
+from rls.common.specs import (Data,
+                              SensorSpec,
+                              EnvAgentSpec)
 
 
 class EnvBase(ABC):
@@ -17,11 +18,11 @@ class EnvBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def reset(self, **kwargs) -> List[ModelObservations]:
+    def reset(self, **kwargs) -> Dict[str, Data]:
         raise NotImplementedError
 
     @abstractmethod
-    def step(self, actions: List[np.ndarray], **kwargs) -> List[SingleModelInformation]:
+    def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         raise NotImplementedError
 
     @abstractmethod
@@ -29,16 +30,7 @@ class EnvBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def random_action(self, **kwargs) -> List[np.ndarray]:
-        raise NotImplementedError
-
-    @abstractmethod
     def render(self, **kwargs) -> NoReturn:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def n_agents(self) -> int:
         raise NotImplementedError
 
     @property
@@ -48,12 +40,22 @@ class EnvBase(ABC):
 
     @property
     @abstractmethod
-    def GroupsSpec(self) -> List[EnvGroupArgs]:
+    def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def StateSpec(self) -> SensorSpec:
         raise NotImplementedError
 
     @property
     @abstractmethod
     def is_multi(self) -> bool:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def agent_ids(self) -> List[str]:
         raise NotImplementedError
 
     # TODO: implement

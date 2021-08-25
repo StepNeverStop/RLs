@@ -7,6 +7,7 @@ import torch as t
 
 from typing import (List,
                     Tuple,
+                    Union,
                     Optional,
                     NoReturn)
 
@@ -120,12 +121,12 @@ def sync_params(tge: t.nn.Module, src: t.nn.Module, ployak: float = 0.) -> NoRet
         _t.data.copy_(_t.data * ployak + _s.data * (1. - ployak))
 
 
-def sync_params_pairs(pairs: List[Tuple], ployak: float = 0.) -> NoReturn:
+def sync_params_list(nets_list: List[Union[List, Tuple]], ployak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
     ployak = 1 - tau
     '''
-    for tge, src in pairs:
+    for tge, src in zip(*nets_list):
         sync_params(tge, src, ployak)
 
 
@@ -133,6 +134,29 @@ def grads_flatten(grads):
     return t.cat([g.flatten() for g in grads], 0)
 
 
-def q_target_func(reward, gamma, done, q_next, detach=True):
-    q_target = reward + gamma * (1-done) * q_next
+def q_target_func(reward, gamma, done, q_next, begin_mask,
+                  detach=True, use_rnn=False):
+    '''
+    params:
+        reward: [T, B, 1],
+        gamma: float
+        done: [T, B, 1]
+        q_next: [T, B, 1]
+        begin_mask: [T, B, 1]
+    return:
+        q_value: [T, B, 1]
+    '''
+    # print(reward.shape, done.shape, q_next.shape, begin_mask.shape)
+    n_step = reward.shape[0]
+
+    if use_rnn:
+        q_target = t.zeros_like(q_next)  # [T, B, 1]
+        for _t in range(n_step):
+            q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_next[_t]
+    else:
+        q_target = t.zeros_like(q_next)  # [T, B, 1]
+        q_post = q_next[-1]
+        for _t in range(n_step)[::-1]:
+            q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_post
+            q_post = t.where(begin_mask[_t] > 0, q_next[max(_t-1, 0)], q_target[_t])
     return q_target.detach() if detach else q_target

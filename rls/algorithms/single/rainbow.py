@@ -4,17 +4,17 @@
 import numpy as np
 import torch as t
 
-from copy import deepcopy
-
-from rls.algorithms.base.off_policy import Off_Policy
+from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import sync_params_pairs
 from rls.nn.models import RainbowDueling
+from rls.utils.torch_utils import q_target_func
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.nn.modules.wrappers import TargetTwin
+from rls.common.specs import Data
 
 
-class RAINBOW(Off_Policy):
+class RAINBOW(SarlOffPolicy):
     '''
     Rainbow DQN:    https://arxiv.org/abs/1710.02298
         1. Double
@@ -24,10 +24,9 @@ class RAINBOW(Off_Policy):
         5. Distributional
         6. Noisy Net
     '''
+    policy_mode = 'off-policy'
 
     def __init__(self,
-                 envspec,
-
                  v_min=-10,
                  v_max=10,
                  atoms=51,
@@ -43,109 +42,95 @@ class RAINBOW(Off_Policy):
                      'adv': [128]
                  },
                  **kwargs):
-        assert not envspec.is_continuous, 'rainbow only support discrete action space'
-        super().__init__(envspec=envspec, **kwargs)
+        super().__init__(**kwargs)
+        assert not self.is_continuous, 'rainbow only support discrete action space'
         self.v_min = v_min
         self.v_max = v_max
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
-        self.z = t.tensor([self.v_min + i * self.delta_z for i in range(self.atoms)]).float().view(-1, self.atoms).to(self.device)  # [1, N]
-        self.zb = self.z.repeat(self.a_dim, 1)  # [A, N]
+        self.z = t.tensor([self.v_min + i * self.delta_z for i in range(self.atoms)]).float().to(self.device)  # [N,]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
+        self.rainbow_net = TargetTwin(RainbowDueling(self.obs_spec,
+                                                     rep_net_params=self.rep_net_params,
+                                                     action_dim=self.a_dim,
+                                                     atoms=self.atoms,
+                                                     network_settings=network_settings)).to(self.device)
+        self.oplr = OPLR(self.rainbow_net, lr)
+        self._trainer_modules.update(model=self.rainbow_net,
+                                     oplr=self.oplr)
 
-        self.rainbow_net = RainbowDueling(self.rep_net.h_dim,
-                                          action_dim=self.a_dim,
-                                          atoms=self.atoms,
-                                          network_settings=network_settings).to(self.device)
-        self.rainbow_target_net = deepcopy(self.rainbow_net)
-        self.rainbow_target_net.eval()
-
-        self._target_rep_net = deepcopy(self.rep_net)
-        self._target_rep_net.eval()
-
-        self._pairs = [(self.rainbow_target_net, self.rainbow_net),
-                       (self._target_rep_net, self.rep_net)]
-        sync_params_pairs(self._pairs)
-
-        self.oplr = OPLR([self.rainbow_net, self.rep_net], lr)
-
-        self._worker_modules.update(rep_net=self.rep_net,
-                                    model=self.rainbow_net)
-
-        self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update(oplr=self.oplr)
-        self.initialize_data_buffer()
-
-    def __call__(self, obs, evaluation=False):
-        if np.random.uniform() < self.expl_expt_mng.get_esp(self.train_step, evaluation=evaluation):
+    @iTensor_oNumpy
+    def __call__(self, obs):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            actions, self.cell_state = self.call(obs, cell_state=self.cell_state)
-        return actions
+            q_values = self.rainbow_net(obs, cell_state=self.cell_state)    # [B, A, N]
+            self.next_cell_state = self.rainbow_net.get_cell_state()
+            q = (self.z * q_values).sum(-1)  # [B, A, N] * [N, ] => [B, A]
+            actions = q.argmax(-1)  # [B,]
+        return Data(action=actions)
 
     @iTensor_oNumpy
-    def call(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
-        q_values = self.rainbow_net(feat)
-        q = (self.zb * q_values).sum(-1)  # [B, A, N] => [B, A]
-        a = q.argmax(-1)  # [B, 1]
-        return a, cell_state
+    def _train(self, BATCH):
+        time_step = BATCH.reward.shape[0]
+        batch_size = BATCH.reward.shape[1]
+        indexes = t.arange(time_step*batch_size).view(-1, 1)  # [T*B, 1]
 
-    def _target_params_update(self):
-        if self.global_step % self.assign_interval == 0:
-            sync_params_pairs(self._pairs)
+        q_dist = self.rainbow_net(BATCH.obs)  # [T, B, A, N]
+        q_dist = (q_dist * BATCH.action.unsqueeze(-1)).sum(-2)  # [T, B, A, N] * [T, B, A, 1] => [T, B, A, N] => [T, B, N]
+        q_eval = (q_dist * self.z).sum(-1)  # [T, B, N] * [N, ] => [T, B, N] => [T, B]
+        q_dist = q_dist.view(-1, self.atoms)  # [T, B, N] => [T*B, N]
 
-    def learn(self, **kwargs):
-        self.train_step = kwargs.get('train_step')
-        for i in range(self.train_times_per_step):
-            self._learn(function_dict={
-                'summary_dict': dict([['LEARNING_RATE/lr', self.oplr.lr]])
-            })
+        target_q = self.rainbow_net(BATCH.obs_)  # [T, B, A, N]
+        target_q = (self.z * target_q).sum(-1)  # [T, B, A, N] * [N, ] => [T, B, A, N] => [T, B, A]
+        _a = target_q.argmax(-1)  # [T, B]
+        next_max_action = t.nn.functional.one_hot(_a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
 
-    @iTensor_oNumpy
-    def _train(self, BATCH, isw, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        feat_, _ = self._target_rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        feat__, _ = self.rep_net(BATCH.obs_, cell_state=cell_states['obs_'])
-        batch_size = len(BATCH)
-        indexes = t.arange(batch_size).view(-1, 1)  # [B, 1]
-        q_dist = self.rainbow_net(feat)  # [B, A, N]
-        q_dist = (q_dist.permute(2, 0, 1) * BATCH.action).sum(-1).T  # [B, N]
-        q_eval = (q_dist * self.z).sum(-1)
-        target_q = self.rainbow_net(feat__)
-        target_q = (self.zb * target_q).sum(-1)  # [B, A, N] => [B, A]
-        a_ = target_q.argmax(-1).view(-1, 1)  # [B, 1]
+        target_q_dist = self.rainbow_net.t(BATCH.obs_)  # [T, B, A, N]
+        target_q_dist = (target_q_dist * next_max_action).sum(-2)   # [T, B, A, N] => [T, B, N]
+        target_q_dist = target_q_dist.view(-1, self.atoms)  # [T, B, N] => [T*B, N]
 
-        target_q_dist = self.rainbow_target_net(feat_)  # [B, A, N]
-        target_q_dist = target_q_dist[list(t.cat([indexes, a_], -1).long().T)]   # [B, N]
-        target = BATCH.reward.repeat(1, self.atoms) \
-            + self.gamma * self.z * (1.0 - BATCH.done.repeat(1, self.atoms))  # [B, N], [1, N]* [B, N] = [B, N]
-        target = target.clamp(self.v_min, self.v_max)  # [B, N]
-        b = (target - self.v_min) / self.delta_z  # [B, N]
-        u, l = b.ceil(), b.floor()  # [B, N]
-        u_id, l_id = u.long(), l.long()  # [B, N]
-        u_minus_b, b_minus_l = u - b, b - l  # [B, N]
-        index_help = indexes.repeat(1, self.atoms)  # [B, N]
-        index_help = index_help.unsqueeze(-1)  # [B, N, 1]
-        u_id = t.cat([index_help, u_id.unsqueeze(-1)], -1)    # [B, N, 2]
-        l_id = t.cat([index_help, l_id.unsqueeze(-1)], -1)    # [B, N, 2]
-        u_id = u_id.long().permute(2, 0, 1)  # [2, B, N]
-        l_id = l_id.long().permute(2, 0, 1)  # [2, B, N]
-        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log() \
-            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [B, N]
-        cross_entropy = -_cross_entropy.sum(-1)  # [B,]
-        loss = (cross_entropy * isw).mean()
-        td_error = cross_entropy
+        target = q_target_func(BATCH.reward.repeat(1, 1, self.atoms),
+                               self.gamma,
+                               BATCH.done.repeat(1, 1, self.atoms),
+                               self.z.view(1, 1, self.atoms).repeat(time_step, batch_size, 1),
+                               BATCH.begin_mask.repeat(1, 1, self.atoms),
+                               use_rnn=self.use_rnn)    # [T, B, N]
+
+        target = target.clamp(self.v_min, self.v_max)  # [T, B, N]
+        target = target.view(-1, self.atoms)  # [T, B, N] => [T*B, N]
+        b = (target - self.v_min) / self.delta_z  # [T*B, N]
+        u, l = b.ceil(), b.floor()  # [T*B, N]
+        u_id, l_id = u.long(), l.long()  # [T*B, N]
+        u_minus_b, b_minus_l = u - b, b - l  # [T*B, N]
+
+        index_help = indexes.repeat(1, self.atoms)  # [T*B, 1] => [T*B, N]
+        index_help = index_help.unsqueeze(-1)  # [T*B, N, 1]
+        u_id = t.cat([index_help, u_id.unsqueeze(-1)], -1)    # [T*B, N, 2]
+        l_id = t.cat([index_help, l_id.unsqueeze(-1)], -1)    # [T*B, N, 2]
+        u_id = u_id.long().permute(2, 0, 1)  # [2, T*B, N]
+        l_id = l_id.long().permute(2, 0, 1)  # [2, T*B, N]
+        _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log()\
+            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [T*B, N]
+        td_error = cross_entropy = -_cross_entropy.sum(-1).view(time_step, batch_size)  # [T, B]
+
+        loss = (cross_entropy*BATCH.get('isw', 1.0)).mean()   # 1
+
         self.oplr.step(loss)
-        self.global_step.add_(1)
         return td_error, dict([
+            ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],
             ['Statistics/q_max', q_eval.max()],
             ['Statistics/q_min', q_eval.min()],
             ['Statistics/q_mean', q_eval.mean()]
         ])
+
+    def _after_train(self):
+        super()._after_train()
+        if self.cur_train_step % self.assign_interval == 0:
+            self.rainbow_net.sync()

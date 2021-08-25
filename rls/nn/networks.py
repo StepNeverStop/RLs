@@ -4,16 +4,18 @@
 import torch as t
 import numpy as np
 
-from typing import Tuple
-
+from typing import (Tuple,
+                    Dict,
+                    Optional)
 from torch.nn import (Sequential,
                       Linear)
+from collections import defaultdict
 
 from rls.nn.activations import (default_act,
                                 Act_REGISTER)
 
-from rls.nn.vector_nets import Vec_REGISTER
-from rls.nn.visual_nets import Vis_REGISTER
+from rls.nn.represents.vectors import Vec_REGISTER
+from rls.nn.represents.visuals import Vis_REGISTER
 
 
 class MultiVectorNetwork(t.nn.Module):
@@ -49,7 +51,8 @@ class MultiVisualNetwork(t.nn.Module):
         self.h_dim = visual_feature * len(self.dense_nets)
 
     def forward(self, *visual_inputs):
-        visual_inputs = [vi.permute(0, 3, 1, 2) for vi in visual_inputs]
+        # h, w, c => c, h, w
+        visual_inputs = [vi.swapaxes(-1, -3).swapaxes(-1, -2) for vi in visual_inputs]
         output = []
         for dense_net, visual_s in zip(self.dense_nets, visual_inputs):
             output.append(
@@ -77,26 +80,50 @@ class MemoryNetwork(t.nn.Module):
         self.network_type = network_type
 
         if self.network_type == 'gru':
-            self.cell_nums = 1
             self.rnn = t.nn.GRUCell(feat_dim, rnn_units)
         elif self.network_type == 'lstm':
-            self.cell_nums = 2
             self.rnn = t.nn.LSTMCell(feat_dim, rnn_units)
 
-    def forward(self, feat, cell_state=None):
-        # feat: [T, B, x]
-        output = []
-        for i in range(feat.shape[0]):
-            cell_state = self.rnn(feat[i, ...], cell_state)
-            if self.network_type == 'gru':
-                output.append(cell_state)
-            elif self.network_type == 'lstm':
-                output.append(cell_state[0])
-        output = t.stack(output, dim=0)  # [T, B, N]
-        return output, cell_state
+    def forward(self, feat, cell_state: Optional[Dict]):
+        '''
+        params:
+            feat: [T, B, *]
+            cell_state: [T, B, *]
+        returns:
+            output: [T, B, *] or [B, *]
+            cell_states: [T, B, *] or [B, *]
+        '''
 
-    def initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
-        if self.cell_nums > 1:
-            return tuple(np.zeros((batch, self.h_dim)) for _ in range(self.cell_nums))
+        T = feat.shape[0]
+
+        output = []
+        cell_states = defaultdict(list)
+        if self.network_type == 'gru':
+            if cell_state:
+                hx = cell_state['hx'][0]
+            else:
+                hx = None
+            for i in range(T):  # T
+                hx = self.rnn(feat[i, ...], hx)
+
+                output.append(hx)
+                cell_states['hx'].append(hx)
+
+        elif self.network_type == 'lstm':
+            if cell_state:
+                hc = cell_state['hx'][0], cell_state['cx'][0]
+            else:
+                hc = None
+            for i in range(T):  # T
+                hx, cx = self.rnn(feat[i, ...], hc)
+                hc = (hx, cx)
+
+                output.append(hx)
+                cell_states['hx'].append(hx)
+                cell_states['cx'].append(cx)
+        if T > 1:
+            output = t.stack(output, dim=0)  # [T, B, N]
+            cell_states = {k: t.stack(v, 0) for k, v in cell_states.items()}  # [T, B, N]
+            return output, cell_states
         else:
-            return np.zeros((batch, self.h_dim))
+            return output[0], {k: v[0] for k, v in cell_states.items()}  # [B, *]

@@ -9,12 +9,9 @@ from typing import (Union,
                     List,
                     Dict,
                     NoReturn)
-from dataclasses import dataclass
 
-from rls.algorithms.base.on_policy import On_Policy
-from rls.common.specs import (ModelObservations,
-                              Data,
-                              BatchExperiences)
+from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.specs import Data
 from rls.nn.models import (ActorCriticValueCts,
                            ActorCriticValueDct,
                            ActorMuLogstd,
@@ -22,35 +19,20 @@ from rls.nn.models import (ActorCriticValueCts,
                            CriticValue)
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.utils.np_utils import (discounted_sum,
+                                calculate_td_error)
 
 
-@dataclass(eq=False)
-class PPO_Store_BatchExperiences(BatchExperiences):
-    value: np.ndarray
-    log_prob: np.ndarray
-
-
-@dataclass(eq=False)
-class PPO_Train_BatchExperiences(Data):
-    obs: ModelObservations
-    action: np.ndarray
-    value: np.ndarray
-    log_prob: np.ndarray
-    discounted_reward: np.ndarray
-    gae_adv: np.ndarray
-
-
-class PPO(On_Policy):
+class PPO(SarlOnPolicy):
     '''
     Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
     Emergence of Locomotion Behaviours in Rich Environments, http://arxiv.org/abs/1707.02286, DPPO
     '''
+    policy_mode = 'on-policy'
 
     def __init__(self,
-                 envspec,
+                 agent_spec,
 
-                 policy_epoch: int = 4,
-                 value_epoch: int = 4,
                  ent_coef: float = 1.0e-2,
                  vf_coef: float = 0.5,
                  lr: float = 5.0e-4,
@@ -99,10 +81,8 @@ class PPO(On_Policy):
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(envspec=envspec, **kwargs)
+        super().__init__(agent_spec=agent_spec, **kwargs)
         self.ent_coef = ent_coef
-        self.policy_epoch = policy_epoch
-        self.value_epoch = value_epoch
         self.lambda_ = lambda_
         assert 0.0 <= lambda_ <= 1.0, "GAE lambda should be in [0, 1]."
         self.epsilon = epsilon
@@ -133,271 +113,266 @@ class PPO(On_Policy):
 
         if self.share_net:
             if self.is_continuous:
-                self.net = ActorCriticValueCts(self.rep_net.h_dim,
+                self.net = ActorCriticValueCts(self.obs_spec,
+                                               rep_net_params=self.rep_net_params,
                                                output_shape=self.a_dim,
                                                network_settings=network_settings['share']['continuous']).to(self.device)
             else:
-                self.net = ActorCriticValueDct(self.rep_net.h_dim,
+                self.net = ActorCriticValueDct(self.obs_spec,
+                                               rep_net_params=self.rep_net_params,
                                                output_shape=self.a_dim,
                                                network_settings=network_settings['share']['discrete']).to(self.device)
             if self.max_grad_norm is not None:
-                self.oplr = OPLR([self.net, self.rep_net], lr, clipnorm=self.max_grad_norm)
+                self.oplr = OPLR(self.net, lr, clipnorm=self.max_grad_norm)
             else:
-                self.oplr = OPLR([self.net, self.rep_net], lr)
+                self.oplr = OPLR(self.net, lr)
 
-            self._worker_modules.update(rep_net=self.rep_net,
-                                        model=self.net)
-            self._trainer_modules.update(self._worker_modules)
-            self._trainer_modules.update(oplr=self.oplr)
+            self._trainer_modules.update(model=self.net,
+                                         oplr=self.oplr)
         else:
             if self.is_continuous:
-                self.actor = ActorMuLogstd(self.rep_net.h_dim,
+                self.actor = ActorMuLogstd(self.obs_spec,
+                                           rep_net_params=self.rep_net_params,
                                            output_shape=self.a_dim,
                                            network_settings=network_settings['actor_continuous']).to(self.device)
             else:
-                self.actor = ActorDct(self.rep_net.h_dim,
+                self.actor = ActorDct(self.obs_spec,
+                                      rep_net_params=self.rep_net_params,
                                       output_shape=self.a_dim,
                                       network_settings=network_settings['actor_discrete']).to(self.device)
-            self.critic = CriticValue(self.rep_net.h_dim,
+            self.critic = CriticValue(self.obs_spec,
+                                      rep_net_params=self.rep_net_params,
                                       network_settings=network_settings['critic']).to(self.device)
             if self.max_grad_norm is not None:
                 self.actor_oplr = OPLR(self.actor, actor_lr, clipnorm=self.max_grad_norm)
-                self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr, clipnorm=self.max_grad_norm)
+                self.critic_oplr = OPLR(self.critic, critic_lr, clipnorm=self.max_grad_norm)
             else:
                 self.actor_oplr = OPLR(self.actor, actor_lr)
-                self.critic_oplr = OPLR([self.critic, self.rep_net], critic_lr)
+                self.critic_oplr = OPLR(self.critic, critic_lr)
 
-            self._worker_modules.update(rep_net=self.rep_net,
-                                        actor=self.actor)   # TODO
-            self._trainer_modules.update(self._worker_modules)
-            self._trainer_modules.update(critic=self.critic,
+            self._trainer_modules.update(actor=self.actor,
+                                         critic=self.critic,
                                          actor_oplr=self.actor_oplr,
                                          critic_oplr=self.critic_oplr)
 
-        self.initialize_data_buffer(store_data_type=PPO_Store_BatchExperiences,
-                                    sample_data_type=PPO_Train_BatchExperiences)
-
-    def __call__(self, obs, evaluation: bool = False) -> np.ndarray:
-        actions, self.next_cell_state, self._value, self._log_prob = self.call(obs, cell_state=self.cell_state)
-        return actions
-
     @iTensor_oNumpy
-    def call(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
+    def __call__(self, obs):
         if self.is_continuous:
             if self.share_net:
-                mu, log_std, value = self.net(feat)
+                mu, log_std, value = self.net(obs, cell_state=self.cell_state)  # [B, A]
+                self.next_cell_state = self.net.get_cell_state()
             else:
-                mu, log_std = self.actor(feat)
-                value = self.critic(feat)
+                mu, log_std = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+                self.next_cell_state = self.actor.get_cell_state()
+                value = self.critic(obs, cell_state=self.cell_state)  # [B, 1]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)
-            log_prob = dist.log_prob(sample_op).unsqueeze(-1)
+            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
+            log_prob = dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
         else:
             if self.share_net:
-                logits, value = self.net(feat)
+                logits, value = self.net(obs, cell_state=self.cell_state)    # [B, A], [B, 1]
+                self.next_cell_state = self.net.get_cell_state()
             else:
-                logits = self.actor(feat)
-                value = self.critic(feat)
+                logits = self.actor(obs, cell_state=self.cell_state)     # [B, A]
+                self.next_cell_state = self.actor.get_cell_state()
+                value = self.critic(obs, cell_state=self.cell_state)     # [B, 1]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()
-            log_prob = norm_dist.log_prob(sample_op)
-        return sample_op, cell_state, value, log_prob+t.finfo().eps
+            sample_op = norm_dist.sample()   # [B,]
+            log_prob = norm_dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
 
-    def store_data(self, exps: BatchExperiences) -> NoReturn:
-        # self._running_average()
-        self.data.add(PPO_Store_BatchExperiences(*exps.astuple(), self._value, self._log_prob))
+        acts = Data(action=sample_op,
+                    value=value,
+                    log_prob=log_prob+t.finfo().eps)
         if self.use_rnn:
-            self.data.add_cell_state(tuple(cs.numpy() for cs in self.cell_state))
-        self.cell_state = self.next_cell_state
+            acts.update(cell_state=self.cell_state)
+        return acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):
-        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
         if self.share_net:
             if self.is_continuous:
-                _, _, value = self.net(feat)
+                _, _, value = self.net(obs, cell_state=self.cell_state)  # [B, 1]
             else:
-                _, value = self.net(feat)
+                _, value = self.net(obs, cell_state=self.cell_state)    # [B, 1]
         else:
-            value = self.critic(feat)
+            value = self.critic(obs, cell_state=self.cell_state)    # [B, 1]
         return value
 
-    def calculate_statistics(self) -> NoReturn:
-        init_value = self._get_value(self.data.get_last_date().obs_)
-        self.data.cal_dc_r(self.gamma, init_value)
-        self.data.cal_td_error(self.gamma, init_value)
-        self.data.cal_gae_adv(self.lambda_, self.gamma, normalize=True)
+    def _preprocess_BATCH(self, BATCH):  # [T, B, *]
+        BATCH = super()._preprocess_BATCH(BATCH)
+        value = self._get_value(BATCH.obs_[-1])
+        BATCH.discounted_reward = discounted_sum(BATCH.reward,
+                                                 self.gamma,
+                                                 BATCH.done,
+                                                 BATCH.begin_mask,
+                                                 init_value=value)
+        td_error = calculate_td_error(BATCH.reward,
+                                      self.gamma,
+                                      BATCH.done,
+                                      value=BATCH.value,
+                                      next_value=np.concatenate((BATCH.value[1:], value[np.newaxis, :]), 0))
+        BATCH.gae_adv = discounted_sum(td_error,
+                                       self.lambda_*self.gamma,
+                                       BATCH.done,
+                                       BATCH.begin_mask,
+                                       init_value=0.,
+                                       normalize=True)
+        return BATCH
 
-    def learn(self, **kwargs) -> NoReturn:
-        self.train_step = kwargs.get('train_step')
+    def learn(self, BATCH: Data):
+        BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
+        for _ in range(self.epochs):
+            kls = []
+            for _BATCH in self._generate_BATCH(BATCH):
+                _BATCH = self._before_train(_BATCH)
+                summaries, kl = self._train(_BATCH)
+                kls.append(kl)
+                self.summaries.update(summaries)
+                self._after_train()
+            if self.use_early_stop and sum(kls)/len(kls) > self.kl_stop:
+                break
 
-        def _train(data, cell_states):
-            early_step = 0
-            if self.share_net:
-                for i in range(self.policy_epoch):
-                    actor_loss, critic_loss, entropy, kl = self.train_share(data, cell_states)
-                    if self.use_early_stop and kl > self.kl_stop:
-                        early_step = i
-                        break
-            else:
-                for i in range(self.policy_epoch):
-                    actor_loss, entropy, kl = self.train_actor(data, cell_states)
-                    if self.use_early_stop and kl > self.kl_stop:
-                        early_step = i
-                        break
-
-                for _ in range(self.value_epoch):
-                    critic_loss = self.train_critic(data, cell_states)
-
-            summaries = dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', critic_loss],
-                ['Statistics/kl', kl],
-                ['Statistics/entropy', entropy]
-            ])
-
-            if self.use_early_stop:
-                summaries.update(dict([
-                    ['Statistics/early_step', early_step]
-                ]))
-
-            if self.use_kl_loss:
-                # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
-                if kl > self.kl_high:
-                    self.kl_coef *= self.kl_alpha
-                elif kl < self.kl_low:
-                    self.kl_coef /= self.kl_alpha
-
-                summaries.update(dict([
-                    ['Statistics/kl_coef', self.kl_coef]
-                ]))
-            return summaries
-
+    def _train(self, BATCH):
         if self.share_net:
-            summary_dict = dict([['LEARNING_RATE/lr', self.oplr.lr]])
+            summaries, kl = self.train_share(BATCH)
         else:
-            summary_dict = dict([
-                ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
-                ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
-            ])
+            summaries = dict()
+            actor_summaries, kl = self.train_actor(BATCH)
+            critic_summaries = self.train_critic(BATCH)
+            summaries.update(actor_summaries)
+            summaries.update(critic_summaries)
 
-        self._learn(function_dict={
-            'calculate_statistics': self.calculate_statistics,
-            'train_function': _train,
-            'summary_dict': summary_dict,
-            'train_data_type': PPO_Train_BatchExperiences
-        })
+        if self.use_kl_loss:
+            # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
+            if kl > self.kl_high:
+                self.kl_coef *= self.kl_alpha
+            elif kl < self.kl_low:
+                self.kl_coef /= self.kl_alpha
+            summaries.update(dict([
+                ['Statistics/kl_coef', self.kl_coef]
+            ]))
+
+        return summaries, kl
 
     @iTensor_oNumpy
-    def train_share(self, BATCH, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+    def train_share(self, BATCH):
         if self.is_continuous:
-            mu, log_std, value = self.net(feat)
+            mu, log_std, value = self.net(BATCH.obs)    # [T, B, A], [T, B, A], [T, B, 1]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
-            entropy = dist.entropy().mean()
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
-            logits, value = self.net(feat)
-            logp_all = logits.log_softmax(-1)
-            new_log_prob = (BATCH.action * logp_all).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-        ratio = (new_log_prob - BATCH.log_prob).exp()
-        surrogate = ratio * BATCH.gae_adv
+            logits, value = self.net(BATCH.obs)  # [T, B, A], [T, B, 1]
+            logp_all = logits.log_softmax(-1)   # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+        ratio = (new_log_prob - BATCH.log_prob).exp()     # [T, B, 1]
+        surrogate = ratio * BATCH.gae_adv     # [T, B, 1]
         clipped_surrogate = t.minimum(
             surrogate,
             ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
-        )
+        )     # [T, B, 1]
         # ref: https://github.com/thu-ml/tianshou/blob/c97aa4065ee8464bd5897bb86f1f81abd8e2cff9/tianshou/policy/modelfree/ppo.py#L159
         if self.use_duel_clip:
             clipped_surrogate = t.maximum(
                 clipped_surrogate,
                 (1.0 + self.duel_epsilon) * BATCH.gae_adv
-            )
-        actor_loss = -(clipped_surrogate.mean() + self.ent_coef * entropy)
+            )     # [T, B, 1]
+        actor_loss = -(clipped_surrogate + self.ent_coef * entropy).mean()   # 1
 
         # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
         # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L185
         if self.kl_reverse:  # TODO:
-            kl = .5 * (new_log_prob - BATCH.log_prob).square().mean()
+            kl = .5 * (new_log_prob - BATCH.log_prob).square().mean()    # 1
         else:
             kl = .5 * (BATCH.log_prob - new_log_prob).square().mean()    # a sample estimate for KL-divergence, easy to compute
 
-        td_error = BATCH.discounted_reward - value
-        if self.use_vclip:
-            # ref: https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
-            # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
-            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)
-            td_error_clip = BATCH.discounted_reward - value_clip
-            td_square = t.maximum(td_error.square(), td_error_clip.square())
-        else:
-            td_square = td_error.square()
-
         if self.use_kl_loss:
-            kl_loss = self.kl_coef * kl
+            kl_loss = self.kl_coef * kl  # 1
             actor_loss += kl_loss
 
         if self.use_extra_loss:
-            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square()
+            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()  # 1
             actor_loss += extra_loss
-        value_loss = 0.5 * td_square.mean()
-        loss = actor_loss + self.vf_coef * value_loss
+
+        td_error = BATCH.discounted_reward - value  # [T, B, 1]
+        if self.use_vclip:
+            # ref: https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
+            # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
+            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)  # [T, B, 1]
+            td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
+            td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
+        else:
+            td_square = td_error.square()   # [T, B, 1]
+
+        critic_loss = 0.5 * td_square.mean()  # 1
+        loss = actor_loss + self.vf_coef * critic_loss  # 1
         self.oplr.step(loss)
-        self.global_step.add_(1)
-        return actor_loss, value_loss, entropy, kl
+        return dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/critic_loss', critic_loss],
+            ['Statistics/kl', kl],
+            ['Statistics/entropy', entropy.mean()],
+            ['LEARNING_RATE/lr', self.oplr.lr]
+        ]), kl
 
     @iTensor_oNumpy
-    def train_actor(self, BATCH, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
+    def train_actor(self, BATCH):
         if self.is_continuous:
-            mu, log_std = self.actor(feat)
+            mu, log_std = self.actor(BATCH.obs)  # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
-            entropy = dist.entropy().mean()
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            entropy = dist.entropy().unsqueeze(-1)    # [T, B, 1]
         else:
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            new_log_prob = (BATCH.action * logp_all).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-        ratio = (new_log_prob - BATCH.log_prob).exp()
-        kl = (BATCH.log_prob - new_log_prob).mean()
-        surrogate = ratio * BATCH.gae_adv
+            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logp_all = logits.log_softmax(-1)    # [T, B, A]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+        ratio = (new_log_prob - BATCH.log_prob).exp()    # [T, B, 1]
+        kl = (BATCH.log_prob - new_log_prob).square().mean()     # 1
+        surrogate = ratio * BATCH.gae_adv    # [T, B, 1]
         clipped_surrogate = t.minimum(
             surrogate,
             t.where(BATCH.gae_adv > 0, (1 + self.epsilon) * BATCH.gae_adv, (1 - self.epsilon) * BATCH.gae_adv)
-        )
+        )    # [T, B, 1]
         if self.use_duel_clip:
             clipped_surrogate = t.maximum(
                 clipped_surrogate,
                 (1.0 + self.duel_epsilon) * BATCH.gae_adv
-            )
+            )    # [T, B, 1]
 
-        actor_loss = -(clipped_surrogate.mean() + self.ent_coef * entropy)
+        actor_loss = -(clipped_surrogate + self.ent_coef * entropy).mean()  # 1
 
         if self.use_kl_loss:
-            kl_loss = self.kl_coef * kl
+            kl_loss = self.kl_coef * kl  # 1
             actor_loss += kl_loss
         if self.use_extra_loss:
-            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square()
+            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()    # 1
             actor_loss += extra_loss
 
         self.actor_oplr.step(actor_loss)
-        self.global_step.add_(1)
-        return actor_loss, entropy, kl
+        return dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['Statistics/kl', kl],
+            ['Statistics/entropy', entropy.mean()],
+            ['LEARNING_RATE/actor_lr', self.actor_oplr.lr]
+        ]), kl
 
     @iTensor_oNumpy
-    def train_critic(self, BATCH, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        value = self.critic(feat)
+    def train_critic(self, BATCH):
+        value = self.critic(BATCH.obs)  # [T, B, 1]
 
-        td_error = BATCH.discounted_reward - value
+        td_error = BATCH.discounted_reward - value    # [T, B, 1]
         if self.use_vclip:
-            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)
-            td_error_clip = BATCH.discounted_reward - value_clip
-            td_square = t.maximum(td_error.square(), td_error_clip.square())
+            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)   # [T, B, 1]
+            td_error_clip = BATCH.discounted_reward - value_clip      # [T, B, 1]
+            td_square = t.maximum(td_error.square(), td_error_clip.square())      # [T, B, 1]
         else:
-            td_square = td_error.square()
+            td_square = td_error.square()     # [T, B, 1]
 
-        value_loss = 0.5 * td_square.mean()
-        self.critic_oplr.step(value_loss)
-        return value_loss
+        critic_loss = 0.5 * td_square.mean()      # 1
+        self.critic_oplr.step(critic_loss)
+        return dict([
+            ['LOSS/critic_loss', critic_loss],
+            ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
+        ])

@@ -1,2 +1,2 @@
 
-platform_list = ['gym', 'unity']
+platform_list = ['gym', 'unity', 'pettingzoo']

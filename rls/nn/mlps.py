@@ -11,6 +11,8 @@ Mlp_REGISTER = {}
 
 
 class MLP(Sequential):
+    '''Multi-Layer Perceptron'''
+
     def __init__(self,
                  input_dim,
                  hidden_units,

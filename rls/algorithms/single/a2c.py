@@ -5,30 +5,23 @@ import numpy as np
 import torch as t
 
 from torch import distributions as td
-from dataclasses import dataclass
 
-from rls.algorithms.base.on_policy import On_Policy
-from rls.common.specs import (Data,
-                              ModelObservations)
+from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.specs import Data
 from rls.nn.models import (ActorMuLogstd,
                            ActorDct,
                            CriticValue)
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.utils.np_utils import discounted_sum
 
 
-@dataclass(eq=False)
-class A2C_Train_BatchExperiences(Data):
-    obs: ModelObservations
-    action: np.ndarray
-    discounted_reward: np.ndarray
+class A2C(SarlOnPolicy):
+    policy_mode = 'on-policy'
 
-
-class A2C(On_Policy):
     def __init__(self,
-                 envspec,
+                 agent_spec,
 
-                 epoch=5,
                  beta=1.0e-3,
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
@@ -42,107 +35,89 @@ class A2C(On_Policy):
                      'critic': [32, 32]
                  },
                  **kwargs):
-        super().__init__(envspec=envspec, **kwargs)
+        super().__init__(agent_spec=agent_spec, **kwargs)
         self.beta = beta
-        self.epoch = epoch
 
         if self.is_continuous:
-            self.actor = ActorMuLogstd(self.rep_net.h_dim,
+            self.actor = ActorMuLogstd(self.obs_spec,
+                                       rep_net_params=self.rep_net_params,
                                        output_shape=self.a_dim,
                                        network_settings=network_settings['actor_continuous']).to(self.device)
         else:
-            self.actor = ActorDct(self.rep_net.h_dim,
+            self.actor = ActorDct(self.obs_spec,
+                                  rep_net_params=self.rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
-        self.critic = CriticValue(self.rep_net.h_dim,
+        self.critic = CriticValue(self.obs_spec,
+                                  rep_net_params=self.rep_net_params,
                                   network_settings=network_settings['critic']).to(self.device)
 
-        self.actor_op = OPLR(self.actor, actor_lr)
-        self.critic_op = OPLR([self.critic, self.rep_net], critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr)
+        self.critic_oplr = OPLR(self.critic, critic_lr)
 
-        self.initialize_data_buffer(sample_data_type=A2C_Train_BatchExperiences)
-
-        self._worker_modules.update(rep_net=self.rep_net,
-                                    actor=self.actor)
-
-        self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update(critic=self.critic,
+        self._trainer_modules.update(actor=self.actor,
+                                     critic=self.critic,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
-    def __call__(self, obs, evaluation=False):
-        actions, self.next_cell_state = self.call(obs, cell_state=self.cell_state)
-        return actions
-
     @iTensor_oNumpy
-    def call(self, obs, cell_state):
-        feat, cell_state = self.rep_net(obs, cell_state=cell_state)
-        output = self.actor(feat)
+    def __call__(self, obs):
+        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+        self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
-            mu, log_std = output
+            mu, log_std = output     # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)
+            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
         else:
-            logits = output
+            logits = output  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()
-        return sample_op, cell_state
+            sample_op = norm_dist.sample()   # [B,]
+
+        acts = Data(action=sample_op)
+        if self.use_rnn:
+            acts.update(cell_state=self.cell_state)
+        return acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):
-        feat, _ = self.rep_net(obs, cell_state=self.cell_state)
-        value = self.critic(feat)
+        value = self.critic(obs)
         return value
 
-    def calculate_statistics(self):
-        init_value = self._get_value(self.data.get_last_date().obs_, cell_state=)
-        self.data.cal_dc_r(self.gamma, init_value)
-
-    def learn(self, **kwargs):
-        self.train_step = kwargs.get('train_step')
-
-        def _train(data, cell_state):
-            for _ in range(self.epoch):
-                actor_loss, critic_loss, entropy = self.train(data, cell_state)
-
-            summaries = dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', critic_loss],
-                ['Statistics/entropy', entropy],
-            ])
-            return summaries
-
-        self._learn(function_dict={
-            'calculate_statistics': self.calculate_statistics,
-            'train_function': _train,
-            'summary_dict': dict([
-                ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
-                ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
-            ])
-        })
+    def _preprocess_BATCH(self, BATCH):  # [T, B, *]
+        BATCH = super()._preprocess_BATCH(BATCH)
+        value = self._get_value(BATCH.obs_[-1])
+        BATCH.discounted_reward = discounted_sum(BATCH.reward,
+                                                 self.gamma,
+                                                 BATCH.done,
+                                                 BATCH.begin_mask,
+                                                 init_value=value)
+        return BATCH
 
     @iTensor_oNumpy
-    def train(self, BATCH, cell_states):
-        feat, _ = self.rep_net(BATCH.obs, cell_state=cell_states['obs'])
-        v = self.critic(feat)
-        td_error = BATCH.discounted_reward - v
-        critic_loss = td_error.square().mean()
+    def _train(self, BATCH):
+        v = self.critic(BATCH.obs)  # [T, B, 1]
+        td_error = BATCH.discounted_reward - v   # [T, B, 1]
+        critic_loss = td_error.square().mean()  # 1
         self.critic_oplr.step(critic_loss)
 
-        feat = feat.detach()
         if self.is_continuous:
-            mu, log_std = self.actor(feat)
+            mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)
-            entropy = dist.entropy().mean()
+            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
         else:
-            logits = self.actor(feat)
-            logp_all = logits.log_softmax(-1)
-            log_act_prob = (BATCH.action * logp_all).sum(1, keepdim=True)
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()
-        advantage = BATCH.discounted_reward - v.detach()
-        actor_loss = -((log_act_prob * advantage).mean() + self.beta * entropy)
+            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logp_all = logits.log_softmax(-1)   # [T, B, A]
+            log_act_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+        advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
+        actor_loss = -(log_act_prob * advantage + self.beta * entropy).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
-        self.global_step.add_(1)
-        return actor_loss, critic_loss, entropy
+        return dict([
+            ['LOSS/actor_loss', actor_loss],
+            ['LOSS/critic_loss', critic_loss],
+            ['Statistics/entropy', entropy.mean()],
+            ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
+            ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
+        ])

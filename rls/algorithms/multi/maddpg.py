@@ -4,33 +4,32 @@
 import numpy as np
 import torch as t
 
-from copy import deepcopy
+from collections import defaultdict
 from torch import distributions as td
 from typing import (List,
                     Union,
                     NoReturn,
                     Dict)
 
-from rls.nn.represent_nets import (DefaultRepresentationNetwork,
-                                   MultiAgentCentralCriticRepresentationNetwork)
-from rls.algorithms.base.ma_off_policy import MultiAgentOffPolicy
-from rls.utils.torch_utils import sync_params
+from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
 from rls.nn.noised_actions import Noise_action_REGISTER
-from rls.nn.models import (CriticQvalueOne,
+from rls.nn.models import (MACriticQvalueOne,
                            ActorDct,
                            ActorDPG)
-from rls.nn.utils import OPLR
+from rls.utils.torch_utils import q_target_func
 from rls.common.decorator import iTensor_oNumpy
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
+from rls.common.specs import Data
 
 
 class MADDPG(MultiAgentOffPolicy):
     '''
     Multi-Agent Deep Deterministic Policy Gradient, https://arxiv.org/abs/1706.02275
     '''
+    policy_mode = 'off-policy'
 
     def __init__(self,
-                 envspecs,
-
                  ployak=0.995,
                  noise_action='ou',
                  noise_params={
@@ -39,7 +38,6 @@ class MADDPG(MultiAgentOffPolicy):
                  actor_lr=5.0e-4,
                  critic_lr=1.0e-3,
                  discrete_tau=1.0,
-                 share_params=True,
                  network_settings={
                      'actor_continuous': [32, 32],
                      'actor_discrete': [32, 32],
@@ -49,182 +47,145 @@ class MADDPG(MultiAgentOffPolicy):
         '''
         TODO: Annotation
         '''
-        super().__init__(envspecs=envspecs, **kwargs)
+        super().__init__(**kwargs)
         self.ployak = ployak
         self.discrete_tau = discrete_tau
-        self.share_params = share_params
-        self.n_models_percopy = 1 if self.share_params else self.n_agents_percopy
 
-        self.rep_nets = []
-        self.target_rep_nets = []
-
-        self.actors = []
-        self.actor_targets = []
-        self.critics = []
-        self.critic_targets = []
-
-        self.actor_oplrs = []
-        self.critic_oplrs = []
-
-        for i in range(self.n_models_percopy):
-            rep_net = DefaultRepresentationNetwork(obs_spec=self.envspecs[i].obs_spec,
-                                                   representation_net_params=self.representation_net_params).to(self.device)
-            if self.envspecs[i].is_continuous:
-                actor = ActorDPG(rep_net.h_dim,
-                                 output_shape=self.envspecs[i].a_dim,
-                                 network_settings=network_settings['actor_continuous']).to(self.device)
+        self.actors, self.critics = {}, {}
+        for id in set(self.model_ids):
+            if self.is_continuouss[id]:
+                self.actors[id] = TargetTwin(ActorDPG(self.obs_specs[id],
+                                                      rep_net_params=self.rep_net_params,
+                                                      output_shape=self.a_dims[id],
+                                                      network_settings=network_settings['actor_continuous']),
+                                             self.ployak).to(self.device)
             else:
-                actor = ActorDct(rep_net.h_dim,
-                                 output_shape=self.envspecs[i].a_dim,
-                                 network_settings=network_settings['actor_discrete']).to(self.device)
-            critic = CriticQvalueOne(rep_net.h_dim*self.n_models_percopy,
-                                     action_dim=sum([envspec.a_dim for envspec in self.envspecs]),
-                                     network_settings=network_settings['q']).to(self.device)
-            target_rep_net = deepcopy(rep_net)
-            target_rep_net.eval()
-            critic_target = deepcopy(critic)
-            critic_target.eval()
-            actor_target = deepcopy(actor)
-            actor_target.eval()
-            self.rep_nets.append(ep_net)
-            self.critics.append(critic)
-            self.target_rep_nets.append(target_rep_net)
-            self.critic_targets.append(critic_target)
-            self.actors.append(actor)
-            self.actor_targets.append(actor_target)
-
-            actor_oplr = OPLR(actor,
-                              actor_lr)
-            critic_oplr = OPLR([rep_net, critic], critic_lr)
-            self.actor_oplrs.append(actor_oplr)
-            self.critic_oplrs.append(critic_oplr)
-
-        for i in range(self.n_models_percopy):
-            sync_params(self.actor_targets[i], self.actors[i])
-            sync_params(self.critic_targets[i], self.critics[i])
-            sync_params(self.target_rep_nets[i], self.rep_nets[i])
+                self.actors[id] = TargetTwin(ActorDct(self.obs_specs[id],
+                                                      rep_net_params=self.rep_net_params,
+                                                      output_shape=self.a_dims[id],
+                                                      network_settings=network_settings['actor_discrete']),
+                                             self.ployak).to(self.device)
+            self.critics[id] = TargetTwin(MACriticQvalueOne(list(self.obs_specs.values()),
+                                                            rep_net_params=self.rep_net_params,
+                                                            action_dim=sum(self.a_dims.values()),
+                                                            network_settings=network_settings['q']),
+                                          self.ployak).to(self.device)
+        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr)
+        self.critic_oplr = OPLR(list(self.critics.values()), critic_lr)
 
         # TODO: 添加动作类型判断
-        self.noised_actions = [Noise_action_REGISTER[noise_action](**noise_params) for i in range(self.n_models_percopy)]
+        self.noised_actions = {id: Noise_action_REGISTER[noise_action](**noise_params)
+                               for id in set(self.model_ids) if self.is_continuouss[id]}
 
-        self._worker_modules.update({f"repnet_{i}": self.rep_nets[i] for i in range(self.n_models_percopy)})
-        self._worker_modules.update({f"actor_{i}": self.actors[i] for i in range(self.n_models_percopy)})
-        self._worker_modules.update({f"critic_{i}": self.critics[i] for i in range(self.n_models_percopy)})
+        self._trainer_modules.update({f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"critic_{id}": self.critics[id] for id in set(self.model_ids)})
+        self._trainer_modules.update(actor_oplr=self.actor_oplr,
+                                     critic_oplr=self.critic_oplr)
 
-        self._trainer_modules.update(self._worker_modules)
-        self._trainer_modules.update({f'actor_oplr-{i}': self.actor_oplrs[i] for i in range(self.n_models_percopy)})
-        self._trainer_modules.update({f'critic_oplr-{i}': self.critic_oplrs[i] for i in range(self.n_models_percopy)})
-
-        self.initialize_data_buffer()
-
-    def reset(self):
-        super().reset()
+    def episode_reset(self):
+        super().episode_reset()
         for noised_action in self.noised_actions:
             noised_action.reset()
 
-    def __call__(self, obs: List, evaluation=False):
-        mus, pis = self.call(obs)
-        return mus if evaluation else pis
-
     @iTensor_oNumpy
-    def call(self, obs):
-        mus = []
-        pis = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-            feat, _ = self.rep_nets[j](obs[i])
-            output = self.actors[j](feat)
-            if self.envspecs[i].is_continuous:
-                mu = output
-                pi = self.noised_actions[j](mu)
+    def __call__(self, obs: Dict):
+        mus = {}
+        pis = {}
+        for aid, mid in zip(self.agent_ids, self.model_ids):
+            output = self.actors[mid](obs[aid])  # [B, A]
+            if self.is_continuouss[aid]:
+                mu = output  # [B, A]
+                pi = self.noised_actions[mid](mu)   # [B, A]
             else:
-                logits = output
-                mu = logits.argmax(1)
+                logits = output  # [B, A]
+                mu = logits.argmax(-1)   # [B,]
                 cate_dist = td.Categorical(logits=logits)
-                pi = cate_dist.sample()
-            mus.append(mu)
-            pis.append(pi)
-        return mus, pis
-
-    def _target_params_update(self):
-        for i in range(self.n_models_percopy):
-            sync_params(self.actor_targets[i], self.actors[i], self.ployak)
-            sync_params(self.critic_targets[i], self.critics[i], self.ployak)
-            sync_params(self.target_rep_nets[i], self.rep_nets[i], self.ployak)
-
-    def learn(self, **kwargs) -> NoReturn:
-        self.train_step = kwargs.get('train_step')
-        for i in range(self.train_times_per_step):
-            self._learn()
+                pi = cate_dist.sample()  # [B,]
+            mus[aid] = Data(action=mu)
+            pis[aid] = Data(action=pi)
+        return mus if not self._is_train_mode else pis
 
     @iTensor_oNumpy
-    def _train(self, BATCHs):
+    def _train(self, BATCH_DICT):
         '''
         TODO: Annotation
         '''
-        summaries = {}
-        target_actions = []
-        feats = []
-        feats_ = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-            feat, _ = self.rep_nets[j](BATCHs[i].obs)
-            feat_, _ = self.target_rep_nets[j](BATCHs[i].obs_)
-            feats.append(feat)
-            feats_.append(feat_)
-
-            if self.envspecs[i].is_continuous:
-                target_actions.append(self.actor_targets[j](feat_))
+        summaries = defaultdict(dict)
+        target_actions = {}
+        for aid, mid in zip(self.agent_ids, self.model_ids):
+            if self.is_continuouss[aid]:
+                target_actions[aid] = self.actors[mid].t(BATCH_DICT[aid].obs_)  # [T, B, A]
             else:
-                target_logits = self.actor_targets[j](feat_)
+                target_logits = self.actors[mid].t(BATCH_DICT[aid].obs_)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
-                target_pi = target_cate_dist.sample()
-                action_target = t.nn.functional.one_hot(target_pi, self.envspecs[i].a_dim).float()
-                target_actions.append(action_target)
-        target_actions = t.cat(target_actions, -1)
+                target_pi = target_cate_dist.sample()   # [T, B]
+                action_target = t.nn.functional.one_hot(target_pi, self.a_dims[aid]).float()  # [T, B, A]
+                target_actions[aid] = action_target  # [T, B, A]
+        target_actions = t.cat(list(target_actions.values()), -1)   # [T, B, N*A]
 
-        q_targets = []
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-            q_targets.append(self.critic_targets[j](t.cat(feats_, -1), target_actions))
-
-        for i in range(self.n_agents_percopy):
-            j = 0 if self.share_params else i
-            if self.envspecs[i].is_continuous:
-                mu = self.actors[j](feats[i])
-            else:
-                logits = self.actors[j](feats[i])
-                logp_all = logits.log_softmax(-1)
-                gumbel_noise = td.Gumbel(0, 1).sample(BATCHs[i].action.shape)
-                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)
-                _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.envspecs[i].a_dim).float()
-                _pi_diff = (_pi_true_one_hot - _pi).detach()
-                mu = _pi_diff + _pi
-
-            q_actor = self.critics[j](
-                t.cat(feats, -1),
-                t.cat([BATCH.action for BATCH in BATCHs[:i]]+[mu]+[BATCH.action for BATCH in BATCHs[i+1:]], -1)
-            )
-            actor_loss = -q_actor.mean()
-
-            q = self.critics[j](
-                t.cat(feats, -1),
-                t.cat([BATCH.action for BATCH in BATCHs], -1)
-            )
-            dc_r = (BATCHs[i].reward + self.gamma * q_targets[i] * (1 - BATCHs[i].done)).detach()
-
-            td_error = dc_r - q
-            q_loss = 0.5 * td_error.square().mean()
-
-            self.critic_oplrs[j].step(q_loss)
-            self.actor_oplrs[j].step(actor_loss)
-
-            summaries[i] = dict([
-                ['LOSS/actor_loss', actor_loss],
-                ['LOSS/critic_loss', q_loss],
+        q_loss = {}
+        for aid, mid in zip(self.agent_ids, self.model_ids):
+            q_target = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
+            q = self.critics[mid](
+                [BATCH_DICT[id].obs for id in self.agent_ids],
+                t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
+            )   # [T, B, 1]
+            dc_r = q_target_func(BATCH_DICT[aid].reward,
+                                 self.gamma,
+                                 (1. - BATCH_DICT[aid].done),
+                                 q_target,
+                                 BATCH_DICT['global'].begin_mask,
+                                 use_rnn=True
+                                 )  # [T, B, 1]
+            td_error = dc_r - q  # [T, B, 1]
+            q_loss[aid] = 0.5 * td_error.square().mean()    # 1
+            summaries[aid].update(dict([
                 ['Statistics/q_min', q.min()],
                 ['Statistics/q_mean', q.mean()],
                 ['Statistics/q_max', q.max()]
-            ])
-        self.global_step.add_(1)
+            ]))
+        self.critic_oplr.step(sum(q_loss.values()))
+
+        actor_loss = {}
+        for aid, mid in zip(self.agent_ids, self.model_ids):
+            if self.is_continuouss[aid]:
+                mu = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+            else:
+                logits = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+                logp_all = logits.log_softmax(-1)   # [T, B, A]
+                gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
+                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+                _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
+                _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
+                mu = _pi_diff + _pi  # [T, B, A]
+
+            all_actions = {id: BATCH_DICT[aid].action for id in self.agent_ids}
+            all_actions[aid] = mu
+            q_actor = self.critics[mid](
+                [BATCH_DICT[aid].obs for id in self.agent_ids],
+                t.cat(list(all_actions.values()), -1)
+            )   # [T, B, 1]
+            actor_loss[aid] = -q_actor.mean()   # 1
+
+        self.actor_oplr.step(sum(actor_loss.values()))
+
+        for aid in self.agent_ids:
+            summaries[aid].update(dict([
+                ['LOSS/actor_loss', actor_loss[aid]],
+                ['LOSS/critic_loss', q_loss[aid]],
+                # ['Statistics/q_min', q.min()],
+                # ['Statistics/q_mean', q.mean()],
+                # ['Statistics/q_max', q.max()]
+            ]))
+        summaries['model'].update(dict([
+            ['LOSS/actor_loss', sum(actor_loss.values())],
+            ['LOSS/critic_loss', sum(q_loss.values())]
+        ]))
         return summaries
+
+    def _after_train(self):
+        super()._after_train()
+        for actor in self.actors.values():
+            actor.sync()
+        for critic in self.critics.values():
+            critic.sync()
