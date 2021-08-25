@@ -42,13 +42,23 @@ def pwc(*args, color='red', bold=False, highlight=False):
     else:
         print(colorize(args, color, bold, highlight))
 
-def show_dict(data: Dict):
+
+def show_dict(data: Dict, depth=0):
     '''
     print the dictionary of configurations
     params:
         config: configurations of each variable
     '''
-    logger.info('-' * 84)
+    empty_space = ' ' * depth * 10
+    if depth == 0:
+        logger.info(colorize('-' * 80, color='red', bold=True))
+
     for k, v in data.items():
-        logger.info(''.join([str(k).rjust(40), ' | ', str(v).ljust(40)]))
-    logger.info('-' * 84)
+        if isinstance(v, dict):
+            logger.info(colorize(empty_space+''.join([str(k).rjust(28), f" | {'*'*(depth+1)} --->"]), color='blue'))
+            show_dict(v, depth=depth+1)
+        else:
+            logger.info(empty_space+''.join([str(k).rjust(28), ' | ', str(v).ljust(28)]))
+
+    if depth == 0:
+        logger.info(colorize('-' * 80, color='red', bold=True))

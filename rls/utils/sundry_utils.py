@@ -5,7 +5,7 @@ import os
 import sys
 import random
 import numpy as np
-import tensorflow as tf
+import torch as t
 
 from typing import (List,
                     NoReturn)
@@ -22,17 +22,18 @@ def check_or_create(dicpath: str, name: str = '') -> NoReturn:
     if not os.path.exists(dicpath):
         os.makedirs(dicpath)
         logger.info(colorize(
-            ''.join([f'create {name} directionary :', dicpath]
-                    ), color='green'))
+            ''.join([f'create {name} directionary :', dicpath]), color='green'))
 
 
 def set_global_seeds(seed: int) -> NoReturn:
     """
-    Set the random seed of tensorflow, numpy and random.
+    Set the random seed of pytorch, numpy and random.
     params:
         seed: an integer refers to the random seed
     """
-    tf.random.set_seed(seed)
+    t.manual_seed(seed)
+    t.cuda.manual_seed_all(seed)
+    t.backends.cudnn.deterministic = True
     np.random.seed(seed)
     random.seed(seed)
 
@@ -41,7 +42,7 @@ class LinearAnnealing:
 
     def __init__(self, x: float, x_: float, end: int):
         '''
-        Params: 
+        Params:
             x: start value
             x_: end value
             end: annealing time
@@ -56,3 +57,13 @@ class LinearAnnealing:
         TODO: Annotation
         '''
         return max(self.x + self.interval * current, self.x_)
+
+
+def nested_tuple(x):
+    ret = []
+    for i in x:
+        if isinstance(i, (tuple, list)):
+            ret.extend(nested_tuple(i))
+        else:
+            ret.append(i)
+    return tuple(ret)

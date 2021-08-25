@@ -2,7 +2,6 @@
 # encoding: utf-8
 
 import itertools
-import scipy.signal
 import numpy as np
 
 
@@ -10,21 +9,44 @@ def intprod(x):
     return int(np.prod(x))
 
 
-def discounted_sum(x, gamma, init_value, dones):
-    l = len(x)
-    out = [0] * l
-    for i in reversed(range(l)):
-        out[i] = init_value = x[i] + init_value * gamma * (1 - dones[i])
-    return out
+def discounted_sum(reward, gamma, done, begin_mask, init_value=0., normalize=False):
+    '''
+    params:
+        reward: [T, B, 1],
+        gamma: float
+        done: [T, B, 1]
+        begin_mask: [T, B, 1]
+        init_value: [B, 1]
+    return:
+        rets: [T, B, 1]
+    '''
+    n_step = reward.shape[0]
+    rets = np.zeros_like(reward)    # [T, B, 1]
+
+    for _t in range(n_step)[::-1]:
+        rets[_t] = reward[_t] + gamma * (1 - done[_t]) * init_value
+        init_value = np.where(begin_mask[_t] > 0, 0, rets[_t])
+    if normalize:
+        rets = standardization(rets)
+    return rets
 
 
-def calculate_td_error(r, gamma, d, v, v_):
-    r = np.array(r)
-    v = np.array(v)
-    d = np.array(d)
-    v_ = np.array(v_)
-    td = r + gamma * (1 - d) * v_ - v
-    return td
+def calculate_td_error(reward, gamma, done, value, next_value):
+    '''
+    params:
+        reward: [T, B, 1],
+        gamma: float
+        done: [T, B, 1]
+        value: [T, B, 1]
+        next_value: [T, B, 1]
+    return:
+        rets: [T, B, 1]
+    '''
+    n_step = reward.shape[0]
+    rets = np.zeros_like(reward)    # [T, B, 1]
+    for _t in range(n_step):
+        rets[_t] = reward[_t] + gamma * (1 - done[_t]) * next_value[_t] - value[_t]
+    return rets
 
 
 def get_discrete_action_list(action_dim_list):
@@ -44,7 +66,7 @@ def get_discrete_action_list(action_dim_list):
         [2 1 0]
         [2 1 1]]
     """
-    return np.array(list(itertools.product(*[list(range(l)) for l in action_dim_list])))
+    return np.squeeze(list(itertools.product(*[list(range(l)) for l in action_dim_list])))
 
 
 def int2one_hot(x, act_nums):
@@ -65,8 +87,11 @@ def int2one_hot(x, act_nums):
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
     '''
+    x = np.asarray(x).astype(np.int32)
+    _shape = x.shape
     x = np.ravel(x)
     a = np.eye(act_nums)[x]
+    a = np.reshape(a, _shape+(-1,))
     return a
 
 
@@ -124,7 +149,7 @@ def standardization(data):
     '''
     assert isinstance(data, np.ndarray)
     mu = np.mean(data)
-    sigma = np.std(data) + 1e-8
+    sigma = np.std(data) + np.finfo(np.float32).eps
     return (data - mu) / sigma
 
 

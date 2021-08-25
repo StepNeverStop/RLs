@@ -1,8 +1,5 @@
-docopt
 numpy
 pyyaml
 tqdm
 colored_traceback
-gym>=0.15.0, <=0.15.3
-tensorflow==2.3.1
-tensorflow_probability==0.11.1
+gym>=0.15.4
