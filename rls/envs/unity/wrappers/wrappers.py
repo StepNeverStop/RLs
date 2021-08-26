@@ -161,8 +161,7 @@ class BasicUnityEnvironment(object):
 
     @property
     def StateSpec(self) -> SensorSpec:
-        return SensorSpec(vector_dims=None,
-                          visual_dims=None)
+        return SensorSpec()
 
     @property
     def agent_ids(self) -> List[str]:

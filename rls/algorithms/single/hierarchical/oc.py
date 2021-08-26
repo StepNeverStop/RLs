@@ -105,7 +105,7 @@ class OC(SarlOffPolicy):
         self.options = self.new_options
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         q = self.q_net(obs, cell_state=self.cell_state)  # [B, P]
         self.next_cell_state = self.q_net.get_cell_state()
         pi = self.intra_option_net(obs, cell_state=self.cell_state)  # [B, P, A]
@@ -132,9 +132,9 @@ class OC(SarlOffPolicy):
             beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
             beta_dist = td.Bernoulli(probs=beta_probs)
             self.new_options = t.where(beta_dist.sample() < 1, self.options, max_options)
-        return Data(action=actions,
-                    last_options=self.options,
-                    options=self.new_options)
+        return actions, Data(action=actions,
+                             last_options=self.options,
+                             options=self.new_options)
 
     def random_action(self):
         acts = super().random_action()

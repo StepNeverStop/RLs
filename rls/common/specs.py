@@ -43,10 +43,11 @@ class Once:
         return False
 
 
-@dataclass(frozen=True)
+@dataclass
 class SensorSpec:
-    vector_dims: Optional[List[int]]
-    visual_dims: Optional[List[Union[List[int], Tuple[int]]]]
+    vector_dims: Optional[List[int]] = None
+    visual_dims: Optional[List[Union[List[int], Tuple[int]]]] = None
+    other_dims: int = 0
 
     @property
     def total_vector_dim(self):
@@ -55,14 +56,18 @@ class SensorSpec:
 
     @property
     def has_vector_observation(self):
-        return self.vector_dims is not None
+        return self.vector_dims is not None and len(self.vector_dims) > 0
 
     @property
     def has_visual_observation(self):
-        return self.visual_dims is not None
+        return self.visual_dims is not None and len(self.visual_dims) > 0
+
+    @property
+    def has_other_observation(self):
+        return self.other_dims > 0
 
 
-@dataclass(frozen=True)
+@dataclass
 class EnvAgentSpec:
     obs_spec: SensorSpec
     a_dim: int

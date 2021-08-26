@@ -156,7 +156,7 @@ class PPO(SarlOnPolicy):
                                          critic_oplr=self.critic_oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self.is_continuous:
             if self.share_net:
                 mu, log_std, value = self.net(obs, cell_state=self.cell_state)  # [B, A]
@@ -166,8 +166,8 @@ class PPO(SarlOnPolicy):
                 self.next_cell_state = self.actor.get_cell_state()
                 value = self.critic(obs, cell_state=self.cell_state)  # [B, 1]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
-            log_prob = dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = dist.sample().clamp(-1, 1)   # [B, A]
+            log_prob = dist.log_prob(action).unsqueeze(-1)    # [B, 1]
         else:
             if self.share_net:
                 logits, value = self.net(obs, cell_state=self.cell_state)    # [B, A], [B, 1]
@@ -177,15 +177,15 @@ class PPO(SarlOnPolicy):
                 self.next_cell_state = self.actor.get_cell_state()
                 value = self.critic(obs, cell_state=self.cell_state)     # [B, 1]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()   # [B,]
-            log_prob = norm_dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = norm_dist.sample()   # [B,]
+            log_prob = norm_dist.log_prob(action).unsqueeze(-1)    # [B, 1]
 
-        acts = Data(action=sample_op,
+        acts = Data(action=action,
                     value=value,
                     log_prob=log_prob+t.finfo().eps)
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):

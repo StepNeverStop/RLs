@@ -68,25 +68,27 @@ class VDN(MultiAgentOffPolicy):
                                      oplr=self.oplr)
 
     @iTensor_oNumpy  # TODO: optimization
-    def __call__(self, obs):
+    def select_action(self, obs):
         acts = {}
+        actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
-                acts[aid] = Data(action=np.random.randint(0, self.a_dims[aid], self.n_copys))
+                action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
                 q_values = self.q_nets[mid](obs[aid])   # [B, A]
-                acts[aid] = Data(action=q_values.argmax(-1))    # [B,]
-        return acts
+                action = action = q_values.argmax(-1)    # [B,]
+            actions[aid] = action
+            acts[aid] = Data(action=action)
+        return actions, acts
 
     @iTensor_oNumpy
     def _train(self, BATCH_DICT):
         summaries = {}
-        reward = 0.
+        reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]
         done = 0.
         q_evals = []
         q_target_next_maxs = []
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            reward += BATCH_DICT[aid].reward    # [T, B, 1]
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
             q = self.q_nets[mid](BATCH_DICT[aid].obs)   # [T, B, A]

@@ -116,7 +116,7 @@ class SAC_V(SarlOffPolicy):
         return self.log_alpha.exp()
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self.is_continuous:
             mu, log_std = self.actor(obs, cell_state=self.cell_state)   # [B, A]
             pi = td.Normal(mu, log_std.exp()).sample().tanh()   # [B, A]
@@ -128,7 +128,7 @@ class SAC_V(SarlOffPolicy):
             pi = cate_dist.sample()  # [B,]
         self.next_cell_state = self.actor.get_cell_state()
         actions = pi if self._is_train_mode else mu
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     def _train(self, BATCH):
         if self.is_continuous or self.use_gumbel:

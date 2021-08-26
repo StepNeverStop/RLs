@@ -59,21 +59,21 @@ class AC(SarlOffPolicy):
                                      critic_oplr=self.critic_oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, *]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
             mu, log_std = output    # [B, *]
             dist = td.Independent(td.Normal(mu, log_std.exp()), -1)
-            sample_op = dist.sample().clamp(-1, 1)   # [B, *]
-            log_prob = dist.log_prob(sample_op)    # [B,]
+            action = dist.sample().clamp(-1, 1)   # [B, *]
+            log_prob = dist.log_prob(action)    # [B,]
         else:
             logits = output  # [B, *]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()   # [B,]
-            log_prob = norm_dist.log_prob(sample_op)  # [B,]
-        return Data(action=sample_op,
-                    log_prob=log_prob)
+            action = norm_dist.sample()   # [B,]
+            log_prob = norm_dist.log_prob(action)  # [B,]
+        return action, Data(action=action,
+                               log_prob=log_prob)
 
     def random_action(self):
         acts = super().random_action()

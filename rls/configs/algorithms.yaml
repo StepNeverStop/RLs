@@ -12,6 +12,8 @@ policy: &policy
     decay_lr: false
     normalize_vector_obs: false
 
+    obs_with_pre_action: false
+
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
         use_encoder: false
@@ -37,6 +39,8 @@ sarl_policy: &sarl_policy
 
 marl_policy: &marl_policy
     <<: *policy
+    obs_with_pre_action: true
+    obs_with_agent_id: true
     share_params: true
 
 sarl_on_policy: &sarl_on_policy
@@ -49,7 +53,7 @@ sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     n_time_step: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
-    batch_size: 16
+    batch_size: 256
     buffer_size: 100000
     use_priority: false
 

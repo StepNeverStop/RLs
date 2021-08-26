@@ -81,7 +81,7 @@ class TD3(SarlOffPolicy):
             self.noised_action.reset()
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
@@ -93,7 +93,7 @@ class TD3(SarlOffPolicy):
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()  # [B,]
         actions = pi if self._is_train_mode else mu
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):

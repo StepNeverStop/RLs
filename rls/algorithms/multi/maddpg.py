@@ -88,9 +88,9 @@ class MADDPG(MultiAgentOffPolicy):
             noised_action.reset()
 
     @iTensor_oNumpy
-    def __call__(self, obs: Dict):
-        mus = {}
-        pis = {}
+    def select_action(self, obs: Dict):
+        acts = {}
+        actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             output = self.actors[mid](obs[aid])  # [B, A]
             if self.is_continuouss[aid]:
@@ -101,9 +101,10 @@ class MADDPG(MultiAgentOffPolicy):
                 mu = logits.argmax(-1)   # [B,]
                 cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()  # [B,]
-            mus[aid] = Data(action=mu)
-            pis[aid] = Data(action=pi)
-        return mus if not self._is_train_mode else pis
+            action = mu if not self._is_train_mode else pi
+            acts[aid] = Data(action=action)
+            actions[aid] = action
+        return actions, acts
 
     @iTensor_oNumpy
     def _train(self, BATCH_DICT):

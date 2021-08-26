@@ -70,7 +70,7 @@ class MAXSQN(SarlOffPolicy):
         return self.log_alpha.exp()
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
@@ -79,7 +79,7 @@ class MAXSQN(SarlOffPolicy):
             cate_dist = td.Categorical(logits=(q / self.alpha))
             mu = q.argmax(-1)    # [B,]
             actions = pi = cate_dist.sample()   # [B,]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):

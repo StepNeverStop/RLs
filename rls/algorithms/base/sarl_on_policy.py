@@ -42,6 +42,12 @@ class SarlOnPolicy(SarlPolicy):
             # [T, B, 1] or [T, B] => [T, B, N]
             BATCH.action = int2one_hot(
                 BATCH.action, self.a_dim)
+        if self.obs_with_pre_action:
+            BATCH.obs.update(other=np.concatenate((
+                np.zeros_like(BATCH.action[:1]),    # TODO: improve
+                BATCH.action[:-1]
+            ), 0))
+            BATCH.obs_.update(other=BATCH.action)
         return BATCH
 
     def _generate_BATCH(self, BATCH, repeat=False):

@@ -98,7 +98,7 @@ class PPOC(SarlOnPolicy):
         self.oc_mask = t.zeros_like(self.oc_mask)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(obs, cell_state=self.cell_state)
         self.next_cell_state = self.net.get_cell_state()
@@ -109,13 +109,13 @@ class PPOC(SarlOnPolicy):
             mu = pi  # [B, A]
             log_std = self.log_std[self.options]    # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)  # [B, A]
-            log_prob = dist.log_prob(sample_op).unsqueeze(-1)   # [B, 1]
+            action = dist.sample().clamp(-1, 1)  # [B, A]
+            log_prob = dist.log_prob(action).unsqueeze(-1)   # [B, 1]
         else:
             logits = pi  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()  # [B,]
-            log_prob = norm_dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = norm_dist.sample()  # [B,]
+            log_prob = norm_dist.log_prob(action).unsqueeze(-1)    # [B, 1]
         o_log_prob = (o * options_onehot).sum(-1, keepdim=True)   # [B, 1]
         q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
         beta_adv = q_o - (q * o.exp()).sum(-1, keepdim=True)   # [B, 1]
@@ -128,7 +128,7 @@ class PPOC(SarlOnPolicy):
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
 
-        acts = Data(action=sample_op,
+        acts = Data(action=action,
                     value=q_o,
                     log_prob=log_prob+t.finfo().eps,
                     o_log_prob=o_log_prob+t.finfo().eps,
@@ -138,7 +138,7 @@ class PPOC(SarlOnPolicy):
                     reward_offset=-((1 - self.oc_mask) * self.dc).unsqueeze(-1))
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs, options):

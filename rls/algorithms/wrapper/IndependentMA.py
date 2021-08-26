@@ -93,7 +93,10 @@ class IndependentMA(Base):
         for id in self._agent_ids:
             self.models[id].episode_reset()
 
-    def episode_step(self, obs, acts: Dict[str, Dict[str, np.ndarray]], env_rets: Dict[str, Data]):
+    def episode_step(self,
+                     obs,
+                     acts: Dict[str, Dict[str, np.ndarray]],
+                     env_rets: Dict[str, Data]):
         # 3
         if self._store:
             expss = {}

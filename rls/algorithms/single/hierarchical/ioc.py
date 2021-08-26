@@ -101,7 +101,7 @@ class IOC(SarlOffPolicy):
         self.options = self.new_options
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         q = self.q_net(obs, cell_state=self.cell_state)  # [B, P]
         self.next_cell_state = self.q_net.get_cell_state()
         pi = self.intra_option_net(obs, cell_state=self.cell_state)  # [B, P, A]
@@ -120,9 +120,9 @@ class IOC(SarlOffPolicy):
         interests = self.interest_net(obs, cell_state=self.cell_state)  # [B, P]
         op_logits = interests * q  # [B, P] or q.softmax(-1)
         self.new_options = td.Categorical(logits=op_logits).sample()    # [B, ]
-        return Data(action=actions,
-                    last_options=self.options,
-                    options=self.new_options)
+        return actions, Data(action=actions,
+                             last_options=self.options,
+                             options=self.new_options)
 
     def random_action(self):
         acts = super().random_action()

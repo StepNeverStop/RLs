@@ -41,15 +41,17 @@ class RepresentationNetwork(t.nn.Module):
             logger.debug('initialize vector network successfully.')
             self.h_dim += self.vector_net.h_dim
 
-        elif self.obs_spec.has_visual_observation:
+        if self.obs_spec.has_visual_observation:
             visual_net_params = dict(rep_net_params.get('visual_net_params', {}))
             logger.debug('initialize visual network begin.')
             self.visual_net = MultiVisualNetwork(obs_spec.visual_dims, **visual_net_params)
             logger.debug('initialize visual network successfully.')
             self.h_dim += self.visual_net.h_dim
 
-        else:
-            raise ValueError  # TODO: change error type
+        self.use_other_info = False
+        if self.obs_spec.has_other_observation:
+            self.use_other_info = True
+            self.h_dim += self.obs_spec.other_dims
 
         self.use_encoder = bool(rep_net_params.get('use_encoder', False))
         if self.use_encoder:
@@ -82,11 +84,14 @@ class RepresentationNetwork(t.nn.Module):
 
         feat = t.cat(feat_list, -1)  # [T, B, *] or [B, *]
 
+        if self.use_other_info:
+            feat = t.cat([feat, obs.other], -1)
+
         if self.use_encoder:
             feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
         if self.use_rnn:
-            if feat.ndim == 2: # [B, *]
+            if feat.ndim == 2:  # [B, *]
                 feat = feat.unsqueeze(0)    # [B, *] => [T, B, *]
                 if cell_state:
                     cell_state = {k: v.unsqueeze(0) for k, v in cell_state.items()}

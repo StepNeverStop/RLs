@@ -63,7 +63,7 @@ class AveragedDQN(SarlOffPolicy):
                                      oplr=self.oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
@@ -73,7 +73,7 @@ class AveragedDQN(SarlOffPolicy):
                 target_q_values = self.target_nets[i](obs, cell_state=self.cell_state)
                 q_values += target_q_values
             actions = q_values.argmax(-1)  # 不取平均也可以 [B, ]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):

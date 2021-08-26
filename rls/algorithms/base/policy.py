@@ -39,6 +39,7 @@ class Policy(Base):
                  gamma=0.999,
                  decay_lr=False,
                  normalize_vector_obs=False,
+                 obs_with_pre_action=False,
                  rep_net_params={
                      'use_encoder': False,
                      'use_rnn': False,  # always false, using -r to active RNN
@@ -75,6 +76,7 @@ class Policy(Base):
         self.gamma = gamma
         self.decay_lr = decay_lr    # TODO: implement
         self.normalize_vector_obs = normalize_vector_obs    # TODO: implement
+        self.obs_with_pre_action = obs_with_pre_action
         self.rep_net_params = dict(rep_net_params)
 
         super().__init__()
@@ -100,6 +102,9 @@ class Policy(Base):
         self._trainer_modules = {'cur_train_step': self.cur_train_step}
 
     def __call__(self, obs):
+        raise NotImplementedError
+
+    def select_action(self, obs):
         raise NotImplementedError
 
     def random_action(self):

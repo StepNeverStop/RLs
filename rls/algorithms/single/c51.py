@@ -56,7 +56,7 @@ class C51(SarlOffPolicy):
                                      oplr=self.oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
@@ -65,7 +65,7 @@ class C51(SarlOffPolicy):
             feat = feat.swapaxes(-1, -2)  # [B, N, A] => [B, A, N]
             q = (self.z * feat).sum(-1)  # [B, A, N] * [N,] => [B, A]
             actions = q.argmax(-1)  # [B,]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):

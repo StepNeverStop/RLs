@@ -116,8 +116,7 @@ class GymEnv(EnvBase):
 
     @property
     def StateSpec(self) -> SensorSpec:
-        return SensorSpec(vector_dims=None,
-                          visual_dims=None)
+        return SensorSpec()
 
     @property
     def is_multi(self) -> bool:

@@ -61,22 +61,22 @@ class A2C(SarlOnPolicy):
                                      critic_oplr=self.critic_oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
             mu, log_std = output     # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
+            action = dist.sample().clamp(-1, 1)   # [B, A]
         else:
             logits = output  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()   # [B,]
+            action = norm_dist.sample()   # [B,]
 
-        acts = Data(action=sample_op)
+        acts = Data(action=action)
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):
