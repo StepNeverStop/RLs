@@ -77,6 +77,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
+        'easydict',
         'gym>=0.15.4',
         "torch>=1.9.0",
         'numpy>=1.19.0',

@@ -12,18 +12,6 @@ from typing import (Dict,
 from dataclasses import dataclass
 from collections import defaultdict
 
-
-class NamedDict(defaultdict):
-
-    def __getattr__(self, attr):
-        if attr in self.keys():
-            return self[attr]
-        else:
-            raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {attr}')
-
-    def __setattr__(self, attr, value):
-        self[attr] = value
-
 # TODO:
 
 

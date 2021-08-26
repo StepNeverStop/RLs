@@ -182,6 +182,7 @@ class BasicUnityEnvironment(object):
         for bn in behavior_names:
             ps = []
 
+            # TODO: optimize
             while True:
                 ds, ts = self.env.get_steps(bn)
                 if len(ts):
@@ -200,7 +201,7 @@ class BasicUnityEnvironment(object):
             info_real_done = np.full(self._n_copys, False)
 
             for ts in ps:    # TODO: 有待优化
-                _ids = np.asarray(list(ts.agent_id_to_index.values()))
+                _ids = ts.agent_id
                 reward[_ids] = ts.reward
                 info_max_step[_ids] = ts.interrupted    # 因为达到episode最大步数而终止的
                 info_real_done[_ids[~ts.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的

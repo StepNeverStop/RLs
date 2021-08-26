@@ -19,16 +19,16 @@ from rls.train.train import (train,
                              inference)
 from rls.common.yaml_ops import load_config
 from rls.envs.make_env import make_env
-from rls.common.specs import NamedDict
+from easydict import EasyDict
 from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
 class Trainer:
     def __init__(self,
-                 env_args: NamedDict,
-                 train_args: NamedDict,
-                 algo_args: NamedDict):
+                 env_args: EasyDict,
+                 train_args: EasyDict,
+                 algo_args: EasyDict):
         '''
         Initilize an agent that consists of training environments, algorithm agent.
         params:
