@@ -48,14 +48,16 @@ class SQL(SarlOffPolicy):
     def select_action(self, obs):
         q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A]
         self.next_cell_state = self.q_net.get_cell_state()
-        logits = ((q_values - self._get_v(q_values)) / self.alpha).exp()    # > 0   # [B, A]
+        logits = ((q_values - self._get_v(q_values)) /
+                  self.alpha).exp()    # > 0   # [B, A]
         logits /= logits.sum(-1, keepdim=True)  # [B, A]
         cate_dist = td.Categorical(logits=logits)
         actions = pi = cate_dist.sample()    # [B,]
         return actions, Data(action=actions)
 
     def _get_v(self, q):
-        v = self.alpha * (q / self.alpha).exp().mean(-1, keepdim=True).log()    # [B, 1] or [T, B, 1]
+        v = self.alpha * (q / self.alpha).exp().mean(-1,
+                                                     keepdim=True).log()    # [B, 1] or [T, B, 1]
         return v
 
     @iTensor_oNumpy

@@ -75,7 +75,8 @@ class SarlOffPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self.cur_train_step, self.summaries, self.writer)
+        self._write_train_summaries(
+            self.cur_train_step, self.summaries, self.writer)
         self.cur_train_step += 1
         if self.cur_train_step % self.save_frequency == 0:
             self.save()

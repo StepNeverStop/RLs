@@ -39,7 +39,8 @@ class C51(SarlOffPolicy):
         self.v_max = v_max
         self.atoms = atoms
         self.delta_z = (self.v_max - self.v_min) / (self.atoms - 1)
-        self.z = t.tensor([self.v_min + i * self.delta_z for i in range(self.atoms)]).float().to(self.device)  # [N,]
+        self.z = t.tensor(
+            [self.v_min + i * self.delta_z for i in range(self.atoms)]).float().to(self.device)  # [N,]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -81,18 +82,24 @@ class C51(SarlOffPolicy):
         q_dist = q_dist.view(-1, self.atoms)  # [T, B, N] => [T*B, N]
 
         target_q_dist = self.q_net.t(BATCH.obs)  # [T, B, N, A]
-        target_q = (target_q_dist.swapaxes(-1, -2) * self.z).sum(-1)  # [T, B, N, A] => [T, B, A, N] * [1, N] => [T, B, A]
+        # [T, B, N, A] => [T, B, A, N] * [1, N] => [T, B, A]
+        target_q = (target_q_dist.swapaxes(-1, -2) * self.z).sum(-1)
         a_ = target_q.argmax(-1)  # [T, B]
         a_onehot = t.nn.functional.one_hot(a_, self.a_dim).float()  # [T, B, A]
-        target_q_dist = target_q_dist.permute(2, 0, 1, 3)  # [T, B, N, A] => [N, T, B, A]
-        target_q_dist = (target_q_dist * a_onehot).sum(-1)  # [N, T, B, A] => [N, T, B]
-        target_q_dist = target_q_dist.permute(1, 2, 0)  # [N, T, B] => [T, B, N]
-        target_q_dist = target_q_dist.view(-1, self.atoms)  # [T, B, N] => [T*B, N]
+        target_q_dist = target_q_dist.permute(
+            2, 0, 1, 3)  # [T, B, N, A] => [N, T, B, A]
+        # [N, T, B, A] => [N, T, B]
+        target_q_dist = (target_q_dist * a_onehot).sum(-1)
+        target_q_dist = target_q_dist.permute(
+            1, 2, 0)  # [N, T, B] => [T, B, N]
+        # [T, B, N] => [T*B, N]
+        target_q_dist = target_q_dist.view(-1, self.atoms)
 
         target = q_target_func(BATCH.reward.repeat(1, 1, self.atoms),
                                self.gamma,
                                BATCH.done.repeat(1, 1, self.atoms),
-                               self.z.view(1, 1, self.atoms).repeat(time_step, batch_size, 1),
+                               self.z.view(1, 1, self.atoms).repeat(
+                                   time_step, batch_size, 1),
                                BATCH.begin_mask,
                                use_rnn=self.use_rnn)    # [T, B, N]
         target = target.clamp(self.v_min, self.v_max)  # [T, B, N]
@@ -109,8 +116,10 @@ class C51(SarlOffPolicy):
         u_id = u_id.long().permute(2, 0, 1)  # [2, T*B, N]
         l_id = l_id.long().permute(2, 0, 1)  # [2, T*B, N]
         _cross_entropy = (target_q_dist * u_minus_b).detach() * q_dist[list(l_id)].log()\
-            + (target_q_dist * b_minus_l).detach() * q_dist[list(u_id)].log()  # [T*B, N]
-        td_error = cross_entropy = -_cross_entropy.sum(-1).view(time_step, batch_size)  # [T, B]
+            + (target_q_dist * b_minus_l).detach() * \
+            q_dist[list(u_id)].log()  # [T*B, N]
+        td_error = cross_entropy = - \
+            _cross_entropy.sum(-1).view(time_step, batch_size)  # [T, B]
 
         loss = (cross_entropy*BATCH.get('isw', 1.0)).mean()   # 1
 

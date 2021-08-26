@@ -70,7 +70,8 @@ class AveragedDQN(SarlOffPolicy):
             q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
             self.next_cell_state = self.q_net.get_cell_state()
             for i in range(self.target_k):
-                target_q_values = self.target_nets[i](obs, cell_state=self.cell_state)
+                target_q_values = self.target_nets[i](
+                    obs, cell_state=self.cell_state)
                 q_values += target_q_values
             actions = q_values.argmax(-1)  # 不取平均也可以 [B, ]
         return actions, Data(action=actions)
@@ -105,4 +106,5 @@ class AveragedDQN(SarlOffPolicy):
         super()._after_train()
         if self.cur_train_step % self.assign_interval == 0:
             sync_params(self.target_nets[self.current_target_idx], self.q_net)
-            self.current_target_idx = (self.current_target_idx + 1) % self.target_k
+            self.current_target_idx = (
+                self.current_target_idx + 1) % self.target_k

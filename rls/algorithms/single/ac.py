@@ -73,7 +73,7 @@ class AC(SarlOffPolicy):
             action = norm_dist.sample()   # [B,]
             log_prob = norm_dist.log_prob(action)  # [B,]
         return action, Data(action=action,
-                               log_prob=log_prob)
+                            log_prob=log_prob)
 
     def random_action(self):
         acts = super().random_action()
@@ -92,8 +92,10 @@ class AC(SarlOffPolicy):
         else:
             logits = self.actor(BATCH.obs_)  # [T, B, *]
             max_a = logits.argmax(-1)    # [T, B]
-            max_a_one_hot = t.nn.functional.one_hot(max_a, self.a_dim).float()  # [T, B, N]
-            max_q_next = self.critic(BATCH.obs_, max_a_one_hot).detach()    # [T, B, 1]
+            max_a_one_hot = t.nn.functional.one_hot(
+                max_a, self.a_dim).float()  # [T, B, N]
+            max_q_next = self.critic(
+                BATCH.obs_, max_a_one_hot).detach()    # [T, B, 1]
         td_error = q - q_target_func(BATCH.reward,
                                      self.gamma,
                                      BATCH.done,
@@ -114,7 +116,8 @@ class AC(SarlOffPolicy):
             log_prob = (logp_all * BATCH.action).sum(-1)  # [T, B]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
         ratio = (log_prob - BATCH.log_prob).exp().detach()  # [T, B]
-        actor_loss = -(ratio * log_prob * q.squeeze(-1).detach()).mean()    # [T, B] => 1
+        actor_loss = -(ratio * log_prob * q.squeeze(-1).detach()
+                       ).mean()    # [T, B] => 1
         self.actor_oplr.step(actor_loss)
 
         return td_error, dict([

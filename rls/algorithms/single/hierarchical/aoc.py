@@ -76,7 +76,8 @@ class AOC(SarlOnPolicy):
                             network_settings=network_settings,
                             is_continuous=self.is_continuous).to(self.device)
         if self.is_continuous:
-            self.log_std = t.as_tensor(np.full((self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
+            self.log_std = t.as_tensor(np.full(
+                (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
             self.oplr = OPLR([self.net, self.log_std], lr)
         else:
             self.oplr = OPLR(self.net, lr)
@@ -84,7 +85,8 @@ class AOC(SarlOnPolicy):
         self._trainer_modules.update(model=self.net,
                                      oplr=self.oplr)
         self.oc_mask = t.tensor(np.zeros(self.n_copys)).to(self.device)
-        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)
+        self.options = t.tensor(np.random.randint(
+            0, self.options_num, self.n_copys)).to(self.device)
 
     def episode_reset(self):
         super().episode_reset()
@@ -101,7 +103,8 @@ class AOC(SarlOnPolicy):
         # [B, P], [B, P, A], [B, P]
         (q, pi, beta) = self.net(obs, cell_state=self.cell_state)
         self.next_cell_state = self.net.get_cell_state()
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(
+            self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
@@ -116,11 +119,14 @@ class AOC(SarlOnPolicy):
             action = norm_dist.sample()   # [B,]
             log_prob = norm_dist.log_prob(action).unsqueeze(-1)     # [B, 1]
         value = q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
-        beta_adv = q_o - ((1 - self.eps) * q.max(-1, keepdim=True)[0] + self.eps * q.mean(-1, keepdim=True))   # [B, 1]
+        beta_adv = q_o - ((1 - self.eps) * q.max(-1, keepdim=True)
+                          [0] + self.eps * q.mean(-1, keepdim=True))   # [B, 1]
         max_options = q.argmax(-1)  # [B, P] => [B, ]
         beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
         beta_dist = td.Bernoulli(probs=beta_probs)
-        new_options = t.where(beta_dist.sample() < 1, self.options, max_options)    # <1 则不改变op， =1 则改变op
+        # <1 则不改变op， =1 则改变op
+        new_options = t.where(beta_dist.sample() < 1,
+                              self.options, max_options)
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
         acts = Data(action=action,
@@ -183,43 +189,53 @@ class AOC(SarlOnPolicy):
         # [T, B, P], [T, B, P, A], [T, B, P]
         (q, pi, beta) = self.net(BATCH.obs)
         options_onehot_expanded = BATCH.options.unsqueeze(-1)  # [T, B, P, 1]
-        pi = (pi * options_onehot_expanded).sum(-2)  # [T, B, P, A] => [T, B, A]
+        # [T, B, P, A] => [T, B, A]
+        pi = (pi * options_onehot_expanded).sum(-2)
         value = (q * BATCH.options).sum(-1, keepdim=True)    # [T, B, 1]
 
         if self.is_continuous:
             mu = pi  # [T, B, A]
             log_std = self.log_std[BATCH.options.argmax(-1)]    # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = pi  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True).mean()  # 1
+            new_log_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(1,
+                                                       keepdim=True).mean()  # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()   # [T, B, 1]
 
         if self.kl_reverse:
             kl = (new_log_prob - BATCH.log_prob).mean()  # 1
         else:
-            kl = (BATCH.log_prob - new_log_prob).mean()    # a sample estimate for KL-divergence, easy to compute
+            # a sample estimate for KL-divergence, easy to compute
+            kl = (BATCH.log_prob - new_log_prob).mean()
         surrogate = ratio * BATCH.gae_adv   # [T, B, 1]
 
-        value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)  # [T, B, 1]
+        value_clip = BATCH.value + \
+            (value - BATCH.value).clamp(-self.value_epsilon,
+                                        self.value_epsilon)  # [T, B, 1]
         td_error = BATCH.discounted_reward - value  # [T, B, 1]
         td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
-        td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
+        td_square = t.maximum(
+            td_error.square(), td_error_clip.square())    # [T, B, 1]
 
         pi_loss = -t.minimum(
             surrogate,
             ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
         ).mean()    # [T, B, 1]
         kl_loss = self.kl_coef * kl
-        extra_loss = 1000.0 * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()
+        extra_loss = 1000.0 * \
+            t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()
         pi_loss = pi_loss + kl_loss + extra_loss    # 1
         q_loss = 0.5 * td_square.mean()  # 1
 
-        beta_s = (beta * BATCH.last_options).sum(-1, keepdim=True)   # [T, B, 1]
+        beta_s = (beta * BATCH.last_options).sum(-1,
+                                                 keepdim=True)   # [T, B, 1]
         beta_loss = (beta_s * BATCH.beta_advantage)  # [T, B, 1]
         if self.terminal_mask:
             beta_loss *= (1 - BATCH.done)   # [T, B, 1]

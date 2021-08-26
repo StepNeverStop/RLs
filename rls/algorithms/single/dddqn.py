@@ -72,7 +72,8 @@ class DDDQN(SarlOffPolicy):
         next_max_action_one_hot = t.nn.functional.one_hot(
             next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
 
-        q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+        q_target_next_max = (
+            q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = q_target_func(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,

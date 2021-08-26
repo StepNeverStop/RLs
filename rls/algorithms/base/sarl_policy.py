@@ -84,9 +84,12 @@ class SarlPolicy(Policy):
 
     def episode_reset(self):
         '''reset model for each new episode.'''
-        self._pre_act = np.zeros((self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
-        self.cell_state = self._initial_cell_state(batch=self.n_copys, dtype='tensor')
-        self.next_cell_state = self._initial_cell_state(batch=self.n_copys, dtype='tensor')
+        self._pre_act = np.zeros(
+            (self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
+        self.cell_state = self._initial_cell_state(
+            batch=self.n_copys, dtype='tensor')
+        self.next_cell_state = self._initial_cell_state(
+            batch=self.n_copys, dtype='tensor')
 
     def episode_step(self, done):
         super().episode_step()

@@ -46,7 +46,8 @@ class MAXSQN(SarlOffPolicy):
                                                           max_step=self.max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
-        self.log_alpha = alpha if not auto_adaption else t.tensor(0., requires_grad=True).to(self.device)
+        self.log_alpha = alpha if not auto_adaption else t.tensor(
+            0., requires_grad=True).to(self.device)
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
@@ -88,20 +89,25 @@ class MAXSQN(SarlOffPolicy):
         q1_eval = (q1 * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q2_eval = (q2 * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
 
-        q1_log_probs = (q1 / (self.alpha + t.finfo().eps)).log_softmax(-1)  # [T, B, A]
-        q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(-1, keepdim=True).mean()  # 1
+        q1_log_probs = (q1 / (self.alpha + t.finfo().eps)
+                        ).log_softmax(-1)  # [T, B, A]
+        q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(-1,
+                                                              keepdim=True).mean()  # 1
 
         q1_target = self.critic.t(BATCH.obs_)   # [T, B, A]
         q2_target = self.critic2.t(BATCH.obs_)  # [T, B, A]
         q1_target_max = q1_target.max(-1, keepdim=True)[0]  # [T, B, 1]
-        q1_target_log_probs = (q1_target / (self.alpha + t.finfo().eps)).log_softmax(-1)    # [T, B, A]
-        q1_target_entropy = -(q1_target_log_probs.exp() * q1_target_log_probs).sum(-1, keepdim=True)   # [T, B, 1]
+        q1_target_log_probs = (
+            q1_target / (self.alpha + t.finfo().eps)).log_softmax(-1)    # [T, B, A]
+        q1_target_entropy = -(q1_target_log_probs.exp() *
+                              q1_target_log_probs).sum(-1, keepdim=True)   # [T, B, 1]
 
         q2_target_max = q2_target.max(-1, keepdim=True)[0]   # [T, B, 1]
         # q2_target_log_probs = q2_target.log_softmax(-1)
         # q2_target_log_max = q2_target_log_probs.max(1, keepdim=True)[0]
 
-        q_target = t.minimum(q1_target_max, q2_target_max) + self.alpha * q1_target_entropy  # [T, B, 1]
+        q_target = t.minimum(q1_target_max, q2_target_max) + \
+            self.alpha * q1_target_entropy  # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
@@ -126,7 +132,8 @@ class MAXSQN(SarlOffPolicy):
             ['Statistics/q_max', t.maximum(q1, q2).mean()]
         ])
         if self.auto_adaption:
-            alpha_loss = -(self.alpha * (self.target_entropy - q1_entropy).detach()).mean()
+            alpha_loss = -(self.alpha * (self.target_entropy -
+                           q1_entropy).detach()).mean()
             self.alpha_oplr.step(alpha_loss)
             summaries.update({
                 'LOSS/alpha_loss': alpha_loss

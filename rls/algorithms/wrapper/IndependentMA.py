@@ -33,14 +33,16 @@ class IndependentMA(Base):
         self._agent_ids = list(agent_specs.keys())
         self._n_agents = len(self._agent_ids)
         if self._n_agents > 1:
-            logger.info(colorize('using SARL algorithm to train Multi-Agent task, model has been changed to independent-SARL automatically.'))
+            logger.info(colorize(
+                'using SARL algorithm to train Multi-Agent task, model has been changed to independent-SARL automatically.'))
 
         self.models = {}
         for id in self._agent_ids:
             _algo_args = deepcopy(algo_args)
             if self._n_agents > 1:
                 _algo_args.base_dir += f'/i{sarl_model_class.__name__}-{id}'
-            self.models[id] = sarl_model_class(agent_spec=agent_specs[id], **_algo_args)
+            self.models[id] = sarl_model_class(
+                agent_spec=agent_specs[id], **_algo_args)
 
         self._buffer = self._build_buffer()
 
@@ -102,7 +104,8 @@ class IndependentMA(Base):
             expss = {}
             for id in self._agent_ids:
                 expss[id] = Data(obs=obs[id],
-                                 reward=env_rets[id].reward[:, np.newaxis],  # [B, ] => [B, 1]
+                                 # [B, ] => [B, 1]
+                                 reward=env_rets[id].reward[:, np.newaxis],
                                  obs_=env_rets[id].obs,
                                  done=env_rets[id].done[:, np.newaxis])
                 expss[id].update(acts[id])
@@ -114,7 +117,8 @@ class IndependentMA(Base):
                 and self._buffer.can_sample:
             rets = self.learn(self._buffer.sample())
             if self.algo_args.use_priority:
-                self._buffer.update(sum(rets.values())/len(self._agent_ids))   # td_error   [T, B, 1]
+                # td_error   [T, B, 1]
+                self._buffer.update(sum(rets.values())/len(self._agent_ids))
 
         for id in self._agent_ids:
             self.models[id].episode_step(env_rets[id].done)

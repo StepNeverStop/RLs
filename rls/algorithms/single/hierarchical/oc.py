@@ -82,12 +82,16 @@ class OC(SarlOffPolicy):
         if self.is_continuous:
             # https://discuss.pytorch.org/t/valueerror-cant-optimize-a-non-leaf-tensor/21751
             # https://blog.csdn.net/nkhgl/article/details/100047276
-            self.log_std = t.as_tensor(np.full((self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
-            self.intra_option_oplr = OPLR([self.intra_option_net, self.log_std], intra_option_lr, clipvalue=5.)
+            self.log_std = t.as_tensor(np.full(
+                (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
+            self.intra_option_oplr = OPLR(
+                [self.intra_option_net, self.log_std], intra_option_lr, clipvalue=5.)
         else:
-            self.intra_option_oplr = OPLR(self.intra_option_net, intra_option_lr, clipvalue=5.)
+            self.intra_option_oplr = OPLR(
+                self.intra_option_net, intra_option_lr, clipvalue=5.)
         self.q_oplr = OPLR(self.q_net, q_lr, clipvalue=5.)
-        self.termination_oplr = OPLR(self.termination_net, termination_lr, clipvalue=5.)
+        self.termination_oplr = OPLR(
+            self.termination_net, termination_lr, clipvalue=5.)
 
         self._trainer_modules.update(q_net=self.q_net,
                                      intra_option_net=self.intra_option_net,
@@ -98,7 +102,8 @@ class OC(SarlOffPolicy):
         self.options = self.new_options = self._generate_random_options()
 
     def _generate_random_options(self):
-        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)   # [B,]
+        # [B,]
+        return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)
 
     def episode_step(self, done: np.ndarray):  # TODO:
         super().episode_step(done)
@@ -108,9 +113,11 @@ class OC(SarlOffPolicy):
     def select_action(self, obs):
         q = self.q_net(obs, cell_state=self.cell_state)  # [B, P]
         self.next_cell_state = self.q_net.get_cell_state()
-        pi = self.intra_option_net(obs, cell_state=self.cell_state)  # [B, P, A]
+        pi = self.intra_option_net(
+            obs, cell_state=self.cell_state)  # [B, P, A]
         beta = self.termination_net(obs, cell_state=self.cell_state)  # [B, P]
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(
+            self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
@@ -124,14 +131,16 @@ class OC(SarlOffPolicy):
             actions = dist.sample()   # [B, ]
         max_options = q.argmax(-1).long()  # [B, P] => [B, ]
         if self.use_eps_greedy:
-            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):   # epsilon greedy
+            # epsilon greedy
+            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
                 self.new_options = self._generate_random_options()
             else:
                 self.new_options = max_options
         else:
             beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
             beta_dist = td.Bernoulli(probs=beta_probs)
-            self.new_options = t.where(beta_dist.sample() < 1, self.options, max_options)
+            self.new_options = t.where(
+                beta_dist.sample() < 1, self.options, max_options)
         return actions, Data(action=actions,
                              last_options=self.options,
                              options=self.new_options)
@@ -155,12 +164,15 @@ class OC(SarlOffPolicy):
         beta_next = self.termination_net(BATCH.obs_)  # [T, B, P]
 
         qu_eval = (q * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
-        beta_s_ = (beta_next * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
+        beta_s_ = (beta_next * BATCH.options).sum(-1,
+                                                  keepdim=True)  # [T, B, 1]
         q_s_ = (q_next * BATCH.options).sum(-1, keepdim=True)   # [T, B, 1]
         # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
         if self.double_q:
             q_ = self.q_net(BATCH.obs_)  # [T, B, P]
-            max_a_idx = t.nn.functional.one_hot(q_.argmax(-1), self.options_num).float()  # [T, B, P] => [T, B] => [T, B, P]
+            # [T, B, P] => [T, B] => [T, B, P]
+            max_a_idx = t.nn.functional.one_hot(
+                q_.argmax(-1), self.options_num).float()
             q_s_max = (q_next * max_a_idx).sum(-1, keepdim=True)   # [T, B, 1]
         else:
             q_s_max = q_next.max(-1, keepdim=True)[0]   # [T, B, 1]
@@ -172,7 +184,8 @@ class OC(SarlOffPolicy):
                                   BATCH.begin_mask,
                                   use_rnn=self.use_rnn)  # [T, B, 1]
         td_error = qu_target - qu_eval     # gradient : q   [T, B, 1]
-        q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()        # [T, B, 1] => 1
+        q_loss = (td_error.square() * BATCH.get('isw', 1.0)
+                  ).mean()        # [T, B, 1] => 1
         self.q_oplr.step(q_loss)
 
         q_s = qu_eval.detach()  # [T, B, 1]
@@ -181,9 +194,11 @@ class OC(SarlOffPolicy):
             adv = (qu_target - q_s).detach()    # [T, B, 1]
         else:
             adv = qu_target.detach()    # [T, B, 1]
-        options_onehot_expanded = BATCH.options.unsqueeze(-1)   # [T, B, P] => [T, B, P, 1]
+        # [T, B, P] => [T, B, P, 1]
+        options_onehot_expanded = BATCH.options.unsqueeze(-1)
         pi = self.intra_option_net(BATCH.obs)  # [T, B, P, A]
-        pi = (pi * options_onehot_expanded).sum(-2)  # [T, B, P, A] => [T, B, A]
+        # [T, B, P, A] => [T, B, A]
+        pi = (pi * options_onehot_expanded).sum(-2)
         if self.is_continuous:
             mu = pi.tanh()  # [T, B, A]
             log_std = self.log_std[BATCH.options.argmax(-1)]  # [T, B, A]
@@ -193,16 +208,21 @@ class OC(SarlOffPolicy):
         else:
             pi = pi / self.boltzmann_temperature    # [T, B, A]
             log_pi = pi.log_softmax(-1)  # [T, B, A]
-            entropy = -(log_pi.exp() * log_pi).sum(-1, keepdim=True)    # [T, B, 1]
-            log_p = (BATCH.action * log_pi).sum(-1, keepdim=True)    # [T, B, 1]
+            entropy = -(log_pi.exp() * log_pi).sum(-1,
+                                                   keepdim=True)    # [T, B, 1]
+            log_p = (BATCH.action * log_pi).sum(-1,
+                                                keepdim=True)    # [T, B, 1]
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()    # 1
 
         beta = self.termination_net(BATCH.obs)   # [T, B, P]
-        beta_s = (beta * BATCH.last_options).sum(-1, keepdim=True)   # [T, B, 1]
+        beta_s = (beta * BATCH.last_options).sum(-1,
+                                                 keepdim=True)   # [T, B, 1]
         if self.use_eps_greedy:
-            v_s = q.max(-1, keepdim=True)[0] - self.termination_regularizer   # [T, B, 1]
+            v_s = q.max(-1, keepdim=True)[0] - \
+                self.termination_regularizer   # [T, B, 1]
         else:
-            v_s = (1 - beta_s) * q_s + beta_s * q.max(-1, keepdim=True)[0]    # [T, B, 1]
+            v_s = (1 - beta_s) * q_s + beta_s * \
+                q.max(-1, keepdim=True)[0]    # [T, B, 1]
             # v_s = q.mean(-1, keepdim=True)  # [T, B, 1]
         beta_loss = beta_s * (q_s - v_s).detach()   # [T, B, 1]
         # https://github.com/lweitkamp/option-critic-pytorch/blob/0c57da7686f8903ed2d8dded3fae832ee9defd1a/option_critic.py#L238

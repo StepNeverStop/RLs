@@ -35,7 +35,8 @@ class PrioritizedDataBuffer(DataBuffer):
                          batch_size=batch_size,
                          buffer_size=buffer_size,
                          time_step=time_step)
-        self._tree = Sum_Tree(self.buffer_size)  # [T0B0, ..., T0BN, T1B0, ..., T1BN, ..., TNBN]
+        # [T0B0, ..., T0BN, T1B0, ..., T1BN, ..., TNBN]
+        self._tree = Sum_Tree(self.buffer_size)
         self.alpha = alpha
         self.beta = beta
         self.beta_interval = (1. - beta) / max_train_step
@@ -46,7 +47,8 @@ class PrioritizedDataBuffer(DataBuffer):
 
     def add(self, data: Dict[str, Data]):
         super().add(data)
-        self._tree.add_batch(np.full(self.n_copys, self.max_p), n_step_delay=self.time_step-1)
+        self._tree.add_batch(np.full(self.n_copys, self.max_p),
+                             n_step_delay=self.time_step-1)
 
     def sample(self, batchsize=None, timestep=None):
         B = batchsize or self.batch_size
@@ -63,7 +65,9 @@ class PrioritizedDataBuffer(DataBuffer):
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         x, y = didx // self.n_copys, didx % self.n_copys    # t, b
 
-        xs = (np.tile(np.arange(T)[:, np.newaxis], B) + x) % self._horizon_length    # (T, B) + (B, ) = (T, B)
+        # (T, B) + (B, ) = (T, B)
+        xs = (np.tile(np.arange(T)[:, np.newaxis],
+              B) + x) % self._horizon_length
         sample_idxs = (xs, y)
 
         # weights of variables by using Importance Sampling

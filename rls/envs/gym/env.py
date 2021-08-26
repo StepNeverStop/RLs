@@ -23,26 +23,30 @@ logger = get_logger(__name__)
 try:
     import gym_minigrid
 except ImportError:
-    logger.warning(colorize("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
 except ImportError:
-    logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
 try:
     import gym_donkeycar
 except ImportError:
-    logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
     pass
 
 try:
     import highway_env
 except ImportError:
-    logger.warning(colorize("import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
     pass
 
 
@@ -77,7 +81,8 @@ class GymEnv(EnvBase):
                 'global': Data(begin_mask=np.full((self._n_copys, 1), True))}
 
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
-        actions = deepcopy(actions['single'])  # choose the first agents' actions
+        # choose the first agents' actions
+        actions = deepcopy(actions['single'])
         obs, reward, done, info = self._envs.step(actions)
         if self._use_visual:
             obs = Data(visual={'visual_0': obs})
@@ -129,7 +134,8 @@ class GymEnv(EnvBase):
     # --- custom
 
     def _initialize(self, env):
-        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(
+            env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
         # process observation
         ObsSpace = env.observation_space
 
@@ -152,11 +158,13 @@ class GymEnv(EnvBase):
         # process action
         ActSpace = env.action_space
         if isinstance(ActSpace, Box):
-            assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
+            assert len(
+                ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self._is_continuous = True
             self.a_dim = ActSpace.shape[0]
         elif isinstance(ActSpace, Tuple):
-            assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
+            assert all([isinstance(i, Discrete) for i in ActSpace]
+                       ) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self._is_continuous = False
             self.a_dim = int(np.asarray([i.n for i in ActSpace]).prod())
         else:

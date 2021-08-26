@@ -103,15 +103,19 @@ class A2C(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            log_act_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
         else:
             logits = self.actor(BATCH.obs)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            log_act_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            log_act_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)  # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1,
+                                                       keepdim=True)  # [T, B, 1]
         advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
-        actor_loss = -(log_act_prob * advantage + self.beta * entropy).mean()  # 1
+        actor_loss = -(log_act_prob * advantage +
+                       self.beta * entropy).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
         return dict([

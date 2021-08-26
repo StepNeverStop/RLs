@@ -35,7 +35,8 @@ def gaussian_likelihood(x, mu, log_std):
     Return:
         log probability of sample. i.e. [[0.1, 0.1, 0.1], [0.1, 0.1, 0.1]], not [[0.3], [0.3]]
     """
-    pre_sum = -0.5 * (((x - mu) / (log_std.exp() + t.finfo().eps))**2 + 2 * log_std + math.log(2 * np.pi))
+    pre_sum = -0.5 * (((x - mu) / (log_std.exp() + t.finfo().eps))
+                      ** 2 + 2 * log_std + math.log(2 * np.pi))
     return t.maximum(pre_sum, t.full_like(pre_sum, t.finfo().eps))
 
 
@@ -158,5 +159,6 @@ def q_target_func(reward, gamma, done, q_next, begin_mask,
         q_post = q_next[-1]
         for _t in range(n_step)[::-1]:
             q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_post
-            q_post = t.where(begin_mask[_t] > 0, q_next[max(_t-1, 0)], q_target[_t])
+            q_post = t.where(begin_mask[_t] > 0,
+                             q_next[max(_t-1, 0)], q_target[_t])
     return q_target.detach() if detach else q_target

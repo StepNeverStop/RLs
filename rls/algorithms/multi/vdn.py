@@ -38,7 +38,8 @@ class VDN(MultiAgentOffPolicy):
                  },
                  **kwargs):
         super().__init__(**kwargs)
-        assert not any(list(self.is_continuouss.values())), 'VDN only support discrete action space'
+        assert not any(list(self.is_continuouss.values())
+                       ), 'VDN only support discrete action space'
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -63,7 +64,8 @@ class VDN(MultiAgentOffPolicy):
         ).to(self.device)
 
         self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr)
-        self._trainer_modules.update({f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
+        self._trainer_modules.update(
+            {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
                                      oplr=self.oplr)
 
@@ -92,19 +94,23 @@ class VDN(MultiAgentOffPolicy):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
             q = self.q_nets[mid](BATCH_DICT[aid].obs)   # [T, B, A]
-            q_eval = (q * BATCH_DICT[aid].action).sum(-1, keepdim=True)  # [T, B, 1]
+            q_eval = (q * BATCH_DICT[aid].action).sum(-1,
+                                                      keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
 
             next_q = self.q_nets[mid](BATCH_DICT[aid].obs_)  # [T, B, A]
             q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_)  # [T, B, A]
 
             next_max_action = next_q.argmax(-1)  # [T, B]
-            next_max_action_one_hot = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dims[aid]).float()   # [T, B, A]
+            next_max_action_one_hot = t.nn.functional.one_hot(
+                next_max_action.squeeze(), self.a_dims[aid]).float()   # [T, B, A]
 
-            q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+            q_target_next_max = (
+                q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
             q_target_next_maxs.append(q_target_next_max)    # N * [T, B, 1]
         q_eval_all = self.mixer(q_evals, BATCH_DICT['global'].obs)  # [T, B, 1]
-        q_target_next_max_all = self.mixer.t(q_target_next_maxs, BATCH_DICT['global'].obs_)  # [T, B, 1]
+        q_target_next_max_all = self.mixer.t(
+            q_target_next_maxs, BATCH_DICT['global'].obs_)  # [T, B, 1]
 
         q_target_all = q_target_func(reward,
                                      self.gamma,

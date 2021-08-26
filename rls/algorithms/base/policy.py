@@ -88,7 +88,8 @@ class Policy(Base):
             'network_type': 'lstm'
         })
 
-        self.cp_dir, self.log_dir = [os.path.join(base_dir, i) for i in ['model', 'log']]
+        self.cp_dir, self.log_dir = [os.path.join(
+            base_dir, i) for i in ['model', 'log']]
 
         if not self.no_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
@@ -141,7 +142,8 @@ class Policy(Base):
                 else:
                     data[k] = v  # tensor/Number
             t.save(data, os.path.join(self.cp_dir, 'checkpoint.pth'))
-            logger.info(colorize(f'Save checkpoint success. Training step: {self.cur_train_step}', color='green'))
+            logger.info(colorize(
+                f'Save checkpoint success. Training step: {self.cur_train_step}', color='green'))
 
     def resume(self, base_dir: Optional[str] = None) -> Dict:
         """
@@ -161,11 +163,14 @@ class Policy(Base):
                         setattr(self, k, checkpoint[k])
             except Exception as e:
                 logger.error(e)
-                raise Exception(colorize(f'Resume model from {ckpt_path} FAILED.', color='red'))
+                raise Exception(
+                    colorize(f'Resume model from {ckpt_path} FAILED.', color='red'))
             else:
-                logger.info(colorize(f'Resume model from {ckpt_path} SUCCESSFULLY.', color='green'))
+                logger.info(
+                    colorize(f'Resume model from {ckpt_path} SUCCESSFULLY.', color='green'))
         else:
-            logger.info(colorize('Initialize model SUCCESSFULLY.', color='green'))
+            logger.info(
+                colorize('Initialize model SUCCESSFULLY.', color='green'))
 
     @property
     def still_learn(self):

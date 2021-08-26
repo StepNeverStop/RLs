@@ -12,7 +12,7 @@ class TargetTwin:
         self._target_module = deepcopy(module)
         self._target_module.eval()
         self.ployak = ployak
-        
+
         self.sync()
         self.sync()
 

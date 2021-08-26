@@ -81,13 +81,16 @@ class PG(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = output    # [B, T, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [B, T, 1]
+            log_act_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [B, T, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [B, T, 1]
         else:
             logits = output  # [B, T, A]
             logp_all = logits.log_softmax(-1)   # [B, T, A]
-            log_act_prob = (logp_all * BATCH.action).sum(-1, keepdim=True)  # [B, T, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)  # [B, T, 1]
+            log_act_prob = (logp_all * BATCH.action).sum(-1,
+                                                         keepdim=True)  # [B, T, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(1,
+                                                       keepdim=True)  # [B, T, 1]
         loss = -(log_act_prob * BATCH.discounted_reward).mean()
         self.oplr.step(loss)
         return dict([

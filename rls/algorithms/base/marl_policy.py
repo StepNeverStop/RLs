@@ -33,9 +33,12 @@ class MarlPolicy(Policy):
         self.agent_specs = agent_specs
         self.n_agents_percopy = len(agent_specs)
         self.agent_ids = list(self.agent_specs.keys())
-        self.obs_specs = {id: agent_spec.obs_spec for id, agent_spec in agent_specs.items()}
-        self.is_continuouss = {id: agent_spec.is_continuous for id, agent_spec in agent_specs.items()}
-        self.a_dims = {id: agent_spec.a_dim for id, agent_spec in agent_specs.items()}
+        self.obs_specs = {id: agent_spec.obs_spec for id,
+                          agent_spec in agent_specs.items()}
+        self.is_continuouss = {
+            id: agent_spec.is_continuous for id, agent_spec in agent_specs.items()}
+        self.a_dims = {id: agent_spec.a_dim for id,
+                       agent_spec in agent_specs.items()}
 
         self.state_spec = state_spec
         self.share_params = share_params
@@ -60,7 +63,8 @@ class MarlPolicy(Policy):
                     if self.agent_specs[self.agent_ids[i]] == self.agent_specs[id]:
                         self.model_ids[i] = id
                         break
-        self.agent_writers = {id: self._create_writer(self.log_dir + f'_{id}') for id in self.agent_ids}
+        self.agent_writers = {id: self._create_writer(
+            self.log_dir + f'_{id}') for id in self.agent_ids}
 
         self._buffer = self._build_buffer()
 
@@ -76,7 +80,8 @@ class MarlPolicy(Policy):
                 else:
                     other = self._pre_acts[id]
             if self.obs_with_agent_id:
-                _id_onehot = int2one_hot(np.full(self.n_copys, i), self.n_agents_percopy)
+                _id_onehot = int2one_hot(
+                    np.full(self.n_copys, i), self.n_agents_percopy)
                 if other is not None:
                     other = np.concatenate((
                         other,
@@ -99,9 +104,11 @@ class MarlPolicy(Policy):
         acts = {}
         for id in self.agent_ids:
             if self.is_continuouss[id]:
-                acts[id] = Data(action=np.random.uniform(-1.0, 1.0, (self.n_copys, self.a_dims[id])))
+                acts[id] = Data(action=np.random.uniform(-1.0,
+                                1.0, (self.n_copys, self.a_dims[id])))
             else:
-                acts[id] = Data(action=np.random.randint(0, self.a_dims[id], self.n_copys))
+                acts[id] = Data(action=np.random.randint(
+                    0, self.a_dims[id], self.n_copys))
         return acts
 
     def setup(self, is_train_mode=True, store=True):
@@ -111,7 +118,8 @@ class MarlPolicy(Policy):
     def episode_reset(self):
         self._pre_acts = {}
         for id in self.agent_ids:
-            self._pre_acts[id] = np.zeros((self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
+            self._pre_acts[id] = np.zeros(
+                (self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
 
     def episode_step(self,
                      obs,
@@ -122,7 +130,8 @@ class MarlPolicy(Policy):
             expss = {}
             for id in self.agent_ids:
                 expss[id] = Data(obs=obs[id],
-                                 reward=env_rets[id].reward[:, np.newaxis],  # [B, ] => [B, 1]
+                                 # [B, ] => [B, 1]
+                                 reward=env_rets[id].reward[:, np.newaxis],
                                  obs_=env_rets[id].obs,
                                  done=env_rets[id].done[:, np.newaxis])
                 expss[id].update(acts[id])
@@ -141,9 +150,11 @@ class MarlPolicy(Policy):
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():
-            super()._write_train_summaries(self.cur_episode, summaries=summaries.pop('model'), writer=self.writer)
+            super()._write_train_summaries(self.cur_episode,
+                                           summaries=summaries.pop('model'), writer=self.writer)
         for id, summary in summaries.items():
-            super()._write_train_summaries(self.cur_episode, summaries=summary, writer=self.agent_writers[id])
+            super()._write_train_summaries(self.cur_episode,
+                                           summaries=summary, writer=self.agent_writers[id])
 
     # customed
 
@@ -157,6 +168,8 @@ class MarlPolicy(Policy):
         write summaries showing in tensorboard.
         '''
         if 'model' in summaries.keys():
-            super()._write_train_summaries(cur_train_step, summaries=summaries.pop('model'), writer=self.writer)
+            super()._write_train_summaries(cur_train_step,
+                                           summaries=summaries.pop('model'), writer=self.writer)
         for id, summary in summaries.items():
-            super()._write_train_summaries(cur_train_step, summaries=summary, writer=self.agent_writers[id])
+            super()._write_train_summaries(cur_train_step,
+                                           summaries=summary, writer=self.agent_writers[id])

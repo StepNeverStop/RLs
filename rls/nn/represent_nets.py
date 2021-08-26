@@ -35,16 +35,20 @@ class RepresentationNetwork(t.nn.Module):
         self.h_dim = 0
 
         if self.obs_spec.has_vector_observation:
-            vector_net_params = dict(rep_net_params.get('vector_net_params', {}))
+            vector_net_params = dict(
+                rep_net_params.get('vector_net_params', {}))
             logger.debug('initialize vector network begin.')
-            self.vector_net = MultiVectorNetwork(obs_spec.vector_dims, **vector_net_params)
+            self.vector_net = MultiVectorNetwork(
+                obs_spec.vector_dims, **vector_net_params)
             logger.debug('initialize vector network successfully.')
             self.h_dim += self.vector_net.h_dim
 
         if self.obs_spec.has_visual_observation:
-            visual_net_params = dict(rep_net_params.get('visual_net_params', {}))
+            visual_net_params = dict(
+                rep_net_params.get('visual_net_params', {}))
             logger.debug('initialize visual network begin.')
-            self.visual_net = MultiVisualNetwork(obs_spec.visual_dims, **visual_net_params)
+            self.visual_net = MultiVisualNetwork(
+                obs_spec.visual_dims, **visual_net_params)
             logger.debug('initialize visual network successfully.')
             self.h_dim += self.visual_net.h_dim
 
@@ -55,14 +59,16 @@ class RepresentationNetwork(t.nn.Module):
 
         self.use_encoder = bool(rep_net_params.get('use_encoder', False))
         if self.use_encoder:
-            encoder_net_params = dict(rep_net_params.get('encoder_net_params', {}))
+            encoder_net_params = dict(
+                rep_net_params.get('encoder_net_params', {}))
             self.encoder_net = EncoderNetwork(self.h_dim, **encoder_net_params)
             logger.debug('initialize encoder network successfully.')
             self.h_dim = self.encoder_net.h_dim
 
         self.use_rnn = bool(rep_net_params.get('use_rnn', False))
         if self.use_rnn:
-            memory_net_params = dict(rep_net_params.get('memory_net_params', {}))
+            memory_net_params = dict(
+                rep_net_params.get('memory_net_params', {}))
             self.memory_net = MemoryNetwork(self.h_dim, **memory_net_params)
             logger.debug('initialize memory network successfully.')
             self.h_dim = self.memory_net.h_dim
@@ -94,8 +100,10 @@ class RepresentationNetwork(t.nn.Module):
             if feat.ndim == 2:  # [B, *]
                 feat = feat.unsqueeze(0)    # [B, *] => [T, B, *]
                 if cell_state:
-                    cell_state = {k: v.unsqueeze(0) for k, v in cell_state.items()}
-            feat, cell_state = self.memory_net(feat, cell_state)    # [T, B, *] or [B, *]
+                    cell_state = {k: v.unsqueeze(0)
+                                  for k, v in cell_state.items()}
+            feat, cell_state = self.memory_net(
+                feat, cell_state)    # [T, B, *] or [B, *]
         return feat, cell_state
 
 
@@ -119,7 +127,8 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
                 RepresentationNetwork(obs_spec=obs_spec,
                                       rep_net_params=rep_net_params)
             )
-        self.h_dim = sum([rep_net.h_dim for rep_net in self.representation_nets])
+        self.h_dim = sum(
+            [rep_net.h_dim for rep_net in self.representation_nets])
 
     def forward(self, obss, cell_state):
         # TODO: cell_state

@@ -52,7 +52,8 @@ class MultiVisualNetwork(t.nn.Module):
 
     def forward(self, *visual_inputs):
         # h, w, c => c, h, w
-        visual_inputs = [vi.swapaxes(-1, -3).swapaxes(-1, -2) for vi in visual_inputs]
+        visual_inputs = [vi.swapaxes(-1, -3).swapaxes(-1, -2)
+                         for vi in visual_inputs]
         output = []
         for dense_net, visual_s in zip(self.dense_nets, visual_inputs):
             output.append(
@@ -123,7 +124,9 @@ class MemoryNetwork(t.nn.Module):
                 cell_states['cx'].append(cx)
         if T > 1:
             output = t.stack(output, dim=0)  # [T, B, N]
-            cell_states = {k: t.stack(v, 0) for k, v in cell_states.items()}  # [T, B, N]
+            cell_states = {k: t.stack(v, 0)
+                           for k, v in cell_states.items()}  # [T, B, N]
             return output, cell_states
         else:
-            return output[0], {k: v[0] for k, v in cell_states.items()}  # [B, *]
+            # [B, *]
+            return output[0], {k: v[0] for k, v in cell_states.items()}

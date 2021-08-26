@@ -26,7 +26,8 @@ for i, env_info in enumerate(env_list):
         if 'Defender' in env_info.id:   # Defender envs could make program no response.
             continue
         env = gym.make(env_info.id)
-        info = '|' + str(env_info.id).ljust(50) + str(env.observation_space).ljust(80) + str(env.action_space).rjust(80) + '|'
+        info = '|' + str(env_info.id).ljust(50) + str(env.observation_space).ljust(
+            80) + str(env.action_space).rjust(80) + '|'
         print(i, info)
         available_file.write(info + '\n')
         if not isinstance(env.observation_space, (Box, Discrete)) or not isinstance(env.action_space, (Box, Discrete, Tuple)):

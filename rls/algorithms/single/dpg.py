@@ -44,8 +44,10 @@ class DPG(SarlOffPolicy):
         self.use_target_action_noise = use_target_action_noise
 
         if self.is_continuous:
-            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
-            self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
+            self.target_noised_action = ClippedNormalNoisedAction(
+                sigma=0.2, noise_bound=0.2)
+            self.noised_action = Noise_action_REGISTER[noise_action](
+                **noise_params)
             self.actor = ActorDPG(self.obs_spec,
                                   rep_net_params=self.rep_net_params,
                                   output_shape=self.a_dim,
@@ -93,12 +95,14 @@ class DPG(SarlOffPolicy):
         if self.is_continuous:
             action_target = self.actor(BATCH.obs_)  # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(action_target)    # [T, B, A]
+                action_target = self.target_noised_action(
+                    action_target)    # [T, B, A]
         else:
             target_logits = self.actor(BATCH.obs_)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = t.nn.functional.one_hot(
+                target_pi, self.a_dim).float()  # [T, B, A]
         q_target = self.critic(BATCH.obs_, action_target)   # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,

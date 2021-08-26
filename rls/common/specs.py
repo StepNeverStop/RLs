@@ -161,7 +161,8 @@ class Data:
             if keys[0] not in params.keys():
                 params[keys[0]] = {}
             if len(keys) > 1:
-                params.update({keys[0]: func3(params[keys[0]], value, keys[1:])})
+                params.update(
+                    {keys[0]: func3(params[keys[0]], value, keys[1:])})
             else:
                 params.update({keys[0]: value})
             return params
