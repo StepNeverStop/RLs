@@ -9,12 +9,12 @@ import platform
 import argparse
 import torch as t
 
+from easydict import EasyDict
 from typing import Dict
 from copy import deepcopy
 from multiprocessing import Process
 
 from rls.common.trainer import Trainer
-from rls.common.specs import NamedDict
 from rls.common.yaml_ops import (save_config,
                                  load_config)
 from rls.algorithms.register import registry as algo_registry
@@ -85,15 +85,15 @@ def main():
     args = get_args()
     assert args.platform in platform_list, "assert args.platform in platform_list"
 
-    train_args = NamedDict()
+    train_args = EasyDict()
     train_args.update(load_config(f'rls/configs/train.yaml'))
     train_args.update(load_config(f'rls/configs/{args.platform}/train.yaml'))
 
-    env_args = NamedDict()
+    env_args = EasyDict()
     env_args.update(load_config(f'rls/configs/env.yaml'))
     env_args.update(load_config(f'rls/configs/{args.platform}/env.yaml'))
 
-    algo_args = NamedDict()
+    algo_args = EasyDict()
 
     if args.config_file is not None:
         custome_config = load_config(args.config_file)
@@ -102,23 +102,22 @@ def main():
         algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
         algo_args.update(custome_config['algorithm'])
     else:
-        copys = 1 if args.inference else args.copys
         train_args.update(args.__dict__)
         algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
-        algo_args.update(dict(n_copys=copys))
+        algo_args.update(n_copys=args.copys)
         # env config
-        env_args.update(dict(platform=args.platform,
-                             env_copys=copys,  # Environmental copies of vectorized training.
-                             seed=args.seed,
-                             inference=args.inference,
-                             env_name=args.env_name))
+        env_args.update(platform=args.platform,
+                        env_copys=args.copys,  # Environmental copies of vectorized training.
+                        seed=args.seed,
+                        inference=args.inference,
+                        env_name=args.env_name)
 
         if env_args.platform == 'unity':
             env_args.env_name = 'UnityEditor'
             env_args.file_name = args.file_name
 
             if env_args.inference:
-                env_args.engine_config.time_scale = 1   # TODO: test
+                env_args.engine_config.time_scale = 1
             if env_args.file_name is not None:
                 if os.path.exists(env_args.file_name):
                     env_args.env_name = args.env_name or os.path.join(
@@ -146,9 +145,9 @@ def main():
                           'base_dir': train_args.base_dir})
 
     # show and save config
-    records_dict = {'train': dict(train_args),
-                    'environment': dict(env_args),
-                    'algorithm': dict(algo_args)}
+    records_dict = {'train': train_args,
+                    'environment': env_args,
+                    'algorithm': algo_args}
     show_dict(records_dict)
     if not train_args.inference and not train_args.no_save:
         save_config(train_args.base_dir, records_dict, 'config.yaml')
