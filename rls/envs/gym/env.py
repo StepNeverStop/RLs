@@ -1,23 +1,18 @@
 
 
-import numpy as np
-
-from typing import (Dict,
-                    List,
-                    NoReturn)
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
-from supersuit import gym_vec_env_v0
 from copy import deepcopy
+from typing import Dict, List, NoReturn
 
+import numpy as np
+from gym.spaces import Box, Discrete, Tuple
+from supersuit import gym_vec_env_v0
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
 from rls.envs.gym.make_env import make_env
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 try:

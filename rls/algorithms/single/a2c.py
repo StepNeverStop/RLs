@@ -3,16 +3,13 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.specs import Data
-from rls.nn.models import (ActorMuLogstd,
-                           ActorDct,
-                           CriticValue)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
+from rls.nn.utils import OPLR
 from rls.utils.np_utils import discounted_sum
 
 

@@ -1,26 +1,21 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from collections import defaultdict
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
-
-from collections import defaultdict
 from torch import distributions as td
-from typing import (List,
-                    Union,
-                    NoReturn,
-                    Dict)
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.nn.noised_actions import Noise_action_REGISTER
-from rls.nn.models import (MACriticQvalueOne,
-                           ActorDct,
-                           ActorDPG)
-from rls.utils.torch_utils import q_target_func
 from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.nn.utils import OPLR
 from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.noised_actions import Noise_action_REGISTER
+from rls.nn.utils import OPLR
+from rls.utils.torch_utils import q_target_func
 
 
 class MADDPG(MultiAgentOffPolicy):

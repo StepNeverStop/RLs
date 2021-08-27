@@ -1,27 +1,25 @@
 
 #!/usr/bin/env python3
 # encoding: utf-8
+import argparse
+import logging
 import os
+import platform
 import sys
 import time
-import logging
-import platform
-import argparse
-import torch as t
-
-from easydict import EasyDict
-from typing import Dict
 from copy import deepcopy
 from multiprocessing import Process
+from typing import Dict
 
-from rls.common.trainer import Trainer
-from rls.common.yaml_ops import (save_config,
-                                 load_config)
+import torch as t
+from easydict import EasyDict
+
 from rls.algorithms.register import registry as algo_registry
+from rls.common.trainer import Trainer
+from rls.common.yaml_ops import load_config, save_config
 from rls.envs import platform_list
 from rls.utils.display import show_dict
-from rls.utils.logging_utils import (set_log_level,
-                                     set_log_file)
+from rls.utils.logging_utils import set_log_file, set_log_level
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1"
 set_log_level(logging.INFO)
@@ -197,10 +195,11 @@ def agent_run(*args):
 if __name__ == "__main__":
 
     if sys.platform.startswith('win'):
-        import pywintypes   # necessary when using python 3.8+
+        import _thread
+
+        import pywintypes  # necessary when using python 3.8+
         import win32api
         import win32con
-        import _thread
 
         def _win_handler(event, hook_sigint=_thread.interrupt_main):
             '''

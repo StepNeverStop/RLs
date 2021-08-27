@@ -2,22 +2,17 @@
 # encoding: utf-8
 
 import importlib
+from typing import Dict, List, NoReturn, Tuple, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Dict,
-                    Union,
-                    NoReturn,
-                    List,
-                    Tuple)
-
-from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.sarl_policy import SarlPolicy
-from rls.common.yaml_ops import load_config
-from rls.common.specs import Data
 from rls.common.decorator import iTensor_oNumpy
-from rls.utils.converter import (to_numpy,
-                                 to_tensor)
+from rls.common.specs import Data
+from rls.common.yaml_ops import load_config
+from rls.utils.converter import to_numpy, to_tensor
+from rls.utils.np_utils import int2one_hot
 
 
 class SarlOffPolicy(SarlPolicy):

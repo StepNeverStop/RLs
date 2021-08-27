@@ -2,8 +2,8 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def ion():

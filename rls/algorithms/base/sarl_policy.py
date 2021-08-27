@@ -1,27 +1,19 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from abc import abstractmethod
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
 
-from abc import abstractmethod
-from collections import defaultdict
-from typing import (Union,
-                    List,
-                    Callable,
-                    Tuple,
-                    Any,
-                    Dict,
-                    NoReturn,
-                    Optional)
-
 from rls.algorithms.base.policy import Policy
+from rls.common.specs import Data, EnvAgentSpec
+from rls.nn.modules import CuriosityModel
+from rls.utils.np_utils import int2one_hot
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.common.specs import EnvAgentSpec
-from rls.nn.modules import CuriosityModel
-from rls.common.specs import Data
-from rls.utils.np_utils import int2one_hot
 
 
 class SarlPolicy(Policy):

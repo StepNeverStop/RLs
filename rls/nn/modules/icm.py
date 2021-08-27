@@ -1,14 +1,10 @@
 
 import torch as t
+from torch.nn import Linear, Sequential, Tanh
 
-from torch.nn import (Sequential,
-                      Tanh,
-                      Linear)
-
-from rls.nn.represent_nets import RepresentationNetwork
-from rls.nn.activations import default_act
-from rls.nn.activations import Act_REGISTER
 from rls.common.decorator import iTensor_oNumpy
+from rls.nn.activations import Act_REGISTER, default_act
+from rls.nn.represent_nets import RepresentationNetwork
 from rls.nn.utils import OPLR
 
 

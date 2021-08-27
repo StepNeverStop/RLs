@@ -4,10 +4,7 @@
 # algorithms based on PyTorch
 
 import importlib
-
-from typing import (Tuple,
-                    Callable,
-                    Dict)
+from typing import Callable, Dict, Tuple
 
 from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize

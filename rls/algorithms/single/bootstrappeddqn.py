@@ -3,17 +3,16 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import CriticQvalueBootstrap
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import q_target_func
-from rls.nn.models import CriticQvalueBootstrap
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.common.specs import Data
 
 
 class BootstrappedDQN(SarlOffPolicy):

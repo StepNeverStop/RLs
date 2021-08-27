@@ -2,14 +2,11 @@
 # encoding: utf-8
 
 import torch as t
-
-from torch.nn import (Linear,
-                      Softmax,
-                      Sequential)
+from torch.nn import Linear, Sequential, Softmax
 
 from rls.nn.mlps import MLP
-from rls.utils.torch_utils import clip_nn_log_std
 from rls.nn.represent_nets import RepresentationNetwork
+from rls.utils.torch_utils import clip_nn_log_std
 
 
 class BaseModel(t.nn.Module):

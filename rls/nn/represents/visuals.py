@@ -1,14 +1,7 @@
-import torch as t
 import numpy as np
-
-from torch.nn import (Sequential,
-                      Conv2d,
-                      ReLU,
-                      ELU,
-                      BatchNorm2d,
-                      MaxPool2d,
-                      AvgPool2d,
-                      Flatten)
+import torch as t
+from torch.nn import (ELU, AvgPool2d, BatchNorm2d, Conv2d, Flatten, MaxPool2d,
+                      ReLU, Sequential)
 
 Vis_REGISTER = {}
 

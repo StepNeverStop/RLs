@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import os
+
 import yaml
 
 INPUT_FILE = '*.asset'

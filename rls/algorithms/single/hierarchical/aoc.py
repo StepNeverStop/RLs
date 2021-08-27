@@ -3,17 +3,14 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.decorator import iTensor_oNumpy
 from rls.common.specs import Data
 from rls.nn.models import AocShare
 from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.utils.np_utils import (discounted_sum,
-                                calculate_td_error,
-                                int2one_hot)
+from rls.utils.np_utils import calculate_td_error, discounted_sum, int2one_hot
 
 
 class AOC(SarlOnPolicy):

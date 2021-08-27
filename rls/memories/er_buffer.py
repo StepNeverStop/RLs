@@ -1,12 +1,8 @@
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 
-from typing import (List,
-                    Dict,
-                    Union,
-                    NoReturn)
-
 from rls.common.specs import Data
-
 
 '''
 batch like : {

@@ -5,14 +5,14 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
+from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.mixers import Mixer_REGISTER
+from rls.nn.models import CriticDueling
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import q_target_func
-from rls.nn.models import CriticDueling
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.mixers import Mixer_REGISTER
-from rls.nn.modules.wrappers import TargetTwin
-from rls.common.specs import Data
-from rls.nn.utils import OPLR
 
 
 class VDN(MultiAgentOffPolicy):

@@ -3,24 +3,18 @@
 
 import os
 import sys
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
-
-from typing import (Dict,
-                    Callable,
-                    Union,
-                    List,
-                    Tuple,
-                    NoReturn,
-                    Optional,
-                    Any)
 from torch.utils.tensorboard import SummaryWriter
 
 from rls.algorithms.base.base import Base
 from rls.common.specs import Data
 from rls.utils.display import colorize
-from rls.utils.sundry_utils import check_or_create
 from rls.utils.logging_utils import get_logger
+from rls.utils.sundry_utils import check_or_create
+
 logger = get_logger(__name__)
 
 

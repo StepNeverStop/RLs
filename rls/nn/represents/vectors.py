@@ -1,11 +1,9 @@
 
 import math
 
-from torch.nn import (Sequential,
-                      Linear)
+from torch.nn import Linear, Sequential
 
-from rls.nn.activations import (Act_REGISTER,
-                                default_act)
+from rls.nn.activations import Act_REGISTER, default_act
 
 Vec_REGISTER = {}
 

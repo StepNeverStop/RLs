@@ -1,17 +1,14 @@
 
 
+from typing import Dict, List
+
 import torch as t
 
-from typing import (List,
-                    Dict)
-
-
-from rls.nn.networks import (MultiVectorNetwork,
-                             MultiVisualNetwork,
-                             EncoderNetwork,
-                             MemoryNetwork)
-from rls.utils.logging_utils import get_logger
 from rls.common.specs import SensorSpec
+from rls.nn.networks import (EncoderNetwork, MemoryNetwork, MultiVectorNetwork,
+                             MultiVisualNetwork)
+from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 Rep_REGISTER = {}

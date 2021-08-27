@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from typing import Any, Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Dict,
-                    Union,
-                    List,
-                    NoReturn,
-                    Any)
-
-from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.sarl_policy import SarlPolicy
 from rls.common.specs import Data
+from rls.utils.np_utils import int2one_hot
 
 
 class SarlOnPolicy(SarlPolicy):

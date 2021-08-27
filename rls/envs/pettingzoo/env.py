@@ -1,20 +1,14 @@
 import importlib
-import pettingzoo
-import numpy as np
-
-from copy import deepcopy
-from typing import (List,
-                    Dict,
-                    NoReturn)
 from collections import defaultdict
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
+from copy import deepcopy
+from typing import Dict, List, NoReturn
 
+import numpy as np
+import pettingzoo
+from gym.spaces import Box, Discrete, Tuple
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
 from rls.envs.pettingzoo.wrappers import BasicWrapper
 
 

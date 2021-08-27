@@ -1,22 +1,17 @@
 
-import torch as t
-import numpy as np
-
-from copy import deepcopy
-from typing import (Dict,
-                    Callable,
-                    Union,
-                    List,
-                    NoReturn,
-                    Optional,
-                    Any)
 from collections import defaultdict
+from copy import deepcopy
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
+
+import numpy as np
+import torch as t
 
 from rls.algorithms.base.base import Base
 from rls.common.specs import Data
-from rls.utils.display import colorize
 from rls.common.yaml_ops import load_config
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 

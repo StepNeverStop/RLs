@@ -1,6 +1,6 @@
-import torch as t
-
 from typing import List
+
+import torch as t
 
 
 class VDNMixer(t.nn.Module):

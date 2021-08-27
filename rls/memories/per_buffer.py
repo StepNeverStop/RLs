@@ -1,14 +1,11 @@
 import sys
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 
-from typing import (List,
-                    Dict,
-                    Union,
-                    NoReturn)
-
 from rls.common.specs import Data
-from rls.memories.sum_tree import Sum_Tree
 from rls.memories.er_buffer import DataBuffer
+from rls.memories.sum_tree import Sum_Tree
 
 
 class PrioritizedDataBuffer(DataBuffer):

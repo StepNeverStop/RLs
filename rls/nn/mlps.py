@@ -1,11 +1,8 @@
 import torch as t
-
 from torch.nn import Sequential
 
-from rls.nn.activations import (Act_REGISTER,
-                                default_act)
+from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.layers import Layer_REGISTER
-
 
 Mlp_REGISTER = {}
 

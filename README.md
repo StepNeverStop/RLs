@@ -83,6 +83,12 @@ You can download the builded docker image from [here](https://hub.docker.com/r/k
 $ docker pull keavnn/rls:latest
 ```
 
+If anyone who wants to send a PR, plz format all code-files first:
+```bash
+$ pip install -e .[pr]
+$ python auto_format.py -d ./
+```
+
 ## Implemented Algorithms
 
 For now, these algorithms are available:

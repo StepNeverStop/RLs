@@ -2,10 +2,10 @@
 # encoding: utf-8
 
 import functools
+
 import torch as t
 
-from rls.utils.converter import (to_numpy,
-                                 to_tensor)
+from rls.utils.converter import to_numpy, to_tensor
 
 
 def lazy_property(func):

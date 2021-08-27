@@ -2,23 +2,21 @@
 # encoding: utf-8
 
 import os
-import numpy as np
-
-from copy import deepcopy
-from typing import (List,
-                    Dict)
 from collections import defaultdict
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
-from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+from copy import deepcopy
+from typing import Dict, List
 
+import numpy as np
+from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import \
+    EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import \
+    EnvironmentParametersChannel
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.common.yaml_ops import load_config
+from rls.envs.unity.wrappers.core import ActionWrapper, ObservationWrapper
 from rls.utils.np_utils import get_discrete_action_list
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
-from rls.envs.unity.wrappers.core import (ObservationWrapper,
-                                          ActionWrapper)
 
 
 class BasicUnityEnvironment(object):

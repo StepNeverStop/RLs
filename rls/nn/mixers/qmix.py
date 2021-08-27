@@ -1,5 +1,5 @@
-import torch as t
 import numpy as np
+import torch as t
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork

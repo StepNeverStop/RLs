@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from copy import deepcopy
+
 import numpy as np
 import torch as t
-
-from copy import deepcopy
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.torch_utils import q_target_func
-from rls.nn.noised_actions import Noise_action_REGISTER
-from rls.nn.models import (ActorDPG,
-                           ActorDct,
-                           CriticQvalueOne)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
 from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.noised_actions import Noise_action_REGISTER
+from rls.nn.utils import OPLR
+from rls.utils.torch_utils import q_target_func
 
 
 class TD3(SarlOffPolicy):

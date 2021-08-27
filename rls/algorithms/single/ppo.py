@@ -1,26 +1,19 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
-
 from torch import distributions as td
-from typing import (Union,
-                    List,
-                    Dict,
-                    NoReturn)
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.specs import Data
-from rls.nn.models import (ActorCriticValueCts,
-                           ActorCriticValueDct,
-                           ActorMuLogstd,
-                           ActorDct,
-                           CriticValue)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
-from rls.utils.np_utils import (discounted_sum,
-                                calculate_td_error)
+from rls.common.specs import Data
+from rls.nn.models import (ActorCriticValueCts, ActorCriticValueDct, ActorDct,
+                           ActorMuLogstd, CriticValue)
+from rls.nn.utils import OPLR
+from rls.utils.np_utils import calculate_td_error, discounted_sum
 
 
 class PPO(SarlOnPolicy):

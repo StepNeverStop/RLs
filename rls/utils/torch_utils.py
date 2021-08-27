@@ -2,14 +2,10 @@
 # encoding: utf-8
 
 import math
+from typing import List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
-
-from typing import (List,
-                    Tuple,
-                    Union,
-                    Optional,
-                    NoReturn)
 
 
 def clip_nn_log_std(log_std, _min=-20, _max=2):

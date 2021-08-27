@@ -4,23 +4,20 @@
 import os
 import sys
 import time
+from typing import Dict, NoReturn, Optional
+
 import numpy as np
+from easydict import EasyDict
 
-from typing import (Dict,
-                    NoReturn,
-                    Optional)
-
-from rls.utils.sundry_utils import set_global_seeds
-from rls.utils.time import get_time_hhmmss
 from rls.algorithms import get_model_info
 from rls.algorithms.wrapper.IndependentMA import IndependentMA
-from rls.train.train import (train,
-                             prefill,
-                             inference)
 from rls.common.yaml_ops import load_config
 from rls.envs.make_env import make_env
-from easydict import EasyDict
+from rls.train.train import inference, prefill, train
 from rls.utils.logging_utils import get_logger
+from rls.utils.sundry_utils import set_global_seeds
+from rls.utils.time import get_time_hhmmss
+
 logger = get_logger(__name__)
 
 

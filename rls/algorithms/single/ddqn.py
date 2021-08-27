@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from typing import List, NoReturn, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Union,
-                    List,
-                    NoReturn)
-
 from rls.algorithms.single.dqn import DQN
-from rls.utils.torch_utils import q_target_func
 from rls.common.decorator import iTensor_oNumpy
+from rls.utils.torch_utils import q_target_func
 
 
 class DDQN(DQN):

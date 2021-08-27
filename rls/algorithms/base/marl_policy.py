@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from abc import abstractmethod
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
+
 import numpy as np
 import torch as t
 
-from abc import abstractmethod
-from collections import defaultdict
-from typing import (List,
-                    Dict,
-                    Union,
-                    Callable,
-                    Any,
-                    Optional,
-                    NoReturn)
-
 from rls.algorithms.base.policy import Policy
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.utils.np_utils import int2one_hot
 
 

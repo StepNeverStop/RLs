@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import torch as t
-import numpy as np
-
-from typing import (Tuple,
-                    Dict,
-                    Optional)
-from torch.nn import (Sequential,
-                      Linear)
 from collections import defaultdict
+from typing import Dict, Optional, Tuple
 
-from rls.nn.activations import (default_act,
-                                Act_REGISTER)
+import numpy as np
+import torch as t
+from torch.nn import Linear, Sequential
 
+from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.represents.vectors import Vec_REGISTER
 from rls.nn.represents.visuals import Vis_REGISTER
 

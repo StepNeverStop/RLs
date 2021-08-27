@@ -2,10 +2,10 @@
 # encoding: utf-8
 
 import math
+from abc import ABC, abstractmethod
+
 import numpy as np
 import torch as t
-
-from abc import ABC, abstractmethod
 
 Noise_action_REGISTER = {}
 
