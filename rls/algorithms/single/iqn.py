@@ -6,8 +6,7 @@ import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import (huber_loss,
-                                   q_target_func)
+from rls.utils.torch_utils import q_target_func
 from rls.nn.models import IqnNet
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
@@ -164,10 +163,10 @@ class IQN(SarlOffPolicy):
             1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
         # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
         quantile_error = quantiles_value_online - quantiles_value_target
-        huber = huber_loss(
-            quantile_error, delta=self.huber_delta)  # [T, B, N, N']
+        huber = t.nn.functional.huber_loss(
+            quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
-        huber_abs = (quantiles - t.where(quantile_error < 0, 1., 0.)).abs()
+        huber_abs = (quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N'] => [T, B, N]
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
 

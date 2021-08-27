@@ -6,8 +6,7 @@ import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import (huber_loss,
-                                   q_target_func)
+from rls.utils.torch_utils import q_target_func
 from rls.nn.models import QrdqnDistributional
 from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
@@ -92,13 +91,16 @@ class QRDQN(SarlOffPolicy):
         q_target = target.mean(-1, keepdim=True)  # [T, B, 1]
         td_error = q_target - q_eval     # [T, B, 1], used for PER
 
+        target = target.unsqueeze(-2)   # [T, B, 1, N]
+        q_dist = q_dist.unsqueeze(-1)  # [T, B, N, 1]
+
         # [T, B, 1, N] - [T, B, N, 1] => [T, B, N, N]
-        quantile_error = target.unsqueeze(-2) - q_dist.unsqueeze(-1)
-        huber = huber_loss(
-            quantile_error, delta=self.huber_delta)  # [T, B, N, N]
+        quantile_error = target - q_dist
+        huber = t.nn.functional.huber_loss(
+            target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [N,] - [T, B, N, N] => [T, B, N, N]
         huber_abs = (self.quantiles -
-                     t.where(quantile_error < 0, 1., 0.)).abs()
+                     quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N] => [T, B, N]
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
         loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1

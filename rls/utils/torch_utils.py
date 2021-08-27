@@ -106,13 +106,6 @@ def tsallis_entropy_log_q(log_pi, q):
         return log_q_pi.sum(-1, keepdim=True)
 
 
-def huber_loss(td_error, delta=1.):
-    '''
-    TODO: Annotation
-    '''
-    return t.where(td_error.abs() <= delta, 0.5 * td_error.square(), delta * (td_error.abs() - 0.5 * delta))
-
-
 def sync_params(tge: t.nn.Module, src: t.nn.Module, ployak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.

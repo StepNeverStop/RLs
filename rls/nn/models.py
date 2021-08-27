@@ -441,27 +441,16 @@ class C51Distributional(BaseModel):
     def __init__(self, obs_spec, rep_net_params, action_dim, atoms, network_settings):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
-        self.atoms = atoms
-        self.net = MLP(self.rep_net.h_dim, network_settings)
-        if network_settings:
-            ins = network_settings[-1]
-        else:
-            ins = self.rep_net.h_dim
-        self.outputs = []
-        for _ in range(action_dim):
-            self.outputs.append(
-                Sequential(
-                    Linear(ins, atoms),
-                    Softmax(-1)
-                )
-            )
+        self._atoms = atoms
+        self.net = MLP(self.rep_net.h_dim, network_settings,
+                       output_shape=self.action_dim*self._atoms)
 
     def forward(self, x, cell_state=None):
         x = self.repre(x, cell_state=cell_state)
-        feat = self.net(x)    # [B, *] or [T, B, *]
-        # A * [B, *] or A * [T, B, *]
-        outputs = [output(feat) for output in self.outputs]
-        q_dist = t.stack(outputs, -1)  # [B, *, A] or [T, B, *, A]
+        qs = self.net(x)    # [B, A*N] or [T, B, A*N]
+        # [B, A, N] or [T, B, A, N]
+        q_dist = qs.view(
+            qs.shape[:-1]+(self.action_dim, self._atoms)).softmax(-1)
         return q_dist
 
 
@@ -498,7 +487,7 @@ class RainbowDueling(BaseModel):
     def __init__(self, obs_spec, rep_net_params, action_dim, atoms, network_settings):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
-        self.atoms = atoms
+        self._atoms = atoms
         self.share = MLP(self.rep_net.h_dim,
                          network_settings['share'], layer='noisy')
         if network_settings['share']:
@@ -519,9 +508,9 @@ class RainbowDueling(BaseModel):
         q = v.repeat((1,)*(v.ndim-1)+(self.action_dim,)) + \
             adv  # [B, A*N] or [T, B, A*N]
         # [B, A, N] or [T, B, A, N]
-        q = q.view(q.shape[:-1]+(self.action_dim, self.atoms))
-        q = q.softmax(-1)    # [B, A, N] or [T, B, A, N]
-        return q  # [B, A, N] or [T, B, A, N]
+        qs = q.view(q.shape[:-1]+(self.action_dim, self._atoms)
+                    ).softmax(-1)    # [B, A, N] or [T, B, A, N]
+        return qs  # [B, A, N] or [T, B, A, N]
 
 
 class IqnNet(BaseModel):

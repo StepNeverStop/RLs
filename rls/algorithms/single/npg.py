@@ -133,17 +133,20 @@ class NPG(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = output     # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            new_log_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = output  # [T, B, A]
             logp_all = logits.log_softmax(-1)    # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)    # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)    # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()        # [T, B, 1]
         actor_loss = -(ratio * BATCH.gae_adv).mean()  # 1
 
-        flat_grads = self._get_flat_grad(actor_loss, self.actor, retain_graph=True).detach()    # [1,]
+        flat_grads = self._get_flat_grad(
+            actor_loss, self.actor, retain_graph=True).detach()    # [1,]
 
         if self.is_continuous:
             kl = td.kl_divergence(
@@ -151,10 +154,13 @@ class NPG(SarlOnPolicy):
                 td.Independent(td.Normal(mu, log_std.exp()), 1)
             ).mean()
         else:
-            kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)).sum(-1).mean()    # 1
+            kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)
+                  ).sum(-1).mean()    # 1
 
         flat_kl_grad = self._get_flat_grad(kl, self.actor, create_graph=True)
-        search_direction = -self._conjugate_gradients(flat_grads, flat_kl_grad, cg_iters=self._cg_iters)    # [1,]
+        search_direction = - \
+            self._conjugate_gradients(
+                flat_grads, flat_kl_grad, cg_iters=self._cg_iters)    # [1,]
 
         with t.no_grad():
             flat_params = t.cat([param.data.view(-1)
