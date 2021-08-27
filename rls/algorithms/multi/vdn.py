@@ -78,6 +78,7 @@ class VDN(MultiAgentOffPolicy):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
                 q_values = self.q_nets[mid](obs[aid])   # [B, A]
+                self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
                 action = action = q_values.argmax(-1)    # [B,]
             actions[aid] = action
             acts[aid] = Data(action=action)

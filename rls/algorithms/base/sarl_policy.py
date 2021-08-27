@@ -11,6 +11,7 @@ import torch as t
 from rls.algorithms.base.policy import Policy
 from rls.common.specs import Data, EnvAgentSpec
 from rls.nn.modules import CuriosityModel
+from rls.utils.converter import to_tensor
 from rls.utils.np_utils import int2one_hot
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
@@ -78,10 +79,10 @@ class SarlPolicy(Policy):
         '''reset model for each new episode.'''
         self._pre_act = np.zeros(
             (self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
-        self.cell_state = self._initial_cell_state(
-            batch=self.n_copys, dtype='tensor')
-        self.next_cell_state = self._initial_cell_state(
-            batch=self.n_copys, dtype='tensor')
+        self.cell_state = to_tensor(self._initial_cell_state(
+            batch=self.n_copys), device=self.device)
+        self.next_cell_state = to_tensor(self._initial_cell_state(
+            batch=self.n_copys), device=self.device)
 
     def episode_step(self, done):
         super().episode_step()

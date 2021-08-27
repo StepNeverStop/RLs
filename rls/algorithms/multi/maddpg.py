@@ -91,6 +91,7 @@ class MADDPG(MultiAgentOffPolicy):
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             output = self.actors[mid](obs[aid])  # [B, A]
+            self.next_cell_state[aid] = self.actors[mid].get_cell_state()
             if self.is_continuouss[aid]:
                 mu = output  # [B, A]
                 pi = self.noised_actions[mid](mu)   # [B, A]

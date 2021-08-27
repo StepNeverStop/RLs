@@ -10,6 +10,7 @@ import torch as t
 
 from rls.algorithms.base.policy import Policy
 from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.utils.converter import to_tensor
 from rls.utils.np_utils import int2one_hot
 
 
@@ -112,6 +113,12 @@ class MarlPolicy(Policy):
         for id in self.agent_ids:
             self._pre_acts[id] = np.zeros(
                 (self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
+        self.cell_state, self.next_cell_state = {}, {}
+        for id in self.agent_ids:
+            self.cell_state[id] = to_tensor(self._initial_cell_state(
+                batch=self.n_copys), device=self.device)
+            self.next_cell_state[id] = to_tensor(self._initial_cell_state(
+                batch=self.n_copys), device=self.device)
 
     def episode_step(self,
                      obs,
@@ -136,6 +143,10 @@ class MarlPolicy(Policy):
         for id in self.agent_ids:
             idxs = np.where(env_rets[id].done)[0]
             self._pre_acts[id][idxs] = 0.
+            if self.next_cell_state[id] is not None:
+                for k in self.next_cell_state[id].keys():
+                    self.next_cell_state[id][k][idxs] = 0.
+            self.cell_state[id] = self.next_cell_state[id]
 
     def learn(self, BATCH_DICT: Dict[str, Data]):
         raise NotImplementedError

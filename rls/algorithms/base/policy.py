@@ -201,24 +201,13 @@ class Policy(Base):
             for k, v in summaries.items():
                 writer.add_scalar(k, v, global_step=cur_train_step)
 
-    def _initial_cell_state(self, batch: int, dtype='numpy') -> Tuple[Union[t.Tensor, np.ndarray]]:
+    def _initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
         if self.use_rnn:
             if self.memory_net_params['network_type'] == 'lstm':
-                if dtype == 'numpy':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
-                            'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-                elif dtype == 'tensor':
-                    return {'hx': t.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device),
-                            'cx': t.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device)}
-                else:
-                    raise NotImplementedError
+                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
+                        'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
             elif self.memory_net_params['network_type'] == 'gru':
-                if dtype == 'numpy':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-                elif dtype == 'tensor':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device)}
-                else:
-                    raise NotImplementedError
+                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
             else:
                 raise NotImplementedError
         else:
