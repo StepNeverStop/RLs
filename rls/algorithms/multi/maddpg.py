@@ -55,18 +55,18 @@ class MADDPG(MultiAgentOffPolicy):
         for id in set(self.model_ids):
             if self.is_continuouss[id]:
                 self.actors[id] = TargetTwin(ActorDPG(self.obs_specs[id],
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_continuous']),
                                              self.ployak).to(self.device)
             else:
                 self.actors[id] = TargetTwin(ActorDct(self.obs_specs[id],
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_discrete']),
                                              self.ployak).to(self.device)
             self.critics[id] = TargetTwin(MACriticQvalueOne(list(self.obs_specs.values()),
-                                                            rep_net_params=self.rep_net_params,
+                                                            rep_net_params=self._rep_net_params,
                                                             action_dim=sum(
                                                                 self.a_dims.values()),
                                                             network_settings=network_settings['q']),

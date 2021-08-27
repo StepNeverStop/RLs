@@ -48,7 +48,7 @@ class DDPG(SarlOffPolicy):
 
         if self.is_continuous:
             actor = ActorDPG(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
             self.target_noised_action = ClippedNormalNoisedAction(
@@ -63,12 +63,12 @@ class DDPG(SarlOffPolicy):
                     f'cannot use noised action type of {noise_action}')
         else:
             actor = ActorDct(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_discrete'])
         self.actor = TargetTwin(actor, self.ployak).to(self.device)
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
-                                                 rep_net_params=self.rep_net_params,
+                                                 rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
                                  self.ployak).to(self.device)

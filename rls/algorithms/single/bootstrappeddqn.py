@@ -45,7 +45,7 @@ class BootstrappedDQN(SarlOffPolicy):
         self.now_head = 0
 
         self.q_net = TargetTwin(CriticQvalueBootstrap(self.obs_spec,
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dim,
                                                       head_num=self.head_num,
                                                       network_settings=network_settings)).to(self.device)

@@ -40,16 +40,16 @@ class A2C(SarlOnPolicy):
 
         if self.is_continuous:
             self.actor = ActorMuLogstd(self.obs_spec,
-                                       rep_net_params=self.rep_net_params,
+                                       rep_net_params=self._rep_net_params,
                                        output_shape=self.a_dim,
                                        network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
         self.critic = CriticValue(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   network_settings=network_settings['critic']).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)

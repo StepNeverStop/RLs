@@ -50,7 +50,7 @@ class VDN(MultiAgentOffPolicy):
         self.q_nets = {}
         for id in set(self.model_ids):
             self.q_nets[id] = TargetTwin(CriticDueling(self.obs_specs[id],
-                                                       rep_net_params=self.rep_net_params,
+                                                       rep_net_params=self._rep_net_params,
                                                        output_shape=self.a_dims[id],
                                                        network_settings=network_settings)).to(self.device)
 
@@ -59,7 +59,7 @@ class VDN(MultiAgentOffPolicy):
         self.mixer = TargetTwin(
             Mixer_REGISTER[mixer](n_agents=self.n_agents_percopy,
                                   state_spec=self.state_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   **mixer_settings)
         ).to(self.device)
 

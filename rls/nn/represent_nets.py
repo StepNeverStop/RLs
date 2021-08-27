@@ -31,7 +31,7 @@ class RepresentationNetwork(t.nn.Module):
         super().__init__()
 
         self.obs_spec = obs_spec
-        self.rep_net_params = rep_net_params
+        self._rep_net_params = rep_net_params
         self.h_dim = 0
 
         if self.obs_spec.has_vector_observation:

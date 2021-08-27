@@ -49,17 +49,17 @@ class DPG(SarlOffPolicy):
             self.noised_action = Noise_action_REGISTER[noise_action](
                 **noise_params)
             self.actor = ActorDPG(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
         self.critic = CriticQvalueOne(self.obs_spec,
-                                      rep_net_params=self.rep_net_params,
+                                      rep_net_params=self._rep_net_params,
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['q']).to(self.device)
 

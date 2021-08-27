@@ -48,7 +48,7 @@ class AveragedDQN(SarlOffPolicy):
         self.current_target_idx = 0
 
         self.q_net = CriticQvalueAll(self.obs_spec,
-                                     rep_net_params=self.rep_net_params,
+                                     rep_net_params=self._rep_net_params,
                                      output_shape=self.a_dim,
                                      network_settings=network_settings).to(self.device)
         self.target_nets = []

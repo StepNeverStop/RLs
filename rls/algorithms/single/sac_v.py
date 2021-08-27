@@ -68,18 +68,18 @@ class SAC_V(SarlOffPolicy):
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self.v_net = TargetTwin(CriticValue(self.obs_spec,
-                                            rep_net_params=self.rep_net_params,
+                                            rep_net_params=self._rep_net_params,
                                             network_settings=network_settings['v']),
                                 self.ployak).to(self.device)
 
         if self.is_continuous:
             self.actor = ActorCts(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
@@ -89,12 +89,12 @@ class SAC_V(SarlOffPolicy):
 
         if self.is_continuous or self.use_gumbel:
             self.q_net = CriticQvalueOne(self.obs_spec,
-                                         rep_net_params=self.rep_net_params,
+                                         rep_net_params=self._rep_net_params,
                                          action_dim=self.a_dim,
                                          network_settings=network_settings['q']).to(self.device)
         else:
             self.q_net = CriticQvalueAll(self.obs_spec,
-                                         rep_net_params=self.rep_net_params,
+                                         rep_net_params=self._rep_net_params,
                                          output_shape=self.a_dim,
                                          network_settings=network_settings['q']).to(self.device)
         self.q_net2 = deepcopy(self.q_net)

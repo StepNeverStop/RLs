@@ -43,7 +43,7 @@ class DQN(SarlOffPolicy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
-                                                rep_net_params=self.rep_net_params,
+                                                rep_net_params=self._rep_net_params,
                                                 output_shape=self.a_dim,
                                                 network_settings=network_settings)).to(self.device)
         self.oplr = OPLR(self.q_net, lr)

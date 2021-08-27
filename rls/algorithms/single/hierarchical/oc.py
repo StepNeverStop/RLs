@@ -64,17 +64,17 @@ class OC(SarlOffPolicy):
         self.use_eps_greedy = use_eps_greedy
 
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
-                                                rep_net_params=self.rep_net_params,
+                                                rep_net_params=self._rep_net_params,
                                                 output_shape=self.options_num,
                                                 network_settings=network_settings['q'])).to(self.device)
 
         self.intra_option_net = OcIntraOption(self.obs_spec,
-                                              rep_net_params=self.rep_net_params,
+                                              rep_net_params=self._rep_net_params,
                                               output_shape=self.a_dim,
                                               options_num=self.options_num,
                                               network_settings=network_settings['intra_option']).to(self.device)
         self.termination_net = CriticQvalueAll(self.obs_spec,
-                                               rep_net_params=self.rep_net_params,
+                                               rep_net_params=self._rep_net_params,
                                                output_shape=self.options_num,
                                                network_settings=network_settings['termination'],
                                                out_act='sigmoid').to(self.device)

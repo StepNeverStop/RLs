@@ -75,13 +75,13 @@ class MultiAgentOffPolicy(MarlPolicy):
                     BATCH_DICT[id].action, self.a_dims[id])
         for i, id in enumerate(self.agent_ids):
             other, other_ = None, None
-            if self.obs_with_pre_action:
+            if self._obs_with_pre_action:
                 other = np.concatenate((
                     np.zeros_like(BATCH_DICT[id].action[:1]),
                     BATCH_DICT[id].action[:-1]
                 ), 0)
                 other_ = BATCH_DICT[id].action
-            if self.obs_with_agent_id:
+            if self._obs_with_agent_id:
                 _id_onehot = int2one_hot(
                     np.full(BATCH_DICT[id].action.shape[:-1], i), self.n_agents_percopy)
                 if other is not None:
@@ -110,5 +110,5 @@ class MultiAgentOffPolicy(MarlPolicy):
     def _after_train(self):
         self._write_train_summaries(self.cur_train_step, self.summaries)
         self.cur_train_step += 1
-        if self.cur_train_step % self.save_frequency == 0:
+        if self.cur_train_step % self._save_frequency == 0:
             self.save()

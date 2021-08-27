@@ -36,6 +36,7 @@ class Policy(Base):
                  max_frame_step=sys.maxsize,
                  max_train_episode=sys.maxsize,
                  save_frequency=100,
+                 save2single_file=False,
                  gamma=0.999,
                  decay_lr=False,
                  normalize_vector_obs=False,
@@ -72,12 +73,13 @@ class Policy(Base):
 
         self.max_frame_step = max_frame_step
         self.max_train_episode = max_train_episode
-        self.save_frequency = save_frequency
+        self._save_frequency = save_frequency
+        self._save2single_file = save2single_file
         self.gamma = gamma
-        self.decay_lr = decay_lr    # TODO: implement
-        self.normalize_vector_obs = normalize_vector_obs    # TODO: implement
-        self.obs_with_pre_action = obs_with_pre_action
-        self.rep_net_params = dict(rep_net_params)
+        self._decay_lr = decay_lr    # TODO: implement
+        self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
+        self._obs_with_pre_action = obs_with_pre_action
+        self._rep_net_params = dict(rep_net_params)
 
         super().__init__()
 
@@ -135,13 +137,17 @@ class Policy(Base):
         save the training model 
         """
         if not self.no_save:
-            data = {}
+            _data = {}
             for k, v in self._trainer_modules.items():
                 if hasattr(v, 'state_dict'):
-                    data[k] = v.state_dict()
+                    _data[k] = v.state_dict()
                 else:
-                    data[k] = v  # tensor/Number
-            t.save(data, os.path.join(self.cp_dir, 'checkpoint.pth'))
+                    _data[k] = v  # tensor/Number
+            if self._save2single_file:
+                t.save(_data, os.path.join(self.cp_dir, 'checkpoint.pth'))
+            else:
+                for k, v in _data.items():
+                    t.save(v, os.path.join(self.cp_dir, f'{k}.pth'))
             logger.info(colorize(
                 f'Save checkpoint success. Training step: {self.cur_train_step}', color='green'))
 
@@ -149,28 +155,29 @@ class Policy(Base):
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
-        if base_dir:
-            ckpt_path = os.path.join(base_dir, 'model/checkpoint.pth')
-        else:
-            ckpt_path = os.path.join(self.cp_dir, 'checkpoint.pth')
-        if os.path.exists(ckpt_path):
-            checkpoint = t.load(ckpt_path)
-            try:
+        cp_dir = os.path.join(base_dir or self.base_dir, 'model')
+        if self._save2single_file:
+            ckpt_path = os.path.join(cp_dir, 'checkpoint.pth')
+            if os.path.exists(ckpt_path):
+                checkpoint = t.load(ckpt_path)
                 for k, v in self._trainer_modules.items():
                     if hasattr(v, 'load_state_dict'):
                         self._trainer_modules[k].load_state_dict(checkpoint[k])
                     else:
-                        setattr(self, k, checkpoint[k])
-            except Exception as e:
-                logger.error(e)
-                raise Exception(
-                    colorize(f'Resume model from {ckpt_path} FAILED.', color='red'))
-            else:
+                        getattr(self, k).fill_(checkpoint[k])
                 logger.info(
                     colorize(f'Resume model from {ckpt_path} SUCCESSFULLY.', color='green'))
         else:
-            logger.info(
-                colorize('Initialize model SUCCESSFULLY.', color='green'))
+            for k, v in self._trainer_modules.items():
+                model_path = os.path.join(cp_dir, f'{k}.pth')
+                if os.path.exists(model_path):
+                    if hasattr(v, 'load_state_dict'):
+                        self._trainer_modules[k].load_state_dict(
+                            t.load(model_path))
+                    else:
+                        getattr(self, k).fill_(t.load(model_path))
+                    logger.info(
+                        colorize(f'Resume model from {model_path} SUCCESSFULLY.', color='green'))
 
     @property
     def still_learn(self):

@@ -54,7 +54,7 @@ class IQN(SarlOffPolicy):
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self.max_train_step)
         self.q_net = TargetTwin(IqnNet(self.obs_spec,
-                                       rep_net_params=self.rep_net_params,
+                                       rep_net_params=self._rep_net_params,
                                        action_dim=self.a_dim,
                                        quantiles_idx=self.quantiles_idx,
                                        network_settings=network_settings)).to(self.device)

@@ -70,7 +70,7 @@ class PPOC(SarlOnPolicy):
         self.o_beta = o_beta
 
         self.net = PpocShare(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              action_dim=self.a_dim,
                              options_num=self.options_num,
                              network_settings=network_settings,

@@ -7,7 +7,8 @@
 policy: &policy
     max_frame_step: 999999999999999999
     max_train_episode: 999999999999999999
-    save_frequency: 100
+    save_frequency: 1000
+    save2single_file: false
     gamma: 0.99
     decay_lr: false
     normalize_vector_obs: false
@@ -47,13 +48,13 @@ sarl_on_policy: &sarl_on_policy
     <<: *sarl_policy
     epochs: 4 # train multiple times per agent step
     n_time_step: 4 # n-step or rnn length
-    batch_size: 256
+    batch_size: 64
 
 sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     n_time_step: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
-    batch_size: 16
+    batch_size: 64
     buffer_size: 100000
     use_priority: false
 
@@ -61,7 +62,7 @@ marl_off_policy: &marl_off_policy
     <<: *marl_policy
     n_time_step: 4
     epochs: 1
-    batch_size: 256
+    batch_size: 64
     buffer_size: 100000
     use_priority: false
 

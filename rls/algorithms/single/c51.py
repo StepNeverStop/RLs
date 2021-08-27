@@ -48,7 +48,7 @@ class C51(SarlOffPolicy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self.q_net = TargetTwin(C51Distributional(self.obs_spec,
-                                                  rep_net_params=self.rep_net_params,
+                                                  rep_net_params=self._rep_net_params,
                                                   action_dim=self.a_dim,
                                                   atoms=self.atoms,
                                                   network_settings=network_settings)).to(self.device)

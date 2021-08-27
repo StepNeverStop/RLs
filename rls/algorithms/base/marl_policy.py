@@ -42,14 +42,14 @@ class MarlPolicy(Policy):
 
         self.state_spec = state_spec
         self.share_params = share_params
-        self.obs_with_agent_id = obs_with_agent_id
+        self._obs_with_agent_id = obs_with_agent_id
 
         super().__init__(**kwargs)
 
-        if self.obs_with_pre_action:
+        if self._obs_with_pre_action:
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.a_dims[id]
-        if self.obs_with_agent_id:
+        if self._obs_with_agent_id:
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.n_agents_percopy
 
@@ -74,12 +74,12 @@ class MarlPolicy(Policy):
     def _preprocess_obs(self, obs: Dict):
         for i, id in enumerate(self.agent_ids):
             other = None
-            if self.obs_with_pre_action:
+            if self._obs_with_pre_action:
                 if not self.is_continuouss[id]:
                     other = int2one_hot(self._pre_acts[id], self.a_dims[id])
                 else:
                     other = self._pre_acts[id]
-            if self.obs_with_agent_id:
+            if self._obs_with_agent_id:
                 _id_onehot = int2one_hot(
                     np.full(self.n_copys, i), self.n_agents_percopy)
                 if other is not None:

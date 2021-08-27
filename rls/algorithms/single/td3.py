@@ -49,20 +49,20 @@ class TD3(SarlOffPolicy):
 
         if self.is_continuous:
             actor = ActorDPG(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
             self.noised_action = self.target_noised_action = Noise_action_REGISTER[noise_action](
                 **noise_params)
         else:
             actor = ActorDct(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
         self.actor = TargetTwin(actor, self.ployak).to(self.device)
 
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
-                                                 rep_net_params=self.rep_net_params,
+                                                 rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
                                  self.ployak).to(self.device)

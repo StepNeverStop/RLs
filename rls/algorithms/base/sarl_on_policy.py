@@ -42,7 +42,7 @@ class SarlOnPolicy(SarlPolicy):
             # [T, B, 1] or [T, B] => [T, B, N]
             BATCH.action = int2one_hot(
                 BATCH.action, self.a_dim)
-        if self.obs_with_pre_action:
+        if self._obs_with_pre_action:
             BATCH.obs.update(other=np.concatenate((
                 np.zeros_like(BATCH.action[:1]),    # TODO: improve
                 BATCH.action[:-1]
@@ -99,5 +99,5 @@ class SarlOnPolicy(SarlPolicy):
         self._write_train_summaries(
             self.cur_train_step, self.summaries, self.writer)
         self.cur_train_step += 1
-        if self.cur_train_step % self.save_frequency == 0:
+        if self.cur_train_step % self._save_frequency == 0:
             self.save()

@@ -35,7 +35,7 @@ class SQL(SarlOffPolicy):
         self.ployak = ployak
 
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
-                                                rep_net_params=self.rep_net_params,
+                                                rep_net_params=self._rep_net_params,
                                                 output_shape=self.a_dim,
                                                 network_settings=network_settings),
                                 self.ployak).to(self.device)
