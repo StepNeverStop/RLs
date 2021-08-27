@@ -53,7 +53,7 @@ sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     n_time_step: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
-    batch_size: 256
+    batch_size: 16
     buffer_size: 100000
     use_priority: false
 

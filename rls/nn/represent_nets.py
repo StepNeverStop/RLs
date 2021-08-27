@@ -81,12 +81,12 @@ class RepresentationNetwork(t.nn.Module):
             feat: [T, B, *] or [B, *]
         '''
         feat_list = []
+
         if self.obs_spec.has_vector_observation:
             feat_list.append(self.vector_net(*obs.vector.values()))
-        elif self.obs_spec.has_visual_observation:
+
+        if self.obs_spec.has_visual_observation:
             feat_list.append(self.visual_net(*obs.visual.values()))
-        else:
-            raise Exception("observation must not be empty.")
 
         feat = t.cat(feat_list, -1)  # [T, B, *] or [B, *]
 

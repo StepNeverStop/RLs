@@ -229,8 +229,9 @@ class BasicUnityEnvironment(object):
             if len(self._vector_idxs[bn]) > 0:
                 _obs.update(
                     vector={f'vector_{i}': obs[vi] for i, vi in enumerate(self._vector_idxs[bn])})
-            elif len(self._visual_idxs[bn]) > 0:
-                _obs.updata(
+
+            if len(self._visual_idxs[bn]) > 0:
+                _obs.update(
                     visual={f'visual_{i}': obs[vi] for i, vi in enumerate(self._visual_idxs[bn])})
             all_obs[bn] = _obs
             all_reward[bn] = reward
