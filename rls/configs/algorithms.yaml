@@ -356,19 +356,17 @@ ppo:
         actor_discrete: [64, 64]
         critic: [64, 64]
 
-trpo:
+npg: &npg
     <<: *sarl_on_policy
+    actor_step_size: 0.5
     epsilon: 0.2
     beta: 1.0e-3
     lr: 5.0e-4
-    delta: 0.01
     lambda_: 0.97
     cg_iters: 10
     damping_coeff: 0.1
-    backtrack_iters: 10
-    backtrack_coeff: 0.8
-    train_v_iters: 10
     critic_lr: 1.0e-3
+    train_critic_iters: 10
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -376,6 +374,12 @@ trpo:
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
+
+trpo:
+    <<: *npg
+    delta: 0.01
+    backtrack_iters: 10
+    backtrack_coeff: 0.8
 
 dpg:
     <<: *sarl_off_policy

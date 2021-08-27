@@ -17,6 +17,9 @@ from rls.utils.np_utils import discounted_sum
 
 
 class A2C(SarlOnPolicy):
+    """
+    Synchronous Advantage Actor-Critic, A2C, http://arxiv.org/abs/1602.01783
+    """
     policy_mode = 'on-policy'
 
     def __init__(self,
