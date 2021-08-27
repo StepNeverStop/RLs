@@ -42,6 +42,12 @@ class SarlOnPolicy(SarlPolicy):
             # [T, B, 1] or [T, B] => [T, B, N]
             BATCH.action = int2one_hot(
                 BATCH.action, self.a_dim)
+        if self._obs_with_pre_action:
+            BATCH.obs.update(other=np.concatenate((
+                np.zeros_like(BATCH.action[:1]),    # TODO: improve
+                BATCH.action[:-1]
+            ), 0))
+            BATCH.obs_.update(other=BATCH.action)
         return BATCH
 
     def _generate_BATCH(self, BATCH, repeat=False):
@@ -51,7 +57,8 @@ class SarlOnPolicy(SarlPolicy):
 
         if repeat:
             for _ in range((T-self.n_time_step+1)*self.n_copys//self.batch_size):
-                x = np.random.randint(0, T - self.n_time_step + 1, self.batch_size)    # [B, ]
+                x = np.random.randint(
+                    0, T - self.n_time_step + 1, self.batch_size)    # [B, ]
                 y = np.random.randint(0, B, self.batch_size)  # (B, )
                 xs = np.tile(
                     np.arange(self.n_time_step)[:, np.newaxis],
@@ -61,7 +68,8 @@ class SarlOnPolicy(SarlPolicy):
         else:
             # [N, ] + [B, 1] => [B, N]
             x = np.arange(0, T - self.n_time_step + 1, self.n_time_step) \
-                + np.random.randint(0, T % self.n_time_step + 1, B)[:, np.newaxis]
+                + np.random.randint(0, T %
+                                    self.n_time_step + 1, B)[:, np.newaxis]
             y = np.arange(B).repeat(x.shape[-1])   # [B*N]
             x = x.ravel()   # [B*N]
             idxs = np.arange(len(x))  # [B*N]
@@ -70,7 +78,8 @@ class SarlOnPolicy(SarlPolicy):
                 # [T, B]
                 start, end = i*self.batch_size, (i+1)*self.batch_size
                 xs = x[start:end] + \
-                    np.tile(np.arange(self.n_time_step)[:, np.newaxis], self.batch_size)
+                    np.tile(np.arange(self.n_time_step)[
+                            :, np.newaxis], self.batch_size)
                 sample_idxs = (xs, y[start:end])
                 yield BATCH[sample_idxs]
 
@@ -87,7 +96,8 @@ class SarlOnPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self.cur_train_step, self.summaries, self.writer)
+        self._write_train_summaries(
+            self.cur_train_step, self.summaries, self.writer)
         self.cur_train_step += 1
-        if self.cur_train_step % self.save_frequency == 0:
+        if self.cur_train_step % self._save_frequency == 0:
             self.save()

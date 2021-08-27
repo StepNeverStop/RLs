@@ -2,6 +2,7 @@
 # encoding: utf-8
 import numpy as np
 
+
 class ExplorationExploitationClass(object):
     """Exploration and exploitation compromise
        calculates epsilon value depending on parameters and current step number"""
@@ -35,10 +36,12 @@ class ExplorationExploitationClass(object):
 
         # Slopes and intercepts for exploration decrease
         # eps_init decay to eps_mid
-        self.slope_init2mid = (self.eps_mid - self.eps_init) / self.init2mid_annealing_step
+        self.slope_init2mid = (self.eps_mid - self.eps_init) / \
+            self.init2mid_annealing_step
         self.intercept_init2mid = self.eps_init - self.slope_init2mid * self.start_step
         # eps_mid decay to eps_final
-        self.slope_mid2end = (self.eps_final - self.eps_mid) / (self.max_step - self.init2mid_annealing_step - self.start_step)
+        self.slope_mid2end = (self.eps_final - self.eps_mid) / \
+            (self.max_step - self.init2mid_annealing_step - self.start_step)
         self.intercept_mid2end = self.eps_final - self.slope_mid2end * self.max_step
 
     def get_esp(self, step_now):

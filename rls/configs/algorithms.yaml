@@ -7,10 +7,13 @@
 policy: &policy
     max_frame_step: 999999999999999999
     max_train_episode: 999999999999999999
-    save_frequency: 100
+    save_frequency: 1000
+    save2single_file: false
     gamma: 0.99
     decay_lr: false
     normalize_vector_obs: false
+
+    obs_with_pre_action: false
 
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
@@ -37,19 +40,21 @@ sarl_policy: &sarl_policy
 
 marl_policy: &marl_policy
     <<: *policy
+    obs_with_pre_action: true
+    obs_with_agent_id: true
     share_params: true
 
 sarl_on_policy: &sarl_on_policy
     <<: *sarl_policy
     epochs: 4 # train multiple times per agent step
     n_time_step: 4 # n-step or rnn length
-    batch_size: 256
+    batch_size: 64
 
 sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     n_time_step: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
-    batch_size: 16
+    batch_size: 64
     buffer_size: 100000
     use_priority: false
 
@@ -57,7 +62,7 @@ marl_off_policy: &marl_off_policy
     <<: *marl_policy
     n_time_step: 4
     epochs: 1
-    batch_size: 256
+    batch_size: 64
     buffer_size: 100000
     use_priority: false
 
@@ -351,19 +356,17 @@ ppo:
         actor_discrete: [64, 64]
         critic: [64, 64]
 
-trpo:
+npg: &npg
     <<: *sarl_on_policy
+    actor_step_size: 0.5
     epsilon: 0.2
     beta: 1.0e-3
     lr: 5.0e-4
-    delta: 0.01
     lambda_: 0.97
     cg_iters: 10
     damping_coeff: 0.1
-    backtrack_iters: 10
-    backtrack_coeff: 0.8
-    train_v_iters: 10
     critic_lr: 1.0e-3
+    train_critic_iters: 10
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -371,6 +374,12 @@ trpo:
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         critic: [64, 64]
+
+trpo:
+    <<: *npg
+    delta: 0.01
+    backtrack_iters: 10
+    backtrack_coeff: 0.8
 
 dpg:
     <<: *sarl_off_policy

@@ -95,9 +95,11 @@ For now, these algorithms are available:
 - Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
     - Policy Gradient, PG
     - Actor Critic, AC
-    - Advantage Actor Critic, A2C
+    - [Synchronous Advantage Actor Critic, A2C](http://arxiv.org/abs/1602.01783)
     <!-- - [Trust Region Policy Optimization, TRPO](https://arxiv.org/abs/1502.05477) -->
     - :boom:Proximal Policy Optimization, [PPO](https://arxiv.org/abs/1707.06347), [DPPO](http://arxiv.org/abs/1707.02286,)
+    - [Trust Region Policy Optimization, TRPO](https://arxiv.org/abs/1502.05477)
+    - [Natural Policy Gradient, NPG](https://proceedings.neurips.cc/paper/2001/file/4b86abe48d358ecf194c56c69108433e-Paper.pdf)
     - [Deterministic Policy Gradient, DPG](https://hal.inria.fr/file/index/docid/938992/filename/dpg-icml2014.pdf)
     - [Deep Deterministic Policy Gradient, DDPG](https://arxiv.org/abs/1509.02971)
     - :fire:Soft Actor Critic, [SAC](https://arxiv.org/abs/1812.05905), [Discrete SAC](https://arxiv.org/abs/1910.07207)
@@ -129,6 +131,8 @@ For now, these algorithms are available:
 |               PG                |    ✓     |     ✓      |   ✓   |  ✓   |        pg         |
 |               AC                |    ✓     |     ✓      |   ✓   |  ✓   |        ac         |
 |               A2C               |    ✓     |     ✓      |   ✓   |  ✓   |        a2c        |
+|               NPG               |    ✓     |     ✓      |   ✓   |  ✓   |        npg        |
+|              TRPO               |    ✓     |     ✓      |   ✓   |  ✓   |       trpo        |
 |               PPO               |    ✓     |     ✓      |   ✓   |  ✓   |        ppo        |
 |               DQN               |    ✓     |            |   ✓   |  ✓   |        dqn        |
 |           Double DQN            |    ✓     |            |   ✓   |  ✓   |       ddqn        |
@@ -160,11 +164,9 @@ For now, these algorithms are available:
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
-              [-a {pg,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}]
-              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY]
-              [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH]
-              [--prefill-steps PREFILL_STEPS] [--hostname] [--info INFO] [-e ENV_NAME] [-f FILE_NAME]
-              [--no-save] [-d DEVICE] [-t MAX_TRAIN_STEP]
+              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH]
+              [--prefill-steps PREFILL_STEPS] [--hostname] [--info INFO] [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE] [-t MAX_TRAIN_STEP]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -174,7 +176,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
-  -a {pg,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}, --algorithm {pg,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}
+  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix}
                         specify the training algorithm
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH
@@ -191,8 +193,7 @@ optional arguments:
   --episode-length EPISODE_LENGTH
                         specify the maximum step per episode
   --prefill-steps PREFILL_STEPS
-                        specify the number of experiences that should be collected before start
-                        training, use for off-policy algorithms
+                        specify the number of experiences that should be collected before start training, use for off-policy algorithms
   --hostname            whether concatenate hostname with the training name
   --info INFO           write another information that describe this training task
   -e ENV_NAME, --env-name ENV_NAME

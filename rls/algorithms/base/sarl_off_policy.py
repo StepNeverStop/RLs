@@ -21,6 +21,7 @@ from rls.utils.converter import (to_numpy,
 
 
 class SarlOffPolicy(SarlPolicy):
+
     def __init__(self,
                  epochs=1,
                  n_time_step=1,
@@ -52,6 +53,12 @@ class SarlOffPolicy(SarlPolicy):
         if not self.is_continuous:
             # [T, B, 1] or [T, B] => [T, B, N]
             BATCH.action = int2one_hot(BATCH.action, self.a_dim)
+        if self._obs_with_pre_action:
+            BATCH.obs.update(other=np.concatenate((
+                np.zeros_like(BATCH.action[:1]),    # TODO: improve
+                BATCH.action[:-1]
+            ), 0))
+            BATCH.obs_.update(other=BATCH.action)
         return BATCH
 
     def _before_train(self, BATCH):
@@ -68,7 +75,8 @@ class SarlOffPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self.cur_train_step, self.summaries, self.writer)
+        self._write_train_summaries(
+            self.cur_train_step, self.summaries, self.writer)
         self.cur_train_step += 1
-        if self.cur_train_step % self.save_frequency == 0:
+        if self.cur_train_step % self._save_frequency == 0:
             self.save()

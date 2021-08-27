@@ -45,7 +45,7 @@ class BootstrappedDQN(SarlOffPolicy):
         self.now_head = 0
 
         self.q_net = TargetTwin(CriticQvalueBootstrap(self.obs_spec,
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dim,
                                                       head_num=self.head_num,
                                                       network_settings=network_settings)).to(self.device)
@@ -59,24 +59,28 @@ class BootstrappedDQN(SarlOffPolicy):
         self.now_head = np.random.randint(self.head_num)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             q_values = self.q_net(obs, cell_state=self.cell_state)  # [H, B, A]
             self.next_cell_state = self.q_net.get_cell_state()
-            actions = q_values[self.now_head].argmax(-1)  # [H, B, A] => [B, A] => [B, ]
-        return Data(action=actions)
+            # [H, B, A] => [B, A] => [B, ]
+            actions = q_values[self.now_head].argmax(-1)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs).mean(0)   # [H, T, B, A] => [T, B, A]
-        q_next = self.q_net.t(BATCH.obs_).mean(0)    # [H, T, B, A] => [T, B, A]
-        q_eval = (q * BATCH.action).sum(-1, keepdim=True)    # [T, B, A] * [T, B, A] => [T, B, 1]
+        q_next = self.q_net.t(BATCH.obs_).mean(
+            0)    # [H, T, B, A] => [T, B, A]
+        # [T, B, A] * [T, B, A] => [T, B, 1]
+        q_eval = (q * BATCH.action).sum(-1, keepdim=True)
         q_target = q_target_func(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
-                                 q_next.max(-1, keepdim=True)[0],    # [T, B, A] => [T, B, 1]
+                                 # [T, B, A] => [T, B, 1]
+                                 q_next.max(-1, keepdim=True)[0],
                                  BATCH.begin_mask,
                                  use_rnn=self.use_rnn)  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]

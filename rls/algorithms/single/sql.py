@@ -35,7 +35,7 @@ class SQL(SarlOffPolicy):
         self.ployak = ployak
 
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
-                                                rep_net_params=self.rep_net_params,
+                                                rep_net_params=self._rep_net_params,
                                                 output_shape=self.a_dim,
                                                 network_settings=network_settings),
                                 self.ployak).to(self.device)
@@ -45,17 +45,19 @@ class SQL(SarlOffPolicy):
                                      oplr=self.oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A]
         self.next_cell_state = self.q_net.get_cell_state()
-        logits = ((q_values - self._get_v(q_values)) / self.alpha).exp()    # > 0   # [B, A]
+        logits = ((q_values - self._get_v(q_values)) /
+                  self.alpha).exp()    # > 0   # [B, A]
         logits /= logits.sum(-1, keepdim=True)  # [B, A]
         cate_dist = td.Categorical(logits=logits)
         actions = pi = cate_dist.sample()    # [B,]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     def _get_v(self, q):
-        v = self.alpha * (q / self.alpha).exp().mean(-1, keepdim=True).log()    # [B, 1] or [T, B, 1]
+        v = self.alpha * (q / self.alpha).exp().mean(-1,
+                                                     keepdim=True).log()    # [B, 1] or [T, B, 1]
         return v
 
     @iTensor_oNumpy
@@ -71,7 +73,7 @@ class SQL(SarlOffPolicy):
                                  BATCH.begin_mask,
                                  use_rnn=self.use_rnn)  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
-        
+
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.oplr.step(q_loss)
         return td_error, dict([

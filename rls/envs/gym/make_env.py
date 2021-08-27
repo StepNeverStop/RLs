@@ -27,7 +27,8 @@ def get_env_type(env_id):
             break
     if ':' in env_id:
         env_type = re.sub(r':.*', '', env_id)
-    assert env_type is not None, 'env_id {} is not recognized in env types'.format(env_id, _game_envs.keys())
+    assert env_type is not None, 'env_id {} is not recognized in env types'.format(
+        env_id, _game_envs.keys())
 
     return env_type
 
@@ -141,8 +142,10 @@ def make_env(index: int = 0,
         env = make_atari(env, **atari_config)
     else:
         if env_name.split('-')[0] == 'MiniGrid':
-            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env)  # Get pixel observations, or RGBImgObsWrapper
-            env = gym_minigrid.wrappers.ImgObsWrapper(env)  # Get rid of the 'mission' field
+            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(
+                env)  # Get pixel observations, or RGBImgObsWrapper
+            env = gym_minigrid.wrappers.ImgObsWrapper(
+                env)  # Get rid of the 'mission' field
         if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
             env = NoopResetEnv(env, noop_max=noop_max)
         if action_skip:
@@ -150,7 +153,8 @@ def make_env(index: int = 0,
         if isinstance(env.observation_space, Box):
             if len(env.observation_space.shape) == 3:
                 if obs_grayscale or obs_resize:
-                    env = GrayResizeEnv(env, resize=obs_resize, grayscale=obs_grayscale, width=resize[0], height=resize[-1])
+                    env = GrayResizeEnv(
+                        env, resize=obs_resize, grayscale=obs_grayscale, width=resize[0], height=resize[-1])
                 if obs_scale:
                     env = ScaleEnv(env)
             if obs_stack:

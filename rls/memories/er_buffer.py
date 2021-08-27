@@ -70,7 +70,8 @@ class DataBuffer:
                 self._buffer[k] = {}
             for _k, _v in v.nested_dict().items():
                 if _k not in self._buffer[k].keys():
-                    self._buffer[k][_k] = np.empty((self.max_horizon,)+_v.shape, _v.dtype)
+                    self._buffer[k][_k] = np.empty(
+                        (self.max_horizon,)+_v.shape, _v.dtype)
                 self._buffer[k][_k][self._pointer] = _v
 
         self._pointer = (self._pointer + 1) % self.max_horizon
@@ -89,7 +90,9 @@ class DataBuffer:
 
         x = np.random.randint(start, end, B)    # [B, ]
         y = np.random.randint(0, self.n_copys, B)  # (B, )
-        xs = (np.tile(np.arange(T)[:, np.newaxis], B) + x) % self._horizon_length    # (T, B) + (B, ) = (T, B)
+        # (T, B) + (B, ) = (T, B)
+        xs = (np.tile(np.arange(T)[:, np.newaxis],
+              B) + x) % self._horizon_length
         sample_idxs = (xs, y)
         samples = {}
         for k, v in self._buffer.items():

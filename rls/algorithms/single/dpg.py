@@ -44,20 +44,22 @@ class DPG(SarlOffPolicy):
         self.use_target_action_noise = use_target_action_noise
 
         if self.is_continuous:
-            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
-            self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
+            self.target_noised_action = ClippedNormalNoisedAction(
+                sigma=0.2, noise_bound=0.2)
+            self.noised_action = Noise_action_REGISTER[noise_action](
+                **noise_params)
             self.actor = ActorDPG(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
         self.critic = CriticQvalueOne(self.obs_spec,
-                                      rep_net_params=self.rep_net_params,
+                                      rep_net_params=self._rep_net_params,
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['q']).to(self.device)
 
@@ -74,7 +76,7 @@ class DPG(SarlOffPolicy):
             self.noised_action.reset()
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
@@ -86,19 +88,21 @@ class DPG(SarlOffPolicy):
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()  # [B,]
         actions = pi if self._is_train_mode else mu
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):
         if self.is_continuous:
             action_target = self.actor(BATCH.obs_)  # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(action_target)    # [T, B, A]
+                action_target = self.target_noised_action(
+                    action_target)    # [T, B, A]
         else:
             target_logits = self.actor(BATCH.obs_)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = t.nn.functional.one_hot(
+                target_pi, self.a_dim).float()  # [T, B, A]
         q_target = self.critic(BATCH.obs_, action_target)   # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,

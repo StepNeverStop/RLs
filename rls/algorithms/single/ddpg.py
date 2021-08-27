@@ -48,24 +48,27 @@ class DDPG(SarlOffPolicy):
 
         if self.is_continuous:
             actor = ActorDPG(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
-            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
+            self.target_noised_action = ClippedNormalNoisedAction(
+                sigma=0.2, noise_bound=0.2)
             if noise_action in ['ou', 'clip_normal']:
-                self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
+                self.noised_action = Noise_action_REGISTER[noise_action](
+                    **noise_params)
             elif noise_action == 'normal':
                 self.noised_action = self.target_noised_action
             else:
-                raise Exception(f'cannot use noised action type of {noise_action}')
+                raise Exception(
+                    f'cannot use noised action type of {noise_action}')
         else:
             actor = ActorDct(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_discrete'])
         self.actor = TargetTwin(actor, self.ployak).to(self.device)
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
-                                                 rep_net_params=self.rep_net_params,
+                                                 rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
                                  self.ployak).to(self.device)
@@ -83,7 +86,7 @@ class DDPG(SarlOffPolicy):
             self.noised_action.reset()
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
@@ -95,19 +98,21 @@ class DDPG(SarlOffPolicy):
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()  # [B,]
         actions = pi if self._is_train_mode else mu
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):
         if self.is_continuous:
             action_target = self.actor.t(BATCH.obs_)    # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(action_target)    # [T, B, A]
+                action_target = self.target_noised_action(
+                    action_target)    # [T, B, A]
         else:
             target_logits = self.actor.t(BATCH.obs_)    # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()     # [T, B]
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = t.nn.functional.one_hot(
+                target_pi, self.a_dim).float()  # [T, B, A]
         q = self.critic(BATCH.obs, BATCH.action)    # [T, B, 1]
         q_target = self.critic.t(BATCH.obs_, action_target)  # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
@@ -126,8 +131,10 @@ class DDPG(SarlOffPolicy):
             logits = self.actor(BATCH.obs)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) /
+                   self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi_true_one_hot = t.nn.functional.one_hot(
+                _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
         q_actor = self.critic(BATCH.obs, mu)    # [T, B, 1]

@@ -99,15 +99,18 @@ def main():
         custome_config = load_config(args.config_file)
         train_args.update(custome_config['train'])
         env_args.update(custome_config['environment'])
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
+        algo_args.update(load_config(
+            f'rls/configs/algorithms.yaml')[train_args.algorithm])
         algo_args.update(custome_config['algorithm'])
     else:
         train_args.update(args.__dict__)
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
+        algo_args.update(load_config(
+            f'rls/configs/algorithms.yaml')[args.algorithm])
         algo_args.update(n_copys=args.copys)
         # env config
         env_args.update(platform=args.platform,
-                        env_copys=args.copys,  # Environmental copies of vectorized training.
+                        # Environmental copies of vectorized training.
+                        env_copys=args.copys,
                         seed=args.seed,
                         inference=args.inference,
                         env_name=args.env_name)
@@ -125,7 +128,8 @@ def main():
                 else:
                     raise Exception('can not find the executable file.')
             # if traing with visual input but do not render the environment, all 0 obs will be passed.
-            env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
+            env_args.render = args.render or args.inference or (
+                'visual' in env_args.env_name.lower())
 
         # train config
         if args.hostname:
@@ -136,8 +140,10 @@ def main():
                                            env_args.env_name,
                                            train_args.algorithm,
                                            train_args.name)
-        if train_args.load_path is not None and not os.path.exists(train_args.load_path):   # 如果不是绝对路径，就拼接load的训练相对路径
-            train_args.load_path = os.path.join(train_args.base_dir, train_args.load_path)
+        # 如果不是绝对路径，就拼接load的训练相对路径
+        if train_args.load_path is not None and not os.path.exists(train_args.load_path):
+            train_args.load_path = os.path.join(
+                train_args.base_dir, train_args.load_path)
         # algo config
         algo_args.update({'no_save': args.no_save,
                           'device': args.device,
@@ -165,13 +171,16 @@ def main():
         elif trails > 1:
             processes = []
             for i in range(trails):
-                _env_args, _train_args, _algo_args = map(deepcopy, [env_args, train_args, algo_args])
+                _env_args, _train_args, _algo_args = map(
+                    deepcopy, [env_args, train_args, algo_args])
                 _train_args.seed += i * 10
                 _train_args.name += f'/{_train_args.seed}'
-                _train_args.allow_print = True  # NOTE: set this could block other processes' print function
+                # NOTE: set this could block other processes' print function
+                _train_args.allow_print = True
                 if args.platform == 'unity':
                     _env_args.worker_id = env_args.worker_id + i
-                p = Process(target=agent_run, args=(_env_args, _train_args, _algo_args))
+                p = Process(target=agent_run, args=(
+                    _env_args, _train_args, _algo_args))
                 p.start()
                 time.sleep(10)
                 processes.append(p)

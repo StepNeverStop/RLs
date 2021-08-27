@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 # TODO:
 
+
 def namedtuple2hdf5(path: str, data: NamedTuple):
     def save(hf, data):
         for k, v in data._asdict().items():

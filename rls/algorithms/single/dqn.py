@@ -43,7 +43,7 @@ class DQN(SarlOffPolicy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
-                                                rep_net_params=self.rep_net_params,
+                                                rep_net_params=self._rep_net_params,
                                                 output_shape=self.a_dim,
                                                 network_settings=network_settings)).to(self.device)
         self.oplr = OPLR(self.q_net, lr)
@@ -51,14 +51,14 @@ class DQN(SarlOffPolicy):
         self._trainer_modules.update(oplr=self.oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
             self.next_cell_state = self.q_net.get_cell_state()
             actions = q_values.argmax(-1)   # [B,]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
     @iTensor_oNumpy
     def _train(self, BATCH):

@@ -70,14 +70,15 @@ class PPOC(SarlOnPolicy):
         self.o_beta = o_beta
 
         self.net = PpocShare(self.obs_spec,
-                             rep_net_params=self.rep_net_params,
+                             rep_net_params=self._rep_net_params,
                              action_dim=self.a_dim,
                              options_num=self.options_num,
                              network_settings=network_settings,
                              is_continuous=self.is_continuous).to(self.device)
 
         if self.is_continuous:
-            self.log_std = t.as_tensor(np.full((self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
+            self.log_std = t.as_tensor(np.full(
+                (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
             self.oplr = OPLR([self.net, self.log_std], lr)
         else:
             self.oplr = OPLR(self.net, lr)
@@ -85,7 +86,8 @@ class PPOC(SarlOnPolicy):
                                      oplr=self.oplr)
 
         self.oc_mask = t.tensor(np.zeros(self.n_copys)).to(self.device)
-        self.options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)
+        self.options = t.tensor(np.random.randint(
+            0, self.options_num, self.n_copys)).to(self.device)
 
     def episode_reset(self):
         super().episode_reset()
@@ -98,24 +100,25 @@ class PPOC(SarlOnPolicy):
         self.oc_mask = t.zeros_like(self.oc_mask)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(obs, cell_state=self.cell_state)
         self.next_cell_state = self.net.get_cell_state()
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = t.nn.functional.one_hot(
+            self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
             mu = pi  # [B, A]
             log_std = self.log_std[self.options]    # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)  # [B, A]
-            log_prob = dist.log_prob(sample_op).unsqueeze(-1)   # [B, 1]
+            action = dist.sample().clamp(-1, 1)  # [B, A]
+            log_prob = dist.log_prob(action).unsqueeze(-1)   # [B, 1]
         else:
             logits = pi  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()  # [B,]
-            log_prob = norm_dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = norm_dist.sample()  # [B,]
+            log_prob = norm_dist.log_prob(action).unsqueeze(-1)    # [B, 1]
         o_log_prob = (o * options_onehot).sum(-1, keepdim=True)   # [B, 1]
         q_o = (q * options_onehot).sum(-1, keepdim=True)  # [B, 1]
         beta_adv = q_o - (q * o.exp()).sum(-1, keepdim=True)   # [B, 1]
@@ -124,11 +127,13 @@ class PPOC(SarlOnPolicy):
         max_options = q.argmax(-1)  # [B, P] => [B, ]
         beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
         beta_dist = td.Bernoulli(probs=beta_probs)
-        new_options = t.where(beta_dist.sample() < 1, self.options, sample_options)    # <1 则不改变op， =1 则改变op
+        # <1 则不改变op， =1 则改变op
+        new_options = t.where(beta_dist.sample() < 1,
+                              self.options, sample_options)
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
 
-        acts = Data(action=sample_op,
+        acts = Data(action=action,
                     value=q_o,
                     log_prob=log_prob+t.finfo().eps,
                     o_log_prob=o_log_prob+t.finfo().eps,
@@ -138,7 +143,7 @@ class PPOC(SarlOnPolicy):
                     reward_offset=-((1 - self.oc_mask) * self.dc).unsqueeze(-1))
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs, options):
@@ -190,39 +195,48 @@ class PPOC(SarlOnPolicy):
         (q, pi, beta, o) = self.net(BATCH.obs)
         options_onehot_expanded = BATCH.options.unsqueeze(-1)  # [T, B, P, 1]
 
-        pi = (pi * options_onehot_expanded).sum(-2)  # [T, B, P, A] => [T, B, A]
+        # [T, B, P, A] => [T, B, A]
+        pi = (pi * options_onehot_expanded).sum(-2)
         value = (q * BATCH.options).sum(-2, keepdim=True)    # [T, B, 1]
 
         if self.is_continuous:
             mu = pi  # [T, B, A]
             log_std = self.log_std[BATCH.options.argmax(-1)]    # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = pi  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True).mean()  # 1
+            new_log_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1,
+                                                       keepdim=True).mean()  # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()   # [T, B, 1]
 
         if self.kl_reverse:
             kl = (new_log_prob - BATCH.log_prob).mean()  # 1
         else:
-            kl = (BATCH.log_prob - new_log_prob).mean()    # a sample estimate for KL-divergence, easy to compute
+            # a sample estimate for KL-divergence, easy to compute
+            kl = (BATCH.log_prob - new_log_prob).mean()
         surrogate = ratio * BATCH.gae_adv   # [T, B, 1]
 
-        value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)  # [T, B, 1]
+        value_clip = BATCH.value + \
+            (value - BATCH.value).clamp(-self.value_epsilon,
+                                        self.value_epsilon)  # [T, B, 1]
         td_error = BATCH.discounted_reward - value  # [T, B, 1]
         td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
-        td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
+        td_square = t.maximum(
+            td_error.square(), td_error_clip.square())    # [T, B, 1]
 
         pi_loss = -t.minimum(
             surrogate,
             ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
         ).mean()    # 1
         kl_loss = self.kl_coef * kl
-        extra_loss = 1000.0 * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()
+        extra_loss = 1000.0 * \
+            t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()
         pi_loss = pi_loss + kl_loss + extra_loss
         q_loss = 0.5 * td_square.mean()
 
@@ -237,10 +251,12 @@ class PPOC(SarlOnPolicy):
         o_entropy = -((o.exp() * o).sum(-1, keepdim=True)).mean()    # 1
         o_loss = -t.minimum(
             o_ratio * BATCH.gae_adv,
-            o_ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
+            o_ratio.clamp(1.0 - self.epsilon, 1.0 +
+                          self.epsilon) * BATCH.gae_adv
         ).mean()    # 1
 
-        loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - self.pi_beta * entropy - self.o_beta * o_entropy   # 1
+        loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - \
+            self.pi_beta * entropy - self.o_beta * o_entropy   # 1
         self.oplr.step(loss)
 
         if kl > self.kl_high:

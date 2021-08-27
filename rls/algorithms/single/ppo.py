@@ -100,7 +100,8 @@ class PPO(SarlOnPolicy):
         self.use_duel_clip = use_duel_clip
         self.duel_epsilon = duel_epsilon
         if self.use_duel_clip:
-            assert -self.epsilon < self.duel_epsilon < self.epsilon, "duel_epsilon should be set in the range of (-epsilon, epsilon)."
+            assert - \
+                self.epsilon < self.duel_epsilon < self.epsilon, "duel_epsilon should be set in the range of (-epsilon, epsilon)."
 
         self.kl_cutoff = kl_target * kl_target_cutoff
         self.kl_stop = kl_target * kl_target_earlystop
@@ -114,12 +115,12 @@ class PPO(SarlOnPolicy):
         if self.share_net:
             if self.is_continuous:
                 self.net = ActorCriticValueCts(self.obs_spec,
-                                               rep_net_params=self.rep_net_params,
+                                               rep_net_params=self._rep_net_params,
                                                output_shape=self.a_dim,
                                                network_settings=network_settings['share']['continuous']).to(self.device)
             else:
                 self.net = ActorCriticValueDct(self.obs_spec,
-                                               rep_net_params=self.rep_net_params,
+                                               rep_net_params=self._rep_net_params,
                                                output_shape=self.a_dim,
                                                network_settings=network_settings['share']['discrete']).to(self.device)
             if self.max_grad_norm is not None:
@@ -132,20 +133,22 @@ class PPO(SarlOnPolicy):
         else:
             if self.is_continuous:
                 self.actor = ActorMuLogstd(self.obs_spec,
-                                           rep_net_params=self.rep_net_params,
+                                           rep_net_params=self._rep_net_params,
                                            output_shape=self.a_dim,
                                            network_settings=network_settings['actor_continuous']).to(self.device)
             else:
                 self.actor = ActorDct(self.obs_spec,
-                                      rep_net_params=self.rep_net_params,
+                                      rep_net_params=self._rep_net_params,
                                       output_shape=self.a_dim,
                                       network_settings=network_settings['actor_discrete']).to(self.device)
             self.critic = CriticValue(self.obs_spec,
-                                      rep_net_params=self.rep_net_params,
+                                      rep_net_params=self._rep_net_params,
                                       network_settings=network_settings['critic']).to(self.device)
             if self.max_grad_norm is not None:
-                self.actor_oplr = OPLR(self.actor, actor_lr, clipnorm=self.max_grad_norm)
-                self.critic_oplr = OPLR(self.critic, critic_lr, clipnorm=self.max_grad_norm)
+                self.actor_oplr = OPLR(
+                    self.actor, actor_lr, clipnorm=self.max_grad_norm)
+                self.critic_oplr = OPLR(
+                    self.critic, critic_lr, clipnorm=self.max_grad_norm)
             else:
                 self.actor_oplr = OPLR(self.actor, actor_lr)
                 self.critic_oplr = OPLR(self.critic, critic_lr)
@@ -156,44 +159,51 @@ class PPO(SarlOnPolicy):
                                          critic_oplr=self.critic_oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         if self.is_continuous:
             if self.share_net:
-                mu, log_std, value = self.net(obs, cell_state=self.cell_state)  # [B, A]
+                mu, log_std, value = self.net(
+                    obs, cell_state=self.cell_state)  # [B, A]
                 self.next_cell_state = self.net.get_cell_state()
             else:
-                mu, log_std = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+                mu, log_std = self.actor(
+                    obs, cell_state=self.cell_state)    # [B, A]
                 self.next_cell_state = self.actor.get_cell_state()
                 value = self.critic(obs, cell_state=self.cell_state)  # [B, 1]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
-            log_prob = dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = dist.sample().clamp(-1, 1)   # [B, A]
+            log_prob = dist.log_prob(action).unsqueeze(-1)    # [B, 1]
         else:
             if self.share_net:
-                logits, value = self.net(obs, cell_state=self.cell_state)    # [B, A], [B, 1]
+                logits, value = self.net(
+                    obs, cell_state=self.cell_state)    # [B, A], [B, 1]
                 self.next_cell_state = self.net.get_cell_state()
             else:
-                logits = self.actor(obs, cell_state=self.cell_state)     # [B, A]
+                logits = self.actor(
+                    obs, cell_state=self.cell_state)     # [B, A]
                 self.next_cell_state = self.actor.get_cell_state()
-                value = self.critic(obs, cell_state=self.cell_state)     # [B, 1]
+                value = self.critic(
+                    obs, cell_state=self.cell_state)     # [B, 1]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()   # [B,]
-            log_prob = norm_dist.log_prob(sample_op).unsqueeze(-1)    # [B, 1]
+            action = norm_dist.sample()   # [B,]
+            log_prob = norm_dist.log_prob(action).unsqueeze(-1)    # [B, 1]
 
-        acts = Data(action=sample_op,
+        acts = Data(action=action,
                     value=value,
                     log_prob=log_prob+t.finfo().eps)
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):
         if self.share_net:
             if self.is_continuous:
-                _, _, value = self.net(obs, cell_state=self.cell_state)  # [B, 1]
+                _, _, value = self.net(
+                    obs, cell_state=self.cell_state)  # [B, 1]
             else:
-                _, value = self.net(obs, cell_state=self.cell_state)    # [B, 1]
+                _, value = self.net(
+                    obs, cell_state=self.cell_state)    # [B, 1]
         else:
             value = self.critic(obs, cell_state=self.cell_state)    # [B, 1]
         return value
@@ -257,15 +267,19 @@ class PPO(SarlOnPolicy):
     @iTensor_oNumpy
     def train_share(self, BATCH):
         if self.is_continuous:
-            mu, log_std, value = self.net(BATCH.obs)    # [T, B, A], [T, B, A], [T, B, 1]
+            # [T, B, A], [T, B, A], [T, B, 1]
+            mu, log_std, value = self.net(BATCH.obs)
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
             logits, value = self.net(BATCH.obs)  # [T, B, A], [T, B, 1]
             logp_all = logits.log_softmax(-1)   # [T, B, 1]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1,
+                                                       keepdim=True)  # [T, B, 1]
         ratio = (new_log_prob - BATCH.log_prob).exp()     # [T, B, 1]
         surrogate = ratio * BATCH.gae_adv     # [T, B, 1]
         clipped_surrogate = t.minimum(
@@ -278,30 +292,37 @@ class PPO(SarlOnPolicy):
                 clipped_surrogate,
                 (1.0 + self.duel_epsilon) * BATCH.gae_adv
             )     # [T, B, 1]
-        actor_loss = -(clipped_surrogate + self.ent_coef * entropy).mean()   # 1
+        actor_loss = -(clipped_surrogate +
+                       self.ent_coef * entropy).mean()   # 1
 
         # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
         # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L185
         if self.kl_reverse:  # TODO:
             kl = .5 * (new_log_prob - BATCH.log_prob).square().mean()    # 1
         else:
-            kl = .5 * (BATCH.log_prob - new_log_prob).square().mean()    # a sample estimate for KL-divergence, easy to compute
+            # a sample estimate for KL-divergence, easy to compute
+            kl = .5 * (BATCH.log_prob - new_log_prob).square().mean()
 
         if self.use_kl_loss:
             kl_loss = self.kl_coef * kl  # 1
             actor_loss += kl_loss
 
         if self.use_extra_loss:
-            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()  # 1
+            extra_loss = self.extra_coef * \
+                t.maximum(t.zeros_like(kl), kl -
+                          self.kl_cutoff).square().mean()  # 1
             actor_loss += extra_loss
 
         td_error = BATCH.discounted_reward - value  # [T, B, 1]
         if self.use_vclip:
             # ref: https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
             # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
-            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)  # [T, B, 1]
+            value_clip = BATCH.value + \
+                (value - BATCH.value).clamp(-self.value_epsilon,
+                                            self.value_epsilon)  # [T, B, 1]
             td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
-            td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
+            td_square = t.maximum(
+                td_error.square(), td_error_clip.square())    # [T, B, 1]
         else:
             td_square = td_error.square()   # [T, B, 1]
 
@@ -321,19 +342,23 @@ class PPO(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(BATCH.obs)  # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)    # [T, B, 1]
         else:
             logits = self.actor(BATCH.obs)  # [T, B, A]
             logp_all = logits.log_softmax(-1)    # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1,
+                                                       keepdim=True)  # [T, B, 1]
         ratio = (new_log_prob - BATCH.log_prob).exp()    # [T, B, 1]
         kl = (BATCH.log_prob - new_log_prob).square().mean()     # 1
         surrogate = ratio * BATCH.gae_adv    # [T, B, 1]
         clipped_surrogate = t.minimum(
             surrogate,
-            t.where(BATCH.gae_adv > 0, (1 + self.epsilon) * BATCH.gae_adv, (1 - self.epsilon) * BATCH.gae_adv)
+            t.where(BATCH.gae_adv > 0, (1 + self.epsilon) *
+                    BATCH.gae_adv, (1 - self.epsilon) * BATCH.gae_adv)
         )    # [T, B, 1]
         if self.use_duel_clip:
             clipped_surrogate = t.maximum(
@@ -347,7 +372,9 @@ class PPO(SarlOnPolicy):
             kl_loss = self.kl_coef * kl  # 1
             actor_loss += kl_loss
         if self.use_extra_loss:
-            extra_loss = self.extra_coef * t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()    # 1
+            extra_loss = self.extra_coef * \
+                t.maximum(t.zeros_like(kl), kl -
+                          self.kl_cutoff).square().mean()    # 1
             actor_loss += extra_loss
 
         self.actor_oplr.step(actor_loss)
@@ -364,9 +391,13 @@ class PPO(SarlOnPolicy):
 
         td_error = BATCH.discounted_reward - value    # [T, B, 1]
         if self.use_vclip:
-            value_clip = BATCH.value + (value - BATCH.value).clamp(-self.value_epsilon, self.value_epsilon)   # [T, B, 1]
-            td_error_clip = BATCH.discounted_reward - value_clip      # [T, B, 1]
-            td_square = t.maximum(td_error.square(), td_error_clip.square())      # [T, B, 1]
+            value_clip = BATCH.value + \
+                (value - BATCH.value).clamp(-self.value_epsilon,
+                                            self.value_epsilon)   # [T, B, 1]
+            td_error_clip = BATCH.discounted_reward - \
+                value_clip      # [T, B, 1]
+            td_square = t.maximum(
+                td_error.square(), td_error_clip.square())      # [T, B, 1]
         else:
             td_square = td_error.square()     # [T, B, 1]
 

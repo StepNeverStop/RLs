@@ -68,14 +68,16 @@ class CuriosityModel(t.nn.Module):
         fs, _ = self.rep_net(BATCH.obs)  # [T, B, *]
         fs_, _ = self.rep_net(BATCH.obs_)   # [T, B, *]
 
-        s_eval = self.forward_net(t.cat((fs, BATCH.action), -1))    # [T, B, *] <S, A> => S'
+        # [T, B, *] <S, A> => S'
+        s_eval = self.forward_net(t.cat((fs, BATCH.action), -1))
         LF = 0.5 * (fs_ - s_eval).square().sum(-1, keepdim=True)    # [T, B, 1]
         intrinsic_reward = self.eta * LF
         loss_forward = LF.mean()    # 1
 
         a_eval = self.inverse_dynamic_net(t.cat((fs, fs_), -1))  # [T, B, *]
         if self.is_continuous:
-            loss_inverse = 0.5 * (a_eval - BATCH.action).square().sum(-1).mean()
+            loss_inverse = 0.5 * \
+                (a_eval - BATCH.action).square().sum(-1).mean()
         else:
             idx = BATCH.action.argmax(-1)  # [T, B]
             loss_inverse = t.nn.functional.cross_entropy(

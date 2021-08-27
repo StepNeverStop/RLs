@@ -41,7 +41,8 @@ def set_log_level(log_level: int) -> None:
     # In theory, this would be sufficient, but if another library calls logging.basicConfig
     # first, it doesn't have any effect.
     if _log_level > INFO:
-        logging.basicConfig(level=_log_level, format=LOG_FORMAT, datefmt=DATE_FORMAT)
+        logging.basicConfig(
+            level=_log_level, format=LOG_FORMAT, datefmt=DATE_FORMAT)
     else:
         logging.basicConfig(level=_log_level, format='%(message)s')
 

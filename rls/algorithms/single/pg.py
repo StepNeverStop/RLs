@@ -34,12 +34,12 @@ class PG(SarlOnPolicy):
         super().__init__(agent_spec=agent_spec, **kwargs)
         if self.is_continuous:
             self.net = ActorMuLogstd(self.obs_spec,
-                                     rep_net_params=self.rep_net_params,
+                                     rep_net_params=self._rep_net_params,
                                      output_shape=self.a_dim,
                                      network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.net = ActorDct(self.obs_spec,
-                                rep_net_params=self.rep_net_params,
+                                rep_net_params=self._rep_net_params,
                                 output_shape=self.a_dim,
                                 network_settings=network_settings['actor_discrete']).to(self.device)
         self.oplr = OPLR(self.net, lr)
@@ -48,22 +48,22 @@ class PG(SarlOnPolicy):
                                      oplr=self.oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.net(obs, cell_state=self.cell_state)  # [B, A]
         self.next_cell_state = self.net.get_cell_state()
         if self.is_continuous:
             mu, log_std = output    # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)  # [B, A]
+            action = dist.sample().clamp(-1, 1)  # [B, A]
         else:
             logits = output  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()  # [B,]
+            action = norm_dist.sample()  # [B,]
 
-        acts = Data(action=sample_op)
+        acts = Data(action=action)
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
@@ -81,13 +81,16 @@ class PG(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = output    # [B, T, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [B, T, 1]
+            log_act_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)    # [B, T, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [B, T, 1]
         else:
             logits = output  # [B, T, A]
             logp_all = logits.log_softmax(-1)   # [B, T, A]
-            log_act_prob = (logp_all * BATCH.action).sum(-1, keepdim=True)  # [B, T, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)  # [B, T, 1]
+            log_act_prob = (logp_all * BATCH.action).sum(-1,
+                                                         keepdim=True)  # [B, T, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(1,
+                                                       keepdim=True)  # [B, T, 1]
         loss = -(log_act_prob * BATCH.discounted_reward).mean()
         self.oplr.step(loss)
         return dict([

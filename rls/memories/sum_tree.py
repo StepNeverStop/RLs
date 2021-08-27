@@ -39,12 +39,14 @@ class Sum_Tree:
         p = p.ravel()
         B = p.shape[0]
         idx = (np.arange(B) + self._now) % self.capacity   # [0, capacity-1]
-        tidx = idx + self.tree_data_offset  # [parent_node_count+1, parent_node_count+capacity]
+        # [parent_node_count+1, parent_node_count+capacity]
+        tidx = idx + self.tree_data_offset
         if n_step_delay <= 0:
             self._updatetree_batch(tidx, p)
         else:
             self._updatetree_batch(tidx, np.zeros_like(p))
-            _pre_idx = (idx - B*n_step_delay + self.capacity) % self.capacity    # [0, capacity-1]
+            # [0, capacity-1]
+            _pre_idx = (idx - B*n_step_delay + self.capacity) % self.capacity
             p = np.where(_pre_idx < self._size, p, 0.)
             _pre_tidx = _pre_idx + self.tree_data_offset
             self._updatetree_batch(_pre_tidx, p)
@@ -68,7 +70,8 @@ class Sum_Tree:
 
     def _propagate_batch(self, tidx, diff):
         parent = tidx // 2
-        _parent, idx1, count = np.unique(parent, return_index=True, return_counts=True)
+        _parent, idx1, count = np.unique(
+            parent, return_index=True, return_counts=True)
         _, idx2 = np.unique(parent[::-1], return_index=True)
         diff = (diff[- 1 - idx2] + diff[idx1]) * count / 2
         self.tree[_parent] += diff
@@ -91,7 +94,8 @@ class Sum_Tree:
         # index = np.where(self.tree[left] >= seg_p_total, left, 0) + np.where(self.tree[left] < seg_p_total, right, 0)
         # seg_p_total = np.where(self.tree[left] >= seg_p_total, seg_p_total, 0) + np.where(self.tree[left] < seg_p_total, seg_p_total - self.tree[left], 0)
         index = np.where(seg_p_total < self.tree[left], left, right)
-        seg_p_total = np.where(seg_p_total < self.tree[left], seg_p_total, seg_p_total - self.tree[left])
+        seg_p_total = np.where(
+            seg_p_total < self.tree[left], seg_p_total, seg_p_total - self.tree[left])
         return self._retrieve_batch(index, seg_p_total)
 
     @property

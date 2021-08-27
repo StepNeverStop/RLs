@@ -17,6 +17,9 @@ from rls.utils.np_utils import discounted_sum
 
 
 class A2C(SarlOnPolicy):
+    """
+    Synchronous Advantage Actor-Critic, A2C, http://arxiv.org/abs/1602.01783
+    """
     policy_mode = 'on-policy'
 
     def __init__(self,
@@ -40,16 +43,16 @@ class A2C(SarlOnPolicy):
 
         if self.is_continuous:
             self.actor = ActorMuLogstd(self.obs_spec,
-                                       rep_net_params=self.rep_net_params,
+                                       rep_net_params=self._rep_net_params,
                                        output_shape=self.a_dim,
                                        network_settings=network_settings['actor_continuous']).to(self.device)
         else:
             self.actor = ActorDct(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
         self.critic = CriticValue(self.obs_spec,
-                                  rep_net_params=self.rep_net_params,
+                                  rep_net_params=self._rep_net_params,
                                   network_settings=network_settings['critic']).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
@@ -61,22 +64,22 @@ class A2C(SarlOnPolicy):
                                      critic_oplr=self.critic_oplr)
 
     @iTensor_oNumpy
-    def __call__(self, obs):
+    def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
         if self.is_continuous:
             mu, log_std = output     # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            sample_op = dist.sample().clamp(-1, 1)   # [B, A]
+            action = dist.sample().clamp(-1, 1)   # [B, A]
         else:
             logits = output  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            sample_op = norm_dist.sample()   # [B,]
+            action = norm_dist.sample()   # [B,]
 
-        acts = Data(action=sample_op)
+        acts = Data(action=action)
         if self.use_rnn:
             acts.update(cell_state=self.cell_state)
-        return acts
+        return action, acts
 
     @iTensor_oNumpy
     def _get_value(self, obs):
@@ -103,15 +106,19 @@ class A2C(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            log_act_prob = dist.log_prob(
+                BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
         else:
             logits = self.actor(BATCH.obs)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            log_act_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            log_act_prob = (BATCH.action * logp_all).sum(-1,
+                                                         keepdim=True)  # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1,
+                                                       keepdim=True)  # [T, B, 1]
         advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
-        actor_loss = -(log_act_prob * advantage + self.beta * entropy).mean()  # 1
+        actor_loss = -(log_act_prob * advantage +
+                       self.beta * entropy).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
         return dict([

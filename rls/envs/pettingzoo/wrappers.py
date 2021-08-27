@@ -25,11 +25,13 @@ class BasicWrapper:
                     discrete_action_dim_list = [i.n for i in action_space]
                 else:
                     discrete_action_dim_list = [action_space.n]
-                self._discrete_action_list[k] = get_discrete_action_list(discrete_action_dim_list)
+                self._discrete_action_list[k] = get_discrete_action_list(
+                    discrete_action_dim_list)
 
     def __getattr__(self, name):
         if name.startswith('_'):
-            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name))
         return getattr(self.env, name)
 
     def action_sample(self):

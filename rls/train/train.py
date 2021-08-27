@@ -49,7 +49,8 @@ def train(env, agent,
             if render:
                 env.render(record=False)
             acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
+            env_rets = env.step(
+                {id: acts[id].action for id in env.agent_ids}, step_config={})
             agent.episode_step(obs, acts, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
@@ -85,7 +86,8 @@ def prefill(env, agent,
 
     for _ in trange(0, prefill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
         acts = agent.random_action()
-        env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
+        env_rets = env.step(
+            {id: acts[id].action for id in env.agent_ids}, step_config={})
         agent.episode_step(obs, acts, env_rets)
         obs = {id: env_rets[id].obs for id in env.agent_ids}
         obs['global'] = env_rets['global']
@@ -116,7 +118,8 @@ def inference(env, agent,
         while True:
             env.render(record=False)
             acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
+            env_rets = env.step(
+                {id: acts[id].action for id in env.agent_ids}, step_config={})
             agent.episode_step(obs, acts, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
@@ -151,7 +154,8 @@ def evaluate(env, agent,
 
         for _ in range(episode_length):
             acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
+            env_rets = env.step(
+                {id: acts[id].action for id in env.agent_ids}, step_config={})
             agent.episode_step({id: env_rets[id].done for id in env.agent_ids})
             obs = {id: env_rets[id].obs for id in env.agent_ids}
             obs['global'] = env_rets['global']

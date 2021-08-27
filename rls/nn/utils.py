@@ -40,8 +40,10 @@ class OPLR:
             else:
                 self.params.append(model)
 
-        self.optimizer = OP_REGISTER[optimizer](self.params, lr, **optimizer_params)
-        self.lr_scheduler = LR_REGISTER[scheduler](self.optimizer, **scheduler_params)
+        self.optimizer = OP_REGISTER[optimizer](
+            self.params, lr, **optimizer_params)
+        self.lr_scheduler = LR_REGISTER[scheduler](
+            self.optimizer, **scheduler_params)
 
         self.clipnorm = clipnorm
         self.clipvalue = clipvalue
@@ -63,7 +65,8 @@ class OPLR:
                 self.optimizer.zero_grad()
                 loss.backward()
                 t.nn.utils.clip_grad_norm_(self.params, max_norm=self.clipnorm)
-                t.nn.utils.clip_grad_value_(self.params, clip_value=self.clipvalue)
+                t.nn.utils.clip_grad_value_(
+                    self.params, clip_value=self.clipvalue)
                 self.optimizer.step()
                 self.lr_scheduler.step()
             return func
@@ -79,7 +82,8 @@ class OPLR:
             def func(loss):
                 self.optimizer.zero_grad()
                 loss.backward()
-                t.nn.utils.clip_grad_value_(self.params, clip_value=self.clipvalue)
+                t.nn.utils.clip_grad_value_(
+                    self.params, clip_value=self.clipvalue)
                 self.optimizer.step()
                 self.lr_scheduler.step()
             return func

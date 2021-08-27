@@ -119,10 +119,13 @@ class ResnetNetwork(t.nn.Module):
         in_channels = [visual_dim[-1]] + self.out_channels[:-1]
         self.res_blocks = 2
         for i in range(len(self.out_channels)):
-            setattr(self, 'conv' + str(i), Conv2d(in_channels=in_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1)))
-            setattr(self, 'pool' + str(i), MaxPool2d(kernel_size=[3, 3], stride=[2, 2], padding='same'))
+            setattr(self, 'conv' + str(i), Conv2d(
+                in_channels=in_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1)))
+            setattr(self, 'pool' + str(i),
+                    MaxPool2d(kernel_size=[3, 3], stride=[2, 2], padding='same'))
             for j in range(self.res_blocks):
-                setattr(self, 'resblock' + str(i) + 'conv' + str(j), Conv2d(in_channels=self.out_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1), padding='same'))
+                setattr(self, 'resblock' + str(i) + 'conv' + str(j), Conv2d(
+                    in_channels=self.out_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1), padding='same'))
         self.flatten = Flatten()
 
         with t.no_grad():

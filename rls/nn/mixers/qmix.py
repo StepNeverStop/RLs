@@ -49,9 +49,11 @@ class QMixer(t.nn.Module):
         hidden = t.nn.functional.elu(q_values @ w1 + b1)  # [T, B, 1, *]
         # Second layer
         w_final = t.abs(self.hyper_w_final(state_feat))  # [T, B, *]
-        w_final = w_final.view(time_step, batch_size, self.embed_dim, 1)   # [T, B, *, 1]
+        w_final = w_final.view(time_step, batch_size,
+                               self.embed_dim, 1)   # [T, B, *, 1]
         # State-dependent bias
-        v = self.V(state_feat).view(time_step, batch_size, 1, 1)   # [T, B, 1, 1]
+        v = self.V(state_feat).view(
+            time_step, batch_size, 1, 1)   # [T, B, 1, 1]
         # Compute final output
         y = hidden @ w_final + v  # [T, B, 1, 1]
         # Reshape and return

@@ -33,7 +33,9 @@ class PettingZooEnv(EnvBase):
         # NOTE: env_name should be formatted like `mpe.simple_v2`
         env_module = importlib.import_module(f"pettingzoo.{env_name}")
         env_module = env_module.parallel_env
-        def make_env(idx, **config): return BasicWrapper(env_module(**env_config))  # TODO:
+        # TODO:
+        def make_env(
+            idx, **config): return BasicWrapper(env_module(**env_config))
 
         self._initialize(env=env_module(**env_config))
         self._envs = [env_module(**env_config) for _ in range(self._n_copys)]
@@ -68,7 +70,8 @@ class PettingZooEnv(EnvBase):
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         actions = deepcopy(actions)   # [N, B, *]
 
-        obss, rewards, dones, infos = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
+        obss, rewards, dones, infos = defaultdict(list), defaultdict(
+            list), defaultdict(list), defaultdict(list)
         begin_mask = np.full((self._n_copys, 1), False)
 
         for i, env in enumerate(self._envs):
@@ -186,11 +189,13 @@ class PettingZooEnv(EnvBase):
             # process action
             ActSpace = env.action_spaces[k]
             if isinstance(ActSpace, Box):
-                assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
+                assert len(
+                    ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
                 self._is_continuous[k] = True
                 self.a_dim[k] = ActSpace.shape[0]
             elif isinstance(ActSpace, Tuple):
-                assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
+                assert all([isinstance(i, Discrete) for i in ActSpace]
+                           ) == True, 'if action space is Tuple, each item in it must have type Discrete'
                 self._is_continuous[k] = False
                 self.a_dim[k] = int(np.asarray([i.n for i in ActSpace]).prod())
             else:

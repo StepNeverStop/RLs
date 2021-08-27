@@ -45,7 +45,8 @@ class Trainer:
         # logger.info(self.env.AgentSpecs)
 
         # ALGORITHM CONFIG
-        self.agent_class, self.is_multi = get_model_info(self.train_args.algorithm)
+        self.agent_class, self.is_multi = get_model_info(
+            self.train_args.algorithm)
         if self.agent_class.policy_mode == 'on-policy':
             self.algo_args.buffer_size = self.train_args.episode_length * self.algo_args.n_copys
 

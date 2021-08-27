@@ -55,10 +55,12 @@ def show_dict(data: Dict, depth=0):
 
     for k, v in data.items():
         if isinstance(v, dict):
-            logger.info(colorize(empty_space+''.join([str(k).rjust(28), f" | {'*'*(depth+1)} --->"]), color='blue'))
+            logger.info(colorize(
+                empty_space+''.join([str(k).rjust(28), f" | {'*'*(depth+1)} --->"]), color='blue'))
             show_dict(v, depth=depth+1)
         else:
-            logger.info(empty_space+''.join([str(k).rjust(28), ' | ', str(v).ljust(28)]))
+            logger.info(
+                empty_space+''.join([str(k).rjust(28), ' | ', str(v).ljust(28)]))
 
     if depth == 0:
         logger.info(colorize('-' * 80, color='red', bold=True))
