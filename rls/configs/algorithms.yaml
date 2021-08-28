@@ -542,3 +542,16 @@ qmix:
     mixer_settings:
         mixing_embed_dim: 16
         hidden_units: [16]
+
+qatten:
+    <<: *vdn
+    mixer: qatten
+    mixer_settings:
+        agent_own_state_size: 1 # TODO: implement this
+        query_hidden_units: [64]
+        query_embed_dim: 32
+        key_embed_dim: 32
+        head_hidden_units: [64]
+        n_attention_head: 4
+        constrant_hidden_units: [32]
+        is_weighted: True

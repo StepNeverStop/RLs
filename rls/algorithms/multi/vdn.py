@@ -18,7 +18,8 @@ from rls.utils.torch_utils import q_target_func
 class VDN(MultiAgentOffPolicy):
     '''
     Value-Decomposition Networks For Cooperative Multi-Agent Learning, http://arxiv.org/abs/1706.05296
-    TODO: RNN, multi-step
+    QMIX: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning, http://arxiv.org/abs/1803.11485
+    Qatten: A General Framework for Cooperative Multiagent Reinforcement Learning, http://arxiv.org/abs/2002.03939
     '''
     policy_mode = 'off-policy'
 
@@ -56,8 +57,8 @@ class VDN(MultiAgentOffPolicy):
                                                        output_shape=self.a_dims[id],
                                                        network_settings=network_settings)).to(self.device)
 
-        if mixer == 'qmix':
-            assert self._has_global_state
+        if mixer in ['qmix', 'qatten']:
+            assert self._has_global_state, 'assert self._has_global_state'
         self.mixer = TargetTwin(
             Mixer_REGISTER[mixer](n_agents=self.n_agents_percopy,
                                   state_spec=self.state_spec,
@@ -120,9 +121,10 @@ class VDN(MultiAgentOffPolicy):
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
             q_target_next_maxs.append(q_target_next_max)    # N * [T, B, 1]
-        q_eval_tot = self.mixer(q_evals, BATCH_DICT['global'].obs)  # [T, B, 1]
+        q_eval_tot = self.mixer(
+            q_evals, BATCH_DICT['global'].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
         q_target_next_max_tot = self.mixer.t(
-            q_target_next_maxs, BATCH_DICT['global'].obs_)  # [T, B, 1]
+            q_target_next_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
         q_target_tot = q_target_func(reward,
                                      self.gamma,

@@ -10,6 +10,7 @@ class QMixer(t.nn.Module):
                  n_agents,
                  state_spec,
                  rep_net_params,
+
                  mixing_embed_dim=8,
                  hidden_units=[8],
                  **kwargs):
@@ -28,7 +29,7 @@ class QMixer(t.nn.Module):
         self.V = MLP(input_dim=self.rep_net.h_dim, hidden_units=[self.embed_dim],
                      layer='linear', act_fn='relu', output_shape=1)
 
-    def forward(self, q_values, state):
+    def forward(self, q_values, state, **kwargs):
         '''
         params:
             q_values: N * [T, B, 1]
@@ -39,7 +40,7 @@ class QMixer(t.nn.Module):
         batch_size = q_values[0].shape[1]   # B
 
         # state: [T, B, *]
-        state_feat, _ = self.rep_net(state, cell_state=None)    # [T, B, *]
+        state_feat, _ = self.rep_net(state, **kwargs)    # [T, B, *]
         q_values = t.stack(q_values, -1)  # [T, B, 1, N]
         # First layer
         w1 = t.abs(self.hyper_w_1(state_feat))   # [T, B, **N]
