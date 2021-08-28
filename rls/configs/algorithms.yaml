@@ -1,9 +1,3 @@
-# algorithm config = policy UNION sarl_on_policy/sarl_off_policy UNION specific algorithm config
-# if same key happened in multiple configurations, then specific algorithm config override sarl_on_policy/sarl_off_policy override policy
-# priority 1: specific algorithm config
-# priority 2: sarl_on_policy/sarl_off_policy
-# priority 3: policy
-
 policy: &policy
     max_frame_step: 999999999999999999
     max_train_episode: 999999999999999999
@@ -81,7 +75,7 @@ dqn: &dqn
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings: [64, 64]
     rep_net_params:
@@ -122,7 +116,7 @@ oc:
     terminal_mask: true
     double_q: false
     termination_regularizer: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     options_num: 4
     assign_interval: 1000
     network_settings:
@@ -215,7 +209,7 @@ c51:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings: [256, 256]
 
@@ -228,7 +222,7 @@ rainbow:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings:
         share: [128]
@@ -243,7 +237,7 @@ qrdqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings: [256, 256]
 
@@ -258,7 +252,7 @@ iqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings:
         q_net: [128, &iqn_hm 64]
@@ -505,7 +499,7 @@ maxsqn:
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
@@ -534,7 +528,8 @@ vdn: &vdn
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    use_double: true
+    init2mid_annealing_step: 10000
     assign_interval: 1000
     network_settings:
         share: [64]

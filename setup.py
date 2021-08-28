@@ -2,7 +2,8 @@
 # encoding: utf-8
 import platform
 from importlib import util as import_util
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 spec = import_util.spec_from_file_location('_metadata', 'rls/_metadata.py')
 _metadata = import_util.module_from_spec(spec)
@@ -22,6 +23,7 @@ systembased_extras = {
     'nowindows': []
 }
 extras = {
+    'pr': ['autopep8', 'isort'],
     'unity': ['mlagents-envs==0.27.0'],
     'mujoco': ['mujoco_py'],
     'pybullet': ['PyBullet'],

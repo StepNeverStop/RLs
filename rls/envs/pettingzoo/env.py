@@ -1,20 +1,14 @@
 import importlib
-import pettingzoo
-import numpy as np
-
-from copy import deepcopy
-from typing import (List,
-                    Dict,
-                    NoReturn)
 from collections import defaultdict
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
+from copy import deepcopy
+from typing import Dict, List, NoReturn
 
+import numpy as np
+import pettingzoo
+from gym.spaces import Box, Discrete, Tuple
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
 from rls.envs.pettingzoo.wrappers import BasicWrapper
 
 
@@ -39,7 +33,7 @@ class PettingZooEnv(EnvBase):
 
         self._initialize(env=env_module(**env_config))
         self._envs = [env_module(**env_config) for _ in range(self._n_copys)]
-        [env.seed(seed) for env in self._envs]
+        [env.seed(seed+i) for i, env in enumerate(self._envs)]
 
     def reset(self, **kwargs) -> Dict[str, Data]:
         obss = [env.reset() for env in self._envs]
@@ -47,7 +41,7 @@ class PettingZooEnv(EnvBase):
         for k in self._agents:
             for obs in obss:
                 _obs[k].append(obs[k])
-            _obs[k] = np.asarray(_obs[k])
+            _obs[k] = np.asarray(_obs[k])   # [B, *]
 
         rets = {}
         for k in self._agents:
@@ -55,15 +49,15 @@ class PettingZooEnv(EnvBase):
                 rets[k] = Data(visual={'visual_0': _obs[k]})
             else:
                 rets[k] = Data(vector={'vector_0': _obs[k]})
-        state = np.asarray([env.state() for env in self._envs])
-        if self._is_state_visual:
-            _state = Data(visual={'visual_0': state})
-        else:
-            _state = Data(vector={'vector_0': state})
-        rets.update({
-            'global': Data(obs=_state,
-                           begin_mask=np.full((self._n_copys, 1), True))
-        })
+        rets['global'] = Data(begin_mask=np.full((self._n_copys, 1), True))
+
+        if self._has_global_state:
+            state = np.asarray([env.state() for env in self._envs])  # [B, *]
+            if self._is_state_visual:
+                _state = Data(visual={'visual_0': state})
+            else:
+                _state = Data(vector={'vector_0': state})
+            rets['global'].update(obs=_state)
 
         return rets
 
@@ -91,9 +85,9 @@ class PettingZooEnv(EnvBase):
                 infos[k].append(infos[k])
 
         for k in self._agents:
-            obss[k] = np.asarray(obss[k])
-            rewards[k] = np.asarray(rewards[k])
-            dones[k] = np.asarray(dones[k])
+            obss[k] = np.asarray(obss[k])   # [B, *]
+            rewards[k] = np.asarray(rewards[k])  # [B, *]
+            dones[k] = np.asarray(dones[k])  # [B, *]
 
         rets = {}
         for k in self._agents:
@@ -105,15 +99,15 @@ class PettingZooEnv(EnvBase):
                            reward=rewards[k],
                            done=dones[k],
                            info=infos[k])
-        state = np.asarray([env.state() for env in self._envs])
-        if self._is_state_visual:
-            _state = Data(visual={'visual_0': state})
-        else:
-            _state = Data(vector={'vector_0': state})
-        rets.update({
-            'global': Data(obs=_state,
-                           begin_mask=begin_mask)
-        })
+        rets['global'] = Data(begin_mask=begin_mask)
+
+        if self._has_global_state:
+            state = np.asarray([env.state() for env in self._envs])
+            if self._is_state_visual:
+                _state = Data(visual={'visual_0': state})
+            else:
+                _state = Data(vector={'vector_0': state})
+            rets['global'].update(obs=_state)
         return rets
 
     def close(self, **kwargs) -> NoReturn:
@@ -159,15 +153,20 @@ class PettingZooEnv(EnvBase):
         self._is_state_visual = False
         self._state_vector_dims = []
         self._state_visual_dims = []
-        StateSpec = env.state_space
-        if isinstance(StateSpec, Box):
-            if len(StateSpec.shape) == 1:
-                self._state_vector_dims = list(StateSpec.shape)
-            elif len(StateSpec.shape) == 3:
-                self._state_visual_dims = [list(StateSpec.shape)]
-                self._is_state_visual = True
-        else:
-            self._state_vector_dims = [int(StateSpec.n)]
+        try:
+            StateSpec = env.state_space
+            if isinstance(StateSpec, Box):
+                if len(StateSpec.shape) == 1:
+                    self._state_vector_dims = list(StateSpec.shape)
+                elif len(StateSpec.shape) == 3:
+                    self._state_visual_dims = [list(StateSpec.shape)]
+                    self._is_state_visual = True
+            else:
+                self._state_vector_dims = [int(StateSpec.n)]
+            self._has_global_state = True
+        except AttributeError:
+            self._has_global_state = False
+            pass
 
         self.a_dim = defaultdict(int)
         self._is_continuous = {}

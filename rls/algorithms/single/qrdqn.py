@@ -5,13 +5,13 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import QrdqnDistributional
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import q_target_func
-from rls.nn.models import QrdqnDistributional
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.common.specs import Data
 
 
 class QRDQN(SarlOffPolicy):
@@ -68,11 +68,13 @@ class QRDQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q_dist = self.q_net(BATCH.obs)  # [T, B, A, N]
+        q_dist = self.q_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         q_dist = (q_dist * BATCH.action.unsqueeze(-1)
                   ).sum(-2)  # [T, B, A, N] => [T, B, N]
 
-        target_q_dist = self.q_net.t(BATCH.obs_)  # [T, B, A, N]
+        target_q_dist = self.q_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         target_q = target_q_dist.mean(-1)  # [T, B, A, N] => [T, B, A]
         _a = target_q.argmax(-1)  # [T, B]
         next_max_action = t.nn.functional.one_hot(
@@ -84,8 +86,7 @@ class QRDQN(SarlOffPolicy):
                                self.gamma,
                                BATCH.done.repeat(1, 1, self.nums),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self.nums),
-                               use_rnn=self.use_rnn)    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self.nums))    # [T, B, N]
 
         q_eval = q_dist.mean(-1, keepdim=True)    # [T, B, 1]
         q_target = target.mean(-1, keepdim=True)  # [T, B, 1]

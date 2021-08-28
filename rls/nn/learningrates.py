@@ -2,7 +2,6 @@
 # encoding: utf-8
 
 import torch as t
-
 from torch.optim import lr_scheduler
 
 LR_REGISTER = {}

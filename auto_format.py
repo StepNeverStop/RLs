@@ -1,8 +1,10 @@
 # autopep8
 
-import os
-import glob
 import argparse
+import glob
+import os
+
+import isort
 
 
 def get_args():
@@ -15,6 +17,7 @@ def get_args():
 
 
 def autopep8(file_path):
+    isort.file(file_path)
     os.system(f"autopep8 -i {file_path}")
     print(f'autopep8 file: {file_path} SUCCESSFULLY.')
 

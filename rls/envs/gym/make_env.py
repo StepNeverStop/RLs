@@ -3,10 +3,10 @@
 
 import os
 import re
-import gym
-
-from typing import Dict
 from collections import defaultdict
+from typing import Dict
+
+import gym
 
 from rls.common.yaml_ops import load_config
 from rls.envs.gym.wrappers.wrappers import *
@@ -128,6 +128,7 @@ def make_env(index: int = 0,
 
     elif env_type == 'gym_donkeycar.envs.donkey_env':
         import uuid
+
         # [120, 160, 3]
         donkey_config['port'] += index
         donkey_config['car_name'] += str(index)

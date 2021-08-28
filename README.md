@@ -27,6 +27,8 @@ It aims to fill the need for a small, easily grokked codebase in which users can
 This project supports:
 
 - Suitable for Windows, Linux, and OSX
+- Single- and Multi-Agent training.
+- Multiple type of observation sensors as input.
 - Only need 3 steps to implement a new algorithm:
     1. **policy** write `.py` in `rls/algorithms/{single/multi}` directory and make the policy inherit from super-class defined in `rls/algorithms/base`
     2. **config** write default configuration in `rls/configs/algorithms.yaml`
@@ -38,14 +40,17 @@ This project supports:
 - Compatible with several different environment platforms
     - [Unity3D ml-agents](https://github.com/Unity-Technologies/ml-agents).
     - [PettingZoo](https://www.pettingzoo.ml/#)
-    - Gym{MuJoCo(v2.0.2.13), [PyBullet](https://github.com/bulletphysics/bullet3), [gym_minigrid](https://github.com/maximecb/gym-minigrid)}, for now only two data types are compatible——`[Box, Discrete]`. Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
-        - Discrete -> Discrete (observation type -> action type)
-        - Discrete -> Box
-        - Box -> Discrete
-        - Box -> Box
-        - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
-- Multi-Agent training.
-- Multi-Image input. Images will resized to same shape before store into replay buffer, like `[84, 84, 3]`.
+    - [gym](https://github.com/openai/gym), for now only two data types are compatible——`[Box, Discrete]`. Support parallel training using gym envs, just need to specify `--copys` to how many agents you want to train in parallel.
+        - environments:
+            - [MuJoCo](https://github.com/openai/mujoco-py)(v2.0.2.13)
+            - [PyBullet](https://github.com/bulletphysics/bullet3)
+            - [gym_minigrid](https://github.com/maximecb/gym-minigrid)
+        - observation -> action:
+            - Discrete -> Discrete (observation type -> action type)
+            - Discrete -> Box
+            - Box -> Discrete
+            - Box -> Box
+            - Box/Discrete -> Tuple(Discrete, Discrete, Discrete)
 - Four types of Replay Buffer, Default is ER: 
     - ER
     - [Prioritized ER](https://arxiv.org/abs/1511.05952)
@@ -81,6 +86,12 @@ $ pip install -e .[unity]
 You can download the builded docker image from [here](https://hub.docker.com/r/keavnn/rls):
 ```bash
 $ docker pull keavnn/rls:latest
+```
+
+If anyone who wants to send a PR, plz format all code-files first:
+```bash
+$ pip install -e .[pr]
+$ python auto_format.py -d ./
 ```
 
 ## Implemented Algorithms

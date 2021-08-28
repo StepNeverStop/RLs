@@ -5,13 +5,13 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.nn.models import RainbowDueling
-from rls.utils.torch_utils import q_target_func
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
 from rls.common.specs import Data
+from rls.nn.models import RainbowDueling
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
+from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.torch_utils import q_target_func
 
 
 class RAINBOW(SarlOffPolicy):
@@ -79,20 +79,23 @@ class RAINBOW(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q_dist = self.rainbow_net(BATCH.obs)  # [T, B, A, N]
+        q_dist = self.rainbow_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         # [T, B, A, N] * [T, B, A, 1] => [T, B, A, N] => [T, B, N]
         q_dist = (q_dist * BATCH.action.unsqueeze(-1)).sum(-2)
         # [T, B, N] * [N, ] => [T, B, N] => [T, B]
         q_eval = (q_dist * self._z).sum(-1)
 
-        target_q = self.rainbow_net(BATCH.obs_)  # [T, B, A, N]
+        target_q = self.rainbow_net(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         # [T, B, A, N] * [N, ] => [T, B, A, N] => [T, B, A]
         target_q = (self._z * target_q).sum(-1)
         _a = target_q.argmax(-1)  # [T, B]
         next_max_action = t.nn.functional.one_hot(
             _a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
 
-        target_q_dist = self.rainbow_net.t(BATCH.obs_)  # [T, B, A, N]
+        target_q_dist = self.rainbow_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         # [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * next_max_action).sum(-2)
 
@@ -100,8 +103,7 @@ class RAINBOW(SarlOffPolicy):
                                self.gamma,
                                BATCH.done.repeat(1, 1, self._atoms),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self._atoms),
-                               use_rnn=self.use_rnn)    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self._atoms))    # [T, B, N]
         target = target.clamp(self._v_min, self._v_max)  # [T, B, N]
         # An amazing trick for calculating the projection gracefully.
         # ref: https://github.com/ShangtongZhang/DeepRL

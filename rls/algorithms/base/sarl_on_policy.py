@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from typing import Any, Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Dict,
-                    Union,
-                    List,
-                    NoReturn,
-                    Any)
-
-from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.sarl_policy import SarlPolicy
 from rls.common.specs import Data
+from rls.utils.np_utils import int2one_hot
 
 
 class SarlOnPolicy(SarlPolicy):
     def __init__(self,
+                 buffer_size,
+
                  epochs=4,
                  n_time_step=1,
                  batch_size=256,
@@ -24,6 +22,7 @@ class SarlOnPolicy(SarlPolicy):
         self.epochs = epochs
         self.n_time_step = n_time_step
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
         super().__init__(**kwargs)
 
     def learn(self, BATCH: Data):
@@ -35,7 +34,23 @@ class SarlOnPolicy(SarlPolicy):
                 self.summaries.update(summaries)
                 self._after_train()
 
+    def episode_end(self):
+        super().episode_end()
+        if self._is_train_mode \
+                and self._buffer.can_sample:
+            # on-policy replay buffer
+            self.learn(self._buffer.all_data()[self._agent_id])
+            self._buffer.clear()
+
     # customed
+
+    def _build_buffer(self):
+        from rls.memories.onpolicy_buffer import OnPolicyDataBuffer
+        buffer = OnPolicyDataBuffer(n_copys=self.n_copys,
+                                    batch_size=self.batch_size,
+                                    buffer_size=self.buffer_size,
+                                    time_step=self.n_time_step)
+        return buffer
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         if not self.is_continuous:

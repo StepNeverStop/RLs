@@ -1,15 +1,11 @@
 
 
+from typing import Dict, List, NoReturn
+
 import numpy as np
 
-from typing import (List,
-                    Dict,
-                    NoReturn)
-
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
 
 
 class ExampleEnv(EnvBase):

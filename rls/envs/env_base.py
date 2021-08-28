@@ -1,15 +1,11 @@
 
 
+from abc import ABC, abstractmethod
+from typing import Dict, List, NoReturn
+
 import numpy as np
 
-from typing import (List,
-                    Dict,
-                    NoReturn)
-from abc import ABC, abstractmethod
-
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 
 
 class EnvBase(ABC):

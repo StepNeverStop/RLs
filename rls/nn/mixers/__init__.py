@@ -1,5 +1,5 @@
-from .vdn import VDNMixer
 from .qmix import QMixer
+from .vdn import VDNMixer
 
 Mixer_REGISTER = {}
 

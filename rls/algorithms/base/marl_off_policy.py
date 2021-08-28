@@ -2,20 +2,17 @@
 # encoding: utf-8
 
 import importlib
+from abc import abstractmethod
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
 
-from abc import abstractmethod
-from typing import (List,
-                    Dict,
-                    Union,
-                    NoReturn)
-
-from rls.utils.np_utils import int2one_hot
 from rls.algorithms.base.marl_policy import MarlPolicy
-from rls.common.yaml_ops import load_config
-from rls.common.specs import Data
 from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.common.yaml_ops import load_config
+from rls.utils.np_utils import int2one_hot
 
 
 class MultiAgentOffPolicy(MarlPolicy):

@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
-
-from tqdm import trange
 from copy import deepcopy
-from typing import (Tuple,
-                    List,
-                    Callable,
-                    NoReturn)
+from typing import Callable, List, NoReturn, Tuple
+
+import numpy as np
+from tqdm import trange
 
 from rls.common.recorder import SimpleMovingAverageRecoder
 from rls.common.specs import Data
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 

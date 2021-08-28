@@ -1,9 +1,9 @@
-import numpy as np
-
-from typing import Dict
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
+from typing import Dict
+
+import numpy as np
 
 from rls.utils.np_utils import arrprint
 

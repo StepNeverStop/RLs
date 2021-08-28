@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from typing import List, NoReturn, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Union,
-                    List,
-                    NoReturn)
-
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import CriticQvalueAll
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import q_target_func
-from rls.nn.models import CriticQvalueAll
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.common.specs import Data
 
 
 class DQN(SarlOffPolicy):
@@ -62,15 +60,15 @@ class DQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs)   # [T, B, 1]
-        q_next = self.q_net.t(BATCH.obs_)  # [T, B, 1]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q_next = self.q_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = q_target_func(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
                                  q_next.max(-1, keepdim=True)[0],
-                                 BATCH.begin_mask,
-                                 use_rnn=self.use_rnn)  # [T, B, 1]
+                                 BATCH.begin_mask)  # [T, B, 1]
         td_error = q_target - q_eval     # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.oplr.step(q_loss)

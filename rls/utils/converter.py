@@ -1,12 +1,14 @@
 
-import torch as t
-import numpy as np
 
 from numbers import Number
+
+import numpy as np
+import torch as t
 
 from rls.common.specs import Data
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 

@@ -1,9 +1,7 @@
-import numpy as np
-
 from collections import defaultdict
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
+
+import numpy as np
+from gym.spaces import Box, Discrete, Tuple
 
 from rls.utils.np_utils import get_discrete_action_list
 

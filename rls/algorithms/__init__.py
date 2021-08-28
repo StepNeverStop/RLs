@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from rls.algorithms.register import register, get_model_info
+from rls.algorithms.register import get_model_info, register
 
 # logo: font-size: 12, foreground character: 'O', font: 幼圆
 # http://life.chacuo.net/convertfont2char

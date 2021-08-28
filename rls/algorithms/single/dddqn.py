@@ -5,13 +5,13 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import CriticDueling
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.torch_utils import q_target_func
-from rls.nn.models import CriticDueling
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.common.specs import Data
 
 
 class DDDQN(SarlOffPolicy):
@@ -63,9 +63,11 @@ class DDDQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs)   # [T, B, A]
-        next_q = self.q_net(BATCH.obs_)  # [T, B, A]
-        q_target = self.q_net.t(BATCH.obs_)  # [T, B, A]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        next_q = self.q_net(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q_target = self.q_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
 
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         next_max_action = next_q.argmax(-1)  # [T, B]
@@ -78,8 +80,7 @@ class DDDQN(SarlOffPolicy):
                                  self.gamma,
                                  BATCH.done,
                                  q_target_next_max,
-                                 BATCH.begin_mask,
-                                 use_rnn=self.use_rnn)  # [T, B, 1]
+                                 BATCH.begin_mask)  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.oplr.step(q_loss)

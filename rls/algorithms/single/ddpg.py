@@ -3,20 +3,17 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
-from rls.nn.noised_actions import ClippedNormalNoisedAction
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.torch_utils import q_target_func
-from rls.nn.noised_actions import Noise_action_REGISTER
-from rls.nn.models import (CriticQvalueOne,
-                           ActorDct,
-                           ActorDPG)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
 from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.noised_actions import (ClippedNormalNoisedAction,
+                                   Noise_action_REGISTER)
+from rls.nn.utils import OPLR
+from rls.utils.torch_utils import q_target_func
 
 
 class DDPG(SarlOffPolicy):
@@ -103,32 +100,37 @@ class DDPG(SarlOffPolicy):
     @iTensor_oNumpy
     def _train(self, BATCH):
         if self.is_continuous:
-            action_target = self.actor.t(BATCH.obs_)    # [T, B, A]
+            action_target = self.actor.t(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
             if self.use_target_action_noise:
                 action_target = self.target_noised_action(
                     action_target)    # [T, B, A]
         else:
-            target_logits = self.actor.t(BATCH.obs_)    # [T, B, A]
+            target_logits = self.actor.t(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()     # [T, B]
             action_target = t.nn.functional.one_hot(
                 target_pi, self.a_dim).float()  # [T, B, A]
-        q = self.critic(BATCH.obs, BATCH.action)    # [T, B, 1]
-        q_target = self.critic.t(BATCH.obs_, action_target)  # [T, B, 1]
+        q = self.critic(BATCH.obs, BATCH.action,
+                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q_target = self.critic.t(
+            BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask,
-                             use_rnn=self.use_rnn)   # [T, B, 1]
+                             BATCH.begin_mask)   # [T, B, 1]
         td_error = dc_r - q  # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(q_loss)
 
         if self.is_continuous:
-            mu = self.actor(BATCH.obs)  # [T, B, A]
+            mu = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) /
@@ -137,7 +139,8 @@ class DDPG(SarlOffPolicy):
                 _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
-        q_actor = self.critic(BATCH.obs, mu)    # [T, B, 1]
+        q_actor = self.critic(
+            BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         actor_loss = -q_actor.mean()   # 1
         self.actor_oplr.step(actor_loss)
 

@@ -2,14 +2,10 @@
 # encoding: utf-8
 
 import math
+from typing import List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
-
-from typing import (List,
-                    Tuple,
-                    Union,
-                    Optional,
-                    NoReturn)
 
 
 def clip_nn_log_std(log_std, _min=-20, _max=2):
@@ -124,12 +120,8 @@ def sync_params_list(nets_list: List[Union[List, Tuple]], ployak: float = 0.) ->
         sync_params(tge, src, ployak)
 
 
-def grads_flatten(grads):
-    return t.cat([g.flatten() for g in grads], 0)
-
-
 def q_target_func(reward, gamma, done, q_next, begin_mask,
-                  detach=True, use_rnn=False):
+                  nstep=None, detach=True):
     '''
     params:
         reward: [T, B, 1],
@@ -142,16 +134,18 @@ def q_target_func(reward, gamma, done, q_next, begin_mask,
     '''
     # print(reward.shape, done.shape, q_next.shape, begin_mask.shape)
     n_step = reward.shape[0]
-
-    if use_rnn:
-        q_target = t.zeros_like(q_next)  # [T, B, 1]
-        for _t in range(n_step):
-            q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_next[_t]
-    else:
+    # TODO: optimize
+    if nstep is None:
         q_target = t.zeros_like(q_next)  # [T, B, 1]
         q_post = q_next[-1]
         for _t in range(n_step)[::-1]:
             q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_post
             q_post = t.where(begin_mask[_t] > 0,
                              q_next[max(_t-1, 0)], q_target[_t])
+    elif nstep == 1:
+        q_target = t.zeros_like(q_next)  # [T, B, 1]
+        for _t in range(n_step):
+            q_target[_t] = reward[_t] + gamma * (1 - done[_t]) * q_next[_t]
+    else:
+        raise NotImplementedError
     return q_target.detach() if detach else q_target

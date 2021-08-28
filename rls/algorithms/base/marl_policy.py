@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from abc import abstractmethod
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
+
 import numpy as np
 import torch as t
 
-from abc import abstractmethod
-from collections import defaultdict
-from typing import (List,
-                    Dict,
-                    Union,
-                    Callable,
-                    Any,
-                    Optional,
-                    NoReturn)
-
 from rls.algorithms.base.policy import Policy
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.utils.converter import to_tensor
 from rls.utils.np_utils import int2one_hot
 
 
@@ -46,14 +39,14 @@ class MarlPolicy(Policy):
 
         super().__init__(**kwargs)
 
+        self._has_global_state = self.state_spec.has_vector_observation or self.state_spec.has_visual_observation
+
         if self._obs_with_pre_action:
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.a_dims[id]
         if self._obs_with_agent_id:
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.n_agents_percopy
-
-        self.use_rnn = True  # TODO
 
         self.model_ids = self.agent_ids.copy()
 
@@ -65,11 +58,6 @@ class MarlPolicy(Policy):
                         break
         self.agent_writers = {id: self._create_writer(
             self.log_dir + f'_{id}') for id in self.agent_ids}
-
-        self._buffer = self._build_buffer()
-
-    def _build_buffer(self):
-        raise NotImplementedError
 
     def _preprocess_obs(self, obs: Dict):
         for i, id in enumerate(self.agent_ids):
@@ -111,15 +99,17 @@ class MarlPolicy(Policy):
                     0, self.a_dims[id], self.n_copys))
         return acts
 
-    def setup(self, is_train_mode=True, store=True):
-        self._is_train_mode = is_train_mode
-        self._store = store
-
     def episode_reset(self):
         self._pre_acts = {}
         for id in self.agent_ids:
             self._pre_acts[id] = np.zeros(
                 (self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
+        self.cell_state, self.next_cell_state = {}, {}
+        for id in self.agent_ids:
+            self.cell_state[id] = to_tensor(self._initial_cell_state(
+                batch=self.n_copys), device=self.device)
+            self.next_cell_state[id] = to_tensor(self._initial_cell_state(
+                batch=self.n_copys), device=self.device)
 
     def episode_step(self,
                      obs,
@@ -135,18 +125,19 @@ class MarlPolicy(Policy):
                                  obs_=env_rets[id].obs,
                                  done=env_rets[id].done[:, np.newaxis])
                 expss[id].update(acts[id])
-            # TODO:
-            expss['global'] = Data(obs=obs['global'].obs,
-                                   begin_mask=obs['global'].begin_mask,
-                                   obs_=env_rets['global'].obs)
+            expss['global'] = Data(begin_mask=obs['global'].begin_mask)
+            if self._has_global_state:
+                expss['global'].update(obs=obs['global'].obs,
+                                       obs_=env_rets['global'].obs)
             self._buffer.add(expss)
 
         for id in self.agent_ids:
             idxs = np.where(env_rets[id].done)[0]
             self._pre_acts[id][idxs] = 0.
-
-    def learn(self, BATCH_DICT: Dict[str, Data]):
-        raise NotImplementedError
+            self.cell_state[id] = self.next_cell_state[id]
+            if self.cell_state[id] is not None:
+                for k in self.cell_state[id].keys():
+                    self.cell_state[id][k][idxs] = 0.
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():

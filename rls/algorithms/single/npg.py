@@ -3,18 +3,14 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.specs import Data
-from rls.nn.models import (ActorMuLogstd,
-                           ActorDct,
-                           CriticValue)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
-from rls.utils.np_utils import (discounted_sum,
-                                calculate_td_error)
+from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
+from rls.nn.utils import OPLR
+from rls.utils.np_utils import calculate_td_error, discounted_sum
 
 
 class NPG(SarlOnPolicy):
@@ -102,13 +98,13 @@ class NPG(SarlOnPolicy):
         return action, acts
 
     @iTensor_oNumpy
-    def _get_value(self, obs):
-        value = self.critic(obs, cell_state=self.cell_state)    # [B, 1]
+    def _get_value(self, obs, cell_state=None):
+        value = self.critic(obs, cell_state=cell_state)    # [B, 1]
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
-        value = self._get_value(BATCH.obs_[-1])
+        value = self._get_value(BATCH.obs_[-1], cell_state=self.cell_state)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -129,7 +125,8 @@ class NPG(SarlOnPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        output = self.actor(BATCH.obs)  # [T, B, A]
+        output = self.actor(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         if self.is_continuous:
             mu, log_std = output     # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
@@ -169,7 +166,8 @@ class NPG(SarlOnPolicy):
             self._set_from_flat_params(self.actor, new_flat_params)
 
         for _ in range(self._train_critic_iters):
-            value = self.critic(BATCH.obs)  # [T, B, 1]
+            value = self.critic(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
             td_error = BATCH.discounted_reward - value  # [T, B, 1]
             critic_loss = td_error.square().mean()   # 1
             self.critic_oplr.step(critic_loss)

@@ -3,15 +3,13 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.specs import Data
-from rls.nn.models import (ActorMuLogstd,
-                           ActorDct)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorMuLogstd
+from rls.nn.utils import OPLR
 from rls.utils.np_utils import discounted_sum
 
 
@@ -77,7 +75,8 @@ class PG(SarlOnPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):     # [B, T, *]
-        output = self.net(BATCH.obs)    # [B, T, A]
+        output = self.net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)    # [B, T, A]
         if self.is_continuous:
             mu, log_std = output    # [B, T, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)

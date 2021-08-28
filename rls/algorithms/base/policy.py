@@ -3,24 +3,18 @@
 
 import os
 import sys
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
-
-from typing import (Dict,
-                    Callable,
-                    Union,
-                    List,
-                    Tuple,
-                    NoReturn,
-                    Optional,
-                    Any)
 from torch.utils.tensorboard import SummaryWriter
 
 from rls.algorithms.base.base import Base
 from rls.common.specs import Data
 from rls.utils.display import colorize
-from rls.utils.sundry_utils import check_or_create
 from rls.utils.logging_utils import get_logger
+from rls.utils.sundry_utils import check_or_create
+
 logger = get_logger(__name__)
 
 
@@ -104,6 +98,8 @@ class Policy(Base):
 
         self._trainer_modules = {'cur_train_step': self.cur_train_step}
 
+        self._buffer = self._build_buffer()
+
     def __call__(self, obs):
         raise NotImplementedError
 
@@ -113,8 +109,9 @@ class Policy(Base):
     def random_action(self):
         raise NotImplementedError
 
-    def setup(self, is_train_mode):
+    def setup(self, is_train_mode=True, store=True):
         self._is_train_mode = is_train_mode
+        self._store = store
 
     def episode_reset(self):
         raise NotImplementedError
@@ -190,6 +187,9 @@ class Policy(Base):
 
     # customed
 
+    def _build_buffer(self):
+        raise NotImplementedError
+
     def _create_writer(self, log_dir: str) -> SummaryWriter:
         if not self.no_save:
             check_or_create(log_dir, 'logs(summaries)')
@@ -207,24 +207,13 @@ class Policy(Base):
             for k, v in summaries.items():
                 writer.add_scalar(k, v, global_step=cur_train_step)
 
-    def _initial_cell_state(self, batch: int, dtype='numpy') -> Tuple[Union[t.Tensor, np.ndarray]]:
+    def _initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
         if self.use_rnn:
             if self.memory_net_params['network_type'] == 'lstm':
-                if dtype == 'numpy':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
-                            'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-                elif dtype == 'tensor':
-                    return {'hx': t.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device),
-                            'cx': t.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device)}
-                else:
-                    raise NotImplementedError
+                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
+                        'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
             elif self.memory_net_params['network_type'] == 'gru':
-                if dtype == 'numpy':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-                elif dtype == 'tensor':
-                    return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])).to(self.device)}
-                else:
-                    raise NotImplementedError
+                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
             else:
                 raise NotImplementedError
         else:

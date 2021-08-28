@@ -1,16 +1,10 @@
 
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
-
-from typing import (Dict,
-                    List,
-                    Union,
-                    Tuple,
-                    Optional,
-                    Iterator,
-                    Callable)
-from dataclasses import dataclass
-from collections import defaultdict
 
 # TODO:
 

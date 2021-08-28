@@ -3,19 +3,17 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
-from rls.common.specs import Data
-from rls.nn.models import (OcIntraOption,
-                           CriticQvalueAll)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import CriticQvalueAll, OcIntraOption
 from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
+from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.np_utils import int2one_hot
+from rls.utils.torch_utils import q_target_func
 
 
 class OC(SarlOffPolicy):
@@ -159,9 +157,11 @@ class OC(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs)  # [T, B, P]
-        q_next = self.q_net.t(BATCH.obs_)   # [T, B, P]
-        beta_next = self.termination_net(BATCH.obs_)  # [T, B, P]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P]
+        q_next = self.q_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, P]
+        beta_next = self.termination_net(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
 
         qu_eval = (q * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
         beta_s_ = (beta_next * BATCH.options).sum(-1,
@@ -169,7 +169,8 @@ class OC(SarlOffPolicy):
         q_s_ = (q_next * BATCH.options).sum(-1, keepdim=True)   # [T, B, 1]
         # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L94
         if self.double_q:
-            q_ = self.q_net(BATCH.obs_)  # [T, B, P]
+            q_ = self.q_net(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
             # [T, B, P] => [T, B] => [T, B, P]
             max_a_idx = t.nn.functional.one_hot(
                 q_.argmax(-1), self.options_num).float()
@@ -181,8 +182,7 @@ class OC(SarlOffPolicy):
                                   self.gamma,
                                   BATCH.done,
                                   u_target,
-                                  BATCH.begin_mask,
-                                  use_rnn=self.use_rnn)  # [T, B, 1]
+                                  BATCH.begin_mask)  # [T, B, 1]
         td_error = qu_target - qu_eval     # gradient : q   [T, B, 1]
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)
                   ).mean()        # [T, B, 1] => 1
@@ -196,7 +196,8 @@ class OC(SarlOffPolicy):
             adv = qu_target.detach()    # [T, B, 1]
         # [T, B, P] => [T, B, P, 1]
         options_onehot_expanded = BATCH.options.unsqueeze(-1)
-        pi = self.intra_option_net(BATCH.obs)  # [T, B, P, A]
+        pi = self.intra_option_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P, A]
         # [T, B, P, A] => [T, B, A]
         pi = (pi * options_onehot_expanded).sum(-2)
         if self.is_continuous:
@@ -214,7 +215,8 @@ class OC(SarlOffPolicy):
                                                 keepdim=True)    # [T, B, 1]
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()    # 1
 
-        beta = self.termination_net(BATCH.obs)   # [T, B, P]
+        beta = self.termination_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
         beta_s = (beta * BATCH.last_options).sum(-1,
                                                  keepdim=True)   # [T, B, 1]
         if self.use_eps_greedy:

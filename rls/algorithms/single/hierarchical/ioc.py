@@ -3,18 +3,16 @@
 
 import numpy as np
 import torch as t
-
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.torch_utils import q_target_func
-from rls.common.specs import Data
-from rls.nn.models import (OcIntraOption,
-                           CriticQvalueAll)
-from rls.nn.utils import OPLR
 from rls.common.decorator import iTensor_oNumpy
+from rls.common.specs import Data
+from rls.nn.models import CriticQvalueAll, OcIntraOption
 from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
 from rls.utils.np_utils import int2one_hot
+from rls.utils.torch_utils import q_target_func
 
 
 class IOC(SarlOffPolicy):
@@ -148,16 +146,19 @@ class IOC(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs)    # [T, B, P]
-        q_next = self.q_net.t(BATCH.obs_)   # [T, B, P]
-        beta_next = self.termination_net(BATCH.obs_)  # [T, B, P]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)    # [T, B, P]
+        q_next = self.q_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, P]
+        beta_next = self.termination_net(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
 
         qu_eval = (q * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
         beta_s_ = (beta_next * BATCH.options).sum(-1,
                                                   keepdim=True)  # [T, B, 1]
         q_s_ = (q_next * BATCH.options).sum(-1, keepdim=True)   # [T, B, 1]
         if self.double_q:
-            q_ = self.q_net(BATCH.obs_)  # [T, B, P]
+            q_ = self.q_net(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
             max_a_idx = t.nn.functional.one_hot(
                 q_.argmax(-1), self.options_num).float()  # [T, B, P]
             q_s_max = (q_next * max_a_idx).sum(-1, keepdim=True)   # [T, B, 1]
@@ -168,14 +169,14 @@ class IOC(SarlOffPolicy):
                                   self.gamma,
                                   BATCH.done,
                                   u_target,
-                                  BATCH.begin_mask,
-                                  use_rnn=self.use_rnn)  # [T, B, 1]
+                                  BATCH.begin_mask)  # [T, B, 1]
         td_error = qu_target - qu_eval     # [T, B, 1] gradient : q
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
         self.q_oplr.step(q_loss)
 
         q_s = qu_eval.detach()  # [T, B, 1]
-        pi = self.intra_option_net(BATCH.obs)  # [T, B, P, A]
+        pi = self.intra_option_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P, A]
 
         if self.use_baseline:
             adv = (qu_target - q_s).detach()    # [T, B, 1]
@@ -200,11 +201,13 @@ class IOC(SarlOffPolicy):
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()  # 1
         self.intra_option_oplr.step(pi_loss)
 
-        beta = self.termination_net(BATCH.obs)   # [T, B, P]
+        beta = self.termination_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
         beta_s = (beta * BATCH.last_options).sum(-1,
                                                  keepdim=True)   # [T, B, 1]
 
-        interests = self.interest_net(BATCH.obs)  # [T, B, P]
+        interests = self.interest_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P]
         # [T, B, P] or q.softmax(-1)
         pi_op = (interests * q.detach()).softmax(-1)
         interest_loss = -(beta_s.detach() * (pi_op *

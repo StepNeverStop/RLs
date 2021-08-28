@@ -1,6 +1,7 @@
 from typing import Dict
 
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 color2num = dict(

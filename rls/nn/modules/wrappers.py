@@ -1,6 +1,6 @@
-import torch as t
-
 from copy import deepcopy
+
+import torch as t
 
 from rls.utils.torch_utils import sync_params
 
@@ -18,6 +18,9 @@ class TargetTwin:
 
     def __call__(self, *args, **kwargs):
         return self._module(*args, **kwargs)
+
+    def __repr__(self):
+        return str(self._module)
 
     def t(self, *args, **kwargs):
         return self._target_module(*args, **kwargs)

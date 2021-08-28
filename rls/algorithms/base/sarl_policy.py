@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from abc import abstractmethod
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
 
-from abc import abstractmethod
-from collections import defaultdict
-from typing import (Union,
-                    List,
-                    Callable,
-                    Tuple,
-                    Any,
-                    Dict,
-                    NoReturn,
-                    Optional)
-
 from rls.algorithms.base.policy import Policy
+from rls.common.specs import Data, EnvAgentSpec
+from rls.nn.modules import CuriosityModel
+from rls.utils.converter import to_tensor
+from rls.utils.np_utils import int2one_hot
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
-from rls.common.specs import EnvAgentSpec
-from rls.nn.modules import CuriosityModel
-from rls.common.specs import Data
-from rls.utils.np_utils import int2one_hot
 
 
 class SarlPolicy(Policy):
     def __init__(self,
                  agent_spec: EnvAgentSpec,
+                 agent_id: str,
 
                  use_curiosity=False,
                  curiosity_reward_eta=0.01,
@@ -36,6 +30,7 @@ class SarlPolicy(Policy):
         super().__init__(**kwargs)
 
         self.agent_spec = agent_spec
+        self._agent_id = agent_id
         self.obs_spec = agent_spec.obs_spec
         self.is_continuous = agent_spec.is_continuous
         self.a_dim = agent_spec.a_dim
@@ -86,19 +81,33 @@ class SarlPolicy(Policy):
         '''reset model for each new episode.'''
         self._pre_act = np.zeros(
             (self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
-        self.cell_state = self._initial_cell_state(
-            batch=self.n_copys, dtype='tensor')
-        self.next_cell_state = self._initial_cell_state(
-            batch=self.n_copys, dtype='tensor')
+        self.cell_state = to_tensor(self._initial_cell_state(
+            batch=self.n_copys), device=self.device)
+        self.next_cell_state = to_tensor(self._initial_cell_state(
+            batch=self.n_copys), device=self.device)
 
-    def episode_step(self, done):
+    def episode_step(self,
+                     obs: Data,
+                     acts: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
         super().episode_step()
-        idxs = np.where(done)[0]
+        if self._store:
+            exps = Data(obs=obs,
+                        # [B, ] => [B, 1]
+                        reward=env_rets.reward[:, np.newaxis],
+                        obs_=env_rets.obs,
+                        done=env_rets.done[:, np.newaxis],
+                        begin_mask=begin_mask)
+            exps.update(acts)
+            self._buffer.add({self._agent_id: exps})
+
+        idxs = np.where(env_rets.done)[0]
         self._pre_act[idxs] = 0.
-        if self.next_cell_state is not None:
-            for k in self.next_cell_state.keys():
-                self.next_cell_state[k][idxs] = 0.
         self.cell_state = self.next_cell_state
+        if self.cell_state is not None:
+            for k in self.cell_state.keys():
+                self.cell_state[k][idxs] = 0.
 
     def learn(self, BATCH: Data):
         raise NotImplementedError

@@ -2,11 +2,13 @@
 # encoding: utf-8
 
 import os
+from typing import Dict, NoReturn
+
 import yaml
 
-from typing import Dict, NoReturn
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 

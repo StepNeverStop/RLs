@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import gym
-
-import numpy as np
-
 from collections import deque
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
 
-from rls.utils.LazyFrames import LazyFrames
+import gym
+import numpy as np
+from gym.spaces import Box, Discrete, Tuple
+
 from rls.utils.display import colorize
+from rls.utils.LazyFrames import LazyFrames
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 try:

@@ -2,10 +2,12 @@
 # encoding: utf-8
 
 import os
-import gym
 import time
+
+import gym
 from gym import envs
 from gym.spaces import *
+
 # __all__ = ["Space", "Box", "Discrete", "MultiDiscrete", "MultiBinary", "Tuple", "Dict", "flatdim", "flatten", "unflatten"]
 env_list = envs.registry.all()
 start_time = time.time()
