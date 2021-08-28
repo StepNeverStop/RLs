@@ -189,21 +189,21 @@ class PPO(SarlOnPolicy):
         return action, acts
 
     @iTensor_oNumpy
-    def _get_value(self, obs):
+    def _get_value(self, obs, cell_state=None):
         if self.share_net:
             if self.is_continuous:
                 _, _, value = self.net(
-                    obs, cell_state=self.cell_state)  # [B, 1]
+                    obs, cell_state=cell_state)  # [B, 1]
             else:
                 _, value = self.net(
-                    obs, cell_state=self.cell_state)    # [B, 1]
+                    obs, cell_state=cell_state)    # [B, 1]
         else:
-            value = self.critic(obs, cell_state=self.cell_state)    # [B, 1]
+            value = self.critic(obs, cell_state=cell_state)    # [B, 1]
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
-        value = self._get_value(BATCH.obs_[-1])
+        value = self._get_value(BATCH.obs_[-1], cell_state=self.cell_state)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -261,13 +261,15 @@ class PPO(SarlOnPolicy):
     def train_share(self, BATCH):
         if self.is_continuous:
             # [T, B, A], [T, B, A], [T, B, 1]
-            mu, log_std, value = self.net(BATCH.obs)
+            mu, log_std, value = self.net(
+                BATCH.obs, begin_mask=BATCH.begin_mask)
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             new_log_prob = dist.log_prob(
                 BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
-            logits, value = self.net(BATCH.obs)  # [T, B, A], [T, B, 1]
+            # [T, B, A], [T, B, 1]
+            logits, value = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)
             logp_all = logits.log_softmax(-1)   # [T, B, 1]
             new_log_prob = (BATCH.action * logp_all).sum(-1,
                                                          keepdim=True)   # [T, B, 1]
@@ -333,13 +335,15 @@ class PPO(SarlOnPolicy):
     @iTensor_oNumpy
     def train_actor(self, BATCH):
         if self.is_continuous:
-            mu, log_std = self.actor(BATCH.obs)  # [T, B, A], [T, B, A]
+            # [T, B, A], [T, B, A]
+            mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             new_log_prob = dist.log_prob(
                 BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)    # [T, B, 1]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)    # [T, B, A]
             new_log_prob = (BATCH.action * logp_all).sum(-1,
                                                          keepdim=True)   # [T, B, 1]
@@ -380,7 +384,8 @@ class PPO(SarlOnPolicy):
 
     @iTensor_oNumpy
     def train_critic(self, BATCH):
-        value = self.critic(BATCH.obs)  # [T, B, 1]
+        value = self.critic(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
         td_error = BATCH.discounted_reward - value    # [T, B, 1]
         if self.use_vclip:

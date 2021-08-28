@@ -61,8 +61,10 @@ class CuriosityModel(t.nn.Module):
                          lr=lr)
 
     def forward(self, BATCH):
-        fs, _ = self.rep_net(BATCH.obs)  # [T, B, *]
-        fs_, _ = self.rep_net(BATCH.obs_)   # [T, B, *]
+        fs, _ = self.rep_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, *]
+        fs_, _ = self.rep_net(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, *]
 
         # [T, B, *] <S, A> => S'
         s_eval = self.forward_net(t.cat((fs, BATCH.action), -1))

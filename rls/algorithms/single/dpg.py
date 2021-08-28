@@ -90,38 +90,44 @@ class DPG(SarlOffPolicy):
     @iTensor_oNumpy
     def _train(self, BATCH):
         if self.is_continuous:
-            action_target = self.actor(BATCH.obs_)  # [T, B, A]
+            action_target = self.actor(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             if self.use_target_action_noise:
                 action_target = self.target_noised_action(
                     action_target)    # [T, B, A]
         else:
-            target_logits = self.actor(BATCH.obs_)  # [T, B, A]
+            target_logits = self.actor(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
             action_target = t.nn.functional.one_hot(
                 target_pi, self.a_dim).float()  # [T, B, A]
-        q_target = self.critic(BATCH.obs_, action_target)   # [T, B, 1]
+        q_target = self.critic(BATCH.obs_, action_target,
+                               begin_mask=BATCH.begin_mask)   # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask,
-                             use_rnn=self.use_rnn)  # [T, B, 1]
-        q = self.critic(BATCH.obs, BATCH.action)    # [T, B, A]
+                             BATCH.begin_mask)  # [T, B, 1]
+        q = self.critic(BATCH.obs, BATCH.action,
+                        begin_mask=BATCH.begin_mask)    # [T, B, A]
         td_error = dc_r - q  # [T, B, A]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(q_loss)
 
         if self.is_continuous:
-            mu = self.actor(BATCH.obs)  # [T, B, A]
+            mu = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             _pi = logits.softmax(-1)    # [T, B, A]
             _pi_true_one_hot = t.nn.functional.one_hot(
                 logits.argmax(-1), self.a_dim).float()   # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
-        q_actor = self.critic(BATCH.obs, mu)    # [T, B, 1]
+        q_actor = self.critic(
+            BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         actor_loss = -q_actor.mean()   # 1
         self.actor_oplr.step(actor_loss)
 

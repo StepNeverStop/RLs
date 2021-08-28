@@ -138,17 +138,20 @@ class SAC_V(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train_continuous(self, BATCH):
-        v = self.v_net(BATCH.obs)   # [T, B, 1]
-        v_target = self.v_net.t(BATCH.obs_)  # [T, B, 1]
+        v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        v_target = self.v_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
         if self.is_continuous:
-            mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
+            mu, log_std = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Normal(mu, log_std.exp())
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(
                 pi, dist.log_prob(pi))   # [T, B, A], [T, B, 1]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) /
@@ -158,16 +161,19 @@ class SAC_V(SarlOffPolicy):
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
-        q1 = self.q_net(BATCH.obs, BATCH.action)    # [T, B, 1]
-        q2 = self.q_net2(BATCH.obs, BATCH.action)   # [T, B, 1]
-        q1_pi = self.q_net(BATCH.obs, pi)   # [T, B, 1]
-        q2_pi = self.q_net2(BATCH.obs, pi)  # [T, B, 1]
+        q1 = self.q_net(BATCH.obs, BATCH.action,
+                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q2 = self.q_net2(BATCH.obs, BATCH.action,
+                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1_pi = self.q_net(
+            BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q2_pi = self.q_net2(
+            BATCH.obs, pi, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
-                             BATCH.begin_mask,
-                             use_rnn=self.use_rnn)  # [T, B, 1]
+                             BATCH.begin_mask)  # [T, B, 1]
         v_from_q_stop = (t.minimum(q1_pi, q2_pi) -
                          self.alpha * log_pi).detach()    # [T, B, 1]
         td_v = v - v_from_q_stop    # [T, B, 1]
@@ -181,14 +187,16 @@ class SAC_V(SarlOffPolicy):
         self.critic_oplr.step(critic_loss)
 
         if self.is_continuous:
-            mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
+            mu, log_std = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Normal(mu, log_std.exp())
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(
                 pi, dist.log_prob(pi))   # [T, B, A], [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) /
@@ -199,7 +207,8 @@ class SAC_V(SarlOffPolicy):
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
-        q1_pi = self.q_net(BATCH.obs, pi)   # [T, B, 1]
+        q1_pi = self.q_net(
+            BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         actor_loss = -(q1_pi - self.alpha * log_pi).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
@@ -233,22 +242,25 @@ class SAC_V(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train_discrete(self, BATCH):
-        v = self.v_net(BATCH.obs)  # [T, B, 1]
-        v_target = self.v_net.t(BATCH.obs_)  # [T, B, 1]
+        v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        v_target = self.v_net.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
-        q1_all = self.q_net(BATCH.obs)  # [T, B, A]
-        q2_all = self.q_net2(BATCH.obs)   # [T, B, A]
+        q1_all = self.q_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q2_all = self.q_net2(
+            BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
         q1 = (q1_all * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q2 = (q2_all * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
-        logits = self.actor(BATCH.obs)  # [T, B, A]
+        logits = self.actor(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
         dc_r = q_target_func(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
-                             BATCH.begin_mask,
-                             use_rnn=self.use_rnn)   # [T, B, 1]
+                             BATCH.begin_mask)   # [T, B, 1]
         td_v = v - (t.minimum(
             (logp_all.exp() * q1_all).sum(-1, keepdim=True),
             (logp_all.exp() * q2_all).sum(-1, keepdim=True)
@@ -262,15 +274,18 @@ class SAC_V(SarlOffPolicy):
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
         self.critic_oplr.step(critic_loss)
 
-        q1_all = self.q_net(BATCH.obs)  # [T, B, A]
-        q2_all = self.q_net2(BATCH.obs)  # [T, B, A]
-        logits = self.actor(BATCH.obs)  # [T, B, A]
+        q1_all = self.q_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q2_all = self.q_net2(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        logits = self.actor(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
         entropy = -(logp_all.exp() * logp_all).sum(-1,
                                                    keepdim=True)    # [T, B, 1]
-        q_all = t.minimum(self.q_net(BATCH.obs),
-                          self.q_net2(BATCH.obs))  # [T, B, A]
+        q_all = t.minimum(self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask),
+                          self.q_net2(BATCH.obs, begin_mask=BATCH.begin_mask))  # [T, B, A]
         actor_loss = -((q_all - self.alpha * logp_all) *
                        logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]
         actor_loss = actor_loss.mean()  # 1

@@ -97,14 +97,17 @@ class VDN(MultiAgentOffPolicy):
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
-            q = self.q_nets[mid](BATCH_DICT[aid].obs)   # [T, B, A]
+            q = self.q_nets[mid](
+                BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
             q_eval = (q * BATCH_DICT[aid].action).sum(-1,
                                                       keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
 
-            q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_)  # [T, B, A]
+            q_target = self.q_nets[mid].t(
+                BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             if self._use_double:
-                next_q = self.q_nets[mid](BATCH_DICT[aid].obs_)  # [T, B, A]
+                next_q = self.q_nets[mid](
+                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
                 next_max_action = next_q.argmax(-1)  # [T, B]
                 next_max_action_one_hot = t.nn.functional.one_hot(
@@ -125,8 +128,7 @@ class VDN(MultiAgentOffPolicy):
                                      self.gamma,
                                      (done > 0.).float(),
                                      q_target_next_max_tot,
-                                     BATCH_DICT['global'].begin_mask,
-                                     use_rnn=self.use_rnn)   # [T, B, 1]
+                                     BATCH_DICT['global'].begin_mask)   # [T, B, 1]
         td_error = q_target_tot - q_eval_tot     # [T, B, 1]
         q_loss = td_error.square().mean()   # 1
         self.oplr.step(q_loss)

@@ -99,23 +99,25 @@ class TD3(SarlOffPolicy):
         for _ in range(self.delay_num):
             if self.is_continuous:
                 action_target = self.target_noised_action(
-                    self.actor.t(BATCH.obs_))  # [T, B, A]
+                    self.actor.t(BATCH.obs_, begin_mask=BATCH.begin_mask))  # [T, B, A]
             else:
-                target_logits = self.actor.t(BATCH.obs_)    # [T, B, A]
+                target_logits = self.actor.t(
+                    BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()   # [T, B]
                 action_target = t.nn.functional.one_hot(
                     target_pi, self.a_dim).float()  # [T, B, A]
-            q1 = self.critic(BATCH.obs, BATCH.action)   # [T, B, 1]
-            q2 = self.critic2(BATCH.obs, BATCH.action)   # [T, B, 1]
-            q_target = t.minimum(self.critic.t(BATCH.obs_, action_target), self.critic2.t(
-                BATCH.obs_, action_target))    # [T, B, 1]
+            q1 = self.critic(BATCH.obs, BATCH.action,
+                             begin_mask=BATCH.begin_mask)   # [T, B, 1]
+            q2 = self.critic2(BATCH.obs, BATCH.action,
+                              begin_mask=BATCH.begin_mask)   # [T, B, 1]
+            q_target = t.minimum(self.critic.t(BATCH.obs_, action_target, begin_mask=BATCH.begin_mask), self.critic2.t(
+                BATCH.obs_, action_target, begin_mask=BATCH.begin_mask))    # [T, B, 1]
             dc_r = q_target_func(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
                                  q_target,
-                                 BATCH.begin_mask,
-                                 use_rnn=self.use_rnn)   # [T, B, 1]
+                                 BATCH.begin_mask)   # [T, B, 1]
             td_error1 = q1 - dc_r    # [T, B, 1]
             td_error2 = q2 - dc_r    # [T, B, 1]
 
@@ -127,9 +129,11 @@ class TD3(SarlOffPolicy):
             self.critic_oplr.step(critic_loss)
 
         if self.is_continuous:
-            mu = self.actor(BATCH.obs)  # [T, B, A]
+            mu = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) /
@@ -138,7 +142,8 @@ class TD3(SarlOffPolicy):
                 _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
-        q1_actor = self.critic(BATCH.obs, mu)   # [T, B, 1]
+        q1_actor = self.critic(
+            BATCH.obs, mu, begin_mask=BATCH.begin_mask)   # [T, B, 1]
 
         actor_loss = -q1_actor.mean()   # 1
         self.actor_oplr.step(actor_loss)

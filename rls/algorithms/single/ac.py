@@ -82,12 +82,16 @@ class AC(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.critic(BATCH.obs, BATCH.action)    # [T, B, 1]
+        q = self.critic(BATCH.obs, BATCH.action,
+                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
         if self.is_continuous:
-            next_mu, _ = self.actor(BATCH.obs_)  # [T, B, *]
-            max_q_next = self.critic(BATCH.obs_, next_mu).detach()  # [T, B, 1]
+            next_mu, _ = self.actor(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, *]
+            max_q_next = self.critic(
+                BATCH.obs_, next_mu, begin_mask=BATCH.begin_mask).detach()  # [T, B, 1]
         else:
-            logits = self.actor(BATCH.obs_)  # [T, B, *]
+            logits = self.actor(
+                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, *]
             max_a = logits.argmax(-1)    # [T, B]
             max_a_one_hot = t.nn.functional.one_hot(
                 max_a, self.a_dim).float()  # [T, B, N]
@@ -97,18 +101,19 @@ class AC(SarlOffPolicy):
                                      self.gamma,
                                      BATCH.done,
                                      max_q_next,
-                                     BATCH.begin_mask,
-                                     use_rnn=self.use_rnn)  # [T, B, 1]
+                                     BATCH.begin_mask)  # [T, B, 1]
         critic_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(critic_loss)
 
         if self.is_continuous:
-            mu, log_std = self.actor(BATCH.obs)  # [T, B, *]
+            mu, log_std = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, *]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             log_prob = dist.log_prob(BATCH.action)    # [T, B]
             entropy = dist.entropy().mean()  # 1
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, *]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, *]
             logp_all = logits.log_softmax(-1)   # [T, B, *]
             log_prob = (logp_all * BATCH.action).sum(-1)  # [T, B]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1

@@ -79,13 +79,13 @@ class A2C(SarlOnPolicy):
         return action, acts
 
     @iTensor_oNumpy
-    def _get_value(self, obs):
-        value = self.critic(obs)
+    def _get_value(self, obs, cell_state=None):
+        value = self.critic(obs, cell_state=self.cell_state)
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
-        value = self._get_value(BATCH.obs_[-1])
+        value = self._get_value(BATCH.obs_[-1], cell_state=self.cell_state)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -95,19 +95,21 @@ class A2C(SarlOnPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        v = self.critic(BATCH.obs)  # [T, B, 1]
+        v = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         td_error = BATCH.discounted_reward - v   # [T, B, 1]
         critic_loss = td_error.square().mean()  # 1
         self.critic_oplr.step(critic_loss)
 
         if self.is_continuous:
-            mu, log_std = self.actor(BATCH.obs)  # [T, B, A]
+            mu, log_std = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             log_act_prob = dist.log_prob(
                 BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
         else:
-            logits = self.actor(BATCH.obs)  # [T, B, A]
+            logits = self.actor(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             log_act_prob = (BATCH.action * logp_all).sum(-1,
                                                          keepdim=True)  # [T, B, 1]

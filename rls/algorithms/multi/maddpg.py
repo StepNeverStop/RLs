@@ -116,10 +116,10 @@ class MADDPG(MultiAgentOffPolicy):
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
                 target_actions[aid] = self.actors[mid].t(
-                    BATCH_DICT[aid].obs_)  # [T, B, A]
+                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
                 target_logits = self.actors[mid].t(
-                    BATCH_DICT[aid].obs_)    # [T, B, A]
+                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()   # [T, B]
                 action_target = t.nn.functional.one_hot(
@@ -140,9 +140,7 @@ class MADDPG(MultiAgentOffPolicy):
                                  self.gamma,
                                  BATCH_DICT[aid].done,
                                  q_target,
-                                 BATCH_DICT['global'].begin_mask,
-                                 use_rnn=True
-                                 )  # [T, B, 1]
+                                 BATCH_DICT['global'].begin_mask)  # [T, B, 1]
             td_error = dc_r - q  # [T, B, 1]
             q_loss[aid] = 0.5 * td_error.square().mean()    # 1
             summaries[aid].update(dict([
@@ -155,9 +153,11 @@ class MADDPG(MultiAgentOffPolicy):
         actor_loss = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                mu = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+                mu = self.actors[mid](
+                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
-                logits = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+                logits = self.actors[mid](
+                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 logp_all = logits.log_softmax(-1)   # [T, B, A]
                 gumbel_noise = td.Gumbel(0, 1).sample(
                     logp_all.shape)   # [T, B, A]
@@ -172,7 +172,8 @@ class MADDPG(MultiAgentOffPolicy):
             all_actions[aid] = mu
             q_actor = self.critics[mid](
                 [BATCH_DICT[aid].obs for id in self.agent_ids],
-                t.cat(list(all_actions.values()), -1)
+                t.cat(list(all_actions.values()), -1),
+                begin_mask=BATCH_DICT['global'].begin_mask
             )   # [T, B, 1]
             actor_loss[aid] = -q_actor.mean()   # 1
 
@@ -181,10 +182,7 @@ class MADDPG(MultiAgentOffPolicy):
         for aid in self.agent_ids:
             summaries[aid].update(dict([
                 ['LOSS/actor_loss', actor_loss[aid]],
-                ['LOSS/critic_loss', q_loss[aid]],
-                # ['Statistics/q_min', q.min()],
-                # ['Statistics/q_mean', q.mean()],
-                # ['Statistics/q_max', q.max()]
+                ['LOSS/critic_loss', q_loss[aid]]
             ]))
         summaries['model'].update(dict([
             ['LOSS/actor_loss', sum(actor_loss.values())],

@@ -82,7 +82,7 @@ class MemoryNetwork(t.nn.Module):
         elif self.network_type == 'lstm':
             self.rnn = t.nn.LSTMCell(feat_dim, rnn_units)
 
-    def forward(self, feat, cell_state: Optional[Dict]):
+    def forward(self, feat, cell_state: Optional[Dict], begin_mask: Optional[t.Tensor]):
         '''
         params:
             feat: [T, B, *]
@@ -91,8 +91,7 @@ class MemoryNetwork(t.nn.Module):
             output: [T, B, *] or [B, *]
             cell_states: [T, B, *] or [B, *]
         '''
-
-        T = feat.shape[0]
+        T, B = feat.shape[:2]
 
         output = []
         cell_states = defaultdict(list)
@@ -100,8 +99,10 @@ class MemoryNetwork(t.nn.Module):
             if cell_state:
                 hx = cell_state['hx'][0]
             else:
-                hx = None
+                hx = t.zeros(size=(B, self.h_dim))
             for i in range(T):  # T
+                if begin_mask is not None:
+                    hx *= (1 - begin_mask[i])
                 hx = self.rnn(feat[i, ...], hx)
 
                 output.append(hx)
@@ -109,12 +110,15 @@ class MemoryNetwork(t.nn.Module):
 
         elif self.network_type == 'lstm':
             if cell_state:
-                hc = cell_state['hx'][0], cell_state['cx'][0]
+                hx, cx = cell_state['hx'][0], cell_state['cx'][0]
             else:
-                hc = None
+                hx, cx = t.zeros(size=(B, self.h_dim)), t.zeros(
+                    size=(B, self.h_dim))
             for i in range(T):  # T
-                hx, cx = self.rnn(feat[i, ...], hc)
-                hc = (hx, cx)
+                if begin_mask is not None:
+                    hx *= (1 - begin_mask[i])
+                    cx *= (1 - begin_mask[i])
+                hx, cx = self.rnn(feat[i, ...], (hx, cx))
 
                 output.append(hx)
                 cell_states['hx'].append(hx)

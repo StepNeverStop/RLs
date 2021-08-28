@@ -84,8 +84,9 @@ class MAXSQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q1 = self.critic(BATCH.obs)  # [T, B, A]
-        q2 = self.critic2(BATCH.obs)    # [T, B, A]
+        q1 = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q2 = self.critic2(
+            BATCH.obs, begin_mask=BATCH.begin_mask)    # [T, B, A]
         q1_eval = (q1 * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q2_eval = (q2 * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
 
@@ -94,8 +95,10 @@ class MAXSQN(SarlOffPolicy):
         q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(-1,
                                                               keepdim=True).mean()  # 1
 
-        q1_target = self.critic.t(BATCH.obs_)   # [T, B, A]
-        q2_target = self.critic2.t(BATCH.obs_)  # [T, B, A]
+        q1_target = self.critic.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        q2_target = self.critic2.t(
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
         q1_target_max = q1_target.max(-1, keepdim=True)[0]  # [T, B, 1]
         q1_target_log_probs = (
             q1_target / (self.alpha + t.finfo().eps)).log_softmax(-1)    # [T, B, A]
@@ -112,8 +115,7 @@ class MAXSQN(SarlOffPolicy):
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask,
-                             use_rnn=self.use_rnn)  # [T, B, 1]
+                             BATCH.begin_mask)  # [T, B, 1]
         td_error1 = q1_eval - dc_r  # [T, B, 1]
         td_error2 = q2_eval - dc_r  # [T, B, 1]
         q1_loss = (td_error1.square()*BATCH.get('isw', 1.0)).mean()   # 1

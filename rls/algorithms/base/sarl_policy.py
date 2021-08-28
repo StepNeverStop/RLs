@@ -104,10 +104,10 @@ class SarlPolicy(Policy):
 
         idxs = np.where(env_rets.done)[0]
         self._pre_act[idxs] = 0.
-        if self.next_cell_state is not None:
-            for k in self.next_cell_state.keys():
-                self.next_cell_state[k][idxs] = 0.
         self.cell_state = self.next_cell_state
+        if self.cell_state is not None:
+            for k in self.cell_state.keys():
+                self.cell_state[k][idxs] = 0.
 
     def learn(self, BATCH: Data):
         raise NotImplementedError

@@ -138,8 +138,8 @@ class AOC(SarlOnPolicy):
         return action, acts
 
     @iTensor_oNumpy
-    def _get_value(self, obs, options):
-        (q, _, _) = self.net(obs, cell_state=self.cell_state)   # [B, P]
+    def _get_value(self, obs, options, cell_state=None):
+        (q, _, _) = self.net(obs, cell_state=cell_state)   # [B, P]
         value = (q * options).sum(-1, keepdim=True)  # [B, 1]
         return value
 
@@ -149,7 +149,8 @@ class AOC(SarlOnPolicy):
 
         BATCH.last_options = int2one_hot(BATCH.last_options, self.options_num)
         BATCH.options = int2one_hot(BATCH.options, self.options_num)
-        value = self._get_value(BATCH.obs_[-1], BATCH.options[-1])
+        value = self._get_value(
+            BATCH.obs_[-1], BATCH.options[-1], cell_state=self.cell_state)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -184,7 +185,7 @@ class AOC(SarlOnPolicy):
     @iTensor_oNumpy
     def _train(self, BATCH):
         # [T, B, P], [T, B, P, A], [T, B, P]
-        (q, pi, beta) = self.net(BATCH.obs)
+        (q, pi, beta) = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)
         options_onehot_expanded = BATCH.options.unsqueeze(-1)  # [T, B, P, 1]
         # [T, B, P, A] => [T, B, A]
         pi = (pi * options_onehot_expanded).sum(-2)

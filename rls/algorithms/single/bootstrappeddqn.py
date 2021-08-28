@@ -70,8 +70,9 @@ class BootstrappedDQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs).mean(0)   # [H, T, B, A] => [T, B, A]
-        q_next = self.q_net.t(BATCH.obs_).mean(
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask).mean(
+            0)   # [H, T, B, A] => [T, B, A]
+        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask).mean(
             0)    # [H, T, B, A] => [T, B, A]
         # [T, B, A] * [T, B, A] => [T, B, 1]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)
@@ -80,8 +81,7 @@ class BootstrappedDQN(SarlOffPolicy):
                                  BATCH.done,
                                  # [T, B, A] => [T, B, 1]
                                  q_next.max(-1, keepdim=True)[0],
-                                 BATCH.begin_mask,
-                                 use_rnn=self.use_rnn)  # [T, B, 1]
+                                 BATCH.begin_mask)  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
 

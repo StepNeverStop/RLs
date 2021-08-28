@@ -70,7 +70,7 @@ class RepresentationNetwork(t.nn.Module):
             logger.debug('initialize memory network successfully.')
             self.h_dim = self.memory_net.h_dim
 
-    def forward(self, obs, cell_state=None):
+    def forward(self, obs, cell_state=None, begin_mask=None):
         '''
         params:
             obs: [T, B, *] or [B, *]
@@ -95,12 +95,12 @@ class RepresentationNetwork(t.nn.Module):
 
         if self.use_rnn:
             if feat.ndim == 2:  # [B, *]
-                feat = feat.unsqueeze(0)    # [B, *] => [T, B, *]
+                feat = feat.unsqueeze(0)    # [B, *] => [1, B, *]
                 if cell_state:
                     cell_state = {k: v.unsqueeze(0)  # [1, B, *]
                                   for k, v in cell_state.items()}
             feat, cell_state = self.memory_net(
-                feat, cell_state)    # [T, B, *] or [B, *]
+                feat, cell_state, begin_mask)    # [T, B, *] or [B, *]
         return feat, cell_state
 
 

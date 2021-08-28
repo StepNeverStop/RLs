@@ -105,7 +105,7 @@ class IQN(SarlOffPolicy):
             time_step, -1, self.quantiles_idx)    # [N*T*B, X] => [T, N*B, X]
 
         quantiles_value = self.q_net(
-            BATCH.obs, quantiles_tiled)    # [T, N, B, A]
+            BATCH.obs, quantiles_tiled, begin_mask=BATCH.begin_mask)    # [T, N, B, A]
         # [T, N, B, A] => [N, T, B, A] * [T, B, A] => [N, T, B, 1]
         quantiles_value = (quantiles_value.swapaxes(
             0, 1) * BATCH.action).sum(-1, keepdim=True)
@@ -118,7 +118,7 @@ class IQN(SarlOffPolicy):
             time_step, -1, self.quantiles_idx)  # [N*T*B, X] => [T, N*B, X]
 
         q_values = self.q_net(
-            BATCH.obs_, select_quantiles_tiled)  # [T, N, B, A]
+            BATCH.obs_, select_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N, B, A]
         q_values = q_values.mean(1)  # [T, N, B, A] => [T, B, A]
         next_max_action = q_values.argmax(-1)   # [T, B]
         next_max_action = t.nn.functional.one_hot(
@@ -130,7 +130,7 @@ class IQN(SarlOffPolicy):
         target_quantiles_tiled = target_quantiles_tiled.view(
             time_step, -1, self.quantiles_idx)  # [N'*T*B, X] => [T, N'*B, X]
         target_quantiles_value = self.q_net.t(
-            BATCH.obs_, target_quantiles_tiled)  # [T, N', B, A]
+            BATCH.obs_, target_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N', B, A]
         target_quantiles_value = target_quantiles_value.swapaxes(
             0, 1)  # [T, N', B, A] => [N', T, B, A]
         target_quantiles_value = (
@@ -141,8 +141,7 @@ class IQN(SarlOffPolicy):
                                  self.gamma,
                                  BATCH.done,    # [T, B, 1]
                                  target_q,  # [T, B, 1]
-                                 BATCH.begin_mask,  # [T, B, 1]
-                                 use_rnn=self.use_rnn)   # [T, B, 1]
+                                 BATCH.begin_mask)   # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
 
         # [N', T, B, 1] => [N', T, B]
@@ -155,8 +154,7 @@ class IQN(SarlOffPolicy):
                                                    1, 1, self.target_quantiles),
                                                target_quantiles_value,
                                                BATCH.begin_mask.repeat(
-                                                   1, 1, self.target_quantiles),
-                                               use_rnn=self.use_rnn)  # [T, B, N']
+                                                   1, 1, self.target_quantiles))  # [T, B, N']
         # [T, B, N'] => [T, B, 1, N']
         quantiles_value_target = quantiles_value_target.unsqueeze(-2)
         quantiles_value_online = quantiles_value.permute(

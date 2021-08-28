@@ -75,7 +75,8 @@ class PG(SarlOnPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):     # [B, T, *]
-        output = self.net(BATCH.obs)    # [B, T, A]
+        output = self.net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)    # [B, T, A]
         if self.is_continuous:
             mu, log_std = output    # [B, T, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)

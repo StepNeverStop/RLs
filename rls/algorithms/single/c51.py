@@ -69,13 +69,15 @@ class C51(SarlOffPolicy):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        q_dist = self.q_net(BATCH.obs)  # [T, B, A, N]
+        q_dist = self.q_net(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         # [T, B, A, N] * [T, B, A, 1] => [T, B, A, N] => [T, B, N]
         q_dist = (q_dist * BATCH.action.unsqueeze(-1)).sum(-2)
 
         q_eval = (q_dist * self._z).sum(-1)  # [T, B, N] * [N,] => [T, B]
 
-        target_q_dist = self.q_net.t(BATCH.obs)  # [T, B, A, N]
+        target_q_dist = self.q_net.t(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         # [T, B, A, N] * [1, N] => [T, B, A]
         target_q = (target_q_dist * self._z).sum(-1)
         a_ = target_q.argmax(-1)  # [T, B]
@@ -87,8 +89,7 @@ class C51(SarlOffPolicy):
                                self.gamma,
                                BATCH.done.repeat(1, 1, self._atoms),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self._atoms),
-                               use_rnn=self.use_rnn)    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self._atoms))    # [T, B, N]
         target = target.clamp(self._v_min, self._v_max)  # [T, B, N]
         # An amazing trick for calculating the projection gracefully.
         # ref: https://github.com/ShangtongZhang/DeepRL

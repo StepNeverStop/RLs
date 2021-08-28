@@ -42,7 +42,8 @@ class TRPO(NPG):
 
     @iTensor_oNumpy
     def _train(self, BATCH):
-        output = self.actor(BATCH.obs)  # [T, B, A]
+        output = self.actor(
+            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         if self.is_continuous:
             mu, log_std = output     # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
@@ -88,7 +89,8 @@ class TRPO(NPG):
                     search_direction * (self._backtrack_coeff**i)
                 self._set_from_flat_params(self.actor, new_flat_params)
 
-                output = self.actor(BATCH.obs)  # [T, B, A]
+                output = self.actor(
+                    BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
                 if self.is_continuous:
                     mu, log_std = output     # [T, B, A], [T, B, A]
                     dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
@@ -114,7 +116,8 @@ class TRPO(NPG):
                     break
 
         for _ in range(self._train_critic_iters):
-            value = self.critic(BATCH.obs)  # [T, B, 1]
+            value = self.critic(
+                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
             td_error = BATCH.discounted_reward - value  # [T, B, 1]
             critic_loss = td_error.square().mean()   # 1
             self.critic_oplr.step(critic_loss)

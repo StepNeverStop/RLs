@@ -136,10 +136,10 @@ class MarlPolicy(Policy):
         for id in self.agent_ids:
             idxs = np.where(env_rets[id].done)[0]
             self._pre_acts[id][idxs] = 0.
-            if self.next_cell_state[id] is not None:
-                for k in self.next_cell_state[id].keys():
-                    self.next_cell_state[id][k][idxs] = 0.
             self.cell_state[id] = self.next_cell_state[id]
+            if self.cell_state[id] is not None:
+                for k in self.cell_state[id].keys():
+                    self.cell_state[id][k][idxs] = 0.
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():
