@@ -20,6 +20,7 @@ from rls.utils.vector_runing_average import (DefaultRunningAverage,
 class SarlPolicy(Policy):
     def __init__(self,
                  agent_spec: EnvAgentSpec,
+                 agent_id: str,
 
                  use_curiosity=False,
                  curiosity_reward_eta=0.01,
@@ -29,6 +30,7 @@ class SarlPolicy(Policy):
         super().__init__(**kwargs)
 
         self.agent_spec = agent_spec
+        self._agent_id = agent_id
         self.obs_spec = agent_spec.obs_spec
         self.is_continuous = agent_spec.is_continuous
         self.a_dim = agent_spec.a_dim
@@ -84,9 +86,23 @@ class SarlPolicy(Policy):
         self.next_cell_state = to_tensor(self._initial_cell_state(
             batch=self.n_copys), device=self.device)
 
-    def episode_step(self, done):
+    def episode_step(self,
+                     obs: Data,
+                     acts: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
         super().episode_step()
-        idxs = np.where(done)[0]
+        if self._store:
+            exps = Data(obs=obs,
+                        # [B, ] => [B, 1]
+                        reward=env_rets.reward[:, np.newaxis],
+                        obs_=env_rets.obs,
+                        done=env_rets.done[:, np.newaxis],
+                        begin_mask=begin_mask)
+            exps.update(acts)
+            self._buffer.add({self._agent_id: exps})
+
+        idxs = np.where(env_rets.done)[0]
         self._pre_act[idxs] = 0.
         if self.next_cell_state is not None:
             for k in self.next_cell_state.keys():

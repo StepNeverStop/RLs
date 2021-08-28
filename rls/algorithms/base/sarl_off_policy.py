@@ -42,7 +42,36 @@ class SarlOffPolicy(SarlPolicy):
             self._after_train()
         return td_errors / self.epochs
 
+    def episode_step(self,
+                     obs: Data,
+                     acts: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
+        super().episode_step(obs, acts, env_rets, begin_mask)
+        if self._is_train_mode and self._buffer.can_sample:
+            rets = self.learn(self._buffer.sample()[self._agent_id])
+            if self.use_priority:
+                # td_error   [T, B, 1]
+                self._buffer.update(rets)
+
     # customed
+
+    def _build_buffer(self):
+        if self.use_priority == True:
+            from rls.memories.per_buffer import PrioritizedDataBuffer
+            buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
+                                           batch_size=self.batch_size,
+                                           buffer_size=self.buffer_size,
+                                           time_step=self.n_time_step,
+                                           max_train_step=self.max_train_step,
+                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
+        else:
+            from rls.memories.er_buffer import DataBuffer
+            buffer = DataBuffer(n_copys=self.n_copys,
+                                batch_size=self.batch_size,
+                                buffer_size=self.buffer_size,
+                                time_step=self.n_time_step)
+        return buffer
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         if not self.is_continuous:

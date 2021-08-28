@@ -98,6 +98,8 @@ class Policy(Base):
 
         self._trainer_modules = {'cur_train_step': self.cur_train_step}
 
+        self._buffer = self._build_buffer()
+
     def __call__(self, obs):
         raise NotImplementedError
 
@@ -107,8 +109,9 @@ class Policy(Base):
     def random_action(self):
         raise NotImplementedError
 
-    def setup(self, is_train_mode):
+    def setup(self, is_train_mode=True, store=True):
         self._is_train_mode = is_train_mode
+        self._store = store
 
     def episode_reset(self):
         raise NotImplementedError
@@ -183,6 +186,9 @@ class Policy(Base):
         raise NotImplementedError
 
     # customed
+
+    def _build_buffer(self):
+        raise NotImplementedError
 
     def _create_writer(self, log_dir: str) -> SummaryWriter:
         if not self.no_save:

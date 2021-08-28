@@ -97,7 +97,7 @@ class RepresentationNetwork(t.nn.Module):
             if feat.ndim == 2:  # [B, *]
                 feat = feat.unsqueeze(0)    # [B, *] => [T, B, *]
                 if cell_state:
-                    cell_state = {k: v.unsqueeze(0)
+                    cell_state = {k: v.unsqueeze(0)  # [1, B, *]
                                   for k, v in cell_state.items()}
             feat, cell_state = self.memory_net(
                 feat, cell_state)    # [T, B, *] or [B, *]

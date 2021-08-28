@@ -59,11 +59,6 @@ class MarlPolicy(Policy):
         self.agent_writers = {id: self._create_writer(
             self.log_dir + f'_{id}') for id in self.agent_ids}
 
-        self._buffer = self._build_buffer()
-
-    def _build_buffer(self):
-        raise NotImplementedError
-
     def _preprocess_obs(self, obs: Dict):
         for i, id in enumerate(self.agent_ids):
             other = None
@@ -104,10 +99,6 @@ class MarlPolicy(Policy):
                     0, self.a_dims[id], self.n_copys))
         return acts
 
-    def setup(self, is_train_mode=True, store=True):
-        self._is_train_mode = is_train_mode
-        self._store = store
-
     def episode_reset(self):
         self._pre_acts = {}
         for id in self.agent_ids:
@@ -147,9 +138,6 @@ class MarlPolicy(Policy):
                 for k in self.next_cell_state[id].keys():
                     self.next_cell_state[id][k][idxs] = 0.
             self.cell_state[id] = self.next_cell_state[id]
-
-    def learn(self, BATCH_DICT: Dict[str, Data]):
-        raise NotImplementedError
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():
