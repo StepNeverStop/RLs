@@ -135,7 +135,7 @@ def q_target_func(reward, gamma, done, q_next, begin_mask,
     # print(reward.shape, done.shape, q_next.shape, begin_mask.shape)
     n_step = reward.shape[0]
     # TODO: optimize
-    if nstep is not None:
+    if nstep is None:
         q_target = t.zeros_like(q_next)  # [T, B, 1]
         q_post = q_next[-1]
         for _t in range(n_step)[::-1]:
