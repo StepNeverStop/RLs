@@ -82,7 +82,7 @@ class MADDPG(MultiAgentOffPolicy):
 
     def episode_reset(self):
         super().episode_reset()
-        for noised_action in self.noised_actions:
+        for noised_action in self.noised_actions.values():
             noised_action.reset()
 
     @iTensor_oNumpy

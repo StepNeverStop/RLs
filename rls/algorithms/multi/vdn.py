@@ -57,7 +57,7 @@ class VDN(MultiAgentOffPolicy):
                                                        network_settings=network_settings)).to(self.device)
 
         if mixer == 'qmix':
-            assert self.state_spec.has_vector_observation or self.state_spec.has_visual_observation
+            assert self._has_global_state
         self.mixer = TargetTwin(
             Mixer_REGISTER[mixer](n_agents=self.n_agents_percopy,
                                   state_spec=self.state_spec,

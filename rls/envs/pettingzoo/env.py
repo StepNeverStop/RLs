@@ -49,16 +49,15 @@ class PettingZooEnv(EnvBase):
                 rets[k] = Data(visual={'visual_0': _obs[k]})
             else:
                 rets[k] = Data(vector={'vector_0': _obs[k]})
+        rets['global'] = Data(begin_mask=np.full((self._n_copys, 1), True))
 
-        state = np.asarray([env.state() for env in self._envs])  # [B, *]
-        if self._is_state_visual:
-            _state = Data(visual={'visual_0': state})
-        else:
-            _state = Data(vector={'vector_0': state})
-        rets.update({
-            'global': Data(obs=_state,
-                           begin_mask=np.full((self._n_copys, 1), True))
-        })
+        if self._has_global_state:
+            state = np.asarray([env.state() for env in self._envs])  # [B, *]
+            if self._is_state_visual:
+                _state = Data(visual={'visual_0': state})
+            else:
+                _state = Data(vector={'vector_0': state})
+            rets['global'].update(obs=_state)
 
         return rets
 
@@ -100,15 +99,15 @@ class PettingZooEnv(EnvBase):
                            reward=rewards[k],
                            done=dones[k],
                            info=infos[k])
-        state = np.asarray([env.state() for env in self._envs])
-        if self._is_state_visual:
-            _state = Data(visual={'visual_0': state})
-        else:
-            _state = Data(vector={'vector_0': state})
-        rets.update({
-            'global': Data(obs=_state,
-                           begin_mask=begin_mask)
-        })
+        rets['global'] = Data(begin_mask=begin_mask)
+
+        if self._has_global_state:
+            state = np.asarray([env.state() for env in self._envs])
+            if self._is_state_visual:
+                _state = Data(visual={'visual_0': state})
+            else:
+                _state = Data(vector={'vector_0': state})
+            rets['global'].update(obs=_state)
         return rets
 
     def close(self, **kwargs) -> NoReturn:
@@ -154,15 +153,20 @@ class PettingZooEnv(EnvBase):
         self._is_state_visual = False
         self._state_vector_dims = []
         self._state_visual_dims = []
-        StateSpec = env.state_space
-        if isinstance(StateSpec, Box):
-            if len(StateSpec.shape) == 1:
-                self._state_vector_dims = list(StateSpec.shape)
-            elif len(StateSpec.shape) == 3:
-                self._state_visual_dims = [list(StateSpec.shape)]
-                self._is_state_visual = True
-        else:
-            self._state_vector_dims = [int(StateSpec.n)]
+        try:
+            StateSpec = env.state_space
+            if isinstance(StateSpec, Box):
+                if len(StateSpec.shape) == 1:
+                    self._state_vector_dims = list(StateSpec.shape)
+                elif len(StateSpec.shape) == 3:
+                    self._state_visual_dims = [list(StateSpec.shape)]
+                    self._is_state_visual = True
+            else:
+                self._state_vector_dims = [int(StateSpec.n)]
+            self._has_global_state = True
+        except AttributeError:
+            self._has_global_state = False
+            pass
 
         self.a_dim = defaultdict(int)
         self._is_continuous = {}

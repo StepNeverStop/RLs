@@ -39,6 +39,8 @@ class MarlPolicy(Policy):
 
         super().__init__(**kwargs)
 
+        self._has_global_state = self.state_spec.has_vector_observation or self.state_spec.has_visual_observation
+
         if self._obs_with_pre_action:
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.a_dims[id]
@@ -125,10 +127,10 @@ class MarlPolicy(Policy):
                                  obs_=env_rets[id].obs,
                                  done=env_rets[id].done[:, np.newaxis])
                 expss[id].update(acts[id])
-            # TODO:
-            expss['global'] = Data(obs=obs['global'].obs,
-                                   begin_mask=obs['global'].begin_mask,
-                                   obs_=env_rets['global'].obs)
+            expss['global'] = Data(begin_mask=obs['global'].begin_mask)
+            if self._has_global_state:
+                expss['global'].update(obs=obs['global'].obs,
+                                       obs_=env_rets['global'].obs)
             self._buffer.add(expss)
 
         for id in self.agent_ids:
