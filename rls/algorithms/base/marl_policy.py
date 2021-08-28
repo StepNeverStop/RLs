@@ -46,7 +46,7 @@ class MarlPolicy(Policy):
             for id in self.agent_ids:
                 self.obs_specs[id].other_dims += self.n_agents_percopy
 
-        self.use_rnn = True  # TODO
+        self.use_rnn = False  # TODO
 
         self.model_ids = self.agent_ids.copy()
 

@@ -38,7 +38,8 @@ class SarlOnPolicy(SarlPolicy):
         super().episode_end()
         if self._is_train_mode \
                 and self._buffer.can_sample:
-            self.learn(self._buffer.all_data()[self._agent_id])   # on-policy replay buffer
+            # on-policy replay buffer
+            self.learn(self._buffer.all_data()[self._agent_id])
             self._buffer.clear()
 
     # customed

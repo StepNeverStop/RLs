@@ -90,7 +90,8 @@ class MADDPG(MultiAgentOffPolicy):
         acts = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            output = self.actors[mid](obs[aid])  # [B, A]
+            output = self.actors[mid](
+                obs[aid], cell_state=self.cell_state[aid])  # [B, A]
             self.next_cell_state[aid] = self.actors[mid].get_cell_state()
             if self.is_continuouss[aid]:
                 mu = output  # [B, A]
@@ -137,7 +138,7 @@ class MADDPG(MultiAgentOffPolicy):
             )   # [T, B, 1]
             dc_r = q_target_func(BATCH_DICT[aid].reward,
                                  self.gamma,
-                                 (1. - BATCH_DICT[aid].done),
+                                 BATCH_DICT[aid].done,
                                  q_target,
                                  BATCH_DICT['global'].begin_mask,
                                  use_rnn=True

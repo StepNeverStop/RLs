@@ -19,6 +19,9 @@ class TargetTwin:
     def __call__(self, *args, **kwargs):
         return self._module(*args, **kwargs)
 
+    def __repr__(self):
+        return str(self._module)
+
     def t(self, *args, **kwargs):
         return self._target_module(*args, **kwargs)
 
