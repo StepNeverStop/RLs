@@ -54,21 +54,17 @@ class RepresentationNetwork(t.nn.Module):
             self.use_other_info = True
             self.h_dim += self.obs_spec.other_dims
 
-        self.use_encoder = bool(rep_net_params.get('use_encoder', False))
-        if self.use_encoder:
-            encoder_net_params = dict(
-                rep_net_params.get('encoder_net_params', {}))
-            self.encoder_net = EncoderNetwork(self.h_dim, **encoder_net_params)
-            logger.debug('initialize encoder network successfully.')
-            self.h_dim = self.encoder_net.h_dim
+        encoder_net_params = dict(
+            rep_net_params.get('encoder_net_params', {}))
+        self.encoder_net = EncoderNetwork(self.h_dim, **encoder_net_params)
+        logger.debug('initialize encoder network successfully.')
+        self.h_dim = self.encoder_net.h_dim
 
-        self.use_rnn = bool(rep_net_params.get('use_rnn', False))
-        if self.use_rnn:
-            memory_net_params = dict(
-                rep_net_params.get('memory_net_params', {}))
-            self.memory_net = MemoryNetwork(self.h_dim, **memory_net_params)
-            logger.debug('initialize memory network successfully.')
-            self.h_dim = self.memory_net.h_dim
+        memory_net_params = dict(
+            rep_net_params.get('memory_net_params', {}))
+        self.memory_net = MemoryNetwork(self.h_dim, **memory_net_params)
+        logger.debug('initialize memory network successfully.')
+        self.h_dim = self.memory_net.h_dim
 
     def forward(self, obs, cell_state=None, begin_mask=None):
         '''
@@ -90,17 +86,10 @@ class RepresentationNetwork(t.nn.Module):
         if self.use_other_info:
             feat = t.cat([feat, obs.other], -1)
 
-        if self.use_encoder:
-            feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
+        feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
-        if self.use_rnn:
-            if feat.ndim == 2:  # [B, *]
-                feat = feat.unsqueeze(0)    # [B, *] => [1, B, *]
-                if cell_state:
-                    cell_state = {k: v.unsqueeze(0)  # [1, B, *]
-                                  for k, v in cell_state.items()}
-            feat, cell_state = self.memory_net(
-                feat, cell_state, begin_mask)    # [T, B, *] or [B, *]
+        feat, cell_state = self.memory_net(
+            feat, cell_state, begin_mask)    # [T, B, *] or [B, *]
         return feat, cell_state
 
 

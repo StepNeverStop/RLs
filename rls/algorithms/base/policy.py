@@ -36,17 +36,17 @@ class Policy(Base):
                  normalize_vector_obs=False,
                  obs_with_pre_action=False,
                  rep_net_params={
-                     'use_encoder': False,
-                     'use_rnn': False,  # always false, using -r to active RNN
                      'vector_net_params': {
+                         'h_dim': 16,
                          'network_type': 'adaptive'  # rls.nn.represents.vectors
                      },
                      'visual_net_params': {
-                         'visual_feature': 128,
+                         'h_dim': 128,
                          'network_type': 'simple'  # rls.nn.represents.visuals
                      },
                      'encoder_net_params': {
-                         'output_dim': 16
+                         'h_dim': 16,
+                         'network_type': 'identity'  # rls.nn.represents.encoders
                      },
                      'memory_net_params': {
                          'rnn_units': 16,
@@ -77,12 +77,12 @@ class Policy(Base):
 
         super().__init__()
 
-        # TODO: optimization
-        self.use_rnn = rep_net_params.get('use_rnn', False)
         self.memory_net_params = rep_net_params.get('memory_net_params', {
             'rnn_units': 16,
             'network_type': 'lstm'
         })
+        self.use_rnn = self.memory_net_params.get(
+            'network_type', 'identity') != 'identity'
 
         self.cp_dir, self.log_dir = [os.path.join(
             base_dir, i) for i in ['model', 'log']]

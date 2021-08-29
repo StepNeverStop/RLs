@@ -238,7 +238,7 @@ If using this repository for your research, please cite:
 ```
 @misc{RLs,
   author = {Keavnn},
-  title = {RLs: Reinforcement Learning research framework for Unity3D and Gym},
+  title = {RLs: A Featureless Reinforcement Learning Repository},
   year = {2019},
   publisher = {GitHub},
   journal = {GitHub repository},
