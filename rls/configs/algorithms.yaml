@@ -14,15 +14,15 @@ policy: &policy
         use_encoder: false
         use_rnn: false
         vector_net_params:
-            network_type: adaptive # rls.nn.represents.vectors
+            network_type: "adaptive" # rls.nn.represents.vectors
         visual_net_params:
             visual_feature: 128
-            network_type: simple # rls.nn.represents.visuals
+            network_type: "simple" # rls.nn.represents.visuals
         encoder_net_params:
             output_dim: 16
         memory_net_params:
             rnn_units: 16
-            network_type: lstm
+            network_type: "lstm"
     # -----
 
 sarl_policy: &sarl_policy
@@ -82,7 +82,7 @@ dqn: &dqn
         <<: *rep_net_params
         visual_net_params:
             visual_feature: 128
-            network_type: nature
+            network_type: "nature"
 
 ddqn: *dqn
 
@@ -522,7 +522,7 @@ maddpg:
 
 vdn: &vdn
     <<: *marl_off_policy
-    mixer: vdn
+    mixer: "vdn"
     mixer_settings: {}
     lr: 5.0e-4
     eps_init: 1
@@ -538,7 +538,40 @@ vdn: &vdn
 
 qmix:
     <<: *vdn
-    mixer: qmix
+    mixer: "qmix"
     mixer_settings:
         mixing_embed_dim: 16
         hidden_units: [16]
+
+qatten:
+    <<: *vdn
+    mixer: "qatten"
+    mixer_settings:
+        agent_own_state_size: 1 # TODO: implement this
+        query_hidden_units: [64]
+        query_embed_dim: 32
+        key_embed_dim: 32
+        head_hidden_units: [64]
+        n_attention_head: 4
+        constrant_hidden_units: [32]
+        is_weighted: True
+
+qtran:
+    <<: *vdn
+    opt_loss: 1
+    nopt_min_loss: 0.1
+    mixer: "qtran-base"
+    mixer_settings:
+        qtran_arch: "coma_critic" # "coma_critic", "qtran_paper"
+        hidden_units: [64, 64]
+
+qplex:
+    <<: *vdn
+    mixer: "qplex"
+    mixer_settings:
+        hidden_units: [64]
+        is_minus_one: true
+        weighted_head: true
+        # adv
+        num_kernel: 4
+        adv_hidden_units: [64]

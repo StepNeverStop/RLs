@@ -25,6 +25,10 @@ class TargetTwin:
     def t(self, *args, **kwargs):
         return self._target_module(*args, **kwargs)
 
+    @property
+    def target(self):
+        return self._target_module
+
     def to(self, *args, **kwargs):
         self._module = self._module.to(*args, **kwargs)
         self._target_module = self._target_module.to(*args, **kwargs)

@@ -18,7 +18,8 @@ from rls.utils.torch_utils import q_target_func
 class VDN(MultiAgentOffPolicy):
     '''
     Value-Decomposition Networks For Cooperative Multi-Agent Learning, http://arxiv.org/abs/1706.05296
-    TODO: RNN, multi-step
+    QMIX: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning, http://arxiv.org/abs/1803.11485
+    Qatten: A General Framework for Cooperative Multiagent Reinforcement Learning, http://arxiv.org/abs/2002.03939
     '''
     policy_mode = 'off-policy'
 
@@ -48,6 +49,8 @@ class VDN(MultiAgentOffPolicy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self._use_double = use_double
+        self._mixer_type = mixer
+        self._mixer_settings = mixer_settings
 
         self.q_nets = {}
         for id in set(self.model_ids):
@@ -56,20 +59,25 @@ class VDN(MultiAgentOffPolicy):
                                                        output_shape=self.a_dims[id],
                                                        network_settings=network_settings)).to(self.device)
 
-        if mixer == 'qmix':
-            assert self._has_global_state
-        self.mixer = TargetTwin(
-            Mixer_REGISTER[mixer](n_agents=self.n_agents_percopy,
-                                  state_spec=self.state_spec,
-                                  rep_net_params=self._rep_net_params,
-                                  **mixer_settings)
-        ).to(self.device)
+        self.mixer = self._build_mixer()
 
         self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr)
         self._trainer_modules.update(
             {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
                                      oplr=self.oplr)
+
+    def _build_mixer(self):
+        assert self._mixer_type in [
+            'vdn', 'qmix', 'qatten'], "assert self._mixer_type in ['vdn', 'qmix', 'qatten']"
+        if self._mixer_type in ['qmix', 'qatten']:
+            assert self._has_global_state, 'assert self._has_global_state'
+        return TargetTwin(
+            Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
+                                             state_spec=self.state_spec,
+                                             rep_net_params=self._rep_net_params,
+                                             **self._mixer_settings)
+        ).to(self.device)
 
     @iTensor_oNumpy  # TODO: optimization
     def select_action(self, obs):
@@ -93,7 +101,7 @@ class VDN(MultiAgentOffPolicy):
         reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]
         done = 0.
         q_evals = []
-        q_target_next_maxs = []
+        q_target_next_choose_maxs = []
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
@@ -119,10 +127,11 @@ class VDN(MultiAgentOffPolicy):
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_maxs.append(q_target_next_max)    # N * [T, B, 1]
-        q_eval_tot = self.mixer(q_evals, BATCH_DICT['global'].obs)  # [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
+        q_eval_tot = self.mixer(
+            q_evals, BATCH_DICT['global'].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
         q_target_next_max_tot = self.mixer.t(
-            q_target_next_maxs, BATCH_DICT['global'].obs_)  # [T, B, 1]
+            q_target_next_choose_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
         q_target_tot = q_target_func(reward,
                                      self.gamma,
@@ -134,7 +143,7 @@ class VDN(MultiAgentOffPolicy):
         self.oplr.step(q_loss)
 
         summaries['model'] = dict([
-            ['LOSS/loss', q_loss],
+            ['LOSS/q_loss', q_loss],
             ['Statistics/q_max', q_eval_tot.max()],
             ['Statistics/q_min', q_eval_tot.min()],
             ['Statistics/q_mean', q_eval_tot.mean()]
