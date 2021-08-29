@@ -49,6 +49,8 @@ class VDN(MultiAgentOffPolicy):
                                                           max_step=self.max_train_step)
         self.assign_interval = assign_interval
         self._use_double = use_double
+        self._mixer_type = mixer
+        self._mixer_settings = mixer_settings
 
         self.q_nets = {}
         for id in set(self.model_ids):
@@ -57,20 +59,25 @@ class VDN(MultiAgentOffPolicy):
                                                        output_shape=self.a_dims[id],
                                                        network_settings=network_settings)).to(self.device)
 
-        if mixer in ['qmix', 'qatten']:
-            assert self._has_global_state, 'assert self._has_global_state'
-        self.mixer = TargetTwin(
-            Mixer_REGISTER[mixer](n_agents=self.n_agents_percopy,
-                                  state_spec=self.state_spec,
-                                  rep_net_params=self._rep_net_params,
-                                  **mixer_settings)
-        ).to(self.device)
+        self.mixer = self._build_mixer()
 
         self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr)
         self._trainer_modules.update(
             {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
                                      oplr=self.oplr)
+
+    def _build_mixer(self):
+        assert self._mixer_type in [
+            'vdn', 'qmix', 'qatten'], "assert self._mixer_type in ['vdn', 'qmix', 'qatten']"
+        if self._mixer_type in ['qmix', 'qatten']:
+            assert self._has_global_state, 'assert self._has_global_state'
+        return TargetTwin(
+            Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
+                                             state_spec=self.state_spec,
+                                             rep_net_params=self._rep_net_params,
+                                             **self._mixer_settings)
+        ).to(self.device)
 
     @iTensor_oNumpy  # TODO: optimization
     def select_action(self, obs):
