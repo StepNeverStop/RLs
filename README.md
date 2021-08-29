@@ -104,6 +104,7 @@ For now, these algorithms are available:
     - [Monotonic Value Function Factorisation Networks, QMIX](http://arxiv.org/abs/1803.11485)
     - [Multi-head Attention based Q-value Mixing Network, Qatten](http://arxiv.org/abs/2002.03939)
     - [Factorize with Transformation, Qtran](https://arxiv.org/abs/1905.05408)
+    - [Duplex Dueling Multi-Agent Q-Learning, QPLEX](http://arxiv.org/abs/2008.01062)
     - [Multi-Agent Deep Deterministic Policy Gradient, MADDPG](https://arxiv.org/abs/1706.02275)
 - Single-Agent training algorithms(Some algorithms that only support continuous space problems use Gumbel-softmax trick to implement discrete versions, i.e. DDPG):
     - Policy Gradient, PG
@@ -171,6 +172,7 @@ For now, these algorithms are available:
 |               VDN               |    ✓     |            |   ✓   |  ✓   |        vdn        |
 |              QMIX               |    ✓     |            |   ✓   |  ✓   |       qmix        |
 |             Qatten              |    ✓     |            |   ✓   |  ✓   |      qatten       |
+|              QPLEX              |    ✓     |            |   ✓   |  ✓   |       qplex       |
 |              QTRAN              |    ✓     |            |   ✓   |  ✓   |       qtran       |
 |             MADDPG              |    ✓     |     ✓      |   ✓   |  ✓   |      maddpg       |
 
@@ -179,7 +181,7 @@ For now, these algorithms are available:
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
-              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran}]
+              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}]
               [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH]
               [--prefill-steps PREFILL_STEPS] [--hostname] [--info INFO] [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE] [-t MAX_TRAIN_STEP]
 
@@ -191,7 +193,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
-  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran}
+  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}
                         specify the training algorithm
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH

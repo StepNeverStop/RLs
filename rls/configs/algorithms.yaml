@@ -12,7 +12,7 @@ policy: &policy
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
         use_encoder: false
-        use_rnn: true
+        use_rnn: false
         vector_net_params:
             network_type: "adaptive" # rls.nn.represents.vectors
         visual_net_params:
@@ -562,5 +562,16 @@ qtran:
     nopt_min_loss: 0.1
     mixer: "qtran-base"
     mixer_settings:
-        qtran_arch: "coma_critic"   # "coma_critic", "qtran_paper"
+        qtran_arch: "coma_critic" # "coma_critic", "qtran_paper"
         hidden_units: [64, 64]
+
+qplex:
+    <<: *vdn
+    mixer: "qplex"
+    mixer_settings:
+        hidden_units: [64]
+        is_minus_one: true
+        weighted_head: true
+        # adv
+        num_kernel: 4
+        adv_hidden_units: [64]

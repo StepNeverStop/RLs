@@ -101,7 +101,7 @@ class VDN(MultiAgentOffPolicy):
         reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]
         done = 0.
         q_evals = []
-        q_target_next_maxs = []
+        q_target_next_choose_maxs = []
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
@@ -127,11 +127,11 @@ class VDN(MultiAgentOffPolicy):
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_maxs.append(q_target_next_max)    # N * [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
         q_eval_tot = self.mixer(
             q_evals, BATCH_DICT['global'].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
         q_target_next_max_tot = self.mixer.t(
-            q_target_next_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
+            q_target_next_choose_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
         q_target_tot = q_target_func(reward,
                                      self.gamma,
@@ -143,7 +143,7 @@ class VDN(MultiAgentOffPolicy):
         self.oplr.step(q_loss)
 
         summaries['model'] = dict([
-            ['LOSS/loss', q_loss],
+            ['LOSS/q_loss', q_loss],
             ['Statistics/q_max', q_eval_tot.max()],
             ['Statistics/q_min', q_eval_tot.min()],
             ['Statistics/q_mean', q_eval_tot.mean()]

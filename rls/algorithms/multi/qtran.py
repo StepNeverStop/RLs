@@ -54,7 +54,7 @@ class QTRAN(VDN):
         q_maxs = []
         q_max_actions = []
 
-        q_target_next_maxs = []
+        q_target_next_choose_maxs = []
         q_target_cell_states = []
         q_target_actions = []
 
@@ -94,7 +94,7 @@ class QTRAN(VDN):
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_maxs.append(q_target_next_max)    # N * [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
             q_target_cell_states.append(q_target_cell_state)    # N * [T, B, *]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
 
