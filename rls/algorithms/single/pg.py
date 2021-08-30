@@ -58,10 +58,10 @@ class PG(SarlOnPolicy):
             norm_dist = td.Categorical(logits=logits)
             action = norm_dist.sample()  # [B,]
 
-        acts = Data(action=action)
+        acts_info = Data(action=action)
         if self.use_rnn:
-            acts.update(cell_state=self.cell_state)
-        return action, acts
+            acts_info.update(cell_state=self.cell_state)
+        return action, acts_info
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)

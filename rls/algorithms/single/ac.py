@@ -73,12 +73,14 @@ class AC(SarlOffPolicy):
                             log_prob=log_prob)
 
     def random_action(self):
-        acts = super().random_action()
+        actions = super().random_action()
         if self.is_continuous:
-            acts.update(log_prob=np.full(self.n_copys, np.log(0.5)))  # [B,]
+            self._acts_info.update(log_prob=np.full(
+                self.n_copys, np.log(0.5)))  # [B,]
         else:
-            acts.update(log_prob=np.full(self.n_copys, 1./self.a_dim))  # [B,]
-        return acts
+            self._acts_info.update(log_prob=np.full(
+                self.n_copys, 1./self.a_dim))  # [B,]
+        return actions
 
     @iTensor_oNumpy
     def _train(self, BATCH):

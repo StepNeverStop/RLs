@@ -81,7 +81,7 @@ class VDN(MultiAgentOffPolicy):
 
     @iTensor_oNumpy  # TODO: optimization
     def select_action(self, obs):
-        acts = {}
+        acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
@@ -92,8 +92,8 @@ class VDN(MultiAgentOffPolicy):
                 self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
                 action = action = q_values.argmax(-1)    # [B,]
             actions[aid] = action
-            acts[aid] = Data(action=action)
-        return actions, acts
+            acts_info[aid] = Data(action=action)
+        return actions, acts_info
 
     @iTensor_oNumpy
     def _train(self, BATCH_DICT):
@@ -149,7 +149,7 @@ class VDN(MultiAgentOffPolicy):
             ['Statistics/q_min', q_eval_tot.min()],
             ['Statistics/q_mean', q_eval_tot.mean()]
         ])
-        return summaries
+        return td_error, summaries
 
     def _after_train(self):
         super()._after_train()

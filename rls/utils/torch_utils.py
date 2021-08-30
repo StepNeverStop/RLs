@@ -60,7 +60,7 @@ def squash_action(pi, log_pi, *, is_independent=True):
     """
     pi.tanh_()
     sub = (clip_but_pass_gradient(1 - pi**2, l=0, h=1) + t.finfo().eps).log()
-    log_pi -= sub
+    log_pi = log_pi - sub
     if is_independent:
         log_pi = log_pi.sum(-1, keepdim=True)
     return pi, log_pi

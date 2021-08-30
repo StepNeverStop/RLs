@@ -46,8 +46,6 @@ class MAXSQN(SarlOffPolicy):
                                                           max_step=self.max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
-        self.log_alpha = alpha if not auto_adaption else t.tensor(
-            0., requires_grad=True).to(self.device)
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
@@ -59,12 +57,18 @@ class MAXSQN(SarlOffPolicy):
         self.critic2 = deepcopy(self.critic)
 
         self.critic_oplr = OPLR([self.critic, self.critic2], q_lr)
-        self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+
+        if self.auto_adaption:
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
+        else:
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
 
         self._trainer_modules.update(critic=self.critic,
                                      critic2=self.critic2,
-                                     critic_oplr=self.critic_oplr,
-                                     alpha_oplr=self.alpha_oplr)
+                                     log_alpha=self.log_alpha,
+                                     critic_oplr=self.critic_oplr)
 
     @property
     def alpha(self):
@@ -124,7 +128,6 @@ class MAXSQN(SarlOffPolicy):
         self.critic_oplr.step(loss)
         summaries = dict([
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/loss', loss],
             ['Statistics/log_alpha', self.log_alpha],
             ['Statistics/alpha', self.alpha],
@@ -137,9 +140,10 @@ class MAXSQN(SarlOffPolicy):
             alpha_loss = -(self.alpha * (self.target_entropy -
                            q1_entropy).detach()).mean()
             self.alpha_oplr.step(alpha_loss)
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     def _after_train(self):

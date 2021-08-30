@@ -99,8 +99,11 @@ class IOC(SarlOffPolicy):
         self.options = self.new_options = t.tensor(np.random.randint(
             0, self.options_num, self.n_copys)).to(self.device)
 
-    def episode_step(self, done: np.ndarray):  # TODO:
-        super().episode_step(done)
+    def episode_step(self,
+                     obs: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
+        super().episode_step(obs, env_rets, begin_mask)
         self.options = self.new_options
 
     @iTensor_oNumpy
@@ -131,12 +134,12 @@ class IOC(SarlOffPolicy):
                              options=self.new_options)
 
     def random_action(self):
-        acts = super().random_action()
-        acts.update(
+        actions = super().random_action()
+        self._acts_info.update(
             last_options=np.random.randint(0, self.options_num, self.n_copys),
             options=np.random.randint(0, self.options_num, self.n_copys)
         )
-        return acts
+        return actions
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)

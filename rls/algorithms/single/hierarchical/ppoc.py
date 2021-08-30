@@ -90,9 +90,12 @@ class PPOC(SarlOnPolicy):
         super().episode_reset()
         self._done_mask = t.tensor(np.full(self.n_copys, True)).to(self.device)
 
-    def episode_step(self, done: np.ndarray):  # TODO:
-        super().episode_step(done)
-        self._done_mask = t.tensor(done).to(self.device)
+    def episode_step(self,
+                     obs: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
+        super().episode_step(obs, env_rets, begin_mask)
+        self._done_mask = t.tensor(env_rets.done).to(self.device)
         self.options = self.new_options
         self.oc_mask = t.zeros_like(self.oc_mask)
 
@@ -130,17 +133,17 @@ class PPOC(SarlOnPolicy):
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
 
-        acts = Data(action=action,
-                    value=q_o,
-                    log_prob=log_prob+t.finfo().eps,
-                    o_log_prob=o_log_prob+t.finfo().eps,
-                    beta_advantage=beta_adv+self.dc,
-                    last_options=self.options,
-                    options=self.new_options,
-                    reward_offset=-((1 - self.oc_mask) * self.dc).unsqueeze(-1))
+        acts_info = Data(action=action,
+                         value=q_o,
+                         log_prob=log_prob+t.finfo().eps,
+                         o_log_prob=o_log_prob+t.finfo().eps,
+                         beta_advantage=beta_adv+self.dc,
+                         last_options=self.options,
+                         options=self.new_options,
+                         reward_offset=-((1 - self.oc_mask) * self.dc).unsqueeze(-1))
         if self.use_rnn:
-            acts.update(cell_state=self.cell_state)
-        return action, acts
+            acts_info.update(cell_state=self.cell_state)
+        return action, acts_info
 
     @iTensor_oNumpy
     def _get_value(self, obs, options, cell_state=None):

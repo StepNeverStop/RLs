@@ -86,16 +86,16 @@ class NPG(SarlOnPolicy):
             norm_dist = td.Categorical(logits=logp_all)
             action = norm_dist.sample()  # [B,]
             log_prob = norm_dist.log_prob(action).unsqueeze(-1)  # [B, 1]
-        acts = Data(action=action,
-                    value=value,
-                    log_prob=log_prob+t.finfo().eps)
+        acts_info = Data(action=action,
+                         value=value,
+                         log_prob=log_prob+t.finfo().eps)
         if self.use_rnn:
-            acts.update(cell_state=self.cell_state)
+            acts_info.update(cell_state=self.cell_state)
         if self.is_continuous:
-            acts.update(mu=mu, log_std=log_std)
+            acts_info.update(mu=mu, log_std=log_std)
         else:
-            acts.update(logp_all=logp_all)
-        return action, acts
+            acts_info.update(logp_all=logp_all)
+        return action, acts_info
 
     @iTensor_oNumpy
     def _get_value(self, obs, cell_state=None):

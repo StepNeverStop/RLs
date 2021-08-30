@@ -27,12 +27,10 @@ class PettingZooEnv(EnvBase):
         # NOTE: env_name should be formatted like `mpe.simple_v2`
         env_module = importlib.import_module(f"pettingzoo.{env_name}")
         env_module = env_module.parallel_env
-        # TODO:
-        def make_env(
-            idx, **config): return BasicWrapper(env_module(**env_config))
 
-        self._initialize(env=env_module(**env_config))
-        self._envs = [env_module(**env_config) for _ in range(self._n_copys)]
+        self._initialize(env=BasicWrapper(env_module(**env_config)))
+        self._envs = [BasicWrapper(env_module(**env_config))
+                      for _ in range(self._n_copys)]
         [env.seed(seed+i) for i, env in enumerate(self._envs)]
 
     def reset(self, **kwargs) -> Dict[str, Data]:

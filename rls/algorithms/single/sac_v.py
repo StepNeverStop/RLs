@@ -56,13 +56,6 @@ class SAC_V(SarlOffPolicy):
         self.auto_adaption = auto_adaption
         self.annealing = annealing
 
-        if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-        else:
-            self.log_alpha = t.tensor(alpha).log().to(self.device)
-            if self.annealing:
-                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
-
         self.v_net = TargetTwin(CriticValue(self.obs_spec,
                                             rep_net_params=self._rep_net_params,
                                             network_settings=network_settings['v']),
@@ -98,7 +91,15 @@ class SAC_V(SarlOffPolicy):
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR(
             [self.q_net, self.q_net2, self.v_net], critic_lr)
-        self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+
+        if self.auto_adaption:
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
+        else:
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
+            if self.annealing:
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self._trainer_modules.update(actor=self.actor,
                                      v_net=self.v_net,
@@ -106,8 +107,7 @@ class SAC_V(SarlOffPolicy):
                                      q_net2=self.q_net2,
                                      log_alpha=self.log_alpha,
                                      actor_oplr=self.actor_oplr,
-                                     critic_oplr=self.critic_oplr,
-                                     alpha_oplr=self.alpha_oplr)
+                                     critic_oplr=self.critic_oplr)
 
     @property
     def alpha(self):
@@ -212,15 +212,9 @@ class SAC_V(SarlOffPolicy):
         actor_loss = -(q1_pi - self.alpha * log_pi).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
-        if self.auto_adaption:
-            alpha_loss = -(self.alpha * (log_pi.detach() +
-                           self.target_entropy)).mean()
-            self.alpha_oplr.step(alpha_loss)
-
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/q1_loss', q1_loss],
             ['LOSS/q2_loss', q2_loss],
@@ -235,9 +229,13 @@ class SAC_V(SarlOffPolicy):
             ['Statistics/v_mean', v.mean()]
         ])
         if self.auto_adaption:
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            alpha_loss = -(self.alpha * (log_pi.detach() +
+                           self.target_entropy)).mean()
+            self.alpha_oplr.step(alpha_loss)
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     @iTensor_oNumpy
@@ -291,17 +289,9 @@ class SAC_V(SarlOffPolicy):
         actor_loss = actor_loss.mean()  # 1
         self.actor_oplr.step(actor_loss)
 
-        if self.auto_adaption:
-            corr = (self.target_entropy - entropy).detach()  # [T, B, 1]
-            # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()
-            alpha_loss = -(self.alpha * corr)    # [T, B, 1]
-            alpha_loss = alpha_loss.mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
-
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/q1_loss', q1_loss],
             ['LOSS/q2_loss', q2_loss],
@@ -313,9 +303,15 @@ class SAC_V(SarlOffPolicy):
             ['Statistics/v_mean', v.mean()]
         ])
         if self.auto_adaption:
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            corr = (self.target_entropy - entropy).detach()  # [T, B, 1]
+            # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()
+            alpha_loss = -(self.alpha * corr)    # [T, B, 1]
+            alpha_loss = alpha_loss.mean()  # 1
+            self.alpha_oplr.step(alpha_loss)
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     def _after_train(self):

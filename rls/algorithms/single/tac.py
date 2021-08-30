@@ -53,13 +53,6 @@ class TAC(SarlOffPolicy):
         self.auto_adaption = auto_adaption
         self.annealing = annealing
 
-        if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-        else:
-            self.log_alpha = t.tensor(alpha).log().to(self.device)
-            if self.annealing:
-                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
-
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
                                                  rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
@@ -84,15 +77,22 @@ class TAC(SarlOffPolicy):
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr)
-        self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+
+        if self.auto_adaption:
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
+        else:
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
+            if self.annealing:
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      critic2=self.critic2,
                                      log_alpha=self.log_alpha,
                                      actor_oplr=self.actor_oplr,
-                                     critic_oplr=self.critic_oplr,
-                                     alpha_oplr=self.alpha_oplr)
+                                     critic_oplr=self.critic_oplr)
 
     @property
     def alpha(self):
@@ -186,15 +186,9 @@ class TAC(SarlOffPolicy):
         actor_loss = -(q_s_pi - self.alpha * log_pi).mean()  # 1
         self.actor_oplr.step(actor_loss)
 
-        if self.auto_adaption:
-            alpha_loss = - \
-                (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
-
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/q1_loss', q1_loss],
             ['LOSS/q2_loss', q2_loss],
@@ -207,9 +201,13 @@ class TAC(SarlOffPolicy):
             ['Statistics/q_max', t.maximum(q1, q2).max()]
         ])
         if self.auto_adaption:
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            alpha_loss = - \
+                (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
+            self.alpha_oplr.step(alpha_loss)
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     def _after_train(self):

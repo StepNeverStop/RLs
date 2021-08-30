@@ -108,4 +108,4 @@ class QPLEX(VDN):
             ['Statistics/q_min', q_eval_tot.min()],
             ['Statistics/q_mean', q_eval_tot.mean()]
         ])
-        return summaries
+        return td_error, summaries

@@ -48,18 +48,24 @@ class MultiAgentOffPolicy(MarlPolicy):
                                 time_step=self.n_time_step)
         return buffer
 
-    def episode_step(self, obs, acts: Dict[str, np.ndarray], env_rets: Dict[str, Data]):
-        super().episode_step(obs, acts, env_rets)
+    def episode_step(self, obs, env_rets: Dict[str, Data]):
+        super().episode_step(obs, env_rets)
         if self._is_train_mode and self._buffer.can_sample:
-            self.learn(self._buffer.sample())
+            ret = self.learn(self._buffer.sample())
+            if self.use_priority:
+                # td_error   [T, B, 1]
+                self._buffer.update(ret)
 
     def learn(self, BATCH_DICT: Data):
         BATCH_DICT = self._preprocess_BATCH(BATCH_DICT)
+        td_errors = 0.
         for _ in range(self.epochs):
             BATCH_DICT = self._before_train(BATCH_DICT)
-            summaries = self._train(BATCH_DICT)
+            td_error, summaries = self._train(BATCH_DICT)
+            td_errors += td_error  # [T, B, 1]
             self.summaries.update(summaries)
             self._after_train()
+        return td_errors/self.epochs
 
     # customed
 

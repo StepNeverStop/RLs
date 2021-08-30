@@ -73,10 +73,10 @@ class A2C(SarlOnPolicy):
             norm_dist = td.Categorical(logits=logits)
             action = norm_dist.sample()   # [B,]
 
-        acts = Data(action=action)
+        acts_info = Data(action=action)
         if self.use_rnn:
-            acts.update(cell_state=self.cell_state)
-        return action, acts
+            acts_info.update(cell_state=self.cell_state)
+        return action, acts_info
 
     @iTensor_oNumpy
     def _get_value(self, obs, cell_state=None):

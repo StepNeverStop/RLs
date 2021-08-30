@@ -112,6 +112,8 @@ def main():
                         seed=args.seed,
                         inference=args.inference,
                         env_name=args.env_name)
+        env_args.update(load_config(
+            f'rls/configs/{args.platform}/{args.env_name}.yaml', not_find_error=False))
 
         if env_args.platform == 'unity':
             env_args.env_name = 'UnityEditor'

@@ -44,15 +44,14 @@ class SarlOffPolicy(SarlPolicy):
 
     def episode_step(self,
                      obs: Data,
-                     acts: Data,
                      env_rets: Data,
                      begin_mask: np.ndarray):
-        super().episode_step(obs, acts, env_rets, begin_mask)
+        super().episode_step(obs, env_rets, begin_mask)
         if self._is_train_mode and self._buffer.can_sample:
-            rets = self.learn(self._buffer.sample()[self._agent_id])
+            ret = self.learn(self._buffer.sample()[self._agent_id])
             if self.use_priority:
                 # td_error   [T, B, 1]
-                self._buffer.update(rets)
+                self._buffer.update(ret)
 
     # customed
 

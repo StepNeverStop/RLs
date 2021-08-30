@@ -135,4 +135,4 @@ class QTRAN(VDN):
             ['Statistics/q_min', joint_qs.min()],
             ['Statistics/q_mean', joint_qs.mean()]
         ])
-        return summaries
+        return td_error, summaries

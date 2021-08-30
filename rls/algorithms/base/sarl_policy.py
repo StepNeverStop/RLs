@@ -65,17 +65,20 @@ class SarlPolicy(Policy):
 
     def __call__(self, obs):
         obs = self._preprocess_obs(obs)
-        self._pre_act, acts = self.select_action(obs)
-        return acts
+        self._pre_act, self._acts_info = self.select_action(obs)
+        return self._pre_act
 
     def select_action(self, obs):
         raise NotImplementedError
 
     def random_action(self):
         if self.is_continuous:
-            return Data(action=np.random.uniform(-1.0, 1.0, (self.n_copys, self.a_dim)))
+            actions = np.random.uniform(-1.0, 1.0, (self.n_copys, self.a_dim))
         else:
-            return Data(action=np.random.randint(0, self.a_dim, self.n_copys))
+            actions = np.random.randint(0, self.a_dim, self.n_copys)
+        self._pre_act = actions
+        self._acts_info = Data(action=actions)
+        return actions
 
     def episode_reset(self):
         '''reset model for each new episode.'''
@@ -88,7 +91,6 @@ class SarlPolicy(Policy):
 
     def episode_step(self,
                      obs: Data,
-                     acts: Data,
                      env_rets: Data,
                      begin_mask: np.ndarray):
         super().episode_step()
@@ -99,7 +101,7 @@ class SarlPolicy(Policy):
                         obs_=env_rets.obs,
                         done=env_rets.done[:, np.newaxis],
                         begin_mask=begin_mask)
-            exps.update(acts)
+            exps.update(self._acts_info)
             self._buffer.add({self._agent_id: exps})
 
         idxs = np.where(env_rets.done)[0]
