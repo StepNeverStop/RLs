@@ -12,7 +12,7 @@ from rls.nn.models import CriticQvalueAll, OcIntraOption
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import int2one_hot
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class IOC(SarlOffPolicy):
@@ -168,11 +168,11 @@ class IOC(SarlOffPolicy):
         else:
             q_s_max = q_next.max(-1, keepdim=True)[0]   # [T, B, 1]
         u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [T, B, 1]
-        qu_target = q_target_func(BATCH.reward,
+        qu_target = n_step_return(BATCH.reward,
                                   self.gamma,
                                   BATCH.done,
                                   u_target,
-                                  BATCH.begin_mask)  # [T, B, 1]
+                                  BATCH.begin_mask).detach()  # [T, B, 1]
         td_error = qu_target - qu_eval     # [T, B, 1] gradient : q
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
         self.q_oplr.step(q_loss)

@@ -50,27 +50,21 @@ def get_args():
                         help='specify the number of trails that using different random seeds')
     parser.add_argument('-n', '--name', type=str, default=time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
                         help='specify the name of this training task')
-    parser.add_argument('-s', '--save-frequency', type=int, default=100,
-                        help='specify the interval that saving model checkpoint')
     parser.add_argument('--config-file', type=str, default=None,
                         help='specify the path of training configuration file')
     parser.add_argument('--store-dir', type=str, default='./data',
                         help='specify the directory that store model, log and others')  # TODO
     parser.add_argument('--episode-length', type=int, default=1000,
                         help='specify the maximum step per episode')
-    parser.add_argument('--prefill-steps', type=int, default=10000,
-                        help='specify the number of experiences that should be collected before start training, use for off-policy algorithms')
     parser.add_argument('--hostname', default=False, action='store_true',
                         help='whether concatenate hostname with the training name')
-    parser.add_argument('--info', type=str, default='',
-                        help='write another information that describe this training task')
     # env
     parser.add_argument('-e', '--env-name', type=str, default='CartPole-v0',
                         help='specify the environment name')
     parser.add_argument('-f', '--file-name', type=str, default=None,
                         help='specify the path of builded training environment of UNITY3D')
     # algo
-    parser.add_argument('--no-save', default=False, action='store_true',
+    parser.add_argument('-s', '--save', default=False, action='store_true',
                         help='specify whether save models/logs/summaries while training or not')
     parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
                         help='specify the device that operate Torch.Tensor')
@@ -145,7 +139,7 @@ def main():
             train_args.load_path = os.path.join(
                 train_args.base_dir, train_args.load_path)
         # algo config
-        algo_args.update({'no_save': args.no_save,
+        algo_args.update({'is_save': args.save,
                           'device': args.device,
                           'max_train_step': args.max_train_step,
                           'base_dir': train_args.base_dir})
@@ -155,7 +149,7 @@ def main():
                     'environment': env_args,
                     'algorithm': algo_args}
     show_dict(records_dict)
-    if not train_args.inference and not train_args.no_save:
+    if not train_args.inference and train_args.save:
         save_config(train_args.base_dir, records_dict, 'config.yaml')
     # save log
     if train_args.logger2file:

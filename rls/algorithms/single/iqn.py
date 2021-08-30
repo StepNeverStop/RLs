@@ -11,7 +11,7 @@ from rls.nn.models import IqnNet
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class IQN(SarlOffPolicy):
@@ -137,24 +137,24 @@ class IQN(SarlOffPolicy):
             target_quantiles_value * next_max_action).sum(-1, keepdim=True)   # [N', T, B, 1]
 
         target_q = target_quantiles_value.mean(0)  # [T, B, 1]
-        q_target = q_target_func(BATCH.reward,  # [T, B, 1]
+        q_target = n_step_return(BATCH.reward,  # [T, B, 1]
                                  self.gamma,
                                  BATCH.done,    # [T, B, 1]
                                  target_q,  # [T, B, 1]
-                                 BATCH.begin_mask)   # [T, B, 1]
+                                 BATCH.begin_mask).detach()   # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
 
         # [N', T, B, 1] => [N', T, B]
         target_quantiles_value = target_quantiles_value.squeeze(-1)
         target_quantiles_value = target_quantiles_value.permute(
             1, 2, 0)    # [N', T, B] => [T, B, N']
-        quantiles_value_target = q_target_func(BATCH.reward.repeat(1, 1, self.target_quantiles),
+        quantiles_value_target = n_step_return(BATCH.reward.repeat(1, 1, self.target_quantiles),
                                                self.gamma,
                                                BATCH.done.repeat(
                                                    1, 1, self.target_quantiles),
                                                target_quantiles_value,
                                                BATCH.begin_mask.repeat(
-                                                   1, 1, self.target_quantiles))  # [T, B, N']
+                                                   1, 1, self.target_quantiles)).detach()  # [T, B, N']
         # [T, B, N'] => [T, B, 1, N']
         quantiles_value_target = quantiles_value_target.unsqueeze(-2)
         quantiles_value_online = quantiles_value.permute(

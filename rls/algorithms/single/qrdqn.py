@@ -11,7 +11,7 @@ from rls.nn.models import QrdqnDistributional
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class QRDQN(SarlOffPolicy):
@@ -82,11 +82,11 @@ class QRDQN(SarlOffPolicy):
         # [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * next_max_action).sum(-2)
 
-        target = q_target_func(BATCH.reward.repeat(1, 1, self.nums),
+        target = n_step_return(BATCH.reward.repeat(1, 1, self.nums),
                                self.gamma,
                                BATCH.done.repeat(1, 1, self.nums),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self.nums))    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self.nums)).detach()    # [T, B, N]
 
         q_eval = q_dist.mean(-1, keepdim=True)    # [T, B, 1]
         q_target = target.mean(-1, keepdim=True)  # [T, B, 1]

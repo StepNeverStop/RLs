@@ -10,7 +10,7 @@ from rls.common.decorator import iTensor_oNumpy
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticQvalueOne
 from rls.nn.utils import OPLR
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class AC(SarlOffPolicy):
@@ -99,11 +99,11 @@ class AC(SarlOffPolicy):
                 max_a, self.a_dim).float()  # [T, B, N]
             max_q_next = self.critic(
                 BATCH.obs_, max_a_one_hot).detach()    # [T, B, 1]
-        td_error = q - q_target_func(BATCH.reward,
+        td_error = q - n_step_return(BATCH.reward,
                                      self.gamma,
                                      BATCH.done,
                                      max_q_next,
-                                     BATCH.begin_mask)  # [T, B, 1]
+                                     BATCH.begin_mask).detach()  # [T, B, 1]
         critic_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(critic_loss)
 

@@ -14,7 +14,7 @@ from rls.nn.models import ActorCts, ActorDct, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.utils.torch_utils import (q_target_func, squash_action,
+from rls.utils.torch_utils import (n_step_return, squash_action,
                                    tsallis_entropy_log_q)
 
 
@@ -145,11 +145,11 @@ class TAC(SarlOffPolicy):
         q2_target = self.critic2.t(
             BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q_target = t.minimum(q1_target, q2_target)  # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              (q_target - self.alpha * target_log_pi),
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         td_error1 = q1 - dc_r   # [T, B, 1]
         td_error2 = q2 - dc_r   # [T, B, 1]
 

@@ -16,7 +16,7 @@ from rls.nn.models import ActorCts, ActorDct, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.utils.torch_utils import q_target_func, squash_action
+from rls.utils.torch_utils import n_step_return, squash_action
 
 
 class MASAC(MultiAgentOffPolicy):
@@ -180,11 +180,11 @@ class MASAC(MultiAgentOffPolicy):
         td_errors = 0.
         for aid, mid in zip(self.agent_ids, self.model_ids):
             q_target = t.minimum(q_targets1[mid], q_targets2[mid])  # [T, B, 1]
-            dc_r = q_target_func(BATCH_DICT[aid].reward,
+            dc_r = n_step_return(BATCH_DICT[aid].reward,
                                  self.gamma,
                                  BATCH_DICT[aid].done,
                                  q_target - self.alpha * target_log_pis,
-                                 BATCH_DICT['global'].begin_mask)  # [T, B, 1]
+                                 BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
             td_error1 = qs1[mid] - dc_r   # [T, B, 1]
             td_error2 = qs2[mid] - dc_r   # [T, B, 1]
             td_errors += (td_error1 + td_error2) / 2

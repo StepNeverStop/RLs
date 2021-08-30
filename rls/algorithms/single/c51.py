@@ -11,7 +11,7 @@ from rls.nn.models import C51Distributional
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class C51(SarlOffPolicy):
@@ -85,11 +85,11 @@ class C51(SarlOffPolicy):
         # [T, B, A, N] * [T, B, A, 1] => [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * a_onehot.unsqueeze(-1)).sum(-2)
 
-        target = q_target_func(BATCH.reward.repeat(1, 1, self._atoms),
+        target = n_step_return(BATCH.reward.repeat(1, 1, self._atoms),
                                self.gamma,
                                BATCH.done.repeat(1, 1, self._atoms),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self._atoms))    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self._atoms)).detach()    # [T, B, N]
         target = target.clamp(self._v_min, self._v_max)  # [T, B, N]
         # An amazing trick for calculating the projection gracefully.
         # ref: https://github.com/ShangtongZhang/DeepRL

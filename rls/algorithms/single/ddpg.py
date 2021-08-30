@@ -13,7 +13,7 @@ from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.noised_actions import (ClippedNormalNoisedAction,
                                    Noise_action_REGISTER)
 from rls.nn.utils import OPLR
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class DDPG(SarlOffPolicy):
@@ -116,11 +116,11 @@ class DDPG(SarlOffPolicy):
                         begin_mask=BATCH.begin_mask)    # [T, B, 1]
         q_target = self.critic.t(
             BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)  # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask)   # [T, B, 1]
+                             BATCH.begin_mask).detach()   # [T, B, 1]
         td_error = dc_r - q  # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.step(q_loss)

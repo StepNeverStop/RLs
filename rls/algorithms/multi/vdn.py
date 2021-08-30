@@ -12,7 +12,7 @@ from rls.nn.models import CriticDueling
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class VDN(MultiAgentOffPolicy):
@@ -134,11 +134,11 @@ class VDN(MultiAgentOffPolicy):
         q_target_next_max_tot = self.mixer.t(
             q_target_next_choose_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
-        q_target_tot = q_target_func(reward,
+        q_target_tot = n_step_return(reward,
                                      self.gamma,
                                      (done > 0.).float(),
                                      q_target_next_max_tot,
-                                     BATCH_DICT['global'].begin_mask)   # [T, B, 1]
+                                     BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
         td_error = q_target_tot - q_eval_tot     # [T, B, 1]
         q_loss = td_error.square().mean()   # 1
         self.oplr.step(q_loss)

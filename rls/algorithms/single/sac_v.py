@@ -15,7 +15,7 @@ from rls.nn.models import (ActorCts, ActorDct, CriticQvalueAll,
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.utils.torch_utils import q_target_func, squash_action
+from rls.utils.torch_utils import n_step_return, squash_action
 
 
 class SAC_V(SarlOffPolicy):
@@ -169,11 +169,11 @@ class SAC_V(SarlOffPolicy):
             BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q2_pi = self.q_net2(
             BATCH.obs, pi, begin_mask=BATCH.begin_mask)  # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         v_from_q_stop = (t.minimum(q1_pi, q2_pi) -
                          self.alpha * log_pi).detach()    # [T, B, 1]
         td_v = v - v_from_q_stop    # [T, B, 1]
@@ -254,11 +254,11 @@ class SAC_V(SarlOffPolicy):
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
-                             BATCH.begin_mask)   # [T, B, 1]
+                             BATCH.begin_mask).detach()   # [T, B, 1]
         td_v = v - (t.minimum(
             (logp_all.exp() * q1_all).sum(-1, keepdim=True),
             (logp_all.exp() * q2_all).sum(-1, keepdim=True)

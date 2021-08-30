@@ -14,7 +14,7 @@ from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class MAXSQN(SarlOffPolicy):
@@ -115,11 +115,11 @@ class MAXSQN(SarlOffPolicy):
 
         q_target = t.minimum(q1_target_max, q2_target_max) + \
             self.alpha * q1_target_entropy  # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         td_error1 = q1_eval - dc_r  # [T, B, 1]
         td_error2 = q2_eval - dc_r  # [T, B, 1]
         q1_loss = (td_error1.square()*BATCH.get('isw', 1.0)).mean()   # 1

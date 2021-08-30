@@ -15,7 +15,7 @@ from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.utils import OPLR
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class MADDPG(MultiAgentOffPolicy):
@@ -140,11 +140,11 @@ class MADDPG(MultiAgentOffPolicy):
         q_loss = {}
         td_errors = 0.
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            dc_r = q_target_func(BATCH_DICT[aid].reward,
+            dc_r = n_step_return(BATCH_DICT[aid].reward,
                                  self.gamma,
                                  BATCH_DICT[aid].done,
                                  q_targets[mid],
-                                 BATCH_DICT['global'].begin_mask)  # [T, B, 1]
+                                 BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
             td_error = dc_r - qs[mid]  # [T, B, 1]
             td_errors += td_error
             q_loss[aid] = 0.5 * td_error.square().mean()    # 1
