@@ -145,10 +145,10 @@ class SAC_V(SarlOffPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Normal(mu, log_std.exp())
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(
-                pi, dist.log_prob(pi))   # [T, B, A], [T, B, 1]
+                pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
         else:
             logits = self.actor(
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
@@ -189,10 +189,10 @@ class SAC_V(SarlOffPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Normal(mu, log_std.exp())
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(
-                pi, dist.log_prob(pi))   # [T, B, A], [T, B, 1]
+                pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = self.actor(

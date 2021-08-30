@@ -119,10 +119,11 @@ class TAC(SarlOffPolicy):
         if self.is_continuous:
             target_mu, target_log_std = self.actor(
                 BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Normal(target_mu, target_log_std.exp())
+            dist = td.Independent(
+                td.Normal(target_mu, target_log_std.exp()), 1)
             target_pi = dist.sample()   # [T, B, A]
             target_pi, target_log_pi = squash_action(
-                target_pi, dist.log_prob(target_pi), is_independent=False)  # [T, B, A]
+                target_pi, dist.log_prob(target_pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
             target_log_pi = tsallis_entropy_log_q(
                 target_log_pi, self.entropic_index)   # [T, B, 1]
         else:
@@ -160,10 +161,10 @@ class TAC(SarlOffPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Normal(mu, log_std.exp())
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(pi, dist.log_prob(
-                pi), is_independent=False)  # [T, B, A]
+                pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
             log_pi = tsallis_entropy_log_q(
                 log_pi, self.entropic_index)  # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
