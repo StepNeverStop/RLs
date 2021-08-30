@@ -22,7 +22,7 @@ class Policy(Base):
 
     def __init__(self,
                  n_copys=1,
-                 no_save=False,
+                 is_save=True,
                  base_dir='',
                  device='cpu',
                  max_train_step=sys.maxsize,
@@ -36,30 +36,30 @@ class Policy(Base):
                  normalize_vector_obs=False,
                  obs_with_pre_action=False,
                  rep_net_params={
-                     'use_encoder': False,
-                     'use_rnn': False,  # always false, using -r to active RNN
                      'vector_net_params': {
+                         'h_dim': 16,
                          'network_type': 'adaptive'  # rls.nn.represents.vectors
                      },
                      'visual_net_params': {
-                         'visual_feature': 128,
+                         'h_dim': 128,
                          'network_type': 'simple'  # rls.nn.represents.visuals
                      },
                      'encoder_net_params': {
-                         'output_dim': 16
+                         'h_dim': 16,
+                         'network_type': 'identity'  # rls.nn.represents.encoders
                      },
                      'memory_net_params': {
                          'rnn_units': 16,
                          'network_type': 'lstm'
                      }},
-                 **kwargs):  # TODO: remove this
+                 **kwargs):
         '''
         inputs:
             a_dim: action spaces
             base_dir: the directory that store data, like model, logs, and other data
         '''
         self.n_copys = n_copys
-        self.no_save = no_save
+        self._is_save = is_save
         self.base_dir = base_dir
         self.device = device
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
@@ -77,17 +77,17 @@ class Policy(Base):
 
         super().__init__()
 
-        # TODO: optimization
-        self.use_rnn = rep_net_params.get('use_rnn', False)
         self.memory_net_params = rep_net_params.get('memory_net_params', {
             'rnn_units': 16,
             'network_type': 'lstm'
         })
+        self.use_rnn = self.memory_net_params.get(
+            'network_type', 'identity') != 'identity'
 
         self.cp_dir, self.log_dir = [os.path.join(
             base_dir, i) for i in ['model', 'log']]
 
-        if not self.no_save:
+        if self._is_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
@@ -133,7 +133,7 @@ class Policy(Base):
         """
         save the training model 
         """
-        if not self.no_save:
+        if self._is_save:
             _data = {}
             for k, v in self._trainer_modules.items():
                 if hasattr(v, 'state_dict'):
@@ -191,7 +191,7 @@ class Policy(Base):
         raise NotImplementedError
 
     def _create_writer(self, log_dir: str) -> SummaryWriter:
-        if not self.no_save:
+        if self._is_save:
             check_or_create(log_dir, 'logs(summaries)')
             return SummaryWriter(log_dir)
 
@@ -202,7 +202,7 @@ class Policy(Base):
         '''
         write summaries showing in tensorboard.
         '''
-        if not self.no_save:
+        if self._is_save:
             writer = writer or self.writer
             for k, v in summaries.items():
                 writer.add_scalar(k, v, global_step=cur_train_step)

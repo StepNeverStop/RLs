@@ -11,7 +11,7 @@ from rls.nn.models import CriticDueling
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class DDDQN(SarlOffPolicy):
@@ -76,11 +76,11 @@ class DDDQN(SarlOffPolicy):
 
         q_target_next_max = (
             q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
-        q_target = q_target_func(BATCH.reward,
+        q_target = n_step_return(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
                                  q_target_next_max,
-                                 BATCH.begin_mask)  # [T, B, 1]
+                                 BATCH.begin_mask).detach()  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.oplr.step(q_loss)

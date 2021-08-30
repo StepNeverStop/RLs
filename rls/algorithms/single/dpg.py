@@ -12,7 +12,7 @@ from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
 from rls.nn.noised_actions import (ClippedNormalNoisedAction,
                                    Noise_action_REGISTER)
 from rls.nn.utils import OPLR
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class DPG(SarlOffPolicy):
@@ -104,11 +104,11 @@ class DPG(SarlOffPolicy):
                 target_pi, self.a_dim).float()  # [T, B, A]
         q_target = self.critic(BATCH.obs_, action_target,
                                begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         q = self.critic(BATCH.obs, BATCH.action,
                         begin_mask=BATCH.begin_mask)    # [T, B, A]
         td_error = dc_r - q  # [T, B, A]

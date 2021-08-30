@@ -14,7 +14,7 @@ from rls.nn.models import ActorCts, ActorDct, CriticQvalueAll, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.sundry_utils import LinearAnnealing
-from rls.utils.torch_utils import q_target_func, squash_action
+from rls.utils.torch_utils import n_step_return, squash_action
 
 
 class SAC(SarlOffPolicy):
@@ -54,13 +54,6 @@ class SAC(SarlOffPolicy):
         self.auto_adaption = auto_adaption
         self.annealing = annealing
 
-        if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-        else:
-            self.log_alpha = t.tensor(alpha).log().to(self.device)
-            if self.annealing:
-                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
-
         # entropy = -log(1/|A|) = log |A|
         self.target_entropy = 0.98 * \
             (-self.a_dim if self.is_continuous else np.log(self.a_dim))
@@ -91,15 +84,22 @@ class SAC(SarlOffPolicy):
 
         self.actor_oplr = OPLR(self.actor, actor_lr)
         self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr)
-        self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+
+        if self.auto_adaption:
+            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
+        else:
+            self.log_alpha = t.tensor(alpha).log().to(self.device)
+            if self.annealing:
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      critic2=self.critic2,
                                      log_alpha=self.log_alpha,
                                      actor_oplr=self.actor_oplr,
-                                     critic_oplr=self.critic_oplr,
-                                     alpha_oplr=self.alpha_oplr)
+                                     critic_oplr=self.critic_oplr)
 
     @property
     def alpha(self):
@@ -137,15 +137,16 @@ class SAC(SarlOffPolicy):
         if self.is_continuous:
             target_mu, target_log_std = self.actor(
                 BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, A]
-            dist = td.Normal(target_mu, target_log_std.exp())
+            dist = td.Independent(
+                td.Normal(target_mu, target_log_std.exp()), 1)
             target_pi = dist.sample()   # [T, B, A]
             target_pi, target_log_pi = squash_action(
-                target_pi, dist.log_prob(target_pi))   # [T, B, A], [T, B, 1]
+                target_pi, dist.log_prob(target_pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
         else:
             target_logits = self.actor(
                 BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
-            target_pi = target_cate_dist.sample()   # [T, B, A]
+            target_pi = target_cate_dist.sample()   # [T, B]
             target_log_pi = target_cate_dist.log_prob(
                 target_pi).unsqueeze(-1)  # [T, B, 1]
             target_pi = t.nn.functional.one_hot(
@@ -155,11 +156,11 @@ class SAC(SarlOffPolicy):
         q2_target = self.critic2.t(
             BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q_target = t.minimum(q1_target, q2_target)  # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              (q_target - self.alpha * target_log_pi),
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         td_error1 = q1 - dc_r   # [T, B, 1]
         td_error2 = q2 - dc_r   # [T, B, 1]
         q1_loss = (td_error1.square() * BATCH.get('isw', 1.0)).mean()    # 1
@@ -170,10 +171,10 @@ class SAC(SarlOffPolicy):
         if self.is_continuous:
             mu, log_std = self.actor(
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Normal(mu, log_std.exp())
+            dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
             pi, log_pi = squash_action(
-                pi, dist.log_prob(pi))   # [T, B, A], [T, B, 1]
+                pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = self.actor(
@@ -194,15 +195,10 @@ class SAC(SarlOffPolicy):
         actor_loss = -(q_s_pi - self.alpha * log_pi).mean()  # 1
 
         self.actor_oplr.step(actor_loss)
-        if self.auto_adaption:
-            alpha_loss = - \
-                (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/q1_loss', q1_loss],
             ['LOSS/q2_loss', q2_loss],
@@ -215,9 +211,13 @@ class SAC(SarlOffPolicy):
             ['Statistics/q_max', t.maximum(q1, q2).max()]
         ])
         if self.auto_adaption:
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            alpha_loss = - \
+                (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
+            self.alpha_oplr.step(alpha_loss)
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     @iTensor_oNumpy
@@ -242,11 +242,11 @@ class SAC(SarlOffPolicy):
         v1_target = v_target_function(q1_target)    # [T, B, 1]
         v2_target = v_target_function(q2_target)    # [T, B, 1]
         v_target = t.minimum(v1_target, v2_target)   # [T, B, 1]
-        dc_r = q_target_func(BATCH.reward,
+        dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
-                             BATCH.begin_mask)  # [T, B, 1]
+                             BATCH.begin_mask).detach()  # [T, B, 1]
         td_error1 = q1 - dc_r  # [T, B, 1]
         td_error2 = q2 - dc_r  # [T, B, 1]
 
@@ -272,19 +272,10 @@ class SAC(SarlOffPolicy):
         # actor_loss = - (q_all + self.alpha * entropy).mean()
 
         self.actor_oplr.step(actor_loss)
-        if self.auto_adaption:
-            corr = (self.target_entropy - entropy).detach()  # [T, B, 1]
-            # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()    #[B, A] => [B,]
-            # J(\alpha)=\pi_{t}\left(s_{t}\right)^{T}\left[-\alpha\left(\log \left(\pi_{t}\left(s_{t}\right)\right)+\bar{H}\right)\right]
-            # \bar{H} is negative
-            alpha_loss = -(self.alpha * corr)    # [T, B, 1]
-            alpha_loss = alpha_loss.mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
-            ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr],
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/q1_loss', q1_loss],
             ['LOSS/q2_loss', q2_loss],
@@ -294,9 +285,17 @@ class SAC(SarlOffPolicy):
             ['Statistics/entropy', entropy.mean()]
         ])
         if self.auto_adaption:
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss
-            })
+            corr = (self.target_entropy - entropy).detach()  # [T, B, 1]
+            # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()    #[B, A] => [B,]
+            # J(\alpha)=\pi_{t}\left(s_{t}\right)^{T}\left[-\alpha\left(\log \left(\pi_{t}\left(s_{t}\right)\right)+\bar{H}\right)\right]
+            # \bar{H} is negative
+            alpha_loss = -(self.alpha * corr)    # [T, B, 1]
+            alpha_loss = alpha_loss.mean()  # 1
+            self.alpha_oplr.step(alpha_loss)
+            summaries.update([
+                ['LOSS/alpha_loss', alpha_loss],
+                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
+            ])
         return (td_error1 + td_error2) / 2, summaries
 
     def _after_train(self):

@@ -15,7 +15,7 @@ from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.noised_actions import Noise_action_REGISTER
 from rls.nn.utils import OPLR
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class MADDPG(MultiAgentOffPolicy):
@@ -87,7 +87,7 @@ class MADDPG(MultiAgentOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs: Dict):
-        acts = {}
+        acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             output = self.actors[mid](
@@ -101,10 +101,10 @@ class MADDPG(MultiAgentOffPolicy):
                 mu = logits.argmax(-1)   # [B,]
                 cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()  # [B,]
-            action = mu if not self._is_train_mode else pi
-            acts[aid] = Data(action=action)
+            action = pi if self._is_train_mode else mu
+            acts_info[aid] = Data(action=action)
             actions[aid] = action
-        return actions, acts
+        return actions, acts_info
 
     @iTensor_oNumpy
     def _train(self, BATCH_DICT):
@@ -128,25 +128,30 @@ class MADDPG(MultiAgentOffPolicy):
         target_actions = t.cat(
             list(target_actions.values()), -1)   # [T, B, N*A]
 
-        q_loss = {}
-        for aid, mid in zip(self.agent_ids, self.model_ids):
-            q_target = self.critics[mid].t(
-                [BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
-            q = self.critics[mid](
+        qs, q_targets = {}, {}
+        for mid in self.model_ids:
+            qs[mid] = self.critics[mid](
                 [BATCH_DICT[id].obs for id in self.agent_ids],
                 t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
             )   # [T, B, 1]
-            dc_r = q_target_func(BATCH_DICT[aid].reward,
+            q_targets[mid] = self.critics[mid].t(
+                [BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
+
+        q_loss = {}
+        td_errors = 0.
+        for aid, mid in zip(self.agent_ids, self.model_ids):
+            dc_r = n_step_return(BATCH_DICT[aid].reward,
                                  self.gamma,
                                  BATCH_DICT[aid].done,
-                                 q_target,
-                                 BATCH_DICT['global'].begin_mask)  # [T, B, 1]
-            td_error = dc_r - q  # [T, B, 1]
+                                 q_targets[mid],
+                                 BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
+            td_error = dc_r - qs[mid]  # [T, B, 1]
+            td_errors += td_error
             q_loss[aid] = 0.5 * td_error.square().mean()    # 1
             summaries[aid].update(dict([
-                ['Statistics/q_min', q.min()],
-                ['Statistics/q_mean', q.mean()],
-                ['Statistics/q_max', q.max()]
+                ['Statistics/q_min', qs[mid].min()],
+                ['Statistics/q_mean', qs[mid].mean()],
+                ['Statistics/q_max', qs[mid].max()]
             ]))
         self.critic_oplr.step(sum(q_loss.values()))
 
@@ -168,10 +173,10 @@ class MADDPG(MultiAgentOffPolicy):
                 _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
                 mu = _pi_diff + _pi  # [T, B, A]
 
-            all_actions = {id: BATCH_DICT[aid].action for id in self.agent_ids}
+            all_actions = {id: BATCH_DICT[id].action for id in self.agent_ids}
             all_actions[aid] = mu
             q_actor = self.critics[mid](
-                [BATCH_DICT[aid].obs for id in self.agent_ids],
+                [BATCH_DICT[id].obs for id in self.agent_ids],
                 t.cat(list(all_actions.values()), -1),
                 begin_mask=BATCH_DICT['global'].begin_mask
             )   # [T, B, 1]
@@ -188,7 +193,7 @@ class MADDPG(MultiAgentOffPolicy):
             ['LOSS/actor_loss', sum(actor_loss.values())],
             ['LOSS/critic_loss', sum(q_loss.values())]
         ]))
-        return summaries
+        return td_errors/self.n_agents_percopy, summaries
 
     def _after_train(self):
         super()._after_train()

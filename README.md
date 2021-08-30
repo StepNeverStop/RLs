@@ -175,15 +175,16 @@ For now, these algorithms are available:
 |              QPLEX              |    ✓     |            |   ✓   |  ✓   |       qplex       |
 |              QTRAN              |    ✓     |            |   ✓   |  ✓   |       qtran       |
 |             MADDPG              |    ✓     |     ✓      |   ✓   |  ✓   |      maddpg       |
+|              MASAC              |    ✓     |     ✓      |   ✓   |  ✓   |       masac       |
 
 ## Getting started
 
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
-              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}]
-              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [-s SAVE_FREQUENCY] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH]
-              [--prefill-steps PREFILL_STEPS] [--hostname] [--info INFO] [-e ENV_NAME] [-f FILE_NAME] [--no-save] [-d DEVICE] [-t MAX_TRAIN_STEP]
+              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--hostname]
+              [-e ENV_NAME] [-f FILE_NAME] [-s] [-d DEVICE] [-t MAX_TRAIN_STEP]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -193,7 +194,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
-  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,vdn,qmix,qatten,qtran,qplex}
+  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}
                         specify the training algorithm
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH
@@ -201,23 +202,18 @@ optional arguments:
   -m MODELS, --models MODELS
                         specify the number of trails that using different random seeds
   -n NAME, --name NAME  specify the name of this training task
-  -s SAVE_FREQUENCY, --save-frequency SAVE_FREQUENCY
-                        specify the interval that saving model checkpoint
   --config-file CONFIG_FILE
                         specify the path of training configuration file
   --store-dir STORE_DIR
                         specify the directory that store model, log and others
   --episode-length EPISODE_LENGTH
                         specify the maximum step per episode
-  --prefill-steps PREFILL_STEPS
-                        specify the number of experiences that should be collected before start training, use for off-policy algorithms
   --hostname            whether concatenate hostname with the training name
-  --info INFO           write another information that describe this training task
   -e ENV_NAME, --env-name ENV_NAME
                         specify the environment name
   -f FILE_NAME, --file-name FILE_NAME
                         specify the path of builded training environment of UNITY3D
-  --no-save             specify whether save models/logs/summaries while training or not
+  -s, --save            specify whether save models/logs/summaries while training or not
   -d DEVICE, --device DEVICE
                         specify the device that operate Torch.Tensor
   -t MAX_TRAIN_STEP, --max-train-step MAX_TRAIN_STEP
@@ -227,8 +223,8 @@ optional arguments:
 
 Example:
 ```bash
-python run.py
-python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole --no-save
+python run.py -s    # save model and log while train
+python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole
 python run.py -p unity -a ppo -n run_with_unity -c 1
 ```
 
@@ -238,7 +234,7 @@ If using this repository for your research, please cite:
 ```
 @misc{RLs,
   author = {Keavnn},
-  title = {RLs: Reinforcement Learning research framework for Unity3D and Gym},
+  title = {RLs: A Featureless Reinforcement Learning Repository},
   year = {2019},
   publisher = {GitHub},
   journal = {GitHub repository},

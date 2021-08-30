@@ -1,32 +1,28 @@
 
 import math
 
-from torch.nn import Linear, Sequential
+from torch.nn import Identity, Linear, Sequential
 
 from rls.nn.activations import Act_REGISTER, default_act
 
 Vec_REGISTER = {}
 
 
-class VectorConcatNetwork:
+class VectorIdentityNetwork(Sequential):
 
-    def __init__(self, *args, **kwargs):
-        assert 'in_dim' in kwargs.keys(), "assert dim in kwargs.keys()"
-        self.h_dim = self.in_dim = int(kwargs['in_dim'])
-        pass
-
-    def __call__(self, x):
-        return x
+    def __init__(self, in_dim, *args, **kwargs):
+        super().__init__()
+        self.h_dim = self.in_dim = in_dim
+        self.add_module(f'identity', Identity())
 
 
 class VectorAdaptiveNetwork(Sequential):
 
-    def __init__(self, **kwargs):
+    def __init__(self, in_dim, h_dim=16, **kwargs):
         super().__init__()
-        assert 'in_dim' in kwargs.keys(), "assert dim in kwargs.keys()"
-        self.in_dim = int(kwargs['in_dim'])
-        self.h_dim = self.out_dim = int(kwargs.get('out_dim', 16))
-        x = math.log2(self.out_dim)
+        self.in_dim = in_dim
+        self.h_dim = h_dim
+        x = math.log2(self.h_dim)
         y = math.log2(self.in_dim)
         l = math.ceil(x) + 1 if math.ceil(x) == math.floor(x) else math.ceil(x)
         r = math.floor(y) if math.ceil(y) == math.floor(y) else math.ceil(y)
@@ -42,9 +38,9 @@ class VectorAdaptiveNetwork(Sequential):
             ins = outs[-1]
         else:
             ins = self.in_dim
-        self.add_module('linear', Linear(ins, self.out_dim))
+        self.add_module('linear', Linear(ins, self.h_dim))
         self.add_module(f'{default_act}', Act_REGISTER[default_act]())
 
 
-Vec_REGISTER['concat'] = VectorConcatNetwork
+Vec_REGISTER['identity'] = VectorIdentityNetwork
 Vec_REGISTER['adaptive'] = VectorAdaptiveNetwork

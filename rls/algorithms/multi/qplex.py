@@ -7,7 +7,7 @@ from rls.algorithms.multi.vdn import VDN
 from rls.common.decorator import iTensor_oNumpy
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.modules.wrappers import TargetTwin
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class QPLEX(VDN):
@@ -76,9 +76,11 @@ class QPLEX(VDN):
             q_target_next_max = (
                 q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
 
-            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
+            q_target_next_choose_maxs.append(
+                q_target_next_max)    # N * [T, B, 1]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
-            q_target_next_maxs.append(q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
+            q_target_next_maxs.append(
+                q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
 
         q_eval_tot = self.mixer(BATCH_DICT['global'].obs,
                                 q_evals,
@@ -91,11 +93,11 @@ class QPLEX(VDN):
                                              q_target_next_maxs,
                                              begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
-        q_target_tot = q_target_func(reward,
+        q_target_tot = n_step_return(reward,
                                      self.gamma,
                                      (done > 0.).float(),
                                      q_target_next_max_tot,
-                                     BATCH_DICT['global'].begin_mask)   # [T, B, 1]
+                                     BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
         td_error = q_target_tot - q_eval_tot     # [T, B, 1]
         q_loss = td_error.square().mean()   # 1
         self.oplr.step(q_loss)
@@ -106,4 +108,4 @@ class QPLEX(VDN):
             ['Statistics/q_min', q_eval_tot.min()],
             ['Statistics/q_mean', q_eval_tot.mean()]
         ])
-        return summaries
+        return td_error, summaries

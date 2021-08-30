@@ -7,7 +7,7 @@ from rls.algorithms.multi.vdn import VDN
 from rls.common.decorator import iTensor_oNumpy
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.modules.wrappers import TargetTwin
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class QTRAN(VDN):
@@ -94,7 +94,8 @@ class QTRAN(VDN):
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
+            q_target_next_choose_maxs.append(
+                q_target_next_max)    # N * [T, B, 1]
             q_target_cell_states.append(q_target_cell_state)    # N * [T, B, *]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
 
@@ -103,11 +104,11 @@ class QTRAN(VDN):
         target_joint_qs, target_vs = self.mixer.t(BATCH_DICT['global'].obs_, q_target_cell_states, q_target_actions,
                                                   begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
-        q_target_tot = q_target_func(reward,
+        q_target_tot = n_step_return(reward,
                                      self.gamma,
                                      (done > 0.).float(),
                                      target_joint_qs,
-                                     BATCH_DICT['global'].begin_mask)   # [T, B, 1]
+                                     BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
         td_error = q_target_tot - joint_qs     # [T, B, 1]
         td_loss = td_error.square().mean()   # 1
 
@@ -134,4 +135,4 @@ class QTRAN(VDN):
             ['Statistics/q_min', joint_qs.min()],
             ['Statistics/q_mean', joint_qs.mean()]
         ])
-        return summaries
+        return td_error, summaries

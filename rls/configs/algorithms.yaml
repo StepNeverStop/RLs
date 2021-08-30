@@ -11,18 +11,18 @@ policy: &policy
 
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
-        use_encoder: false
-        use_rnn: false
         vector_net_params:
+            h_dim: 16
             network_type: "adaptive" # rls.nn.represents.vectors
         visual_net_params:
-            visual_feature: 128
+            h_dim: 128
             network_type: "simple" # rls.nn.represents.visuals
         encoder_net_params:
-            output_dim: 16
+            h_dim: 16
+            network_type: "identity" # rls.nn.represents.encoders
         memory_net_params:
             rnn_units: 16
-            network_type: "lstm"
+            network_type: "identity" # rls.nn.represents.memories
     # -----
 
 sarl_policy: &sarl_policy
@@ -81,7 +81,7 @@ dqn: &dqn
     rep_net_params:
         <<: *rep_net_params
         visual_net_params:
-            visual_feature: 128
+            h_dim: 128
             network_type: "nature"
 
 ddqn: *dqn
@@ -517,6 +517,27 @@ maddpg:
         sigma: 0.2
     network_settings:
         actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
+
+masac:
+    <<: *marl_off_policy
+    alpha: 0.2
+    auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
+    actor_lr: 5.0e-4
+    critic_lr: 1.0e-3
+    alpha_lr: 5.0e-4
+    ployak: 0.995
+    discrete_tau: 1.0
+    network_settings:
+        actor_continuous:
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
+            soft_clip: False
+            log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
 

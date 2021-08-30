@@ -42,16 +42,16 @@ class IndependentMA(Base):
 
     def __call__(self, obs):
         # 2
-        acts = {}
+        actions = {}
         for id in self._agent_ids:
-            acts[id] = self.models[id](obs[id])
-        return acts
+            actions[id] = self.models[id](obs[id])
+        return actions
 
     def random_action(self):
-        acts = {}
+        actions = {}
         for id in self._agent_ids:
-            acts[id] = self.models[id].random_action()
-        return acts
+            actions[id] = self.models[id].random_action()
+        return actions
 
     def setup(self, is_train_mode=True, store=True):
         # 0
@@ -65,12 +65,11 @@ class IndependentMA(Base):
 
     def episode_step(self,
                      obs,
-                     acts: Dict[str, Data],
                      env_rets: Dict[str, Data]):
         # 3
         for id in self._agent_ids:
             self.models[id].episode_step(
-                obs[id], acts[id], env_rets[id], obs['global'].begin_mask)
+                obs[id], env_rets[id], obs['global'].begin_mask)
 
     def episode_end(self):
         for id in self._agent_ids:

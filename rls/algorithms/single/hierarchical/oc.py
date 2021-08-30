@@ -13,7 +13,7 @@ from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 from rls.utils.np_utils import int2one_hot
-from rls.utils.torch_utils import q_target_func
+from rls.utils.torch_utils import n_step_return
 
 
 class OC(SarlOffPolicy):
@@ -103,8 +103,11 @@ class OC(SarlOffPolicy):
         # [B,]
         return t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)
 
-    def episode_step(self, done: np.ndarray):  # TODO:
-        super().episode_step(done)
+    def episode_step(self,
+                     obs: Data,
+                     env_rets: Data,
+                     begin_mask: np.ndarray):
+        super().episode_step(obs, env_rets, begin_mask)
         self.options = self.new_options
 
     @iTensor_oNumpy
@@ -144,10 +147,10 @@ class OC(SarlOffPolicy):
                              options=self.new_options)
 
     def random_action(self):
-        acts = super().random_action()
-        acts.update(last_options=np.random.randint(0, self.options_num, self.n_copys),
-                    options=np.random.randint(0, self.options_num, self.n_copys))
-        return acts
+        actions = super().random_action()
+        self._acts_info.update(last_options=np.random.randint(0, self.options_num, self.n_copys),
+                               options=np.random.randint(0, self.options_num, self.n_copys))
+        return actions
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
@@ -178,11 +181,11 @@ class OC(SarlOffPolicy):
         else:
             q_s_max = q_next.max(-1, keepdim=True)[0]   # [T, B, 1]
         u_target = (1 - beta_s_) * q_s_ + beta_s_ * q_s_max   # [T, B, 1]
-        qu_target = q_target_func(BATCH.reward,
+        qu_target = n_step_return(BATCH.reward,
                                   self.gamma,
                                   BATCH.done,
                                   u_target,
-                                  BATCH.begin_mask)  # [T, B, 1]
+                                  BATCH.begin_mask).detach()  # [T, B, 1]
         td_error = qu_target - qu_eval     # gradient : q   [T, B, 1]
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)
                   ).mean()        # [T, B, 1] => 1

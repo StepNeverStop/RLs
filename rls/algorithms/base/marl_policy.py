@@ -82,22 +82,25 @@ class MarlPolicy(Policy):
 
     def __call__(self, obs):
         obs = self._preprocess_obs(obs)
-        self._pre_acts, acts = self.select_action(obs)
-        return acts
+        self._pre_acts, self._acts_info = self.select_action(obs)
+        return self._pre_acts
 
     def select_action(self, obs):
         raise NotImplementedError
 
     def random_action(self):
-        acts = {}
+        actions = {}
+        self._acts_info = {}
         for id in self.agent_ids:
             if self.is_continuouss[id]:
-                acts[id] = Data(action=np.random.uniform(-1.0,
-                                1.0, (self.n_copys, self.a_dims[id])))
+                actions[id] = np.random.uniform(-1.0,
+                                                1.0, (self.n_copys, self.a_dims[id]))
             else:
-                acts[id] = Data(action=np.random.randint(
-                    0, self.a_dims[id], self.n_copys))
-        return acts
+                actions[id] = np.random.randint(
+                    0, self.a_dims[id], self.n_copys)
+            self._acts_info[id] = Data(action=actions[id])
+        self._pre_acts = actions
+        return actions
 
     def episode_reset(self):
         self._pre_acts = {}
@@ -113,7 +116,6 @@ class MarlPolicy(Policy):
 
     def episode_step(self,
                      obs,
-                     acts: Dict[str, Dict[str, np.ndarray]],
                      env_rets: Dict[str, Data]):
         super().episode_step()
         if self._store:
@@ -124,7 +126,7 @@ class MarlPolicy(Policy):
                                  reward=env_rets[id].reward[:, np.newaxis],
                                  obs_=env_rets[id].obs,
                                  done=env_rets[id].done[:, np.newaxis])
-                expss[id].update(acts[id])
+                expss[id].update(self._acts_info[id])
             expss['global'] = Data(begin_mask=obs['global'].begin_mask)
             if self._has_global_state:
                 expss['global'].update(obs=obs['global'].obs,

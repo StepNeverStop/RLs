@@ -1,8 +1,8 @@
 from .qatten import QattenMixer
 from .qmix import QMixer
+from .qplex.qplex import QPLEXMixer
 from .qtran_base import QTranBase
 from .vdn import VDNMixer
-from .qplex.qplex import QPLEXMixer
 
 Mixer_REGISTER = {}
 

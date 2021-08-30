@@ -1,9 +1,10 @@
-import torch as t
 import numpy as np
-from .si_weight import SI_Weight
+import torch as t
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
+
+from .si_weight import SI_Weight
 
 
 class QPLEXMixer(t.nn.Module):
@@ -73,9 +74,11 @@ class QPLEXMixer(t.nn.Module):
         adv_w_final = self.si_weight(state_feat, actions)   # [T, B, N]
 
         if self.is_minus_one:
-            adv_tot = t.sum(adv_q * (adv_w_final - 1.), dim=-1, keepdim=True)  # [T, B, 1]
+            adv_tot = t.sum(adv_q * (adv_w_final - 1.),
+                            dim=-1, keepdim=True)  # [T, B, 1]
         else:
-            adv_tot = t.sum(adv_q * adv_w_final, dim=-1, keepdim=True)  # [T, B, 1]
+            adv_tot = t.sum(adv_q * adv_w_final, dim=-
+                            1, keepdim=True)  # [T, B, 1]
 
         q_tot = v_tot + adv_tot  # [T, B, 1]
 

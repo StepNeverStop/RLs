@@ -8,6 +8,8 @@ from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
 from rls.utils.torch_utils import clip_nn_log_std
 
+Model_REGISTER = {}
+
 
 class BaseModel(t.nn.Module):
 
@@ -44,6 +46,9 @@ class ActorDPG(BaseModel):
     def forward(self, x, **kwargs):
         x = self.repre(x, **kwargs)
         return self.net(x)
+
+
+Model_REGISTER['actor_dpg'] = ActorDPG
 
 
 class ActorMuLogstd(BaseModel):
@@ -83,6 +88,9 @@ class ActorMuLogstd(BaseModel):
         return (mu, log_std)
 
 
+Model_REGISTER['actor_mulogstd'] = ActorMuLogstd
+
+
 class ActorCts(BaseModel):
     '''
     use for continuous action space.
@@ -118,6 +126,9 @@ class ActorCts(BaseModel):
         return (mu, log_std)
 
 
+Model_REGISTER['actor_continuous'] = ActorCts
+
+
 class ActorDct(BaseModel):
     '''
     use for discrete action space.
@@ -136,6 +147,9 @@ class ActorDct(BaseModel):
         return logits
 
 
+Model_REGISTER['actor_discrete'] = ActorDct
+
+
 class CriticQvalueOne(BaseModel):
     '''
     use for evaluate the value given a state-action pair.
@@ -152,6 +166,9 @@ class CriticQvalueOne(BaseModel):
         x = self.repre(x, **kwargs)
         q = self.net(t.cat((x, a), -1))  # [B, 1] or [T, B, 1]
         return q
+
+
+Model_REGISTER['critic_q1'] = CriticQvalueOne
 
 
 class CriticQvalueOneDDPG(BaseModel):
@@ -173,6 +190,9 @@ class CriticQvalueOneDDPG(BaseModel):
         features = self.state_feature_net(x)
         q = self.net(t.cat((x, a), -1))
         return q
+
+
+Model_REGISTER['critic_q1_ddpg'] = CriticQvalueOneDDPG
 
 
 class CriticQvalueOneTD3(BaseModel):
@@ -197,6 +217,9 @@ class CriticQvalueOneTD3(BaseModel):
         return q
 
 
+Model_REGISTER['critic_q1_td3'] = CriticQvalueOneTD3
+
+
 class CriticValue(BaseModel):
     '''
     use for evaluate the value given a state.
@@ -212,6 +235,9 @@ class CriticValue(BaseModel):
         x = self.repre(x, **kwargs)
         v = self.net(x)  # [B, *] or [T, B, *]
         return v
+
+
+Model_REGISTER['critic_v'] = CriticValue
 
 
 class CriticQvalueAll(BaseModel):
@@ -232,6 +258,9 @@ class CriticQvalueAll(BaseModel):
         return q
 
 
+Model_REGISTER['critic_q_all'] = CriticQvalueAll
+
+
 class CriticQvalueBootstrap(BaseModel):
     '''
     use for bootstrapped dqn.
@@ -247,6 +276,9 @@ class CriticQvalueBootstrap(BaseModel):
         # [H, T, B, A] or [H, B, A]
         q = t.stack([net(x) for net in self.nets], 0)
         return q
+
+
+Model_REGISTER['critic_q_bootstrap'] = CriticQvalueBootstrap
 
 
 class CriticDueling(BaseModel):
@@ -278,6 +310,9 @@ class CriticDueling(BaseModel):
         return q
 
 
+Model_REGISTER['critic_dueling'] = CriticDueling
+
+
 class OcIntraOption(BaseModel):
     '''
     Intra Option Neural network of Option-Critic.
@@ -296,6 +331,9 @@ class OcIntraOption(BaseModel):
         _shape = pi.shape[:-1] + (self.options_num, self.actions_num)
         pi = pi.view(_shape)  # [B, P, A] or [T, B, P, A]
         return pi
+
+
+Model_REGISTER['oc_intra_option'] = OcIntraOption
 
 
 class AocShare(BaseModel):
@@ -327,6 +365,9 @@ class AocShare(BaseModel):
         pi = pi.view(_shape)  # [B, P, A] or [T, B, P, A]
         beta = self.beta(x)  # [B, P] or [T, B, P]
         return q, pi, beta
+
+
+Model_REGISTER['aoc_share'] = AocShare
 
 
 class PpocShare(BaseModel):
@@ -361,6 +402,9 @@ class PpocShare(BaseModel):
         beta = self.beta(x)  # [B, P] or [T, B, P]
         o = self.o(x)  # [B, P] or [T, B, P]
         return q, pi, beta, o
+
+
+Model_REGISTER['ppoc_share'] = PpocShare
 
 
 class ActorCriticValueCts(BaseModel):
@@ -405,6 +449,9 @@ class ActorCriticValueCts(BaseModel):
         return (mu, log_std, v)
 
 
+Model_REGISTER['ac_v_continuous'] = ActorCriticValueCts
+
+
 class ActorCriticValueDct(BaseModel):
     '''
     combine actor network and critic network, share some nn layers. use for discrete action space.
@@ -431,6 +478,9 @@ class ActorCriticValueDct(BaseModel):
         return (logits, v)
 
 
+Model_REGISTER['ac_v_discrete'] = ActorCriticValueDct
+
+
 class C51Distributional(BaseModel):
     '''
     neural network for C51
@@ -452,6 +502,9 @@ class C51Distributional(BaseModel):
         return q_dist
 
 
+Model_REGISTER['c51'] = C51Distributional
+
+
 class QrdqnDistributional(BaseModel):
     '''
     neural network for QRDQN
@@ -470,6 +523,9 @@ class QrdqnDistributional(BaseModel):
         _shape = q_dist.shape[:-1] + (self.action_dim, self.nums)
         q_dist = q_dist.view(_shape)   # [B, A, N] or [T, B, A, N]
         return q_dist
+
+
+Model_REGISTER['qrdqn'] = C51Distributional
 
 
 class RainbowDueling(BaseModel):
@@ -509,6 +565,9 @@ class RainbowDueling(BaseModel):
         qs = q.view(q.shape[:-1]+(self.action_dim, self._atoms)
                     ).softmax(-1)    # [B, A, N] or [T, B, A, N]
         return qs  # [B, A, N] or [T, B, A, N]
+
+
+Model_REGISTER['rainbow'] = RainbowDueling
 
 
 class IqnNet(BaseModel):
@@ -551,6 +610,9 @@ class IqnNet(BaseModel):
         return quantiles_value  # [N, B, A] or [T, N, B, A]
 
 
+Model_REGISTER['iqn'] = IqnNet
+
+
 class MACriticQvalueOne(t.nn.Module):
     '''
     use for evaluate the value given a state-action pair.
@@ -576,3 +638,6 @@ class MACriticQvalueOne(t.nn.Module):
         x = t.cat(outs, -1)
         q = self.net(t.cat((x, a), -1))
         return q
+
+
+Model_REGISTER['ma_critic_q1'] = MACriticQvalueOne
