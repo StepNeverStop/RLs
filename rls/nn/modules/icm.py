@@ -82,7 +82,7 @@ class CuriosityModel(t.nn.Module):
                 a_eval.view(-1, self.action_dim), idx.view(-1))  # 1
 
         loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         summaries = dict([
             ['LOSS/curiosity_loss', loss],
             ['LOSS/forward_loss', loss_forward],

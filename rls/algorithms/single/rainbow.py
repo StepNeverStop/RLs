@@ -67,12 +67,13 @@ class RAINBOW(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        q_values = self.rainbow_net(
+            obs, cell_state=self.cell_state)    # [B, A, N]
+        self.next_cell_state = self.rainbow_net.get_cell_state()
+
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q_values = self.rainbow_net(
-                obs, cell_state=self.cell_state)    # [B, A, N]
-            self.next_cell_state = self.rainbow_net.get_cell_state()
             q = (self._z * q_values).sum(-1)  # [B, A, N] * [N, ] => [B, A]
             actions = q.argmax(-1)  # [B,]
         return actions, Data(action=actions)
@@ -116,7 +117,7 @@ class RAINBOW(SarlOffPolicy):
                             t.finfo().eps)).sum(-1, keepdim=True)  # [T, B, 1]
         loss = (_cross_entropy*BATCH.get('isw', 1.0)).mean()   # 1
 
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return _cross_entropy, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],

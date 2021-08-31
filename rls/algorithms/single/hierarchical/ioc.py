@@ -175,7 +175,7 @@ class IOC(SarlOffPolicy):
                                   BATCH.begin_mask).detach()  # [T, B, 1]
         td_error = qu_target - qu_eval     # [T, B, 1] gradient : q
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
-        self.q_oplr.step(q_loss)
+        self.q_oplr.optimize(q_loss)
 
         q_s = qu_eval.detach()  # [T, B, 1]
         pi = self.intra_option_net(
@@ -202,7 +202,7 @@ class IOC(SarlOffPolicy):
                                                    keepdim=True)    # [T, B, 1]
             log_p = (log_pi * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()  # 1
-        self.intra_option_oplr.step(pi_loss)
+        self.intra_option_oplr.optimize(pi_loss)
 
         beta = self.termination_net(
             BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
@@ -215,14 +215,14 @@ class IOC(SarlOffPolicy):
         pi_op = (interests * q.detach()).softmax(-1)
         interest_loss = -(beta_s.detach() * (pi_op *
                           BATCH.options).sum(-1, keepdim=True) * q_s).mean()  # 1
-        self.interest_oplr.step(interest_loss)
+        self.interest_oplr.optimize(interest_loss)
 
         v_s = (q * pi_op).sum(-1, keepdim=True)  # [T, B, 1]
         beta_loss = beta_s * (q_s - v_s).detach()   # [T, B, 1]
         if self.terminal_mask:
             beta_loss *= (1 - BATCH.done)   # [T, B, 1]
         beta_loss = beta_loss.mean()  # 1
-        self.termination_oplr.step(beta_loss)
+        self.termination_oplr.optimize(beta_loss)
 
         return td_error, dict([
             ['LEARNING_RATE/q_lr', self.q_oplr.lr],

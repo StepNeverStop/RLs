@@ -258,7 +258,7 @@ class PPOC(SarlOnPolicy):
 
         loss = pi_loss + 1.0 * q_loss + o_loss + beta_loss - \
             self.pi_beta * entropy - self.o_beta * o_entropy   # 1
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
 
         if kl > self.kl_high:
             self.kl_coef *= self.kl_alpha

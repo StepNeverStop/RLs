@@ -57,11 +57,12 @@ class QRDQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A, N]
+        self.next_cell_state = self.q_net.get_cell_state()
+
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A, N]
-            self.next_cell_state = self.q_net.get_cell_state()
             q = q_values.mean(-1)  # [B, A, N] => [B, A]
             actions = q.argmax(-1)  # [B,]
         return actions, Data(action=actions)
@@ -106,7 +107,7 @@ class QRDQN(SarlOffPolicy):
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
         loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1
 
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],

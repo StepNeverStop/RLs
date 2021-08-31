@@ -113,7 +113,7 @@ class DPG(SarlOffPolicy):
                         begin_mask=BATCH.begin_mask)    # [T, B, A]
         td_error = dc_r - q  # [T, B, A]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
-        self.critic_oplr.step(q_loss)
+        self.critic_oplr.optimize(q_loss)
 
         if self.is_continuous:
             mu = self.actor(
@@ -129,7 +129,7 @@ class DPG(SarlOffPolicy):
         q_actor = self.critic(
             BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         actor_loss = -q_actor.mean()   # 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         return td_error, dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],

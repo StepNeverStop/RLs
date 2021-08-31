@@ -50,11 +50,12 @@ class DQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
+        self.next_cell_state = self.q_net.get_cell_state()
+
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
-            self.next_cell_state = self.q_net.get_cell_state()
             actions = q_values.argmax(-1)   # [B,]
         return actions, Data(action=actions)
 
@@ -68,10 +69,11 @@ class DQN(SarlOffPolicy):
                                  self.gamma,
                                  BATCH.done,
                                  q_next.max(-1, keepdim=True)[0],
-                                 BATCH.begin_mask).detach()  # [T, B, 1]
+                                 BATCH.begin_mask,
+                                 nstep=self._n_step_value).detach()  # [T, B, 1]
         td_error = q_target - q_eval     # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
-        self.oplr.step(q_loss)
+        self.oplr.optimize(q_loss)
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', q_loss],

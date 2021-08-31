@@ -84,13 +84,15 @@ class VDN(MultiAgentOffPolicy):
         acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
+            q_values = self.q_nets[mid](
+                obs[aid], cell_state=self.cell_state[aid])   # [B, A]
+            self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
+
             if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
-                q_values = self.q_nets[mid](
-                    obs[aid], cell_state=self.cell_state[aid])   # [B, A]
-                self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
                 action = action = q_values.argmax(-1)    # [B,]
+
             actions[aid] = action
             acts_info[aid] = Data(action=action)
         return actions, acts_info
@@ -141,7 +143,7 @@ class VDN(MultiAgentOffPolicy):
                                      BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
         td_error = q_target_tot - q_eval_tot     # [T, B, 1]
         q_loss = td_error.square().mean()   # 1
-        self.oplr.step(q_loss)
+        self.oplr.optimize(q_loss)
 
         summaries['model'] = dict([
             ['LOSS/q_loss', q_loss],

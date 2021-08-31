@@ -196,7 +196,7 @@ class MASAC(MultiAgentOffPolicy):
             ['Statistics/q_mean', qs1[mid].mean()],
             ['Statistics/q_max', qs1[mid].max()]
         ]))
-        self.critic_oplr.step(sum(q_loss.values()))
+        self.critic_oplr.optimize(sum(q_loss.values()))
 
         log_pi_actions = {}
         log_pis = {}
@@ -254,7 +254,7 @@ class MASAC(MultiAgentOffPolicy):
             _log_pis += t.finfo().eps
             actor_loss[aid] = -(q_s_pi - self.alpha * _log_pis).mean()  # 1
 
-        self.actor_oplr.step(sum(actor_loss.values()))
+        self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
             summaries[aid].update(dict([
@@ -276,7 +276,7 @@ class MASAC(MultiAgentOffPolicy):
             alpha_loss = - \
                 (self.alpha * (_log_pis + self.target_entropy).detach()).mean()  # 1
 
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries['model'].update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]

@@ -153,7 +153,7 @@ class MADDPG(MultiAgentOffPolicy):
                 ['Statistics/q_mean', qs[mid].mean()],
                 ['Statistics/q_max', qs[mid].max()]
             ]))
-        self.critic_oplr.step(sum(q_loss.values()))
+        self.critic_oplr.optimize(sum(q_loss.values()))
 
         actor_loss = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
@@ -182,7 +182,7 @@ class MADDPG(MultiAgentOffPolicy):
             )   # [T, B, 1]
             actor_loss[aid] = -q_actor.mean()   # 1
 
-        self.actor_oplr.step(sum(actor_loss.values()))
+        self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
             summaries[aid].update(dict([

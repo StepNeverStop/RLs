@@ -18,17 +18,19 @@ from rls.utils.np_utils import int2one_hot
 class MultiAgentOffPolicy(MarlPolicy):
 
     def __init__(self,
-                 n_time_step=4,
+                 chunk_length=4,
                  epochs=1,
                  batch_size=256,
                  buffer_size=100000,
                  use_priority=False,
+                 train_interval=1,
                  **kwargs):
-        self.n_time_step = n_time_step
+        self.chunk_length = chunk_length
         self.epochs = epochs
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self.use_priority = use_priority
+        self.train_interval = train_interval
         super().__init__(**kwargs)
 
     def _build_buffer(self):
@@ -37,7 +39,7 @@ class MultiAgentOffPolicy(MarlPolicy):
             buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
-                                           time_step=self.n_time_step,
+                                           chunk_length=self.chunk_length,
                                            max_train_step=self.max_train_step,
                                            **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
         else:
@@ -45,12 +47,12 @@ class MultiAgentOffPolicy(MarlPolicy):
             buffer = DataBuffer(n_copys=self.n_copys,
                                 batch_size=self.batch_size,
                                 buffer_size=self.buffer_size,
-                                time_step=self.n_time_step)
+                                chunk_length=self.chunk_length)
         return buffer
 
     def episode_step(self, obs, env_rets: Dict[str, Data]):
         super().episode_step(obs, env_rets)
-        if self._is_train_mode and self._buffer.can_sample:
+        if self._is_train_mode and self._buffer.can_sample and self.cur_interact_step % self.train_interval == 0:
             ret = self.learn(self._buffer.sample())
             if self.use_priority:
                 # td_error   [T, B, 1]

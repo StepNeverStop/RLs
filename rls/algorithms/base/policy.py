@@ -31,6 +31,7 @@ class Policy(Base):
                  max_train_episode=sys.maxsize,
                  save_frequency=100,
                  save2single_file=False,
+                 n_step_value=4,
                  gamma=0.999,
                  decay_lr=False,
                  normalize_vector_obs=False,
@@ -70,6 +71,7 @@ class Policy(Base):
         self._save_frequency = save_frequency
         self._save2single_file = save2single_file
         self.gamma = gamma
+        self._n_step_value = n_step_value
         self._decay_lr = decay_lr    # TODO: implement
         self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
         self._obs_with_pre_action = obs_with_pre_action
@@ -117,11 +119,13 @@ class Policy(Base):
         raise NotImplementedError
 
     def episode_step(self):
-        self.cur_interact_step += 1
-        self.cur_frame_step += self.n_copys
+        if self._is_train_mode:
+            self.cur_interact_step += 1
+            self.cur_frame_step += self.n_copys
 
     def episode_end(self):
-        self.cur_episode += 1
+        if self._is_train_mode:
+            self.cur_episode += 1
 
     def learn(self, BATCH: Data):
         raise NotImplementedError
@@ -207,14 +211,8 @@ class Policy(Base):
             for k, v in summaries.items():
                 writer.add_scalar(k, v, global_step=cur_train_step)
 
-    def _initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
-        if self.use_rnn:
-            if self.memory_net_params['network_type'] == 'lstm':
-                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
-                        'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-            elif self.memory_net_params['network_type'] == 'gru':
-                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-            else:
-                raise NotImplementedError
-        else:
-            return None
+    def _initial_cell_state(self, batch: int, rnn_units: int = None, keys: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+        rnn_units = rnn_units or self.memory_net_params['rnn_units']
+        keys = keys or (
+            ['hx', 'cx'] if self.memory_net_params['network_type'] == 'lstm' else ['hx'])
+        return {k: np.zeros((batch, rnn_units)) for k in keys}

@@ -74,7 +74,7 @@ class SQL(SarlOffPolicy):
         td_error = q_target - q_eval    # [T, B, 1]
 
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
-        self.oplr.step(q_loss)
+        self.oplr.optimize(q_loss)
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', q_loss],

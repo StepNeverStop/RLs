@@ -44,11 +44,6 @@ class SensorSpec:
     other_dims: int = 0
 
     @property
-    def total_vector_dim(self):
-        '''TODO: Remove'''
-        return sum(self.vector_dims)
-
-    @property
     def has_vector_observation(self):
         return self.vector_dims is not None and len(self.vector_dims) > 0
 

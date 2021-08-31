@@ -137,6 +137,8 @@ For now, these algorithms are available:
         - [Asynchronous Advantage Option-Critic, A2OC](http://arxiv.org/abs/1709.04571)
         - [PPO Option-Critic, PPOC](http://arxiv.org/abs/1712.00004)
         - [Interest-Option-Critic, IOC](http://arxiv.org/abs/2001.00271)
+    - Model-based algorithms:
+        - [Dream to Control, Dreamer](http://arxiv.org/abs/1912.01603)
 
 
 
@@ -169,6 +171,7 @@ For now, these algorithms are available:
 |               AOC               |    ✓     |     ✓      |   ✓   |  ✓   |        aoc        |
 |              PPOC               |    ✓     |     ✓      |   ✓   |  ✓   |       ppoc        |
 |               IOC               |    ✓     |     ✓      |   ✓   |  ✓   |        ioc        |
+|             Dreamer             |    ✓     |            |   ✓   |  ✓   |      dreamer      |
 |               VDN               |    ✓     |            |   ✓   |  ✓   |        vdn        |
 |              QMIX               |    ✓     |            |   ✓   |  ✓   |       qmix        |
 |             Qatten              |    ✓     |            |   ✓   |  ✓   |      qatten       |
@@ -182,9 +185,9 @@ For now, these algorithms are available:
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
-              [-a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}]
-              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--hostname]
-              [-e ENV_NAME] [-f FILE_NAME] [-s] [-d DEVICE] [-t MAX_TRAIN_STEP]
+              [-a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,dreamer,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--hostname] [-e ENV_NAME]
+              [-f FILE_NAME] [-s] [-d DEVICE] [-t MAX_TRAIN_STEP]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -194,7 +197,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
-  -a {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}, --algorithm {pg,npg,trpo,ppo,a2c,aoc,ppoc,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn,oc,ioc,maddpg,masac,vdn,qmix,qatten,qtran,qplex}
+  -a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,dreamer,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}, --algorithm {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,dreamer,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}
                         specify the training algorithm
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH
@@ -226,6 +229,19 @@ Example:
 python run.py -s    # save model and log while train
 python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole
 python run.py -p unity -a ppo -n run_with_unity -c 1
+```
+
+The main training loop of **pseudo-code** in this repo is as:
+```python
+agent.episode_reset()   # initialize rnn hidden state or something else
+obs = env.reset()
+while True:
+    env_rets = env.step(agent(obs))
+    agent.episode_step(obs, env_rets)   # store experience, save model, and train off-policy algorithms
+    obs = env_rets['obs']
+    if env_rets['done']:
+        break
+agent.episode_end() # train on-policy algorithms
 ```
 
 ## Giving credit

@@ -243,7 +243,7 @@ class AOC(SarlOnPolicy):
         beta_loss = beta_loss.mean()  # 1
 
         loss = pi_loss + 1.0 * q_loss + beta_loss - self.pi_beta * entropy
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
 
         if kl > self.kl_high:
             self.kl_coef *= self.kl_alpha

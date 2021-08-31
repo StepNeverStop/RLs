@@ -189,7 +189,7 @@ class OC(SarlOffPolicy):
         td_error = qu_target - qu_eval     # gradient : q   [T, B, 1]
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)
                   ).mean()        # [T, B, 1] => 1
-        self.q_oplr.step(q_loss)
+        self.q_oplr.optimize(q_loss)
 
         q_s = qu_eval.detach()  # [T, B, 1]
         # https://github.com/jeanharb/option_critic/blob/5d6c81a650a8f452bc8ad3250f1f211d317fde8c/neural_net.py#L130
@@ -235,8 +235,8 @@ class OC(SarlOffPolicy):
             beta_loss *= (1 - BATCH.done)   # [T, B, 1]
         beta_loss = beta_loss.mean()  # 1
 
-        self.intra_option_oplr.step(pi_loss)
-        self.termination_oplr.step(beta_loss)
+        self.intra_option_oplr.optimize(pi_loss)
+        self.termination_oplr.optimize(beta_loss)
 
         return td_error, dict([
             ['LEARNING_RATE/q_lr', self.q_oplr.lr],

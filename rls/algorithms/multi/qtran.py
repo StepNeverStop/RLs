@@ -126,7 +126,7 @@ class QTRAN(VDN):
 
         loss = td_loss + self.opt_loss * opt_loss + self.nopt_min_loss * nopt_loss
 
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
 
         summaries['model'] = dict([
             ['LOSS/q_loss', td_loss],
