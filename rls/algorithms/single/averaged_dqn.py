@@ -61,11 +61,12 @@ class AveragedDQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
+        self.next_cell_state = self.q_net.get_cell_state()
+
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
-            self.next_cell_state = self.q_net.get_cell_state()
             for i in range(self.target_k):
                 target_q_values = self.target_nets[i](
                     obs, cell_state=self.cell_state)

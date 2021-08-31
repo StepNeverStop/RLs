@@ -63,16 +63,17 @@ class IQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
+            batch_size=self.n_copys,
+            quantiles_num=self.select_quantiles
+        )
+        q_values = self.q_net(
+            obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
+        self.next_cell_state = self.q_net.get_cell_state()
+
         if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
-                batch_size=self.n_copys,
-                quantiles_num=self.select_quantiles
-            )
-            q_values = self.q_net(
-                obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
-            self.next_cell_state = self.q_net.get_cell_state()
             # [N, B, A] => [B, A] => [B,]
             actions = q_values.mean(0).argmax(-1)
         return actions, Data(action=actions)

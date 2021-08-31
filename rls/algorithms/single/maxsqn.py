@@ -76,11 +76,12 @@ class MAXSQN(SarlOffPolicy):
 
     @iTensor_oNumpy
     def select_action(self, obs):
+        q = self.critic(obs, cell_state=self.cell_state)    # [B, A]
+        self.next_cell_state = self.critic.get_cell_state()
+
         if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q = self.critic(obs, cell_state=self.cell_state)    # [B, A]
-            self.next_cell_state = self.critic.get_cell_state()
             cate_dist = td.Categorical(logits=(q / self.alpha))
             mu = q.argmax(-1)    # [B,]
             actions = pi = cate_dist.sample()   # [B,]

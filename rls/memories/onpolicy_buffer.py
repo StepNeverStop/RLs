@@ -14,11 +14,11 @@ class OnPolicyDataBuffer(DataBuffer):
                  n_copys=1,
                  batch_size=1,
                  buffer_size=4,
-                 time_step=1):
+                 chunk_length=1):
         super().__init__(n_copys=n_copys,
                          batch_size=batch_size,
                          buffer_size=buffer_size,
-                         time_step=time_step)
+                         chunk_length=chunk_length)
 
     def all_data(self):
         samples = {}
@@ -28,7 +28,7 @@ class OnPolicyDataBuffer(DataBuffer):
 
     @property
     def can_sample(self):
-        return (self._horizon_length // self.time_step) * self.n_copys >= self.batch_size
+        return (self._horizon_length // self.chunk_length) * self.n_copys >= self.batch_size
 
     def clear(self):
         self._horizon_length = 0

@@ -231,6 +231,19 @@ python run.py -p gym -a dqn -e CartPole-v0 -c 12 -n dqn_cartpole
 python run.py -p unity -a ppo -n run_with_unity -c 1
 ```
 
+The main training loop of **pseudo-code** in this repo is as:
+```python
+agent.episode_reset()   # initialize rnn hidden state or something else
+obs = env.reset()
+while True:
+    env_rets = env.step(agent(obs))
+    agent.episode_step(obs, env_rets)   # store experience, save model, and train off-policy algorithms
+    obs = env_rets['obs']
+    if env_rets['done']:
+        break
+agent.episode_end() # train on-policy algorithms
+```
+
 ## Giving credit
 
 If using this repository for your research, please cite:

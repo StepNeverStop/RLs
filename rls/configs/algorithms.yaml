@@ -3,6 +3,7 @@ policy: &policy
     max_train_episode: 999999999999999999
     save_frequency: 1000
     save2single_file: false
+    n_step_value: 4
     gamma: 0.99
     decay_lr: false
     normalize_vector_obs: false
@@ -41,24 +42,26 @@ marl_policy: &marl_policy
 sarl_on_policy: &sarl_on_policy
     <<: *sarl_policy
     epochs: 4 # train multiple times per agent step
-    n_time_step: 4 # n-step or rnn length
+    chunk_length: 4 # n-step or rnn length
     batch_size: 64
 
 sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
-    n_time_step: 4 # n-step or rnn length
+    chunk_length: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
     batch_size: 64
     buffer_size: 100000
     use_priority: false
+    train_interval: 1
 
 marl_off_policy: &marl_off_policy
     <<: *marl_policy
-    n_time_step: 4
+    chunk_length: 4
     epochs: 1
     batch_size: 64
     buffer_size: 100000
     use_priority: false
+    train_interval: 1
 
 cem:
     <<: *sarl_on_policy
@@ -604,7 +607,7 @@ dreamer:
     eps_final: 0.01
     init2mid_annealing_step: 10000
     # same hyperparameter as original implementation.
-    n_time_step: 50 # n-step or rnn length
+    chunk_length: 50 # n-step or rnn length
     batch_size: 50
     stoch_dim: 30
     deter_dim: 200
