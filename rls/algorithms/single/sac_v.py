@@ -184,7 +184,7 @@ class SAC_V(SarlOffPolicy):
         v_loss_stop = (td_v.square() * BATCH.get('isw', 1.0)).mean()  # 1
 
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -210,7 +210,7 @@ class SAC_V(SarlOffPolicy):
         q1_pi = self.q_net(
             BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         actor_loss = -(q1_pi - self.alpha * log_pi).mean()  # 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
@@ -231,7 +231,7 @@ class SAC_V(SarlOffPolicy):
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (log_pi.detach() +
                            self.target_entropy)).mean()
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
@@ -270,7 +270,7 @@ class SAC_V(SarlOffPolicy):
         q2_loss = (td_error2.square() * BATCH.get('isw', 1.0)).mean()    # 1
         v_loss_stop = (td_v.square() * BATCH.get('isw', 1.0)).mean()  # 1
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         q1_all = self.q_net(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
@@ -287,7 +287,7 @@ class SAC_V(SarlOffPolicy):
         actor_loss = -((q_all - self.alpha * logp_all) *
                        logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]
         actor_loss = actor_loss.mean()  # 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
@@ -307,7 +307,7 @@ class SAC_V(SarlOffPolicy):
             # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()
             alpha_loss = -(self.alpha * corr)    # [T, B, 1]
             alpha_loss = alpha_loss.mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]

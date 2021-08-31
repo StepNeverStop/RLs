@@ -207,14 +207,8 @@ class Policy(Base):
             for k, v in summaries.items():
                 writer.add_scalar(k, v, global_step=cur_train_step)
 
-    def _initial_cell_state(self, batch: int) -> Tuple[np.ndarray]:
-        if self.use_rnn:
-            if self.memory_net_params['network_type'] == 'lstm':
-                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units'])),
-                        'cx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-            elif self.memory_net_params['network_type'] == 'gru':
-                return {'hx': np.zeros((batch, self.memory_net_params['rnn_units']))}
-            else:
-                raise NotImplementedError
-        else:
-            return None
+    def _initial_cell_state(self, batch: int, rnn_units: int = None, keys: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+        rnn_units = rnn_units or self.memory_net_params['rnn_units']
+        keys = keys or (
+            ['hx', 'cx'] if self.memory_net_params['network_type'] == 'lstm' else ['hx'])
+        return {k: np.zeros((batch, rnn_units)) for k in keys}

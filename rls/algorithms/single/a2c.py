@@ -98,7 +98,7 @@ class A2C(SarlOnPolicy):
         v = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         td_error = BATCH.discounted_reward - v   # [T, B, 1]
         critic_loss = td_error.square().mean()  # 1
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -118,7 +118,7 @@ class A2C(SarlOnPolicy):
         advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
         actor_loss = -(log_act_prob * advantage +
                        self.beta * entropy).mean()  # 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         return dict([
             ['LOSS/actor_loss', actor_loss],

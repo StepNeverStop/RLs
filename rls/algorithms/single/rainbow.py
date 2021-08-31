@@ -116,7 +116,7 @@ class RAINBOW(SarlOffPolicy):
                             t.finfo().eps)).sum(-1, keepdim=True)  # [T, B, 1]
         loss = (_cross_entropy*BATCH.get('isw', 1.0)).mean()   # 1
 
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return _cross_entropy, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],

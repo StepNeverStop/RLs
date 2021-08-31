@@ -120,7 +120,7 @@ class TRPO(NPG):
                 BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
             td_error = BATCH.discounted_reward - value  # [T, B, 1]
             critic_loss = td_error.square().mean()   # 1
-            self.critic_oplr.step(critic_loss)
+            self.critic_oplr.optimize(critic_loss)
 
         return dict([
             ['LOSS/actor_loss', actor_loss],

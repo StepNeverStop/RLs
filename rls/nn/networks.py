@@ -50,7 +50,6 @@ class MultiVisualNetwork(t.nn.Module):
     def forward(self, *visual_inputs):
         # h, w, c => c, h, w
         batch = visual_inputs[0].shape[:-3]
-        batch_prod = np.prod(batch)
         visual_inputs = [vi.view((-1,)+vi.shape[-3:]).swapaxes(-1, -3).swapaxes(-1, -2)
                          for vi in visual_inputs]
         output = []

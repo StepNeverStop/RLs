@@ -596,3 +596,27 @@ qplex:
         # adv
         num_kernel: 4
         adv_hidden_units: [64]
+
+dreamer:
+    <<: *sarl_off_policy
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_step: 10000
+    # same hyperparameter as original implementation.
+    n_time_step: 50 # n-step or rnn length
+    batch_size: 50
+    stoch_dim: 30
+    deter_dim: 200
+    model_lr: 6.e-4
+    actor_lr: 8.e-5
+    critic_lr: 8.e-5
+    free_nats: 3
+    imagination_horizon: 15
+    lambda_: 0.95
+    cnn_depth: 32
+    cnn_act: "relu"
+    dense_act: "elu"
+    vec_feat_dim: 16
+    num_units: 400
+    init_stddev: 5.0

@@ -166,7 +166,7 @@ class SAC(SarlOffPolicy):
         q1_loss = (td_error1.square() * BATCH.get('isw', 1.0)).mean()    # 1
         q2_loss = (td_error2.square() * BATCH.get('isw', 1.0)).mean()    # 1
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -194,7 +194,7 @@ class SAC(SarlOffPolicy):
 
         actor_loss = -(q_s_pi - self.alpha * log_pi).mean()  # 1
 
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
@@ -213,7 +213,7 @@ class SAC(SarlOffPolicy):
         if self.auto_adaption:
             alpha_loss = - \
                 (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
@@ -253,7 +253,7 @@ class SAC(SarlOffPolicy):
         q1_loss = (td_error1.square() * BATCH.get('isw', 1.0)).mean()    # 1
         q2_loss = (td_error2.square() * BATCH.get('isw', 1.0)).mean()    # 1
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         q1_all = self.critic(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
@@ -271,7 +271,7 @@ class SAC(SarlOffPolicy):
         actor_loss = actor_loss.mean()  # 1
         # actor_loss = - (q_all + self.alpha * entropy).mean()
 
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         summaries = dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
@@ -291,7 +291,7 @@ class SAC(SarlOffPolicy):
             # \bar{H} is negative
             alpha_loss = -(self.alpha * corr)    # [T, B, 1]
             alpha_loss = alpha_loss.mean()  # 1
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]

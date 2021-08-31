@@ -106,7 +106,7 @@ class QRDQN(SarlOffPolicy):
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
         loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1
 
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],

@@ -44,7 +44,17 @@ class OPLR:
         self.clipnorm = clipnorm
         self.clipvalue = clipvalue
 
-        self.step = self._make_step_function()
+        self._hooks = []
+        if self.clipnorm:
+            self._hooks.append(
+                lambda: t.nn.utils.clip_grad_norm_(
+                    self.params, max_norm=self.clipnorm)
+            )
+        if self.clipvalue:
+            self._hooks.append(
+                lambda: t.nn.utils.clip_grad_value_(
+                    self.params, clip_value=self.clipvalue)
+            )
 
     @property
     def parameters(self):
@@ -54,42 +64,22 @@ class OPLR:
     def lr(self):
         return self.lr_scheduler.get_last_lr()[0]
 
-    def _make_step_function(self):
-        # TODO: Optimization
-        if self.clipnorm and self.clipvalue:
-            def func(loss):
-                self.optimizer.zero_grad()
-                loss.backward()
-                t.nn.utils.clip_grad_norm_(self.params, max_norm=self.clipnorm)
-                t.nn.utils.clip_grad_value_(
-                    self.params, clip_value=self.clipvalue)
-                self.optimizer.step()
-                self.lr_scheduler.step()
-            return func
-        elif self.clipnorm:
-            def func(loss):
-                self.optimizer.zero_grad()
-                loss.backward()
-                t.nn.utils.clip_grad_norm_(self.params, max_norm=self.clipnorm)
-                self.optimizer.step()
-                self.lr_scheduler.step()
-            return func
-        elif self.clipvalue:
-            def func(loss):
-                self.optimizer.zero_grad()
-                loss.backward()
-                t.nn.utils.clip_grad_value_(
-                    self.params, clip_value=self.clipvalue)
-                self.optimizer.step()
-                self.lr_scheduler.step()
-            return func
-        else:
-            def func(loss):
-                self.optimizer.zero_grad()
-                loss.backward()
-                self.optimizer.step()
-                self.lr_scheduler.step()
-            return func
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+
+    def backward(self, loss, backward_params={}):
+        loss.backward(**backward_params)
+        for _hook in self._hooks:
+            _hook()
+
+    def step(self):
+        self.optimizer.step()
+        self.lr_scheduler.step()
+
+    def optimize(self, loss, backward_params={}):
+        self.zero_grad()
+        self.backward(loss, backward_params)
+        self.step()
 
     def state_dict(self):
         return {'optimizer': self.optimizer.state_dict(),

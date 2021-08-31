@@ -105,7 +105,7 @@ class AC(SarlOffPolicy):
                                      max_q_next,
                                      BATCH.begin_mask).detach()  # [T, B, 1]
         critic_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -122,7 +122,7 @@ class AC(SarlOffPolicy):
         ratio = (log_prob - BATCH.log_prob).exp().detach()  # [T, B]
         actor_loss = -(ratio * log_prob * q.squeeze(-1).detach()
                        ).mean()    # [T, B] => 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
 
         return td_error, dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],

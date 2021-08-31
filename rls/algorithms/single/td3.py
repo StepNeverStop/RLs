@@ -126,7 +126,7 @@ class TD3(SarlOffPolicy):
             q2_loss = (td_error2.square() *
                        BATCH.get('isw', 1.0)).mean()    # 1
             critic_loss = 0.5 * (q1_loss + q2_loss)
-            self.critic_oplr.step(critic_loss)
+            self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu = self.actor(
@@ -146,7 +146,7 @@ class TD3(SarlOffPolicy):
             BATCH.obs, mu, begin_mask=BATCH.begin_mask)   # [T, B, 1]
 
         actor_loss = -q1_actor.mean()   # 1
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
         return (td_error1 + td_error2) / 2, dict([
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],

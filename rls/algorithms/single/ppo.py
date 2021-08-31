@@ -323,7 +323,7 @@ class PPO(SarlOnPolicy):
 
         critic_loss = 0.5 * td_square.mean()  # 1
         loss = actor_loss + self.vf_coef * critic_loss  # 1
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return dict([
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', critic_loss],
@@ -374,7 +374,7 @@ class PPO(SarlOnPolicy):
                           self.kl_cutoff).square().mean()    # 1
             actor_loss += extra_loss
 
-        self.actor_oplr.step(actor_loss)
+        self.actor_oplr.optimize(actor_loss)
         return dict([
             ['LOSS/actor_loss', actor_loss],
             ['Statistics/kl', kl],
@@ -400,7 +400,7 @@ class PPO(SarlOnPolicy):
             td_square = td_error.square()     # [T, B, 1]
 
         critic_loss = 0.5 * td_square.mean()      # 1
-        self.critic_oplr.step(critic_loss)
+        self.critic_oplr.optimize(critic_loss)
         return dict([
             ['LOSS/critic_loss', critic_loss],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]

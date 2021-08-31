@@ -38,7 +38,7 @@ class SarlPolicy(Policy):
             self.obs_spec.other_dims += self.a_dim
 
         # self._normalize_vector_obs = normalize_vector_obs
-        # self._running_average = SimpleRunningAverage(dim=self.obs_spec.total_vector_dim) if self._normalize_vector_obs else DefaultRunningAverage()
+        # self._running_average = SimpleRunningAverage(dim=None) if self._normalize_vector_obs else DefaultRunningAverage()
 
         self.use_curiosity = use_curiosity
         if self.use_curiosity:

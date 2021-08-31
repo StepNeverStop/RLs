@@ -125,7 +125,7 @@ class MAXSQN(SarlOffPolicy):
         q1_loss = (td_error1.square()*BATCH.get('isw', 1.0)).mean()   # 1
         q2_loss = (td_error2.square()*BATCH.get('isw', 1.0)).mean()   # 1
         loss = 0.5 * (q1_loss + q2_loss)
-        self.critic_oplr.step(loss)
+        self.critic_oplr.optimize(loss)
         summaries = dict([
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
             ['LOSS/loss', loss],
@@ -139,7 +139,7 @@ class MAXSQN(SarlOffPolicy):
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (self.target_entropy -
                            q1_entropy).detach()).mean()
-            self.alpha_oplr.step(alpha_loss)
+            self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]

@@ -141,7 +141,7 @@ class VDN(MultiAgentOffPolicy):
                                      BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
         td_error = q_target_tot - q_eval_tot     # [T, B, 1]
         q_loss = td_error.square().mean()   # 1
-        self.oplr.step(q_loss)
+        self.oplr.optimize(q_loss)
 
         summaries['model'] = dict([
             ['LOSS/q_loss', q_loss],
