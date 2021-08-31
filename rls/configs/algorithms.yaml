@@ -49,6 +49,7 @@ sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     chunk_length: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
+    train_times: 1
     batch_size: 64
     buffer_size: 100000
     use_priority: false
@@ -602,6 +603,9 @@ qplex:
 
 dreamer:
     <<: *sarl_off_policy
+    train_times: 100
+    train_interval: 1000
+
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
@@ -619,7 +623,20 @@ dreamer:
     lambda_: 0.95
     cnn_depth: 32
     cnn_act: "relu"
-    dense_act: "elu"
     vec_feat_dim: 16
-    num_units: 400
-    init_stddev: 5.0
+    kl_scale: 1.0
+    use_pcont: false
+    pcont_scale: 10.0
+    network_settings:
+        actor:
+            layers: 3
+            hidden_units: 200
+        critic:
+            layers: 3
+            hidden_units: 200
+        reward:
+            layers: 3
+            hidden_units: 300
+        pcont:
+            layers: 3
+            hidden_units: 200

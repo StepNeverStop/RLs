@@ -48,7 +48,7 @@ class DataBuffer:
         self.n_copys = n_copys
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.chunk_length = chunk_length
+        self._chunk_length = chunk_length
         self.max_horizon = buffer_size // n_copys
 
         # [N, T, B, *]
@@ -75,7 +75,7 @@ class DataBuffer:
 
     def sample(self, batchsize=None, chunk_length=None):
         B = batchsize or self.batch_size
-        T = chunk_length or self.chunk_length
+        T = chunk_length or self._chunk_length
         assert T <= self._horizon_length
 
         if self._horizon_length == self.max_horizon:
@@ -111,7 +111,7 @@ class DataBuffer:
 
     @property
     def can_sample(self):
-        return (self._horizon_length - self.chunk_length) * self.n_copys >= self.batch_size
+        return (self._horizon_length - self._chunk_length) * self.n_copys >= self.batch_size
 
     @property
     def is_multi(self) -> bool:

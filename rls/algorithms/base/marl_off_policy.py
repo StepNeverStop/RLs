@@ -25,8 +25,8 @@ class MultiAgentOffPolicy(MarlPolicy):
                  use_priority=False,
                  train_interval=1,
                  **kwargs):
-        self.chunk_length = chunk_length
-        self.epochs = epochs
+        self._chunk_length = chunk_length
+        self._epochs = epochs
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self.use_priority = use_priority
@@ -39,7 +39,7 @@ class MultiAgentOffPolicy(MarlPolicy):
             buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
-                                           chunk_length=self.chunk_length,
+                                           chunk_length=self._chunk_length,
                                            max_train_step=self.max_train_step,
                                            **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
         else:
@@ -47,7 +47,7 @@ class MultiAgentOffPolicy(MarlPolicy):
             buffer = DataBuffer(n_copys=self.n_copys,
                                 batch_size=self.batch_size,
                                 buffer_size=self.buffer_size,
-                                chunk_length=self.chunk_length)
+                                chunk_length=self._chunk_length)
         return buffer
 
     def episode_step(self, obs, env_rets: Dict[str, Data]):
@@ -61,13 +61,13 @@ class MultiAgentOffPolicy(MarlPolicy):
     def learn(self, BATCH_DICT: Data):
         BATCH_DICT = self._preprocess_BATCH(BATCH_DICT)
         td_errors = 0.
-        for _ in range(self.epochs):
+        for _ in range(self._epochs):
             BATCH_DICT = self._before_train(BATCH_DICT)
             td_error, summaries = self._train(BATCH_DICT)
             td_errors += td_error  # [T, B, 1]
             self.summaries.update(summaries)
             self._after_train()
-        return td_errors/self.epochs
+        return td_errors/self._epochs
 
     # customed
 

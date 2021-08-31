@@ -17,7 +17,7 @@ class RecurrentStateSpaceModel(nn.Module):
     Activation function for this class is F.relu same as original implementation
     """
 
-    def __init__(self, state_dim, action_dim, rnn_hidden_dim, obs_embed_dim,
+    def __init__(self, state_dim, rnn_hidden_dim, action_dim, obs_embed_dim,
                  hidden_dim=200, min_stddev=0.1, act=F.elu):
         super().__init__()
         self.state_dim = state_dim
@@ -61,7 +61,7 @@ class RecurrentStateSpaceModel(nn.Module):
         mean = self.fc_state_mean_prior(hidden)  # [B, *]
         stddev = F.softplus(self.fc_state_stddev_prior(  # [B, *]
             hidden)) + self._min_stddev
-        return td.Normal(mean, stddev), rnn_hidden
+        return td.Independent(td.Normal(mean, stddev), 1), rnn_hidden
 
     def posterior(self, rnn_hidden, embedded_obs):
         """
@@ -72,4 +72,4 @@ class RecurrentStateSpaceModel(nn.Module):
         mean = self.fc_state_mean_posterior(hidden)  # [B, *]
         stddev = F.softplus(self.fc_state_stddev_posterior(
             hidden)) + self._min_stddev  # [B, *]
-        return td.Normal(mean, stddev)
+        return td.Independent(td.Normal(mean, stddev), 1)

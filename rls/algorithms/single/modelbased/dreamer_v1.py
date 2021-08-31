@@ -10,32 +10,34 @@ from torch import distributions as td
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.decorator import iTensor_oNumpy
 from rls.common.specs import Data
-from rls.nn.dreamer import (ActionModel, RecurrentStateSpaceModel, RewardModel,
-                            ValueModel)
+from rls.nn.dreamer import ActionDecoder, DenseModel, RecurrentStateSpaceModel
+from rls.nn.dreamer.utils import FreezeParameters
 from rls.nn.utils import OPLR
 from rls.utils.expl_expt import ExplorationExploitationClass
 
 
-def lambda_return(rewards, values, gamma, lambda_):
-    V_lambda = t.zeros_like(rewards, device=rewards.device)
-
-    H = rewards.shape[0] - 1
-    V_n = t.zeros_like(rewards, device=rewards.device)
-    V_n[H] = values[H]
-    for n in range(1, H+1):
-        V_n[:-n] = (gamma ** n) * values[n:]
-        for k in range(1, n+1):
-            if k == n:
-                V_n[:-n] += (gamma ** (n-1)) * rewards[k:]
-            else:
-                V_n[:-n] += (gamma ** (k-1)) * rewards[k:-n+k]
-
-        if n == H:
-            V_lambda += (lambda_ ** (H-1)) * V_n
-        else:
-            V_lambda += (1 - lambda_) * (lambda_ ** (n-1)) * V_n
-
-    return V_lambda
+def compute_return(reward: t.Tensor,
+                   value: t.Tensor,
+                   discount: t.Tensor,
+                   bootstrap: t.Tensor,
+                   lambda_: float):
+    """
+    Compute the discounted reward for a batch of data.
+    reward, value, and discount are all shape [horizon - 1, batch, 1] (last element is cut off)
+    Bootstrap is [batch, 1]
+    """
+    next_values = t.cat([value[1:], bootstrap[None]], 0)
+    target = reward + discount * next_values * (1 - lambda_)
+    timesteps = list(range(reward.shape[0] - 1, -1, -1))
+    outputs = []
+    accumulated_reward = bootstrap
+    for _t in timesteps:
+        inp = target[_t]
+        discount_factor = discount[_t]
+        accumulated_reward = inp + discount_factor * lambda_ * accumulated_reward
+        outputs.append(accumulated_reward)
+    returns = t.flip(t.stack(outputs), [0])
+    return returns
 
 
 class DreamerV1(SarlOffPolicy):
@@ -60,10 +62,28 @@ class DreamerV1(SarlOffPolicy):
                  lambda_=0.95,
                  cnn_depth=32,
                  cnn_act="relu",
-                 dense_act='elu',
                  vec_feat_dim=16,
-                 num_units=400,
-                 init_stddev=5.0,
+                 kl_scale=1.0,
+                 use_pcont=False,
+                 pcont_scale=10.0,
+                 network_settings={
+                     'actor': {
+                         'layers': 3,
+                         'hidden_units': 200
+                     },
+                     'critic': {
+                         'layers': 3,
+                         'hidden_units': 200
+                     },
+                     'reward': {
+                         'layers': 3,
+                         'hidden_units': 300
+                     },
+                     'pcont': {
+                         'layers': 3,
+                         'hidden_units': 200
+                     }
+                 },
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -86,6 +106,12 @@ class DreamerV1(SarlOffPolicy):
         self.free_nats = free_nats
         self.imagination_horizon = imagination_horizon
         self.lambda_ = lambda_
+        self.kl_scale = kl_scale
+        # https://github.com/danijar/dreamer/issues/2
+        self.use_pcont = use_pcont  # probability of continuing
+        self.pcont_scale = pcont_scale
+
+        feat_dim = stoch_dim + deter_dim
 
         if not self.is_continuous:
             self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
@@ -99,8 +125,7 @@ class DreamerV1(SarlOffPolicy):
             self.obs_encoder = VisualEncoder(self.obs_spec.visual_dims[0],
                                              depth=cnn_depth,
                                              act=cnn_act).to(self.device)
-            self.obs_decoder = VisualDecoder(stoch_dim,
-                                             deter_dim,
+            self.obs_decoder = VisualDecoder(feat_dim,
                                              self.obs_spec.visual_dims[0],
                                              depth=cnn_depth,
                                              act=cnn_act).to(self.device)
@@ -109,45 +134,63 @@ class DreamerV1(SarlOffPolicy):
             from rls.nn.dreamer import VectorDecoder, VectorEncoder
             self.obs_encoder = VectorEncoder(self.obs_spec.vector_dims[0],
                                              vec_feat_dim).to(self.device)
-            self.obs_decoder = VectorDecoder(stoch_dim,
-                                             deter_dim,
+            self.obs_decoder = VectorDecoder(feat_dim,
                                              self.obs_spec.vector_dims[0]).to(self.device)
 
         self.rssm = RecurrentStateSpaceModel(stoch_dim,
-                                             self.a_dim,
                                              deter_dim,
+                                             self.a_dim,
                                              self.obs_encoder.h_dim).to(self.device)
-        self.reward_predictor = RewardModel(stoch_dim,
-                                            deter_dim,
-                                            hidden_dim=num_units,
-                                            act=dense_act).to(self.device)
-        self.actor = ActionModel(stoch_dim,
-                                 deter_dim,
-                                 self.a_dim,
-                                 is_continuous=self.is_continuous,
-                                 hidden_dim=num_units,
-                                 init_stddev=init_stddev,
-                                 act=dense_act).to(self.device)
-        self.critic = ValueModel(stoch_dim,
-                                 deter_dim,
-                                 hidden_dim=num_units,
-                                 act=dense_act).to(self.device)
 
-        self.model_oplr = OPLR([self.obs_encoder, self.rssm, self.obs_decoder, self.reward_predictor],
-                               model_lr, optimizer_params=dict(eps=1e-4), clipnorm=100)
+        """
+        p(r_t | s_t, h_t)
+        Reward model to predict reward from state and rnn hidden state
+        """
+        self.reward_predictor = DenseModel(feat_dim,
+                                           (1,),
+                                           network_settings['reward']['layers'],
+                                           network_settings['reward']['hidden_units']).to(self.device)
+        if self.is_continuous:
+            action_dist = 'tanh_normal'
+        else:
+            action_dist = 'one_hot'  # 'relaxed_one_hot'
+        self.actor = ActionDecoder(self.a_dim,
+                                   feat_dim,
+                                   network_settings['actor']['layers'],
+                                   network_settings['actor']['hidden_units'],
+                                   action_dist).to(self.device)
+        self.critic = DenseModel(feat_dim,
+                                 (1,),
+                                 network_settings['critic']['layers'],
+                                 network_settings['critic']['hidden_units']).to(self.device)
+
+        _modules = [self.obs_encoder, self.rssm,
+                    self.obs_decoder, self.reward_predictor]
+        if self.use_pcont:
+            self.pcont_decoder = DenseModel(feat_dim,
+                                            (1,),
+                                            network_settings['pcont']['layers'],
+                                            network_settings['pcont']['hidden_units'],
+                                            dist='binary')
+            _modules.append(self.pcont_decoder)
+
+        self.model_oplr = OPLR(
+            _modules, model_lr, optimizer_params=dict(eps=1e-4), clipnorm=100)
         self.actor_oplr = OPLR(self.actor, actor_lr,
                                optimizer_params=dict(eps=1e-4), clipnorm=100)
         self.critic_oplr = OPLR(
             self.critic, critic_lr, optimizer_params=dict(eps=1e-4), clipnorm=100)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
-                                     rssm=self.rssm,
                                      obs_decoder=self.obs_decoder,
                                      reward_predictor=self.reward_predictor,
+                                     rssm=self.rssm,
                                      actor=self.actor,
                                      critic=self.critic,
                                      model_oplr=self.model_oplr,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
+        if self.use_pcont:
+            self._trainer_modules.update(pcont_decoder=self.pcont_decoder)
 
     @iTensor_oNumpy
     def select_action(self, obs):
@@ -159,26 +202,31 @@ class DreamerV1(SarlOffPolicy):
         state_posterior = self.rssm.posterior(
             self.cell_state['hx'], embedded_obs)
         state = state_posterior.sample()    # [B, *]
-        output = self.actor(state, self.cell_state['hx'])
+        actions = self.actor(
+            t.cat((state, self.cell_state['hx']), -1), is_train=self._is_train_mode)
+        actions = self._exploration(actions)
+        _, self.next_cell_state['hx'] = self.rssm.prior(state,
+                                                        actions,
+                                                        self.cell_state['hx'])
+        if not self.is_continuous:
+            actions = actions.argmax(-1)    # [B,]
+        return actions, Data(action=actions)
+
+    def _exploration(self, action: t.Tensor) -> t.Tensor:
+        """
+        :param action: action to take, shape (1,) (if categorical), or (action dim,) (if continuous)
+        :return: action of the same shape passed in, augmented with some noise
+        """
         if self.is_continuous:
-            mu, sigma = output  # [B, A], [B, A]
-            if self._is_train_mode:
-                actions = t.tanh(td.Normal(mu, sigma).rsample())      # [B, A]
-            else:
-                actions = t.tanh(mu)    # [B, A]
-            prior_actions = actions
+            sigma = 0.4 if self._is_train_mode else 0.
+            noise = t.randn(*action.shape) * sigma
+            return t.clamp(action + noise, -1, 1)
         else:
             if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
-                actions = t.randint(0, self.a_dim, (self.n_copys,))
-            else:
-                logits = output
-                actions = logits.argmax(-1)  # [B, ]
-            prior_actions = t.nn.functional.one_hot(
-                actions, self.a_dim).float()
-        _, self.next_cell_state['hx'] = self.rssm.prior(state,
-                                                        prior_actions,
-                                                        self.cell_state['hx'])
-        return actions, Data(action=actions)
+                action = t.randint(0, self.a_dim, (self.n_copys, ))
+                action = t.zeros_like(action)
+                action[..., index] = 1
+            return action
 
     @iTensor_oNumpy
     def _train(self, BATCH):
@@ -192,13 +240,12 @@ class DreamerV1(SarlOffPolicy):
         embedded_observations = self.obs_encoder(obs_)  # [T, B, *]
 
         # prepare Tensor to maintain states sequence and rnn hidden states sequence
-        states = t.zeros(T, B, self.stoch_dim, device=self.device)  # [T, B, S]
-        rnn_hiddens = t.zeros(T, B, self.deter_dim,
-                              device=self.device)  # [T, B, D]
+        states = t.zeros(T, B, self.stoch_dim)  # [T, B, S]
+        rnn_hiddens = t.zeros(T, B, self.deter_dim)  # [T, B, D]
 
         # initialize state and rnn hidden state with 0 vector
-        state = t.zeros(B, self.stoch_dim, device=self.device)  # [B, S]
-        rnn_hidden = t.zeros(B, self.deter_dim, device=self.device)  # [B, D]
+        state = t.zeros(B, self.stoch_dim)  # [B, S]
+        rnn_hidden = t.zeros(B, self.deter_dim)  # [B, D]
 
         # compute state and rnn hidden sequences and kl loss
         kl_loss = 0
@@ -217,95 +264,102 @@ class DreamerV1(SarlOffPolicy):
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        flatten_states = states.view(-1, self.stoch_dim)  # [T*B, S]
-        # [T*B, D]
-        flatten_rnn_hiddens = rnn_hiddens.view(-1, self.deter_dim)
-        recon_observations = self.obs_decoder(
-            flatten_states, flatten_rnn_hiddens)
-        recon_observations = recon_observations.view(
-            T, B, *recon_observations.shape[1:])   # [T, B, C, H, W] or [T, B, *]
-        predicted_rewards = self.reward_predictor(flatten_states, flatten_rnn_hiddens).view(
-            T, B, -1)   # [T, B, 1]
+        post_feat = t.cat([states, rnn_hiddens], -1)  # [T, B, *]
+        obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
+        reward_pred = self.reward_predictor(post_feat)  # [T, B, 1]
 
         # compute loss for observation and reward
-        obs_loss = 0.5 * t.nn.functional.mse_loss(
-            recon_observations, obs_, reduction='none').mean([0, 1]).sum()   # 1
-        reward_loss = 0.5 * \
-            t.nn.functional.mse_loss(predicted_rewards, BATCH.reward)  # 1
+        obs_loss = -t.mean(obs_pred.log_prob(obs_))
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward))   # 1
 
         # add all losses and update model parameters with gradient descent
-        model_loss = kl_loss + obs_loss + reward_loss   # 1
-        self.model_oplr.optimize(model_loss)
+        model_loss = self.kl_scale*kl_loss + obs_loss + reward_loss   # 1
 
-        # compute target values
-        flatten_states = flatten_states.detach()    # [T*B, S]
-        flatten_rnn_hiddens = flatten_rnn_hiddens.detach()  # [T*B, D]
-        imaginated_states = t.zeros(self.imagination_horizon + 1,   # [H+1, T*B, S]
-                                    *flatten_states.shape,
-                                    device=flatten_states.device)
-        imaginated_rnn_hiddens = t.zeros(self.imagination_horizon + 1,   # [H+1, T*B, D]
-                                         *flatten_rnn_hiddens.shape,
-                                         device=flatten_rnn_hiddens.device)
-        imaginated_states[0] = flatten_states
-        imaginated_rnn_hiddens[0] = flatten_rnn_hiddens
+        if self.use_pcont:
+            pcont_pred = self.pcont_decoder(post_feat)  # [T, B, 1]
+            # https://github.com/danijar/dreamer/issues/2#issuecomment-605392659
+            pcont_target = self.gamma * (1. - BATCH.done)
+            pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target))
+            model_loss += self.pcont_scale * pcont_loss
 
-        for h in range(1, self.imagination_horizon + 1):
-            output = self.actor(
-                flatten_states, flatten_rnn_hiddens)   # [T*B, A]
-            if self.is_continuous:
-                mu, sigma = output
-                actions = t.tanh(td.Normal(mu, sigma).rsample())      # [B, A]
-            else:
-                logits = output
-                prob = logits.softmax(-1)   # [B, A]
-                one_hot = t.nn.functional.one_hot(
-                    logits.argmax(-1), self.a_dim).float()
-                actions = one_hot + prob - prob.detach()
-            flatten_states_prior, flatten_rnn_hiddens = self.rssm.prior(flatten_states,
-                                                                        actions,
-                                                                        flatten_rnn_hiddens)
-            flatten_states = flatten_states_prior.rsample()  # [T*B, S]
-            imaginated_states[h] = flatten_states   # [T*B, S]
-            imaginated_rnn_hiddens[h] = flatten_rnn_hiddens  # [T*B, D]
+        # remove gradients from previously calculated tensors
+        with t.no_grad():
+            # [T*B, S]
+            flatten_states = states.view(-1, self.stoch_dim).detach()
+            # [T*B, D]
+            flatten_rnn_hiddens = rnn_hiddens.view(-1, self.deter_dim).detach()
 
-        # [(H+1)*T*B, S]
-        flatten_imaginated_states = imaginated_states.view(-1, self.stoch_dim)
-        # [(H+1)*T*B, D]
-        flatten_imaginated_rnn_hiddens = imaginated_rnn_hiddens.view(
-            -1, self.deter_dim)
-        imaginated_rewards = \
-            self.reward_predictor(flatten_imaginated_states,
-                                  flatten_imaginated_rnn_hiddens).view(self.imagination_horizon + 1, -1)    # [(H+1), T*B]
-        imaginated_values = \
-            self.critic(flatten_imaginated_states,
-                        flatten_imaginated_rnn_hiddens).view(self.imagination_horizon + 1, -1)  # [(H+1), T*B]
-        lambda_value_target = lambda_return(imaginated_rewards, imaginated_values,
-                                            self.gamma, self.lambda_)   # [(H+1), T*B]
+        with FreezeParameters(self.model_oplr.parameters):
+            # compute target values
+            imaginated_states = []
+            imaginated_rnn_hiddens = []
 
-        # NOTE: gradient passing problem, fixed by
-        # https://discuss.pytorch.org/t/solved-pytorch1-5-runtimeerror-one-of-the-variables-needed-for-gradient-computation-has-been-modified-by-an-inplace-operation/90256/16
+            for h in range(self.imagination_horizon):
+                flatten_feat = t.cat(
+                    [flatten_states, flatten_rnn_hiddens], -1).detach()
+                actions = self.actor(flatten_feat)   # [T*B, A]
+                flatten_states_prior, flatten_rnn_hiddens = self.rssm.prior(flatten_states,
+                                                                            actions,
+                                                                            flatten_rnn_hiddens)
+                flatten_states = flatten_states_prior.rsample()  # [T*B, S]
+                imaginated_states.append(flatten_states)   # [T*B, S]
+                imaginated_rnn_hiddens.append(flatten_rnn_hiddens)  # [T*B, D]
 
-        # update_value model
-        critic_loss = 0.5 * \
-            t.nn.functional.mse_loss(
-                imaginated_values, lambda_value_target.detach())    # 1
-        self.critic_oplr.zero_grad()
-        self.critic_oplr.backward(
-            critic_loss, backward_params=dict(retain_graph=True))
+            imaginated_states = t.stack(imaginated_states, 0)   # [H, T*B, S]
+            imaginated_rnn_hiddens = t.stack(
+                imaginated_rnn_hiddens, 0)   # [H, T*B, D]
 
-        # update value model and action model
-        actor_loss = -1 * (lambda_value_target.mean())
+        imaginated_feat = t.cat(
+            [imaginated_states, imaginated_rnn_hiddens], -1)
+        with FreezeParameters(self.model_oplr.parameters + self.critic_oplr.parameters):
+            imaginated_rewards = self.reward_predictor(
+                imaginated_feat).mean    # [H, T*B, 1]
+            imaginated_values = self.critic(
+                imaginated_feat).mean  # [H, T*B, 1]
+
+        # Compute the exponential discounted sum of rewards
+        if self.use_pcont:
+            with FreezeParameters(self.pcont_decoder.parameters()):
+                discount_arr = self.pcont_decoder(
+                    imaginated_feat).mean  # [H, T*B, 1]
+        else:
+            discount_arr = self.gamma * \
+                t.ones_like(imaginated_rewards)  # [H, T*B, 1]
+        returns = compute_return(imaginated_rewards[:-1], imaginated_values[:-1], discount_arr[:-1],
+                                 bootstrap=imaginated_values[-1], lambda_=self.lambda_)    # [H-1, T*B, 1]
+        # Make the top row 1 so the cumulative product starts with discount^0
+        discount_arr = t.cat(
+            [t.ones_like(discount_arr[:1]), discount_arr[1:]])  # [H, T*B, 1]
+        discount = t.cumprod(discount_arr[:-1], 0)   # [H-1, T*B, 1]
+        actor_loss = -t.mean(discount * returns)    # 1
+
+        # Don't let gradients pass through to prevent overwriting gradients.
+        # Value Loss
+        with t.no_grad():
+            value_feat = imaginated_feat[:-1].detach()  # [H-1, T*B, 1]
+            value_discount = discount.detach()  # [H-1, T*B, 1]
+            value_target = returns.detach()  # [H-1, T*B, 1]
+
+        value_pred = self.critic(value_feat)  # [H-1, T*B, 1]
+        log_prob = value_pred.log_prob(value_target)    # [H-1, T*B]
+        critic_loss = -t.mean(value_discount * log_prob.unsqueeze(-1))  # 1
+
+        self.model_oplr.zero_grad()
         self.actor_oplr.zero_grad()
+        self.critic_oplr.zero_grad()
+
+        self.model_oplr.backward(model_loss)
         self.actor_oplr.backward(actor_loss)
+        self.critic_oplr.backward(critic_loss)
 
-        self.critic_oplr.step()
+        self.model_oplr.step()
         self.actor_oplr.step()
+        self.critic_oplr.step()
 
-        td_error = (imaginated_values -
-                    lambda_value_target).mean(0).detach()  # [T*B,]
+        td_error = (value_pred.mean-value_target).mean(0).detach()  # [T*B,]
         td_error = td_error.view(T, B, 1)
 
-        return td_error, dict([
+        summaries = dict([
             ['LEARNING_RATE/model_lr', self.model_oplr.lr],
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
             ['LEARNING_RATE/critic_lr', self.critic_oplr.lr],
@@ -316,6 +370,10 @@ class DreamerV1(SarlOffPolicy):
             ['LOSS/actor_loss', actor_loss],
             ['LOSS/critic_loss', critic_loss]
         ])
+        if self.use_pcont:
+            summaries.update(dict([['LOSS/pcont_loss', pcont_loss]]))
+
+        return td_error, summaries
 
     def _initial_cell_state(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}

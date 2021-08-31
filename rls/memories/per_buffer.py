@@ -45,14 +45,14 @@ class PrioritizedDataBuffer(DataBuffer):
     def add(self, data: Dict[str, Data]):
         super().add(data)
         self._tree.add_batch(np.full(self.n_copys, self.max_p),
-                             n_step_delay=self.chunk_length-1)
+                             n_step_delay=self._chunk_length-1)
 
     def sample(self, batchsize=None, chunk_length=None):
         B = batchsize or self.batch_size
         if chunk_length is not None:     # TODO: optimize chunk_length
-            T = min(chunk_length, self.chunk_length)
+            T = min(chunk_length, self._chunk_length)
         else:
-            T = self.chunk_length
+            T = self._chunk_length
         assert T <= self._horizon_length
 
         all_intervals = np.linspace(0, self._tree.total, B + 1)

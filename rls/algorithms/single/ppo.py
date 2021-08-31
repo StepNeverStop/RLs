@@ -224,7 +224,7 @@ class PPO(SarlOnPolicy):
 
     def learn(self, BATCH: Data):
         BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
-        for _ in range(self.epochs):
+        for _ in range(self._epochs):
             kls = []
             for _BATCH in self._generate_BATCH(BATCH):
                 _BATCH = self._before_train(_BATCH)
