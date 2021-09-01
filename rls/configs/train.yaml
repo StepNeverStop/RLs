@@ -18,7 +18,7 @@ episode_length: 1000 # episode_length per episode, if gym.env.max_episode_steps 
 prefill_steps: 10000 # prefill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
 prefill_choose: false
 hostname: false
-no_save: true
+save: true
 info: ""
 #
 

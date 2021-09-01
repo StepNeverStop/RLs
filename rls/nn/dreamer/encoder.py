@@ -43,17 +43,10 @@ class VectorEncoder(nn.Module):
     """
     """
 
-    def __init__(self, vector_dim, h_dim):
+    def __init__(self, vector_dim):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(vector_dim, 64),
-            nn.ReLU(),
-            nn.Linear(64, 64),
-            nn.ReLU(),
-            nn.Linear(64, h_dim),
-            nn.ReLU()
-        )
-        self.h_dim = h_dim
+        self.net = nn.Identity()
+        self.h_dim = vector_dim
 
     def forward(self, obs):
         return self.net(obs)

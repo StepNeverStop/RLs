@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from rls.nn.activations import Act_REGISTER
-from rls.nn.dreamer.distributions import SampleDist, TanhBijector
+from rls.nn.dreamer.distributions import OneHotDist, SampleDist, TanhBijector
 
 
 class VisualDecoder(nn.Module):
@@ -71,7 +71,8 @@ class VectorDecoder(nn.Module):
 
 
 class DenseModel(nn.Module):
-    def __init__(self, feature_size: int, output_shape: tuple, layers: int, hidden_size: int, dist='normal',
+    def __init__(self, feature_size: int, output_shape: tuple, layers: int, hidden_size: int,
+                 dist='normal',
                  activation=nn.ELU):
         super().__init__()
         self._output_shape = output_shape
@@ -127,7 +128,7 @@ class ActionDecoder(nn.Module):
         for i in range(1, self.layers):
             model += [nn.Linear(self.hidden_size, self.hidden_size)]
             model += [self.activation()]
-        if self.dist == 'tanh_normal':
+        if self.dist in ['tanh_normal', 'trunc_normal']:
             model += [nn.Linear(self.hidden_size, self.action_size * 2)]
         elif self.dist == 'one_hot' or self.dist == 'relaxed_one_hot':
             model += [nn.Linear(self.hidden_size, self.action_size)]
@@ -135,7 +136,7 @@ class ActionDecoder(nn.Module):
             raise NotImplementedError(f'{self.dist} not implemented')
         return nn.Sequential(*model)
 
-    def forward(self, state_features, is_train=True):
+    def forward(self, state_features):
         x = self.feedforward_model(state_features)
         dist = None
         if self.dist == 'tanh_normal':
@@ -146,20 +147,28 @@ class ActionDecoder(nn.Module):
             dist = td.TransformedDistribution(dist, TanhBijector())
             dist = td.Independent(dist, 1)
             dist = SampleDist(dist)
+        elif self.dist == 'trunc_normal':
+            mean, std = t.chunk(x, 2, -1)
+            std = 2 * t.sigmoid((std + self.raw_init_std) / 2) + self.min_std
+            from rls.nn.dists.TruncatedNormal import \
+                TruncatedNormal as TruncNormalDist
+            dist = TruncNormalDist(t.tanh(mean), std, -1, 1)
+            dist = td.Independent(dist, 1)
         elif self.dist == 'one_hot':
-            dist = td.OneHotCategorical(logits=x)
+            dist = OneHotDist(logits=x)
         elif self.dist == 'relaxed_one_hot':
             dist = td.RelaxedOneHotCategorical(0.1, logits=x)
+        return dist
 
-        if self.dist == 'tanh_normal':
+    def sample_actions(self, state_features, is_train=True):
+        dist = self(state_features)
+        if self.dist in ['tanh_normal', 'trunc_normal']:
             if is_train:
                 action = dist.rsample()
             else:
-                action = dist.mode()
+                action = dist.mean
         elif self.dist == 'one_hot':
-            action = dist.sample()
-            # This doesn't change the value, but gives us straight-through gradients
-            action = action + dist.probs - dist.probs.detach()
+            action = dist.rsample()
         elif self.dist == 'relaxed_one_hot':
             action = dist.rsample()
         else:
