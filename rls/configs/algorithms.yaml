@@ -10,6 +10,8 @@ policy: &policy
 
     obs_with_pre_action: false
 
+    optim_params: &optim_params {}
+
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
         vector_net_params:
@@ -49,6 +51,7 @@ sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
     chunk_length: 4 # n-step or rnn length
     epochs: 1 # train multiple times per agent step
+    train_times: 1
     batch_size: 64
     buffer_size: 100000
     use_priority: false
@@ -380,7 +383,7 @@ trpo:
 
 dpg:
     <<: *sarl_off_policy
-    use_target_action_noise: False
+    use_target_action_noise: false
     noise_action: "ou"
     noise_params:
         sigma: 0.2
@@ -395,7 +398,7 @@ dpg:
 ddpg:
     <<: *sarl_off_policy
     ployak: 0.995
-    use_target_action_noise: False
+    use_target_action_noise: false
     noise_action: "clip_normal"
     noise_params:
         sigma: 0.2
@@ -440,7 +443,7 @@ sac:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -462,7 +465,7 @@ sac_v:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -489,7 +492,7 @@ tac:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -539,7 +542,7 @@ masac:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
@@ -578,7 +581,7 @@ qatten:
         head_hidden_units: [64]
         n_attention_head: 4
         constrant_hidden_units: [32]
-        is_weighted: True
+        is_weighted: true
 
 qtran:
     <<: *vdn
@@ -600,26 +603,115 @@ qplex:
         num_kernel: 4
         adv_hidden_units: [64]
 
-dreamer:
+planet:
     <<: *sarl_off_policy
+    optim_params:
+        eps: 1.e-4
+    train_times: 5
+    train_interval: 50
+
+    cem_horizon: 12
+    cem_iter_nums: 10
+    cem_candidates: 100
+    cem_tops: 10
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 10000
     # same hyperparameter as original implementation.
-    chunk_length: 50 # n-step or rnn length
-    batch_size: 50
-    stoch_dim: 30
-    deter_dim: 200
-    model_lr: 6.e-4
-    actor_lr: 8.e-5
-    critic_lr: 8.e-5
-    free_nats: 3
-    imagination_horizon: 15
+    chunk_length: 10 # n-step or rnn length
+    batch_size: 64
+    stoch_dim: 16
+    deter_dim: 16
+    model_lr: 3.e-4
+    kl_free_nats: 3
+    cnn_depth: 32
+    cnn_act: "relu"
+    kl_scale: 1.0
+    reward_scale: 1.0
+    network_settings:
+        rssm:
+            hidden_units: 64
+            std_act: "softplus"
+        reward:
+            layers: 2
+            hidden_units: 64
+
+dreamer: &dreamer
+    <<: *sarl_off_policy
+    optim_params:
+        eps: 1.e-4
+    train_times: 5
+    train_interval: 50
+
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_step: 10000
+    # same hyperparameter as original implementation.
+    chunk_length: 10 # n-step or rnn length
+    batch_size: 64
+    stoch_dim: 16
+    deter_dim: 16
+    model_lr: 3.e-4
+    actor_lr: 1.e-4
+    critic_lr: 1.e-4
+    kl_free_nats: 3
+    imagination_horizon: 6
     lambda_: 0.95
     cnn_depth: 32
     cnn_act: "relu"
-    dense_act: "elu"
-    vec_feat_dim: 16
-    num_units: 400
-    init_stddev: 5.0
+    kl_scale: 1.0
+    reward_scale: 1.0
+    use_pcont: true
+    pcont_scale: 10.0
+    network_settings:
+        rssm:
+            hidden_units: 64
+            std_act: "softplus"
+        actor:
+            layers: 2
+            hidden_units: 64
+        critic:
+            layers: 2
+            hidden_units: 64
+        reward:
+            layers: 2
+            hidden_units: 64
+        pcont:
+            layers: 2
+            hidden_units: 64
+
+dreamerv2:
+    <<: *dreamer
+    optim_params:
+        eps: 1.e-4
+        weight_decay: 1.e-6
+    discretes: 4
+    kl_forward: false
+    kl_balance: 0.8
+    kl_free_avg: true
+    use_free_nats: false
+    # for discrete, use 'reinforce' and entropy_scale 1e-3
+    # for continuous, use 'dynamics' and entropy_scale 1e-4
+    actor_grad: "reinforce"
+    actor_entropy_scale: 1.e-3
+    actor_grad_mix: 0.
+    use_double: true
+    assign_interval: 100
+    network_settings:
+        rssm:
+            hidden_units: 64
+            std_act: "sigmoid2"
+        actor:
+            layers: 2
+            hidden_units: 64
+        critic:
+            layers: 2
+            hidden_units: 64
+        reward:
+            layers: 2
+            hidden_units: 64
+        pcont:
+            layers: 2
+            hidden_units: 64

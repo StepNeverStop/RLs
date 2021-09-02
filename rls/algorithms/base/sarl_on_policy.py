@@ -19,15 +19,15 @@ class SarlOnPolicy(SarlPolicy):
                  chunk_length=1,
                  batch_size=256,
                  **kwargs):
-        self.epochs = epochs
-        self.chunk_length = chunk_length
+        self._epochs = epochs
+        self._chunk_length = chunk_length
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         super().__init__(**kwargs)
 
     def learn(self, BATCH: Data):
         BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
-        for _ in range(self.epochs):
+        for _ in range(self._epochs):
             for _BATCH in self._generate_BATCH(BATCH):
                 _BATCH = self._before_train(_BATCH)
                 summaries = self._train(_BATCH)
@@ -49,7 +49,7 @@ class SarlOnPolicy(SarlPolicy):
         buffer = OnPolicyDataBuffer(n_copys=self.n_copys,
                                     batch_size=self.batch_size,
                                     buffer_size=self.buffer_size,
-                                    chunk_length=self.chunk_length)
+                                    chunk_length=self._chunk_length)
         return buffer
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
@@ -71,20 +71,20 @@ class SarlOnPolicy(SarlPolicy):
         B = shape[1]
 
         if repeat:
-            for _ in range((T-self.chunk_length+1)*self.n_copys//self.batch_size):
+            for _ in range((T-self._chunk_length+1)*self.n_copys//self.batch_size):
                 x = np.random.randint(
-                    0, T - self.chunk_length + 1, self.batch_size)    # [B, ]
+                    0, T - self._chunk_length + 1, self.batch_size)    # [B, ]
                 y = np.random.randint(0, B, self.batch_size)  # (B, )
                 xs = np.tile(
-                    np.arange(self.chunk_length)[:, np.newaxis],
+                    np.arange(self._chunk_length)[:, np.newaxis],
                     self.batch_size) + x  # (T, B) + (B, ) = (T, B)
                 sample_idxs = (xs, y)
                 yield BATCH[sample_idxs]
         else:
             # [N, ] + [B, 1] => [B, N]
-            x = np.arange(0, T - self.chunk_length + 1, self.chunk_length) \
+            x = np.arange(0, T - self._chunk_length + 1, self._chunk_length) \
                 + np.random.randint(0, T %
-                                    self.chunk_length + 1, B)[:, np.newaxis]
+                                    self._chunk_length + 1, B)[:, np.newaxis]
             y = np.arange(B).repeat(x.shape[-1])   # [B*N]
             x = x.ravel()   # [B*N]
             idxs = np.arange(len(x))  # [B*N]
@@ -93,7 +93,7 @@ class SarlOnPolicy(SarlPolicy):
                 # [T, B]
                 start, end = i*self.batch_size, (i+1)*self.batch_size
                 xs = x[start:end] + \
-                    np.tile(np.arange(self.chunk_length)[
+                    np.tile(np.arange(self._chunk_length)[
                             :, np.newaxis], self.batch_size)
                 sample_idxs = (xs, y[start:end])
                 yield BATCH[sample_idxs]

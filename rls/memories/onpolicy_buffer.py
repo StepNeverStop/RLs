@@ -28,7 +28,7 @@ class OnPolicyDataBuffer(DataBuffer):
 
     @property
     def can_sample(self):
-        return (self._horizon_length // self.chunk_length) * self.n_copys >= self.batch_size
+        return (self._horizon_length // self._chunk_length) * self.n_copys >= self.batch_size
 
     def clear(self):
         self._horizon_length = 0
