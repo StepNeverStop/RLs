@@ -83,6 +83,8 @@ def atanh(x):
 
 class OneHotDist(td.OneHotCategorical):
 
+    # NOTE: td.OneHotCategoricalStraightThrough will act wrongly when using with td.Independent
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -95,6 +97,7 @@ class OneHotDist(td.OneHotCategorical):
 
 
 class OneHotDistFlattenSample(OneHotDist):
+    # TODO: check
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

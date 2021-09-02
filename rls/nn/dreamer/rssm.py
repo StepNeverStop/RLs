@@ -30,13 +30,14 @@ class RecurrentStateSpaceModel(nn.Module):
         self._std_act = std_act
 
         if self._discretes > 0:
-            input_dim = self.state_dim * self._discretes
+            self._input_dim = self.state_dim * self._discretes
             output_dim = self.state_dim * self._discretes
         else:
-            input_dim = self.state_dim
+            self._input_dim = self.state_dim
             output_dim = self.state_dim * 2
 
-        self.fc_state_action = nn.Linear(input_dim + action_dim, hidden_dim)
+        self.fc_state_action = nn.Linear(
+            self._input_dim + action_dim, hidden_dim)
         self.rnn = nn.GRUCell(hidden_dim, rnn_hidden_dim)
         self.fc_rnn_hidden = nn.Linear(rnn_hidden_dim, hidden_dim)
         self.fc_output_prior = nn.Linear(hidden_dim, output_dim)
@@ -101,3 +102,8 @@ class RecurrentStateSpaceModel(nn.Module):
 
             stddev = stddev + self._min_stddev  # [B, *]
             return td.Independent(td.Normal(mean, stddev), 1)
+
+    def init_state(self, shape):
+        if not hasattr(shape, '__len__'):
+            shape = (shape,)
+        return t.zeros(shape+(self._input_dim,)), t.zeros(shape+(self.rnn_hidden_dim,))

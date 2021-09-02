@@ -92,8 +92,6 @@ class DreamerV1(SarlOffPolicy):
         self.pcont_scale = pcont_scale
         self._network_settings = network_settings
 
-        self._dreamer_preproce_input_dim()
-
         if not self.is_continuous:
             self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                               eps_mid=eps_mid,
@@ -167,9 +165,9 @@ class DreamerV1(SarlOffPolicy):
     def _action_dist(self):
         return 'tanh_normal' if self.is_continuous else 'one_hot'  # 'relaxed_one_hot'
 
-    def _dreamer_preproce_input_dim(self):
-        self.flat_stoch_dim = self.stoch_dim
-        self.decoder_input_dim = self.stoch_dim + self.deter_dim
+    @property
+    def decoder_input_dim(self):
+        return self.stoch_dim + self.deter_dim
 
     def _dreamer_build_rssm(self):
         return RecurrentStateSpaceModel(self.stoch_dim,
@@ -215,7 +213,7 @@ class DreamerV1(SarlOffPolicy):
             return t.clamp(action + noise, -1, 1)
         else:
             if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
-                action = t.randint(0, self.a_dim, (self.n_copys, ))
+                index = t.randint(0, self.a_dim, (self.n_copys, ))
                 action = t.zeros_like(action)
                 action[..., index] = 1
             return action
@@ -231,55 +229,67 @@ class DreamerV1(SarlOffPolicy):
         # embed observations with CNN
         embedded_observations = self.obs_encoder(obs_)  # [T, B, *]
 
-        # prepare Tensor to maintain states sequence and rnn hidden states sequence
-        states = t.zeros(T, B, self.flat_stoch_dim)  # [T, B, S]
-        rnn_hiddens = t.zeros(T, B, self.deter_dim)  # [T, B, D]
-
         # initialize state and rnn hidden state with 0 vector
-        state = t.zeros(B, self.flat_stoch_dim)  # [B, S]
-        rnn_hidden = t.zeros(B, self.deter_dim)  # [B, D]
+        state, rnn_hidden = self.rssm.init_state(shape=B)   # [B, S], [B, D]
 
         # compute state and rnn hidden sequences and kl loss
         kl_loss = 0
+        states, rnn_hiddens = [], []
         for l in range(T):
-            state = state * BATCH.begin_mask[l]
-            rnn_hidden = rnn_hidden * BATCH.begin_mask[l]
+            state = state * (1. - BATCH.done[l])
+            rnn_hidden = rnn_hidden * (1. - BATCH.done[l])
+            pre_action = BATCH.action[l] * (1. - BATCH.done[l])
+            if l > 0:
+                # begin_mask_{t} and not done_{t-1}, set state to zero
+                trunced_mask = t.logical_and(
+                    BATCH.begin_mask[l], 1. - BATCH.done[l-1]).float()
+                state = state * (1. - trunced_mask)
+                rnn_hidden = rnn_hidden * (1. - trunced_mask)
             next_state_prior, next_state_posterior, rnn_hidden = \
-                self.rssm(state, BATCH.action[l], rnn_hidden,
+                self.rssm(state, pre_action, rnn_hidden,
                           embedded_observations[l], build_dist=False)    # a, s_
             state = self.rssm._build_dist(
                 next_state_posterior).rsample()  # [B, S] posterior of s_
-            states[l] = state  # [B, S]
-            rnn_hiddens[l] = rnn_hidden   # [B, D]
+            states.append(state)  # [B, S]
+            rnn_hiddens.append(rnn_hidden)   # [B, D]
             kl_loss += self._kl_loss(next_state_prior, next_state_posterior)
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        post_feat = t.cat([states, rnn_hiddens], -1)  # [T, B, *]
+        post_feat = t.cat(
+            [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
+
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
-        reward_pred = self.reward_predictor(post_feat)  # [T, B, 1]
+        reward_pred = self.reward_predictor(
+            post_feat[:-1])  # [T-1, B, 1], s_ => r
 
         # compute loss for observation and reward
-        obs_loss = -t.mean(obs_pred.log_prob(obs_))
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward))   # 1
+        obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
+        # [T-1, B, 1]=>1
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward[1:]))
 
         # add all losses and update model parameters with gradient descent
         model_loss = self.kl_scale*kl_loss + obs_loss + \
             self.reward_scale * reward_loss   # 1
 
         if self.use_pcont:
-            pcont_pred = self.pcont_decoder(post_feat)  # [T, B, 1]
+            pcont_pred = self.pcont_decoder(
+                post_feat[:-1])  # [T-1, B, 1], s_ => done
             # https://github.com/danijar/dreamer/issues/2#issuecomment-605392659
             pcont_target = self.gamma * (1. - BATCH.done)
+            pcont_target = pcont_target[1:]
+            # [T-1, B, 1]=>1
             pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target))
             model_loss += self.pcont_scale * pcont_loss
 
+        self.model_oplr.optimize(model_loss)
+
         # remove gradients from previously calculated tensors
         with t.no_grad():
-            # [T*B, S]
-            flatten_states = states.view(-1, self.flat_stoch_dim).detach()
-            # [T*B, D]
-            flatten_rnn_hiddens = rnn_hiddens.view(-1, self.deter_dim).detach()
+            # [T, B, S] => [T*B, S]
+            flatten_states = t.cat(states, 0).detach()
+            # [T, B, D] => [T*B, D]
+            flatten_rnn_hiddens = t.cat(rnn_hiddens, 0).detach()
 
         with FreezeParameters(self.model_oplr.parameters):
             # compute target values
@@ -328,8 +338,11 @@ class DreamerV1(SarlOffPolicy):
             [t.ones_like(discount_arr[:1]), discount_arr[:-1]], 0)  # [H, T*B, 1]
         discount = t.cumprod(discount_arr, 0).detach()[:-1]   # [H-1, T*B, 1]
 
-        imaginated_feats = imaginated_feats[:-1]
-        choose_actions = choose_actions[:-1]
+        # discount_arr = t.cat([t.ones_like(discount_arr[:1]), discount_arr[1:]])
+        # discount = t.cumprod(discount_arr[:-1], 0)
+
+        imaginated_feats = imaginated_feats[:-1]    # [H-1, T*B, *]
+        choose_actions = choose_actions[1:]  # [H-1, T*B, A]
 
         actor_loss = self._dreamer_build_actor_loss(
             imaginated_feats, choose_actions, discount, returns)   # 1
@@ -341,18 +354,16 @@ class DreamerV1(SarlOffPolicy):
             value_target = returns.detach()  # [H-1, T*B, 1]
 
         value_pred = self.critic(value_feat)  # [H-1, T*B, 1]
-        log_prob = value_pred.log_prob(value_target)    # [H-1, T*B]
-        critic_loss = -t.mean(discount * log_prob.unsqueeze(-1))  # 1
+        log_prob = value_pred.log_prob(
+            value_target).unsqueeze(-1)    # [H-1, T*B, 1]
+        critic_loss = -t.mean(discount * log_prob)  # 1
 
-        self.model_oplr.zero_grad()
         self.actor_oplr.zero_grad()
         self.critic_oplr.zero_grad()
 
-        self.model_oplr.backward(model_loss)
         self.actor_oplr.backward(actor_loss)
         self.critic_oplr.backward(critic_loss)
 
-        self.model_oplr.step()
         self.actor_oplr.step()
         self.critic_oplr.step()
 
@@ -388,5 +399,5 @@ class DreamerV1(SarlOffPolicy):
         return imaginated_values
 
     def _dreamer_build_actor_loss(self, imaginated_feats, choose_actions, discount, returns):
-        actor_loss = -t.mean(discount * returns)    # 1
+        actor_loss = -t.mean(discount * returns)    # [H, T*B, 1] => 1
         return actor_loss

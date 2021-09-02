@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from rls.nn.activations import Act_REGISTER
-from rls.nn.dreamer.distributions import OneHotDist, SampleDist, TanhBijector
+from rls.nn.dreamer.distributions import SampleDist, TanhBijector
 
 
 class VisualDecoder(nn.Module):
@@ -57,9 +57,9 @@ class VectorDecoder(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(feat_dim, 64),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(64, 64),
-            nn.ReLU(),
+            nn.ELU(),
             nn.Linear(64, vector_dim)
         )
         self.h_dim = vector_dim
@@ -155,7 +155,7 @@ class ActionDecoder(nn.Module):
             dist = TruncNormalDist(t.tanh(mean), std, -1, 1)
             dist = td.Independent(dist, 1)
         elif self.dist == 'one_hot':
-            dist = OneHotDist(logits=x)
+            dist = td.OneHotCategoricalStraightThrough(logits=x)
         elif self.dist == 'relaxed_one_hot':
             dist = td.RelaxedOneHotCategorical(0.1, logits=x)
         return dist

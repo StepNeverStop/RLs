@@ -7,6 +7,24 @@ from rls.algorithms.register import get_model_info, register
 # http://life.chacuo.net/convertfont2char
 
 register(
+    name='planet',
+    path='single.modelbased.planet',
+    is_multi=False,
+    class_name='PlaNet',
+    logo='''
+　　　　ＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　ＯＯ　　　　　　　　ＯＯＯＯ　　　ＯＯＯＯ　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　
+　　　　　ＯＯＯ　ＯＯＯ　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　ＯＯＯ　　　　Ｏ　　　　　　　ＯＯＯ　　ＯＯ　　　　　　　ＯＯ　　ＯＯ　ＯＯ　　　
+　　　　　ＯＯＯ　　ＯＯ　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯＯ　　　　　　　　　ＯＯＯＯ　　　Ｏ　　　　　　　ＯＯＯ　　　Ｏ　　　　　　　Ｏ　　　ＯＯ　　Ｏ　　　
+　　　　　ＯＯＯ　ＯＯＯ　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　Ｏ　　　　　　　ＯＯＯ　　Ｏ　　　　　　　　　　　　ＯＯ　　　　　　
+　　　　　ＯＯＯＯＯＯＯ　　　　　　　　ＯＯ　　　　　　　　　　　　　ＯＯ　ＯＯ　　　　　　　　　Ｏ　ＯＯＯＯ　Ｏ　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯ　　　　　　
+　　　　　ＯＯＯＯ　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　ＯＯ　ＯＯＯ　　　　　　　　Ｏ　　ＯＯＯＯＯ　　　　　　　ＯＯＯ　　Ｏ　　　　　　　　　　　　ＯＯ　　　　　　
+　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯ　　　　Ｏ　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　Ｏ　　　ＯＯＯＯ　　　　　　　ＯＯＯ　　Ｏ　Ｏ　　　　　　　　　　ＯＯ　　　　　　
+　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯ　　　ＯＯ　　　　　　　ＯＯ　　　ＯＯＯ　　　　　　　Ｏ　　　　ＯＯＯ　　　　　　　ＯＯＯ　　　ＯＯ　　　　　　　　　　ＯＯ　　　　　　
+　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯ　　　ＯＯＯ　　　　　　ＯＯＯ　　　　ＯＯ　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　
+    '''
+)
+
+register(
     name='dreamer',
     path='single.modelbased.dreamer_v1',
     is_multi=False,

@@ -112,6 +112,7 @@ class TruncatedNormal(TruncatedStandardNormal):
     Truncated Normal distribution
     https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
     """
+    # TODO: check log_prob when using with td.Independent
 
     has_rsample = True
 
