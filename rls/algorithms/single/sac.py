@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorCts, ActorDct, CriticQvalueAll, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
@@ -82,8 +82,8 @@ class SAC(SarlOffPolicy):
                                   output_shape=self.a_dim,
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
@@ -105,7 +105,7 @@ class SAC(SarlOffPolicy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -128,7 +128,7 @@ class SAC(SarlOffPolicy):
             td_error, summaries = self._train_discrete(BATCH)
         return td_error, summaries
 
-    @iTensor_oNumpy
+    @iton
     def _train_continuous(self, BATCH):
         q1 = self.critic(BATCH.obs, BATCH.action,
                          begin_mask=BATCH.begin_mask)   # [T, B, 1]
@@ -220,7 +220,7 @@ class SAC(SarlOffPolicy):
             ])
         return (td_error1 + td_error2) / 2, summaries
 
-    @iTensor_oNumpy
+    @iton
     def _train_discrete(self, BATCH):
         q1_all = self.critic(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]

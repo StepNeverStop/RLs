@@ -37,7 +37,7 @@ class Policy(Base):
                  decay_lr=False,
                  normalize_vector_obs=False,
                  obs_with_pre_action=False,
-                 optim_params=dict(),
+                 oplr_params=dict(),
                  rep_net_params={
                      'vector_net_params': {
                          'h_dim': 16,
@@ -80,7 +80,7 @@ class Policy(Base):
         self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
         self._obs_with_pre_action = obs_with_pre_action
         self._rep_net_params = dict(rep_net_params)
-        self._optim_params = dict(optim_params)
+        self._oplr_params = dict(oplr_params)
 
         super().__init__()
 

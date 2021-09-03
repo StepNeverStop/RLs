@@ -7,7 +7,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.common.when import Every
 from rls.common.yaml_ops import load_config
@@ -98,7 +98,7 @@ class SarlOffPolicy(SarlPolicy):
             self.summaries.update(crsty_summaries)
         return BATCH
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         raise NotImplementedError
 

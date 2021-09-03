@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.dreamer import ActionDecoder, DenseModel, RecurrentStateSpaceModel
 from rls.nn.dreamer.utils import FreezeParameters, compute_return
@@ -119,11 +119,10 @@ class DreamerV1(SarlOffPolicy):
             _modules.append(self.pcont_decoder)
 
         self.model_oplr = OPLR(
-            _modules, model_lr, optimizer_params=self._optim_params, clipnorm=100)
-        self.actor_oplr = OPLR(self.actor, actor_lr,
-                               optimizer_params=self._optim_params, clipnorm=100)
+            _modules, model_lr, **self._oplr_params)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(
-            self.critic, critic_lr, optimizer_params=self._optim_params, clipnorm=100)
+            self.critic, critic_lr, **self._oplr_params)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
                                      obs_decoder=self.obs_decoder,
                                      reward_predictor=self.reward_predictor,
@@ -156,7 +155,7 @@ class DreamerV1(SarlOffPolicy):
                           1,
                           **self._network_settings['critic']).to(self.device)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self._is_visual:
             obs = obs.visual.visual_0
@@ -192,7 +191,7 @@ class DreamerV1(SarlOffPolicy):
                 action[..., index] = 1
             return action
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         T, B = BATCH.action.shape[:2]
         if self._is_visual:

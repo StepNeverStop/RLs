@@ -10,7 +10,12 @@ policy: &policy
 
     obs_with_pre_action: false
 
-    optim_params: &optim_params {}
+    oplr_params:
+        optim_params:
+            eps: 1.e-4
+        grad_params:
+            grad_max_norm: 100.
+            grad_clip_value: 100.
 
     # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
     rep_net_params: &rep_net_params
@@ -310,7 +315,6 @@ ppo:
     lambda_: 0.97
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
-    max_grad_norm: ~
 
     # duel clip
     use_duel_clip: false
@@ -605,8 +609,6 @@ qplex:
 
 planet:
     <<: *sarl_off_policy
-    optim_params:
-        eps: 1.e-4
     train_times: 1
     train_interval: 1
 
@@ -638,17 +640,15 @@ planet:
                 hidden_units: 64
                 dist: "mse"
         rssm:
-            hidden_units: 200
+            hidden_units: 64
             std_act: "softplus"
         reward:
-            layers: 3
-            hidden_units: 300
+            layers: 2
+            hidden_units: 64
             dist: "mse"
 
 dreamer: &dreamer
     <<: *sarl_off_policy
-    optim_params:
-        eps: 1.e-4
     train_times: 1
     train_interval: 1
 

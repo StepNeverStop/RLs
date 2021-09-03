@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import (ActorCriticValueCts, ActorCriticValueDct, ActorDct,
                            ActorMuLogstd, CriticValue)
@@ -38,7 +38,6 @@ class PPO(SarlOnPolicy):
                  share_net: bool = True,
                  actor_lr: float = 3e-4,
                  critic_lr: float = 1e-3,
-                 max_grad_norm: float = 0.5,
                  kl_reverse: bool = False,
                  kl_target: float = 0.02,
                  kl_target_cutoff: float = 2,
@@ -88,7 +87,6 @@ class PPO(SarlOnPolicy):
         self.kl_coef = kl_coef
         self.extra_coef = extra_coef
         self.vf_coef = vf_coef
-        self.max_grad_norm = max_grad_norm
 
         self.use_duel_clip = use_duel_clip
         self.duel_epsilon = duel_epsilon
@@ -116,11 +114,7 @@ class PPO(SarlOnPolicy):
                                                rep_net_params=self._rep_net_params,
                                                output_shape=self.a_dim,
                                                network_settings=network_settings['share']['discrete']).to(self.device)
-            if self.max_grad_norm is not None:
-                self.oplr = OPLR(self.net, lr, clipnorm=self.max_grad_norm)
-            else:
-                self.oplr = OPLR(self.net, lr)
-
+            self.oplr = OPLR(self.net, lr, **self._oplr_params)
             self._trainer_modules.update(model=self.net,
                                          oplr=self.oplr)
         else:
@@ -137,21 +131,14 @@ class PPO(SarlOnPolicy):
             self.critic = CriticValue(self.obs_spec,
                                       rep_net_params=self._rep_net_params,
                                       network_settings=network_settings['critic']).to(self.device)
-            if self.max_grad_norm is not None:
-                self.actor_oplr = OPLR(
-                    self.actor, actor_lr, clipnorm=self.max_grad_norm)
-                self.critic_oplr = OPLR(
-                    self.critic, critic_lr, clipnorm=self.max_grad_norm)
-            else:
-                self.actor_oplr = OPLR(self.actor, actor_lr)
-                self.critic_oplr = OPLR(self.critic, critic_lr)
-
+            self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+            self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)
             self._trainer_modules.update(actor=self.actor,
                                          critic=self.critic,
                                          actor_oplr=self.actor_oplr,
                                          critic_oplr=self.critic_oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self.is_continuous:
             if self.share_net:
@@ -188,7 +175,7 @@ class PPO(SarlOnPolicy):
             acts_info.update(cell_state=self.cell_state)
         return action, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _get_value(self, obs, cell_state=None):
         if self.share_net:
             if self.is_continuous:
@@ -257,7 +244,7 @@ class PPO(SarlOnPolicy):
 
         return summaries, kl
 
-    @iTensor_oNumpy
+    @iton
     def train_share(self, BATCH):
         if self.is_continuous:
             # [T, B, A], [T, B, A], [T, B, 1]
@@ -332,7 +319,7 @@ class PPO(SarlOnPolicy):
             ['LEARNING_RATE/lr', self.oplr.lr]
         ]), kl
 
-    @iTensor_oNumpy
+    @iton
     def train_actor(self, BATCH):
         if self.is_continuous:
             # [T, B, A], [T, B, A]
@@ -382,7 +369,7 @@ class PPO(SarlOnPolicy):
             ['LEARNING_RATE/actor_lr', self.actor_oplr.lr]
         ]), kl
 
-    @iTensor_oNumpy
+    @iton
     def train_critic(self, BATCH):
         value = self.critic(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]

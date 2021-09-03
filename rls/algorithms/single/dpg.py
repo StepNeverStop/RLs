@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
 from rls.nn.noised_actions import (ClippedNormalNoisedAction,
@@ -60,8 +60,8 @@ class DPG(SarlOffPolicy):
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['q']).to(self.device)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR(self.critic, critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      actor_oplr=self.actor_oplr,
@@ -72,7 +72,7 @@ class DPG(SarlOffPolicy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
@@ -87,7 +87,7 @@ class DPG(SarlOffPolicy):
         actions = pi if self._is_train_mode else mu
         return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         if self.is_continuous:
             action_target = self.actor(

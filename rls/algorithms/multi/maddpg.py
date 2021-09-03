@@ -9,7 +9,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
@@ -66,8 +66,8 @@ class MADDPG(MultiAgentOffPolicy):
                                                                 self.a_dims.values()),
                                                             network_settings=network_settings['q']),
                                           self.ployak).to(self.device)
-        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr)
-        self.critic_oplr = OPLR(list(self.critics.values()), critic_lr)
+        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(list(self.critics.values()), critic_lr, **self._oplr_params)
 
         # TODO: 添加动作类型判断
         self.noised_actions = {id: Noise_action_REGISTER[noise_action](**noise_params)
@@ -85,7 +85,7 @@ class MADDPG(MultiAgentOffPolicy):
         for noised_action in self.noised_actions.values():
             noised_action.reset()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs: Dict):
         acts_info = {}
         actions = {}
@@ -106,7 +106,7 @@ class MADDPG(MultiAgentOffPolicy):
             actions[aid] = action
         return actions, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         '''
         TODO: Annotation

@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
@@ -66,8 +66,8 @@ class TD3(SarlOffPolicy):
                                  self.ployak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR([self.critic, self.critic2],  critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR([self.critic, self.critic2],  critic_lr, **self._oplr_params)
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      critic2=self.critic2,
@@ -79,7 +79,7 @@ class TD3(SarlOffPolicy):
         if self.is_continuous:
             self.noised_action.reset()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
@@ -94,7 +94,7 @@ class TD3(SarlOffPolicy):
         actions = pi if self._is_train_mode else mu
         return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         for _ in range(self.delay_num):
             if self.is_continuous:

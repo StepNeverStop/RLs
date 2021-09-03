@@ -2,7 +2,7 @@
 import torch as t
 from torch.nn import Linear, Sequential, Tanh
 
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.represent_nets import RepresentationNetwork
 from rls.nn.utils import OPLR

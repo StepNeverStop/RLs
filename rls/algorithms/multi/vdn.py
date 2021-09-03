@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.models import CriticDueling
@@ -61,7 +61,7 @@ class VDN(MultiAgentOffPolicy):
 
         self.mixer = self._build_mixer()
 
-        self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr)
+        self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr, **self._oplr_params)
         self._trainer_modules.update(
             {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
@@ -79,7 +79,7 @@ class VDN(MultiAgentOffPolicy):
                                              **self._mixer_settings)
         ).to(self.device)
 
-    @iTensor_oNumpy  # TODO: optimization
+    @iton  # TODO: optimization
     def select_action(self, obs):
         acts_info = {}
         actions = {}
@@ -97,7 +97,7 @@ class VDN(MultiAgentOffPolicy):
             acts_info[aid] = Data(action=action)
         return actions, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]

@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.dreamer import DenseModel, RecurrentStateSpaceModel
 from rls.nn.utils import OPLR
@@ -46,8 +46,7 @@ class PlaNet(SarlOffPolicy):
 
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
-        if self.obs_spec.has_visual_observation and len(
-                self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
+        if self.obs_spec.has_visual_observation and len(self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'
@@ -91,9 +90,9 @@ class PlaNet(SarlOffPolicy):
                                            1,
                                            **network_settings['reward']).to(self.device)
 
-        self.model_oplr = OPLR(
-            [self.obs_encoder, self.rssm,
-             self.obs_decoder, self.reward_predictor], model_lr, optimizer_params=self._optim_params, clipnorm=100)
+        self.model_oplr = OPLR([self.obs_encoder, self.rssm,
+                                self.obs_decoder, self.reward_predictor],
+                               model_lr, **self._oplr_params)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
                                      obs_decoder=self.obs_decoder,
                                      reward_predictor=self.reward_predictor,
@@ -111,7 +110,7 @@ class PlaNet(SarlOffPolicy):
                                         self.obs_encoder.h_dim,
                                         **self._network_settings['rssm']).to(self.device)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self._is_visual:
             obs = obs.visual.visual_0
@@ -120,60 +119,42 @@ class PlaNet(SarlOffPolicy):
         # Compute starting state for planning
         # while taking information from current observation (posterior)
         embedded_obs = self.obs_encoder(obs)    # [B, *]
-        state_posterior = self.rssm.posterior(
-            self.cell_state['hx'], embedded_obs)     # dist # [B, *]
+        state_posterior = self.rssm.posterior(self.cell_state['hx'], embedded_obs)     # dist # [B, *]
 
         # Initialize action distribution
-        mean = t.zeros((self.cem_horizon, self.n_copys,
-                       self.a_dim))    # [H, B, A]
-        stddev = t.ones((self.cem_horizon, self.n_copys,
-                        self.a_dim))   # [H, B, A]
-        action_dist = td.Normal(mean, stddev)
+        mean = t.zeros((self.cem_horizon, 1, self.n_copys, self.a_dim))    # [H, 1, B, A]
+        stddev = t.ones((self.cem_horizon, 1, self.n_copys, self.a_dim))   # [H, 1, B, A]
 
         # Iteratively improve action distribution with CEM
         for itr in range(self.cem_iter_nums):
-            # [N, H, B, A]
-            action_candidates = action_dist.sample((self.cem_candidates,))
-            action_candidates = action_candidates.swapaxes(0, 1)
-            action_candidates = action_candidates.reshape(
-                self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
+            action_candidates = mean + stddev * t.randn(self.cem_horizon, self.n_copys, self.cem_candidates, self.a_dim)    # [H, N, B, A]
+            action_candidates = action_candidates.reshape(self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
 
             # Initialize reward, state, and rnn hidden state
             # These are for parallel exploration
-            total_predicted_reward = t.zeros(
-                (self.cem_candidates*self.n_copys, 1))    # [N*B, 1]
+            total_predicted_reward = t.zeros((self.cem_candidates*self.n_copys, 1))    # [N*B, 1]
 
-            state = state_posterior.sample(
-                (self.cem_candidates,))   # [N, B, *]
+            state = state_posterior.sample((self.cem_candidates,))   # [N, B, *]
             state = state.view(-1, state.shape[-1])  # [N*B, *]
-            rnn_hidden = self.cell_state['hx'].repeat(
-                (self.cem_candidates, 1))  # [B, *] => [N*B, *]
+            rnn_hidden = self.cell_state['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
 
             # Compute total predicted reward by open-loop prediction using prior
             for _t in range(self.cem_horizon):
-                next_state_prior, rnn_hidden = \
-                    self.rssm.prior(state, action_candidates[_t], rnn_hidden)
+                next_state_prior, rnn_hidden = self.rssm.prior(state, t.tanh(action_candidates[_t]), rnn_hidden)
                 state = next_state_prior.sample()   # [N*B, *]
                 post_feat = t.cat([state, rnn_hidden], -1)  # [N*B, *]
-                # [N*B, 1]
-                total_predicted_reward += self.reward_predictor(post_feat).mean
+                total_predicted_reward += self.reward_predictor(post_feat).mean  # [N*B, 1]
 
             # update action distribution using top-k samples
-            total_predicted_reward = total_predicted_reward.view(
-                self.cem_candidates, self.n_copys, 1)    # [N, B, 1]
-            top_indexes = total_predicted_reward.argsort(dim=0, descending=True)[
-                :self.cem_tops]    # [N', B, 1]
-            action_candidates = action_candidates.view(
-                self.cem_horizon, self.cem_candidates, self.n_copys, -1)   # [H, N, B, A]
-            top_action_candidates = action_candidates[:, top_indexes, t.arange(
-                self.n_copys).reshape(self.n_copys, 1), t.arange(self.a_dim)]  # [H, N', B, A]
-            mean = top_action_candidates.mean(dim=1)    # [H, B, A]
-            stddev = (top_action_candidates - mean.unsqueeze(1)
-                      ).abs().sum(dim=1) / (self.cem_tops - 1)  # [H, B, A]
-            action_dist = td.Normal(mean, stddev)
+            total_predicted_reward = total_predicted_reward.view(self.cem_candidates, self.n_copys, 1)    # [N, B, 1]
+            _, top_indexes = total_predicted_reward.topk(self.cem_tops, dim=0, largest=True, sorted=False)    # [N', B, 1]
+            action_candidates = action_candidates.view(self.cem_horizon, self.cem_candidates, self.n_copys, -1)   # [H, N, B, A]
+            top_action_candidates = action_candidates[:, top_indexes, t.arange(self.n_copys).reshape(self.n_copys, 1), t.arange(self.a_dim)]  # [H, N', B, A]
+            mean = top_action_candidates.mean(dim=1, keepdim=True)    # [H, 1, B, A]
+            stddev = top_action_candidates.std(dim=1, unbiased=False, keepdim=True)  # [H, 1, B, A]
 
         # Return only first action (replan each state based on new observation)
-        actions = t.tanh(mean[0])    # [B, A]
+        actions = t.tanh(mean[0].squeeze(0))    # [B, A]
         actions = self._exploration(actions)
         _, self.next_cell_state['hx'] = self.rssm.prior(state_posterior.sample(),
                                                         actions,
@@ -189,7 +170,7 @@ class PlaNet(SarlOffPolicy):
         noise = t.randn(*action.shape) * sigma
         return t.clamp(action + noise, -1, 1)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         T, B = BATCH.action.shape[:2]
         if self._is_visual:

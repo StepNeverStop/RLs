@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticQvalueOne
 from rls.nn.utils import OPLR
@@ -47,15 +47,15 @@ class AC(SarlOffPolicy):
                                       action_dim=self.a_dim,
                                       network_settings=network_settings['critic']).to(self.device)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR(self.critic, critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)
 
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, *]
         self.next_cell_state = self.actor.get_cell_state()
@@ -82,7 +82,7 @@ class AC(SarlOffPolicy):
                 self.n_copys, 1./self.a_dim))  # [B,]
         return actions
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q = self.critic(BATCH.obs, BATCH.action,
                         begin_mask=BATCH.begin_mask)    # [T, B, 1]

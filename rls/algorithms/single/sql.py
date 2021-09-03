@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
@@ -39,11 +39,11 @@ class SQL(SarlOffPolicy):
                                                 network_settings=network_settings),
                                 self.ployak).to(self.device)
 
-        self.oplr = OPLR(self.q_net, lr)
+        self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A]
         self.next_cell_state = self.q_net.get_cell_state()
@@ -59,7 +59,7 @@ class SQL(SarlOffPolicy):
                                                      keepdim=True).log()    # [B, 1] or [T, B, 1]
         return v
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
         q_next = self.q_net.t(

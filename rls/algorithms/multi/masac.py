@@ -10,7 +10,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorCts, ActorDct, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
@@ -79,13 +79,13 @@ class MASAC(MultiAgentOffPolicy):
                                                             network_settings=network_settings['q']),
                                           self.ployak).to(self.device)
             self.critics2[id] = deepcopy(self.critics[id])
-        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr)
+        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(
-            list(self.critics.values())+list(self.critics2.values()), critic_lr)
+            list(self.critics.values())+list(self.critics2.values()), critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr, **self._oplr_params)
             self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
         else:
             self.log_alpha = t.tensor(alpha).log().to(self.device)
@@ -106,7 +106,7 @@ class MASAC(MultiAgentOffPolicy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs: Dict):
         acts_info = {}
         actions = {}
@@ -128,7 +128,7 @@ class MASAC(MultiAgentOffPolicy):
             actions[aid] = action
         return actions, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         '''
         TODO: Annotation

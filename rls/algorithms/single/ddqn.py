@@ -7,7 +7,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.single.dqn import DQN
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.utils.torch_utils import n_step_return
 
 
@@ -21,7 +21,7 @@ class DDQN(DQN):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
         q_next = self.q_net(

@@ -146,18 +146,9 @@ class Data:
         else:
             return value
 
-    # TODO: remove
-    def unpack(self) -> Iterator:
-        for i in range(len(self)):
-            yield self[i]
 
-    @staticmethod
-    def pack(ds: List, func: Callable = lambda x: np.asarray(x)):
-        '''
-        TODO: Annotation
-        '''
-        params = {}
-        for k, v in ds[0].__dict__.items():
-            d = [getattr(rds, k) for rds in ds]
-            params[k] = Data.pack(d, func) if isinstance(v, Data) else func(d)
-        return ds[0].__class__(**params)
+class DictCls(dict):
+
+    def __getattr__(self, name):
+        assert name not in self.keys(), 'assert name not in self.keys()'
+        return [v.get(name) if isinstance(v, dict) else getattr(v, name) for k, v in self.items()]

@@ -8,7 +8,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.marl_policy import MarlPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.common.yaml_ops import load_config
 from rls.utils.np_utils import int2one_hot
@@ -107,7 +107,7 @@ class MultiAgentOffPolicy(MarlPolicy):
         self.summaries = {}
         return BATCH_DICT
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         raise NotImplementedError
 

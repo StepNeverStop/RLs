@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.single.npg import NPG
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
 from rls.nn.utils import OPLR
@@ -40,7 +40,7 @@ class TRPO(NPG):
         self._backtrack_iters = backtrack_iters
         self._backtrack_coeff = backtrack_coeff
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         output = self.actor(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]

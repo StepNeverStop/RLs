@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll, OcIntraOption
 from rls.nn.modules.wrappers import TargetTwin
@@ -83,13 +83,13 @@ class OC(SarlOffPolicy):
             self.log_std = t.as_tensor(np.full(
                 (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
             self.intra_option_oplr = OPLR(
-                [self.intra_option_net, self.log_std], intra_option_lr, clipvalue=5.)
+                [self.intra_option_net, self.log_std], intra_option_lr, **self._oplr_params)
         else:
             self.intra_option_oplr = OPLR(
-                self.intra_option_net, intra_option_lr, clipvalue=5.)
-        self.q_oplr = OPLR(self.q_net, q_lr, clipvalue=5.)
+                self.intra_option_net, intra_option_lr, **self._oplr_params)
+        self.q_oplr = OPLR(self.q_net, q_lr, **self._oplr_params)
         self.termination_oplr = OPLR(
-            self.termination_net, termination_lr, clipvalue=5.)
+            self.termination_net, termination_lr, **self._oplr_params)
 
         self._trainer_modules.update(q_net=self.q_net,
                                      intra_option_net=self.intra_option_net,
@@ -110,7 +110,7 @@ class OC(SarlOffPolicy):
         super().episode_step(obs, env_rets, begin_mask)
         self.options = self.new_options
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         q = self.q_net(obs, cell_state=self.cell_state)  # [B, P]
         self.next_cell_state = self.q_net.get_cell_state()
@@ -158,7 +158,7 @@ class OC(SarlOffPolicy):
         BATCH.options = int2one_hot(BATCH.options, self.options_num)
         return BATCH
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P]
         q_next = self.q_net.t(
