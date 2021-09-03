@@ -21,6 +21,7 @@ class VisualDecoder(nn.Module):
     def __init__(self, feat_dim, visual_dim,
                  depth=32, act='relu'):
         super().__init__()
+        self._depth = depth
         self.visual_dim = visual_dim
         self.fc = nn.Linear(feat_dim, 32*depth)
         self.net = nn.Sequential(
@@ -39,11 +40,11 @@ class VisualDecoder(nn.Module):
         feat: [T, B, *] or [B, *]
         '''
         tb = feat.shape[:-1]
-        hidden = self.fc(feat)  # [B, 1024]
-        hidden = hidden.view(t.prod(tb), 1024, 1, 1)    # [B, 1024, 1, 1]
-        obs = self.net(hidden)  # [B, c, h, w]
-        obs = obs.view(tb+obs[-3:])
-        obs = obs.swapaxes(-2, -3).swapaxes(-1, -2)   # [B, h, w, c]
+        hidden = self.fc(feat)  # [T, B, 32*depth]
+        hidden = hidden.view(t.prod(tb), 32*self._depth, 1, 1)    # [T*B, 32*depth, 1, 1]
+        obs = self.net(hidden)  # [T*B, c, h, w]
+        obs = obs.view(tb+obs[-3:])  # [T, B, c, h, w]
+        obs = obs.swapaxes(-2, -3).swapaxes(-1, -2)   # [T, B, h, w, c]
         obs_dist = td.Independent(td.Normal(obs, 1), len(self.visual_dim))
         return obs_dist
 
@@ -59,8 +60,7 @@ class DenseModel(nn.Module):
                  activation='relu',
                  layer='linear'):
         super().__init__()
-        self._output_shape = output_shape if isinstance(
-            output_shape, (list, tuple)) else (int(output_shape),)
+        self._output_shape = (output_shape,) if isinstance(output_shape, int) else output_shape
         self._layers = layers
         self._hidden_units = hidden_units
         self._dist = dist
@@ -72,13 +72,13 @@ class DenseModel(nn.Module):
         self.model = self.build_model()
 
     def build_model(self):
-        model = [Layer_REGISTER[self._layer](
-            self._feature_size, self._hidden_units)]
-        model += [Act_REGISTER[self._activation]()]
+        model = [Layer_REGISTER[self._layer](self._feature_size, self._hidden_units),
+                 Act_REGISTER[self._activation]()]
+
         for i in range(self._layers - 1):
-            model += [Layer_REGISTER[self._layer]
-                      (self._hidden_units, self._hidden_units)]
-            model += [Act_REGISTER[self._activation]()]
+            model += [Layer_REGISTER[self._layer](self._hidden_units, self._hidden_units),
+                      Act_REGISTER[self._activation]()]
+
         model += [Layer_REGISTER[self._layer](self._hidden_units,
                                               int(np.prod(self._output_shape)))]
         return nn.Sequential(*model)
@@ -87,7 +87,7 @@ class DenseModel(nn.Module):
         dist_inputs = self.model(features)
         reshaped_inputs = t.reshape(
             dist_inputs, features.shape[:-1] + self._output_shape)
-        if self._dist == 'normal':
+        if self._dist == 'mse':
             return td.independent.Independent(td.Normal(reshaped_inputs, 1), len(self._output_shape))
         elif self._dist == 'binary':
             return td.independent.Independent(td.Bernoulli(logits=reshaped_inputs, validate_args=False), len(self._output_shape))
@@ -116,19 +116,15 @@ class ActionDecoder(nn.Module):
         self.raw_init_std = np.log(np.exp(self.init_std) - 1)
 
     def build_model(self):
-        model = [Layer_REGISTER[self._layer](
-            self.feature_size, self.hidden_units)]
-        model += [Act_REGISTER[self._activation]()]
-        for i in range(1, self.layers):
-            model += [Layer_REGISTER[self._layer]
-                      (self.hidden_units, self.hidden_units)]
-            model += [Act_REGISTER[self._activation]()]
+        model = [Layer_REGISTER[self._layer](self.feature_size, self.hidden_units),
+                 Act_REGISTER[self._activation]()]
+        for i in range(self.layers-1):
+            model += [Layer_REGISTER[self._layer](self.hidden_units, self.hidden_units),
+                      Act_REGISTER[self._activation]()]
         if self.dist in ['tanh_normal', 'trunc_normal']:
-            model += [Layer_REGISTER[self._layer]
-                      (self.hidden_units, self.action_size * 2)]
+            model += [Layer_REGISTER[self._layer](self.hidden_units, self.action_size * 2)]
         elif self.dist in ['one_hot', 'relaxed_one_hot']:
-            model += [Layer_REGISTER[self._layer]
-                      (self.hidden_units, self.action_size)]
+            model += [Layer_REGISTER[self._layer](self.hidden_units, self.action_size)]
         else:
             raise NotImplementedError(f'{self.dist} not implemented')
         return nn.Sequential(*model)

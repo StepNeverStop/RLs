@@ -115,7 +115,7 @@ class DreamerV1(SarlOffPolicy):
         if self.use_pcont:
             self.pcont_decoder = DenseModel(self.decoder_input_dim,
                                             1,
-                                            **network_settings['pcont'])
+                                            **network_settings['pcont']).to(self.device)
             _modules.append(self.pcont_decoder)
 
         self.model_oplr = OPLR(
@@ -233,26 +233,23 @@ class DreamerV1(SarlOffPolicy):
             [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
-        reward_pred = self.reward_predictor(
-            post_feat[:-1])  # [T-1, B, 1], s_ => r
+        reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
 
         # compute loss for observation and reward
         obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
-        # [T-1, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward[1:]))
+        # [T, B, 1]=>1
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
 
         # add all losses and update model parameters with gradient descent
         model_loss = self.kl_scale*kl_loss + obs_loss + \
             self.reward_scale * reward_loss   # 1
 
         if self.use_pcont:
-            pcont_pred = self.pcont_decoder(
-                post_feat[:-1])  # [T-1, B, 1], s_ => done
+            pcont_pred = self.pcont_decoder(post_feat)  # [T, B, 1], s_ => done
             # https://github.com/danijar/dreamer/issues/2#issuecomment-605392659
             pcont_target = self.gamma * (1. - BATCH.done)
-            pcont_target = pcont_target[1:]
-            # [T-1, B, 1]=>1
-            pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target))
+            # [T, B, 1]=>1
+            pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target).unsqueeze(-1)*(1. - BATCH.done))
             model_loss += self.pcont_scale * pcont_loss
 
         self.model_oplr.optimize(model_loss)
@@ -272,44 +269,39 @@ class DreamerV1(SarlOffPolicy):
             entropies = []
 
             for h in range(self.imagination_horizon):
+
+                imaginated_states.append(flatten_states)   # [T*B, S]
+                imaginated_rnn_hiddens.append(flatten_rnn_hiddens)  # [T*B, D]
+
                 flatten_feat = t.cat(
                     [flatten_states, flatten_rnn_hiddens], -1).detach()
                 action_dist = self.actor(flatten_feat)
                 actions = action_dist.rsample()  # [T*B, A]
-                log_probs.append(action_dist.log_prob(
-                    actions.detach()).unsqueeze(-1))   # [T*B, 1]
-                entropies.append(
-                    action_dist.entropy().unsqueeze(-1))    # [T*B, 1]
+                log_probs.append(action_dist.log_prob(actions.detach()).unsqueeze(-1))   # [T*B, 1]
+                entropies.append(action_dist.entropy().unsqueeze(-1))    # [T*B, 1]
                 flatten_states_prior, flatten_rnn_hiddens = self.rssm.prior(flatten_states,
                                                                             actions,
                                                                             flatten_rnn_hiddens)
                 flatten_states = flatten_states_prior.rsample()  # [T*B, S]
-                imaginated_states.append(flatten_states)   # [T*B, S]
-                imaginated_rnn_hiddens.append(flatten_rnn_hiddens)  # [T*B, D]
 
             imaginated_states = t.stack(imaginated_states, 0)   # [H, T*B, S]
-            imaginated_rnn_hiddens = t.stack(
-                imaginated_rnn_hiddens, 0)   # [H, T*B, D]
+            imaginated_rnn_hiddens = t.stack(imaginated_rnn_hiddens, 0)   # [H, T*B, D]
             log_probs = t.stack(log_probs, 0)  # [H, T*B, 1]
             entropies = t.stack(entropies, 0)  # [H, T*B, 1]
 
-        imaginated_feats = t.cat(
-            [imaginated_states, imaginated_rnn_hiddens], -1)    # [H, T*B, *]
+        imaginated_feats = t.cat([imaginated_states, imaginated_rnn_hiddens], -1)    # [H, T*B, *]
 
         with FreezeParameters(self.model_oplr.parameters + self.critic_oplr.parameters):
-            imaginated_rewards = self.reward_predictor(
-                imaginated_feats).mean    # [H, T*B, 1]
-            imaginated_values = self._dreamer_target_img_value(
-                imaginated_feats)   # [H, T*B, 1]]
+            imaginated_rewards = self.reward_predictor(imaginated_feats).mean    # [H, T*B, 1]
+            imaginated_values = self._dreamer_target_img_value(imaginated_feats)   # [H, T*B, 1]]
 
         # Compute the exponential discounted sum of rewards
         if self.use_pcont:
             with FreezeParameters(self.pcont_decoder.parameters()):
-                discount_arr = self.pcont_decoder(
-                    imaginated_feats).mean  # [H, T*B, 1]
+                discount_arr = self.pcont_decoder(imaginated_feats).mean  # [H, T*B, 1]
         else:
-            discount_arr = self.gamma * \
-                t.ones_like(imaginated_rewards)  # [H, T*B, 1]
+            discount_arr = self.gamma * t.ones_like(imaginated_rewards)  # [H, T*B, 1]
+
         returns = compute_return(imaginated_rewards[:-1], imaginated_values[:-1], discount_arr[:-1],
                                  bootstrap=imaginated_values[-1], lambda_=self.lambda_)    # [H-1, T*B, 1]
         # Make the top row 1 so the cumulative product starts with discount^0
@@ -330,8 +322,7 @@ class DreamerV1(SarlOffPolicy):
             value_target = returns.detach()  # [H-1, T*B, 1]
 
         value_pred = self.critic(value_feat)  # [H-1, T*B, 1]
-        log_prob = value_pred.log_prob(
-            value_target).unsqueeze(-1)    # [H-1, T*B, 1]
+        log_prob = value_pred.log_prob(value_target).unsqueeze(-1)    # [H-1, T*B, 1]
         critic_loss = -t.mean(discount * log_prob)  # 1
 
         self.actor_oplr.zero_grad()

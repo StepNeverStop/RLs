@@ -13,8 +13,8 @@ from rls.nn.layers import Layer_REGISTER
 class RecurrentStateSpaceModel(nn.Module):
     """
     This class includes multiple components
-    Deterministic state model: h_t+1 = f(h_t, s_t, a_t)
-    Stochastic state model (prior): p(s_t+1 | h_t+1)
+    Deterministic stoch_state model: h_t+1 = f(h_t, s_t, a_t)
+    Stochastic stoch_state model (prior): p(s_t+1 | h_t+1)
     State posterior: q(s_t | h_t, o_t)
     NOTE: actually, this class takes embedded observation by Encoder class
     min_stddev is added to stddev same as original implementation
@@ -51,49 +51,44 @@ class RecurrentStateSpaceModel(nn.Module):
         self.fc_output_prior = nn.Sequential(
             Layer_REGISTER[self._layer](deter_dim, hidden_units),
             Act_REGISTER[self._act](),
-            Layer_REGISTER[self._layer](hidden_units, hidden_units),
-            Act_REGISTER[self._act](),
             Layer_REGISTER[self._layer](hidden_units, output_dim)
         )
         self.fc_output_posterior = nn.Sequential(
-            Layer_REGISTER[self._layer](
-                deter_dim + obs_embed_dim, hidden_units),
-            Act_REGISTER[self._act](),
-            Layer_REGISTER[self._layer](hidden_units, hidden_units),
+            Layer_REGISTER[self._layer](deter_dim + obs_embed_dim, hidden_units),
             Act_REGISTER[self._act](),
             Layer_REGISTER[self._layer](hidden_units, output_dim)
         )
 
         self._min_stddev = min_stddev
 
-    def forward(self, state, action, rnn_hidden, embedded_next_obs):
+    def forward(self, stoch_state, action, deter_state, embedded_next_obs):
         """
         h_t+1 = f(h_t, s_t, a_t)
         Return prior p(s_t+1 | h_t+1) and posterior p(s_t+1 | h_t+1, o_t+1)
         for model training
         """
-        next_state_prior, rnn_hidden = self.prior(
-            state, action, rnn_hidden)     # [B, *]
+        next_state_prior, deter_state = self.prior(
+            stoch_state, action, deter_state)     # [B, *]
         next_state_posterior = self.posterior(
-            rnn_hidden, embedded_next_obs)
-        return next_state_prior, next_state_posterior, rnn_hidden
+            deter_state, embedded_next_obs)
+        return next_state_prior, next_state_posterior, deter_state
 
-    def prior(self, state, action, rnn_hidden):
+    def prior(self, stoch_state, action, deter_state):
         """
         h_t+1 = f(h_t, s_t, a_t)
         Compute prior p(s_t+1 | h_t+1)
         """
-        hidden = self.fc_state_action(t.cat([state, action], dim=-1))  # [B, *]
-        rnn_hidden = self.rnn(hidden, rnn_hidden)    # [B, *]
-        output = self.fc_output_prior(rnn_hidden)  # [B, *]
-        return self._build_dist(output), rnn_hidden
+        hidden = self.fc_state_action(t.cat([stoch_state, action], dim=-1))  # [B, *]
+        deter_state = self.rnn(hidden, deter_state)    # [B, *]
+        output = self.fc_output_prior(deter_state)  # [B, *]
+        return self._build_dist(output), deter_state
 
-    def posterior(self, rnn_hidden, embedded_obs):
+    def posterior(self, deter_state, embedded_obs):
         """
         Compute posterior q(s_t | h_t, o_t)
         """
         output = self.fc_output_posterior(
-            t.cat([rnn_hidden, embedded_obs], dim=-1))
+            t.cat([deter_state, embedded_obs], dim=-1))
         return self._build_dist(output)
 
     def _build_dist(self, output):

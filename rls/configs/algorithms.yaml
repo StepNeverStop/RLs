@@ -636,14 +636,14 @@ planet:
             vector:
                 layers: 2
                 hidden_units: 64
-                dist: "normal"
+                dist: "mse"
         rssm:
             hidden_units: 200
             std_act: "softplus"
         reward:
             layers: 3
             hidden_units: 300
-            dist: "normal"
+            dist: "mse"
 
 dreamer: &dreamer
     <<: *sarl_off_policy
@@ -685,7 +685,7 @@ dreamer: &dreamer
             vector:
                 layers: 2
                 hidden_units: 64
-                dist: "normal"
+                dist: "mse"
         rssm:
             hidden_units: 64
             std_act: "softplus"
@@ -695,11 +695,11 @@ dreamer: &dreamer
         critic:
             layers: 2
             hidden_units: 64
-            dist: "normal"
+            dist: "mse"
         reward:
             layers: 2
             hidden_units: 64
-            dist: "normal"
+            dist: "mse"
         pcont:
             layers: 2
             hidden_units: 64
@@ -714,7 +714,6 @@ dreamerv2:
     kl_forward: false
     kl_balance: 0.8
     kl_free_avg: true
-    use_free_nats: true
     # for discrete, use 'reinforce' and entropy_scale 1e-3
     # for continuous, use 'dynamics' and entropy_scale 1e-4
     actor_grad: "dynamics"
@@ -735,7 +734,7 @@ dreamerv2:
             vector:
                 layers: 2
                 hidden_units: 64
-                dist: "normal"
+                dist: "mse"
         rssm:
             hidden_units: 64
             std_act: "sigmoid2"
@@ -745,11 +744,11 @@ dreamerv2:
         critic:
             layers: 2
             hidden_units: 64
-            dist: "normal"
+            dist: "mse"
         reward:
             layers: 2
             hidden_units: 64
-            dist: "normal"
+            dist: "mse"
         pcont:
             layers: 2
             hidden_units: 64
