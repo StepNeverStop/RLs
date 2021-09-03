@@ -22,31 +22,18 @@ class PlaNet(SarlOffPolicy):
 
     def __init__(self,
 
-                 eps_init: float = 1,
-                 eps_mid: float = 0.2,
-                 eps_final: float = 0.01,
-                 init2mid_annealing_step: int = 1000,
                  stoch_dim=30,
                  deter_dim=200,
                  model_lr=6e-4,
                  kl_free_nats=3,
-                 cnn_depth=32,
-                 cnn_act="relu",
                  kl_scale=1.0,
                  reward_scale=1.0,
                  cem_horizon=12,
                  cem_iter_nums=10,
                  cem_candidates=1000,
                  cem_tops=100,
-                 network_settings={
-                     'rssm': {
-                         'hidden_units': 200
-                     },
-                     'reward': {
-                         'layers': 3,
-                         'hidden_units': 300
-                     }
-                 },
+                 action_sigma=0.3,
+                 network_settings=dict(),
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -76,23 +63,23 @@ class PlaNet(SarlOffPolicy):
         self.kl_free_nats = kl_free_nats
         self.kl_scale = kl_scale
         self.reward_scale = reward_scale
+        self._action_sigma = action_sigma
         self._network_settings = network_settings
 
         if self.obs_spec.has_visual_observation:
             from rls.nn.dreamer import VisualDecoder, VisualEncoder
             self.obs_encoder = VisualEncoder(self.obs_spec.visual_dims[0],
-                                             depth=cnn_depth,
-                                             act=cnn_act).to(self.device)
+                                             **network_settings['obs_encoder']['visual']).to(self.device)
             self.obs_decoder = VisualDecoder(self.decoder_input_dim,
                                              self.obs_spec.visual_dims[0],
-                                             depth=cnn_depth,
-                                             act=cnn_act).to(self.device)
+                                             **network_settings['obs_decoder']['visual']).to(self.device)
         else:
-            from rls.nn.dreamer import VectorDecoder, VectorEncoder
-            self.obs_encoder = VectorEncoder(
-                self.obs_spec.vector_dims[0]).to(self.device)
-            self.obs_decoder = VectorDecoder(self.decoder_input_dim,
-                                             self.obs_spec.vector_dims[0]).to(self.device)
+            from rls.nn.dreamer import VectorEncoder
+            self.obs_encoder = VectorEncoder(self.obs_spec.vector_dims[0],
+                                             **network_settings['obs_encoder']['vector']).to(self.device)
+            self.obs_decoder = DenseModel(self.decoder_input_dim,
+                                          self.obs_spec.vector_dims[0],
+                                          **network_settings['obs_decoder']['vector']).to(self.device)
 
         self.rssm = self._dreamer_build_rssm()
 
@@ -101,9 +88,8 @@ class PlaNet(SarlOffPolicy):
         Reward model to predict reward from state and rnn hidden state
         """
         self.reward_predictor = DenseModel(self.decoder_input_dim,
-                                           (1,),
-                                           network_settings['reward']['layers'],
-                                           network_settings['reward']['hidden_units']).to(self.device)
+                                           1,
+                                           **network_settings['reward']).to(self.device)
 
         self.model_oplr = OPLR(
             [self.obs_encoder, self.rssm,
@@ -123,7 +109,7 @@ class PlaNet(SarlOffPolicy):
                                         self.deter_dim,
                                         self.a_dim,
                                         self.obs_encoder.h_dim,
-                                        self._network_settings['rssm']['hidden_units']).to(self.device)
+                                        **self._network_settings['rssm']).to(self.device)
 
     @iTensor_oNumpy
     def select_action(self, obs):
@@ -187,8 +173,7 @@ class PlaNet(SarlOffPolicy):
             action_dist = td.Normal(mean, stddev)
 
         # Return only first action (replan each state based on new observation)
-        actions = mean[0]    # [B, A]
-
+        actions = t.tanh(mean[0])    # [B, A]
         actions = self._exploration(actions)
         _, self.next_cell_state['hx'] = self.rssm.prior(state_posterior.sample(),
                                                         actions,
@@ -200,11 +185,9 @@ class PlaNet(SarlOffPolicy):
         :param action: action to take, shape (1,) (if categorical), or (action dim,) (if continuous)
         :return: action of the same shape passed in, augmented with some noise
         """
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
-            index = t.randint(0, self.a_dim, (self.n_copys, ))
-            action = t.zeros_like(action)
-            action[..., index] = 1
-        return action
+        sigma = self._action_sigma if self._is_train_mode else 0.
+        noise = t.randn(*action.shape) * sigma
+        return t.clamp(action + noise, -1, 1)
 
     @iTensor_oNumpy
     def _train(self, BATCH):
@@ -235,9 +218,8 @@ class PlaNet(SarlOffPolicy):
                 rnn_hidden = rnn_hidden * (1. - trunced_mask)
             next_state_prior, next_state_posterior, rnn_hidden = \
                 self.rssm(state, pre_action, rnn_hidden,
-                          embedded_observations[l], build_dist=False)    # a, s_
-            state = self.rssm._build_dist(
-                next_state_posterior).rsample()  # [B, S] posterior of s_
+                          embedded_observations[l])    # a, s_
+            state = next_state_posterior.rsample()  # [B, S] posterior of s_
             states.append(state)  # [B, S]
             rnn_hiddens.append(rnn_hidden)   # [B, D]
             kl_loss += self._kl_loss(next_state_prior, next_state_posterior)
@@ -275,6 +257,6 @@ class PlaNet(SarlOffPolicy):
     def _initial_cell_state(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}
 
-    def _kl_loss(self, prior, post):
+    def _kl_loss(self, prior_dist, post_dist):
         # 1
-        return td.kl_divergence(self.rssm._build_dist(prior), self.rssm._build_dist(post)).sum(dim=-1).clamp(min=self.kl_free_nats).mean()
+        return td.kl_divergence(prior_dist, post_dist).clamp(min=self.kl_free_nats).mean()

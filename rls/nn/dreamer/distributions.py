@@ -7,36 +7,6 @@ from torch import distributions as td
 from torch.distributions import constraints
 
 
-class TanhBijector(td.Transform):
-
-    def __init__(self):
-        super().__init__()
-        # https://discuss.pytorch.org/t/solved-pytorch1-8-attributeerror-tanhbijector-object-has-no-attribute-domain/116092/6
-        self.bijective = True
-        self.domain = constraints.Constraint()
-        self.codomain = constraints.Constraint()
-
-    @property
-    def sign(self):
-        return 1.
-
-    def _call(self, x):
-        return t.tanh(x)
-
-    def _inverse(self, y: t.Tensor):
-        y = t.where(
-            (t.abs(y) <= 1.),
-            t.clamp(y, -0.99999997, 0.99999997),
-            y
-        )
-
-        y = atanh(y)
-        return y
-
-    def log_abs_det_jacobian(self, x, y):
-        return 2. * (np.log(2) - x - F.softplus(-2. * x))
-
-
 class SampleDist:
 
     def __init__(self, dist: td.Distribution, samples=100):
@@ -75,10 +45,6 @@ class SampleDist:
 
     def sample(self):
         return self._dist.sample()
-
-
-def atanh(x):
-    return 0.5 * t.log((1 + x) / (1 - x))
 
 
 class OneHotDist(td.OneHotCategorical):

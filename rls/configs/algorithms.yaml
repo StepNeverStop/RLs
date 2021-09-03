@@ -607,65 +607,85 @@ planet:
     <<: *sarl_off_policy
     optim_params:
         eps: 1.e-4
-    train_times: 5
-    train_interval: 50
+    train_times: 1
+    train_interval: 1
 
     cem_horizon: 12
     cem_iter_nums: 10
     cem_candidates: 100
-    cem_tops: 10
-    eps_init: 1
-    eps_mid: 0.2
-    eps_final: 0.01
-    init2mid_annealing_step: 10000
     # same hyperparameter as original implementation.
     chunk_length: 10 # n-step or rnn length
-    batch_size: 64
-    stoch_dim: 16
-    deter_dim: 16
-    model_lr: 3.e-4
+    batch_size: 50
+    stoch_dim: 30
+    deter_dim: 30
+    model_lr: 1.e-3
+    action_sigma: 0.3
     kl_free_nats: 3
-    cnn_depth: 32
-    cnn_act: "relu"
     kl_scale: 1.0
     reward_scale: 1.0
     network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "normal"
         rssm:
-            hidden_units: 64
+            hidden_units: 200
             std_act: "softplus"
         reward:
-            layers: 2
-            hidden_units: 64
+            layers: 3
+            hidden_units: 300
+            dist: "normal"
 
 dreamer: &dreamer
     <<: *sarl_off_policy
     optim_params:
         eps: 1.e-4
-    train_times: 5
-    train_interval: 50
+    train_times: 1
+    train_interval: 1
 
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
     init2mid_annealing_step: 10000
     # same hyperparameter as original implementation.
-    chunk_length: 10 # n-step or rnn length
-    batch_size: 64
-    stoch_dim: 16
-    deter_dim: 16
+    chunk_length: 50 # n-step or rnn length
+    batch_size: 50
+    stoch_dim: 30
+    deter_dim: 30
     model_lr: 3.e-4
     actor_lr: 1.e-4
     critic_lr: 1.e-4
     kl_free_nats: 3
-    imagination_horizon: 6
+    action_sigma: 0.3
+    imagination_horizon: 10
     lambda_: 0.95
-    cnn_depth: 32
-    cnn_act: "relu"
     kl_scale: 1.0
     reward_scale: 1.0
     use_pcont: true
     pcont_scale: 10.0
     network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "normal"
         rssm:
             hidden_units: 64
             std_act: "softplus"
@@ -675,12 +695,15 @@ dreamer: &dreamer
         critic:
             layers: 2
             hidden_units: 64
+            dist: "normal"
         reward:
             layers: 2
             hidden_units: 64
+            dist: "normal"
         pcont:
             layers: 2
             hidden_units: 64
+            dist: "binary"
 
 dreamerv2:
     <<: *dreamer
@@ -691,15 +714,28 @@ dreamerv2:
     kl_forward: false
     kl_balance: 0.8
     kl_free_avg: true
-    use_free_nats: false
+    use_free_nats: true
     # for discrete, use 'reinforce' and entropy_scale 1e-3
     # for continuous, use 'dynamics' and entropy_scale 1e-4
-    actor_grad: "reinforce"
-    actor_entropy_scale: 1.e-3
+    actor_grad: "dynamics"
+    actor_entropy_scale: 1.e-4
     actor_grad_mix: 0.
     use_double: true
-    assign_interval: 100
+    assign_interval: 1000
     network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "normal"
         rssm:
             hidden_units: 64
             std_act: "sigmoid2"
@@ -709,9 +745,12 @@ dreamerv2:
         critic:
             layers: 2
             hidden_units: 64
+            dist: "normal"
         reward:
             layers: 2
             hidden_units: 64
+            dist: "normal"
         pcont:
             layers: 2
             hidden_units: 64
+            dist: "binary"

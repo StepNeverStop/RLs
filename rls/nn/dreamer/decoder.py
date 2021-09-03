@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 import torch as t
 from torch import distributions as td
@@ -5,7 +7,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from rls.nn.activations import Act_REGISTER
-from rls.nn.dreamer.distributions import SampleDist, TanhBijector
+from rls.nn.dreamer.distributions import SampleDist
+from rls.nn.layers import Layer_REGISTER
 
 
 class VisualDecoder(nn.Module):
@@ -15,8 +18,8 @@ class VisualDecoder(nn.Module):
     from state and rnn hidden state
     """
 
-    def __init__(self, feat_dim,
-                 visual_dim, depth=32, act='relu'):
+    def __init__(self, feat_dim, visual_dim,
+                 depth=32, act='relu'):
         super().__init__()
         self.visual_dim = visual_dim
         self.fc = nn.Linear(feat_dim, 32*depth)
@@ -30,10 +33,6 @@ class VisualDecoder(nn.Module):
             nn.ConvTranspose2d(
                 1*depth, visual_dim[-1], kernel_size=6, stride=2)
         )
-        # with t.no_grad():
-        #     _hidden = self.fc(t.zeros(1, feat_dim))
-        #     _hidden = _hidden.view(1, 1024, 1, 1)    # [B, 1024, 1, 1]
-        #     self.h_dim = self.net(_hidden).shape
 
     def forward(self, feat):
         '''
@@ -49,50 +48,39 @@ class VisualDecoder(nn.Module):
         return obs_dist
 
 
-class VectorDecoder(nn.Module):
-    """
-    """
-
-    def __init__(self, feat_dim, vector_dim):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(feat_dim, 64),
-            nn.ELU(),
-            nn.Linear(64, 64),
-            nn.ELU(),
-            nn.Linear(64, vector_dim)
-        )
-        self.h_dim = vector_dim
-
-    def forward(self, feat):
-        obs = self.net(feat)   # [B, *] or [T, B, *]
-        obs_dist = td.Independent(td.Normal(obs, 1), 1)
-        return obs_dist
-
-
 class DenseModel(nn.Module):
-    def __init__(self, feature_size: int, output_shape: tuple, layers: int, hidden_size: int,
-                 dist='normal',
-                 activation=nn.ELU):
+
+    def __init__(self,
+                 feature_size: int,
+                 output_shape: Union[tuple, int, list],
+                 layers: int = 1,
+                 hidden_units: int = 64,
+                 dist='none',
+                 activation='relu',
+                 layer='linear'):
         super().__init__()
-        self._output_shape = output_shape
+        self._output_shape = output_shape if isinstance(
+            output_shape, (list, tuple)) else (int(output_shape),)
         self._layers = layers
-        self._hidden_size = hidden_size
+        self._hidden_units = hidden_units
         self._dist = dist
-        self.activation = activation
+        self._activation = activation
+        self._layer = layer
         # For adjusting pytorch to tensorflow
         self._feature_size = feature_size
         # Defining the structure of the NN
         self.model = self.build_model()
 
     def build_model(self):
-        model = [nn.Linear(self._feature_size, self._hidden_size)]
-        model += [self.activation()]
+        model = [Layer_REGISTER[self._layer](
+            self._feature_size, self._hidden_units)]
+        model += [Act_REGISTER[self._activation]()]
         for i in range(self._layers - 1):
-            model += [nn.Linear(self._hidden_size, self._hidden_size)]
-            model += [self.activation()]
-        model += [nn.Linear(self._hidden_size,
-                            int(np.prod(self._output_shape)))]
+            model += [Layer_REGISTER[self._layer]
+                      (self._hidden_units, self._hidden_units)]
+            model += [Act_REGISTER[self._activation]()]
+        model += [Layer_REGISTER[self._layer](self._hidden_units,
+                                              int(np.prod(self._output_shape)))]
         return nn.Sequential(*model)
 
     def forward(self, features):
@@ -101,21 +89,26 @@ class DenseModel(nn.Module):
             dist_inputs, features.shape[:-1] + self._output_shape)
         if self._dist == 'normal':
             return td.independent.Independent(td.Normal(reshaped_inputs, 1), len(self._output_shape))
-        if self._dist == 'binary':
+        elif self._dist == 'binary':
             return td.independent.Independent(td.Bernoulli(logits=reshaped_inputs, validate_args=False), len(self._output_shape))
-        raise NotImplementedError(self._dist)
+        elif self._dist == 'none':
+            return reshaped_inputs
+        else:
+            raise NotImplementedError(self._dist)
 
 
 class ActionDecoder(nn.Module):
-    def __init__(self, action_size, feature_size, layers, hidden_size, dist='tanh_normal',
-                 activation=nn.ELU, min_std=1e-4, init_std=5, mean_scale=5):
+    def __init__(self, action_size, feature_size, layers, hidden_units,
+                 dist='tanh_normal', activation='relu', layer='linear', min_std=1e-4,
+                 init_std=5, mean_scale=5):
         super().__init__()
         self.action_size = action_size
         self.feature_size = feature_size
-        self.hidden_size = hidden_size
+        self.hidden_units = hidden_units
         self.layers = layers
         self.dist = dist
-        self.activation = activation
+        self._activation = activation
+        self._layer = layer
         self.min_std = min_std
         self.init_std = init_std
         self.mean_scale = mean_scale
@@ -123,28 +116,33 @@ class ActionDecoder(nn.Module):
         self.raw_init_std = np.log(np.exp(self.init_std) - 1)
 
     def build_model(self):
-        model = [nn.Linear(self.feature_size, self.hidden_size)]
-        model += [self.activation()]
+        model = [Layer_REGISTER[self._layer](
+            self.feature_size, self.hidden_units)]
+        model += [Act_REGISTER[self._activation]()]
         for i in range(1, self.layers):
-            model += [nn.Linear(self.hidden_size, self.hidden_size)]
-            model += [self.activation()]
+            model += [Layer_REGISTER[self._layer]
+                      (self.hidden_units, self.hidden_units)]
+            model += [Act_REGISTER[self._activation]()]
         if self.dist in ['tanh_normal', 'trunc_normal']:
-            model += [nn.Linear(self.hidden_size, self.action_size * 2)]
-        elif self.dist == 'one_hot' or self.dist == 'relaxed_one_hot':
-            model += [nn.Linear(self.hidden_size, self.action_size)]
+            model += [Layer_REGISTER[self._layer]
+                      (self.hidden_units, self.action_size * 2)]
+        elif self.dist in ['one_hot', 'relaxed_one_hot']:
+            model += [Layer_REGISTER[self._layer]
+                      (self.hidden_units, self.action_size)]
         else:
             raise NotImplementedError(f'{self.dist} not implemented')
         return nn.Sequential(*model)
 
     def forward(self, state_features):
         x = self.feedforward_model(state_features)
-        dist = None
         if self.dist == 'tanh_normal':
             mean, std = t.chunk(x, 2, -1)
             mean = self.mean_scale * t.tanh(mean / self.mean_scale)
             std = F.softplus(std + self.raw_init_std) + self.min_std
             dist = td.Normal(mean, std)
-            dist = td.TransformedDistribution(dist, TanhBijector())
+            # TODO: fix nan problem
+            dist = td.TransformedDistribution(
+                dist, td.TanhTransform(cache_size=1))
             dist = td.Independent(dist, 1)
             dist = SampleDist(dist)
         elif self.dist == 'trunc_normal':
@@ -156,8 +154,10 @@ class ActionDecoder(nn.Module):
             dist = td.Independent(dist, 1)
         elif self.dist == 'one_hot':
             dist = td.OneHotCategoricalStraightThrough(logits=x)
+            dist = td.Independent(dist, 1)
         elif self.dist == 'relaxed_one_hot':
             dist = td.RelaxedOneHotCategorical(0.1, logits=x)
+            dist = td.Independent(dist, 1)
         return dist
 
     def sample_actions(self, state_features, is_train=True):
