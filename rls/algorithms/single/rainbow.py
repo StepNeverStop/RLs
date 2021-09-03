@@ -54,7 +54,7 @@ class RAINBOW(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self.rainbow_net = TargetTwin(RainbowDueling(self.obs_spec,
                                                      rep_net_params=self._rep_net_params,
@@ -71,7 +71,7 @@ class RAINBOW(SarlOffPolicy):
             obs, cell_state=self.cell_state)    # [B, A, N]
         self.next_cell_state = self.rainbow_net.get_cell_state()
 
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             q = (self._z * q_values).sum(-1)  # [B, A, N] * [N, ] => [B, A]
@@ -128,5 +128,5 @@ class RAINBOW(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.rainbow_net.sync()

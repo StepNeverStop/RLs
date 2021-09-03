@@ -6,36 +6,6 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 import torch as t
 
-# TODO:
-
-
-class Every:
-
-    def __init__(self, every):
-        self._every = every
-        self._last = None
-
-    def __call__(self, step):
-        if self._last is None:
-            self._last = step
-            return True
-        if step >= self._last + self._every:
-            self._last += self._every
-            return True
-        return False
-
-
-class Once:
-
-    def __init__(self):
-        self._once = True
-
-    def __call__(self):
-        if self._once:
-            self._once = False
-            return True
-        return False
-
 
 @dataclass
 class SensorSpec:

@@ -56,7 +56,8 @@ class RecurrentStateSpaceModel(nn.Module):
             Layer_REGISTER[self._layer](hidden_units, output_dim)
         )
         self.fc_output_posterior = nn.Sequential(
-            Layer_REGISTER[self._layer](deter_dim + obs_embed_dim, hidden_units),
+            Layer_REGISTER[self._layer](
+                deter_dim + obs_embed_dim, hidden_units),
             Act_REGISTER[self._act](),
             Layer_REGISTER[self._layer](hidden_units, hidden_units),
             Act_REGISTER[self._act](),

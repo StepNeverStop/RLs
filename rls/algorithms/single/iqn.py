@@ -51,7 +51,7 @@ class IQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.q_net = TargetTwin(IqnNet(self.obs_spec,
                                        rep_net_params=self._rep_net_params,
                                        action_dim=self.a_dim,
@@ -71,7 +71,7 @@ class IQN(SarlOffPolicy):
             obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
         self.next_cell_state = self.q_net.get_cell_state()
 
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             # [N, B, A] => [B, A] => [B,]
@@ -181,5 +181,5 @@ class IQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()

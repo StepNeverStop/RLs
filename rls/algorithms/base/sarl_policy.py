@@ -115,7 +115,7 @@ class SarlPolicy(Policy):
         raise NotImplementedError
 
     def write_recorder_summaries(self, summaries):
-        self._write_train_summaries(self.cur_episode, summaries, self.writer)
+        self._write_train_summaries(self._cur_episode, summaries, self.writer)
 
     # customed
 

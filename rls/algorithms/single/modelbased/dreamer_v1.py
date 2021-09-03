@@ -77,7 +77,7 @@ class DreamerV1(SarlOffPolicy):
                                                               eps_mid=eps_mid,
                                                               eps_final=eps_final,
                                                               init2mid_annealing_step=init2mid_annealing_step,
-                                                              max_step=self.max_train_step)
+                                                              max_step=self._max_train_step)
 
         if self.obs_spec.has_visual_observation:
             from rls.nn.dreamer import VisualDecoder, VisualEncoder
@@ -186,7 +186,7 @@ class DreamerV1(SarlOffPolicy):
             noise = t.randn(*action.shape) * sigma
             return t.clamp(action + noise, -1, 1)
         else:
-            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+            if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 index = t.randint(0, self.a_dim, (self.n_copys, ))
                 action = t.zeros_like(action)
                 action[..., index] = 1

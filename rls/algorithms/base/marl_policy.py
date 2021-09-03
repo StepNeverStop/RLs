@@ -143,10 +143,10 @@ class MarlPolicy(Policy):
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():
-            super()._write_train_summaries(self.cur_episode,
+            super()._write_train_summaries(self._cur_episode,
                                            summaries=summaries.pop('model'), writer=self.writer)
         for id, summary in summaries.items():
-            super()._write_train_summaries(self.cur_episode,
+            super()._write_train_summaries(self._cur_episode,
                                            summaries=summary, writer=self.agent_writers[id])
 
     # customed

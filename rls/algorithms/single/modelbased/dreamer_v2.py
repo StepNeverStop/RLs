@@ -64,7 +64,8 @@ class DreamerV2(DreamerV1):
     def _kl_loss(self, prior_dist, post_dist):
         if self.kl_balance == 0.5:
             if self._use_free_nats:
-                loss = td.kl_divergence(prior_dist, post_dist).clamp(min=self.kl_free_nats).mean()  # 1
+                loss = td.kl_divergence(prior_dist, post_dist).clamp(
+                    min=self.kl_free_nats).mean()  # 1
             else:
                 loss = td.kl_divergence(prior_dist, post_dist).mean()  # 1
         else:
@@ -120,5 +121,5 @@ class DreamerV2(DreamerV1):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.critic.sync()

@@ -46,7 +46,7 @@ class VDN(MultiAgentOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self._use_double = use_double
         self._mixer_type = mixer
@@ -88,7 +88,7 @@ class VDN(MultiAgentOffPolicy):
                 obs[aid], cell_state=self.cell_state[aid])   # [B, A]
             self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
 
-            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+            if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
                 action = action = q_values.argmax(-1)    # [B,]
@@ -155,7 +155,7 @@ class VDN(MultiAgentOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             for q_net in self.q_nets.values():
                 q_net.sync()
             self.mixer.sync()

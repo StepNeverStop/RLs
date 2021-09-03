@@ -318,5 +318,5 @@ class SAC_V(SarlOffPolicy):
         super()._after_train()
         if self.annealing and not self.auto_adaption:
             self.log_alpha.copy_(
-                self.alpha_annealing(self.cur_train_step).log())
+                self.alpha_annealing(self._cur_train_step).log())
         self.v_net.sync()

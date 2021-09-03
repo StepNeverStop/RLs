@@ -9,6 +9,7 @@ import torch as t
 from rls.algorithms.base.sarl_policy import SarlPolicy
 from rls.common.decorator import iTensor_oNumpy
 from rls.common.specs import Data
+from rls.common.when import Every
 from rls.common.yaml_ops import load_config
 from rls.utils.converter import to_numpy, to_tensor
 from rls.utils.np_utils import int2one_hot
@@ -31,7 +32,7 @@ class SarlOffPolicy(SarlPolicy):
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self.use_priority = use_priority
-        self.train_interval = train_interval
+        self._should_train = Every(train_interval)
         super().__init__(**kwargs)
 
     def learn(self, BATCH: Data):
@@ -50,7 +51,7 @@ class SarlOffPolicy(SarlPolicy):
                      env_rets: Data,
                      begin_mask: np.ndarray):
         super().episode_step(obs, env_rets, begin_mask)
-        if self._is_train_mode and self._buffer.can_sample and self.cur_interact_step % self.train_interval == 0:
+        if self._is_train_mode and self._buffer.can_sample and self._should_train(self._cur_interact_step):
             for _ in range(self._train_times):
                 ret = self.learn(self._buffer.sample()[self._agent_id])
                 if self.use_priority:
@@ -66,7 +67,7 @@ class SarlOffPolicy(SarlPolicy):
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
                                            chunk_length=self._chunk_length,
-                                           max_train_step=self.max_train_step,
+                                           max_train_step=self._max_train_step,
                                            **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
         else:
             from rls.memories.er_buffer import DataBuffer
@@ -103,7 +104,7 @@ class SarlOffPolicy(SarlPolicy):
 
     def _after_train(self):
         self._write_train_summaries(
-            self.cur_train_step, self.summaries, self.writer)
-        self.cur_train_step += 1
-        if self.cur_train_step % self._save_frequency == 0:
+            self._cur_train_step, self.summaries, self.writer)
+        if self._should_save_model(self._cur_train_step):
             self.save()
+        self._cur_train_step += 1

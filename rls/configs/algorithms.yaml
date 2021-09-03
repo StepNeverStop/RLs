@@ -1,6 +1,6 @@
 policy: &policy
-    max_frame_step: 999999999999999999
-    max_train_episode: 999999999999999999
+    max_frame_step: 0
+    max_train_episode: 0
     save_frequency: 1000
     save2single_file: false
     n_step_value: 4

@@ -43,7 +43,7 @@ class MAXSQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.auto_adaption = auto_adaption
@@ -79,7 +79,7 @@ class MAXSQN(SarlOffPolicy):
         q = self.critic(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.critic.get_cell_state()
 
-        if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             cate_dist = td.Categorical(logits=(q / self.alpha))

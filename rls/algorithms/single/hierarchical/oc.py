@@ -50,7 +50,7 @@ class OC(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self.options_num = options_num
         self.termination_regularizer = termination_regularizer
@@ -133,7 +133,7 @@ class OC(SarlOffPolicy):
         max_options = q.argmax(-1).long()  # [B, P] => [B, ]
         if self.use_eps_greedy:
             # epsilon greedy
-            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+            if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 self.new_options = self._generate_random_options()
             else:
                 self.new_options = max_options
@@ -253,5 +253,5 @@ class OC(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()

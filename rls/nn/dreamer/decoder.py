@@ -154,10 +154,8 @@ class ActionDecoder(nn.Module):
             dist = td.Independent(dist, 1)
         elif self.dist == 'one_hot':
             dist = td.OneHotCategoricalStraightThrough(logits=x)
-            dist = td.Independent(dist, 1)
         elif self.dist == 'relaxed_one_hot':
-            dist = td.RelaxedOneHotCategorical(0.1, logits=x)
-            dist = td.Independent(dist, 1)
+            dist = td.RelaxedOneHotCategorical(t.tensor(0.1), logits=x)
         return dist
 
     def sample_actions(self, state_features, is_train=True):

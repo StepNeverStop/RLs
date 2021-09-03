@@ -38,7 +38,7 @@ class AveragedDQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self.target_k = target_k
         assert self.target_k > 0, "assert self.target_k > 0"
@@ -64,7 +64,7 @@ class AveragedDQN(SarlOffPolicy):
         q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
         self.next_cell_state = self.q_net.get_cell_state()
 
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             for i in range(self.target_k):
@@ -102,7 +102,7 @@ class AveragedDQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             sync_params(self.target_nets[self.current_target_idx], self.q_net)
             self.current_target_idx = (
                 self.current_target_idx + 1) % self.target_k
