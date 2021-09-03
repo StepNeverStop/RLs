@@ -11,6 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from rls.algorithms.base.base import Base
 from rls.common.specs import Data
+from rls.common.when import Every, Until
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 from rls.utils.sundry_utils import check_or_create
@@ -36,7 +37,7 @@ class Policy(Base):
                  decay_lr=False,
                  normalize_vector_obs=False,
                  obs_with_pre_action=False,
-                 optim_params=dict(),
+                 oplr_params=dict(),
                  rep_net_params={
                      'vector_net_params': {
                          'h_dim': 16,
@@ -65,11 +66,13 @@ class Policy(Base):
         self.base_dir = base_dir
         self.device = device
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
-        self.max_train_step = max_train_step
+        self._max_train_step = max_train_step
 
-        self.max_frame_step = max_frame_step
-        self.max_train_episode = max_train_episode
-        self._save_frequency = save_frequency
+        self._should_learn_cond_train_step = Until(max_train_step)
+        self._should_learn_cond_frame_step = Until(max_frame_step)
+        self._should_learn_cond_train_episode = Until(max_train_episode)
+        self._should_save_model = Every(save_frequency)
+
         self._save2single_file = save2single_file
         self.gamma = gamma
         self._n_step_value = n_step_value
@@ -77,7 +80,7 @@ class Policy(Base):
         self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
         self._obs_with_pre_action = obs_with_pre_action
         self._rep_net_params = dict(rep_net_params)
-        self._optim_params = dict(optim_params)
+        self._oplr_params = dict(oplr_params)
 
         super().__init__()
 
@@ -95,12 +98,17 @@ class Policy(Base):
             check_or_create(self.cp_dir, 'checkpoints(models)')
         self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
-        self.cur_interact_step = t.tensor(0).long().to(self.device)
-        self.cur_train_step = t.tensor(0).long().to(self.device)
-        self.cur_frame_step = t.tensor(0).long().to(self.device)
-        self.cur_episode = t.tensor(0).long().to(self.device)
+        self._cur_interact_step = t.tensor(0).long().to(self.device)
+        self._cur_train_step = t.tensor(0).long().to(self.device)
+        self._cur_frame_step = t.tensor(0).long().to(self.device)
+        self._cur_episode = t.tensor(0).long().to(self.device)
 
-        self._trainer_modules = {'cur_train_step': self.cur_train_step}
+        self._trainer_modules = {
+            '_cur_train_step': self._cur_train_step,
+            '_cur_train_step': self._cur_train_step,
+            '_cur_frame_step': self._cur_frame_step,
+            '_cur_episode': self._cur_episode
+        }
 
         self._buffer = self._build_buffer()
 
@@ -122,12 +130,12 @@ class Policy(Base):
 
     def episode_step(self):
         if self._is_train_mode:
-            self.cur_interact_step += 1
-            self.cur_frame_step += self.n_copys
+            self._cur_interact_step += 1
+            self._cur_frame_step += self.n_copys
 
     def episode_end(self):
         if self._is_train_mode:
-            self.cur_episode += 1
+            self._cur_episode += 1
 
     def learn(self, BATCH: Data):
         raise NotImplementedError
@@ -152,7 +160,7 @@ class Policy(Base):
                 for k, v in _data.items():
                     t.save(v, os.path.join(self.cp_dir, f'{k}.pth'))
             logger.info(colorize(
-                f'Save checkpoint success. Training step: {self.cur_train_step}', color='green'))
+                f'Save checkpoint success. Training step: {self._cur_train_step}', color='green'))
 
     def resume(self, base_dir: Optional[str] = None) -> Dict:
         """
@@ -184,9 +192,9 @@ class Policy(Base):
 
     @property
     def still_learn(self):
-        return self.cur_train_step < self.max_train_step \
-            and self.cur_frame_step < self.max_frame_step \
-            and self.cur_episode < self.max_train_episode
+        return self._should_learn_cond_train_step(self._cur_train_step) \
+            and self._should_learn_cond_frame_step(self._cur_frame_step) \
+            and self._should_learn_cond_train_episode(self._cur_episode)
 
     def write_recorder_summaries(self, summaries):
         raise NotImplementedError

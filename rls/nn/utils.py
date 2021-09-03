@@ -23,9 +23,8 @@ class OPLR:
                  optimizer: str = 'adam',
                  *,
                  scheduler_params: Dict = {},
-                 optimizer_params: Dict = {},
-                 clipvalue: Optional[float] = None,
-                 clipnorm: Optional[float] = None):
+                 optim_params: Dict = {},
+                 grad_params: Dict = {}):
         self.params = []
         if not isinstance(models, (list, tuple)):
             models = [models]
@@ -37,23 +36,20 @@ class OPLR:
                 self.params.append(model)
 
         self.optimizer = OP_REGISTER[optimizer](
-            self.params, lr, **optimizer_params)
+            self.params, lr, **optim_params)
         self.lr_scheduler = LR_REGISTER[scheduler](
             self.optimizer, **scheduler_params)
 
-        self.clipnorm = clipnorm
-        self.clipvalue = clipvalue
-
         self._hooks = []
-        if self.clipnorm:
+        if 'grad_max_norm' in grad_params.keys():
             self._hooks.append(
                 lambda: t.nn.utils.clip_grad_norm_(
-                    self.params, max_norm=self.clipnorm)
+                    self.params, max_norm=grad_params['grad_max_norm'])
             )
-        if self.clipvalue:
+        if 'grad_clip_value' in grad_params.keys():
             self._hooks.append(
                 lambda: t.nn.utils.clip_grad_value_(
-                    self.params, clip_value=self.clipvalue)
+                    self.params, clip_value=grad_params['grad_clip_value'])
             )
 
     @property

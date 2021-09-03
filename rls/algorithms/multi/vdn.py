@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.models import CriticDueling
@@ -46,7 +46,7 @@ class VDN(MultiAgentOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self._use_double = use_double
         self._mixer_type = mixer
@@ -61,7 +61,7 @@ class VDN(MultiAgentOffPolicy):
 
         self.mixer = self._build_mixer()
 
-        self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr)
+        self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr, **self._oplr_params)
         self._trainer_modules.update(
             {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
@@ -79,7 +79,7 @@ class VDN(MultiAgentOffPolicy):
                                              **self._mixer_settings)
         ).to(self.device)
 
-    @iTensor_oNumpy  # TODO: optimization
+    @iton  # TODO: optimization
     def select_action(self, obs):
         acts_info = {}
         actions = {}
@@ -88,7 +88,7 @@ class VDN(MultiAgentOffPolicy):
                 obs[aid], cell_state=self.cell_state[aid])   # [B, A]
             self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
 
-            if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+            if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
                 action = action = q_values.argmax(-1)    # [B,]
@@ -97,7 +97,7 @@ class VDN(MultiAgentOffPolicy):
             acts_info[aid] = Data(action=action)
         return actions, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]
@@ -155,7 +155,7 @@ class VDN(MultiAgentOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             for q_net in self.q_nets.values():
                 q_net.sync()
             self.mixer.sync()

@@ -3,6 +3,7 @@ from typing import Dict, List, NoReturn, Union
 import numpy as np
 
 from rls.common.specs import Data
+from rls.common.when import Once
 
 '''
 batch like : {
@@ -55,12 +56,12 @@ class DataBuffer:
         self._buffer = dict()   # {str: Union[Dict[str, Data], Data]}
         self._horizon_length = 0
         self._pointer = 0
+        self._not_builded = Once()
 
     def keys(self):
         return self._buffer.keys()
 
-    def add(self, data: Dict[str, Data]):
-        assert isinstance(data, dict), "assert isinstance(data, dict)"
+    def _build_buffer(self, data):
         for k, v in data.items():
             if k not in self._buffer.keys():
                 self._buffer[k] = {}
@@ -68,7 +69,15 @@ class DataBuffer:
                 if _k not in self._buffer[k].keys():
                     self._buffer[k][_k] = np.empty(
                         (self.max_horizon,)+_v.shape, _v.dtype)
-                self._buffer[k][_k][self._pointer] = _v
+
+    def add(self, data: Dict[str, Data]):
+        assert isinstance(data, dict), "assert isinstance(data, dict)"
+        if self._not_builded():
+            self._build_buffer(data)
+        else:
+            for k, v in data.items():
+                for _k, _v in v.nested_dict().items():
+                    self._buffer[k][_k][self._pointer] = _v
 
         self._pointer = (self._pointer + 1) % self.max_horizon
         self._horizon_length = min(self._horizon_length+1, self.max_horizon)

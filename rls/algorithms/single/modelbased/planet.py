@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.dreamer import DenseModel, RecurrentStateSpaceModel
 from rls.nn.utils import OPLR
@@ -22,31 +22,18 @@ class PlaNet(SarlOffPolicy):
 
     def __init__(self,
 
-                 eps_init: float = 1,
-                 eps_mid: float = 0.2,
-                 eps_final: float = 0.01,
-                 init2mid_annealing_step: int = 1000,
                  stoch_dim=30,
                  deter_dim=200,
                  model_lr=6e-4,
                  kl_free_nats=3,
-                 cnn_depth=32,
-                 cnn_act="relu",
                  kl_scale=1.0,
                  reward_scale=1.0,
                  cem_horizon=12,
                  cem_iter_nums=10,
                  cem_candidates=1000,
                  cem_tops=100,
-                 network_settings={
-                     'rssm': {
-                         'hidden_units': 200
-                     },
-                     'reward': {
-                         'layers': 3,
-                         'hidden_units': 300
-                     }
-                 },
+                 action_sigma=0.3,
+                 network_settings=dict(),
                  **kwargs):
         super().__init__(**kwargs)
 
@@ -59,8 +46,7 @@ class PlaNet(SarlOffPolicy):
 
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
-        if self.obs_spec.has_visual_observation and len(
-                self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
+        if self.obs_spec.has_visual_observation and len(self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'
@@ -76,23 +62,23 @@ class PlaNet(SarlOffPolicy):
         self.kl_free_nats = kl_free_nats
         self.kl_scale = kl_scale
         self.reward_scale = reward_scale
+        self._action_sigma = action_sigma
         self._network_settings = network_settings
 
         if self.obs_spec.has_visual_observation:
             from rls.nn.dreamer import VisualDecoder, VisualEncoder
             self.obs_encoder = VisualEncoder(self.obs_spec.visual_dims[0],
-                                             depth=cnn_depth,
-                                             act=cnn_act).to(self.device)
+                                             **network_settings['obs_encoder']['visual']).to(self.device)
             self.obs_decoder = VisualDecoder(self.decoder_input_dim,
                                              self.obs_spec.visual_dims[0],
-                                             depth=cnn_depth,
-                                             act=cnn_act).to(self.device)
+                                             **network_settings['obs_decoder']['visual']).to(self.device)
         else:
-            from rls.nn.dreamer import VectorDecoder, VectorEncoder
-            self.obs_encoder = VectorEncoder(
-                self.obs_spec.vector_dims[0]).to(self.device)
-            self.obs_decoder = VectorDecoder(self.decoder_input_dim,
-                                             self.obs_spec.vector_dims[0]).to(self.device)
+            from rls.nn.dreamer import VectorEncoder
+            self.obs_encoder = VectorEncoder(self.obs_spec.vector_dims[0],
+                                             **network_settings['obs_encoder']['vector']).to(self.device)
+            self.obs_decoder = DenseModel(self.decoder_input_dim,
+                                          self.obs_spec.vector_dims[0],
+                                          **network_settings['obs_decoder']['vector']).to(self.device)
 
         self.rssm = self._dreamer_build_rssm()
 
@@ -101,13 +87,12 @@ class PlaNet(SarlOffPolicy):
         Reward model to predict reward from state and rnn hidden state
         """
         self.reward_predictor = DenseModel(self.decoder_input_dim,
-                                           (1,),
-                                           network_settings['reward']['layers'],
-                                           network_settings['reward']['hidden_units']).to(self.device)
+                                           1,
+                                           **network_settings['reward']).to(self.device)
 
-        self.model_oplr = OPLR(
-            [self.obs_encoder, self.rssm,
-             self.obs_decoder, self.reward_predictor], model_lr, optimizer_params=self._optim_params, clipnorm=100)
+        self.model_oplr = OPLR([self.obs_encoder, self.rssm,
+                                self.obs_decoder, self.reward_predictor],
+                               model_lr, **self._oplr_params)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
                                      obs_decoder=self.obs_decoder,
                                      reward_predictor=self.reward_predictor,
@@ -123,9 +108,9 @@ class PlaNet(SarlOffPolicy):
                                         self.deter_dim,
                                         self.a_dim,
                                         self.obs_encoder.h_dim,
-                                        self._network_settings['rssm']['hidden_units']).to(self.device)
+                                        **self._network_settings['rssm']).to(self.device)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self._is_visual:
             obs = obs.visual.visual_0
@@ -134,61 +119,42 @@ class PlaNet(SarlOffPolicy):
         # Compute starting state for planning
         # while taking information from current observation (posterior)
         embedded_obs = self.obs_encoder(obs)    # [B, *]
-        state_posterior = self.rssm.posterior(
-            self.cell_state['hx'], embedded_obs)     # dist # [B, *]
+        state_posterior = self.rssm.posterior(self.cell_state['hx'], embedded_obs)     # dist # [B, *]
 
         # Initialize action distribution
-        mean = t.zeros((self.cem_horizon, self.n_copys,
-                       self.a_dim))    # [H, B, A]
-        stddev = t.ones((self.cem_horizon, self.n_copys,
-                        self.a_dim))   # [H, B, A]
-        action_dist = td.Normal(mean, stddev)
+        mean = t.zeros((self.cem_horizon, 1, self.n_copys, self.a_dim))    # [H, 1, B, A]
+        stddev = t.ones((self.cem_horizon, 1, self.n_copys, self.a_dim))   # [H, 1, B, A]
 
         # Iteratively improve action distribution with CEM
         for itr in range(self.cem_iter_nums):
-            # [N, H, B, A]
-            action_candidates = action_dist.sample((self.cem_candidates,))
-            action_candidates = action_candidates.swapaxes(0, 1)
-            action_candidates = action_candidates.reshape(
-                self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
+            action_candidates = mean + stddev * t.randn(self.cem_horizon, self.cem_candidates, self.n_copys, self.a_dim)    # [H, N, B, A]
+            action_candidates = action_candidates.reshape(self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
 
             # Initialize reward, state, and rnn hidden state
             # These are for parallel exploration
-            total_predicted_reward = t.zeros(
-                (self.cem_candidates*self.n_copys, 1))    # [N*B, 1]
+            total_predicted_reward = t.zeros((self.cem_candidates*self.n_copys, 1))    # [N*B, 1]
 
-            state = state_posterior.sample(
-                (self.cem_candidates,))   # [N, B, *]
+            state = state_posterior.sample((self.cem_candidates,))   # [N, B, *]
             state = state.view(-1, state.shape[-1])  # [N*B, *]
-            rnn_hidden = self.cell_state['hx'].repeat(
-                (self.cem_candidates, 1))  # [B, *] => [N*B, *]
+            rnn_hidden = self.cell_state['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
 
-            # Compute total predicted reward by open-loop prediction using prior
+            # Compute total predicted reward by open-loop prediction using pri
             for _t in range(self.cem_horizon):
-                next_state_prior, rnn_hidden = \
-                    self.rssm.prior(state, action_candidates[_t], rnn_hidden)
+                next_state_prior, rnn_hidden = self.rssm.prior(state, t.tanh(action_candidates[_t]), rnn_hidden)
                 state = next_state_prior.sample()   # [N*B, *]
                 post_feat = t.cat([state, rnn_hidden], -1)  # [N*B, *]
-                # [N*B, 1]
-                total_predicted_reward += self.reward_predictor(post_feat).mean
+                total_predicted_reward += self.reward_predictor(post_feat).mean  # [N*B, 1]
 
             # update action distribution using top-k samples
-            total_predicted_reward = total_predicted_reward.view(
-                self.cem_candidates, self.n_copys, 1)    # [N, B, 1]
-            top_indexes = total_predicted_reward.argsort(dim=0, descending=True)[
-                :self.cem_tops]    # [N', B, 1]
-            action_candidates = action_candidates.view(
-                self.cem_horizon, self.cem_candidates, self.n_copys, -1)   # [H, N, B, A]
-            top_action_candidates = action_candidates[:, top_indexes, t.arange(
-                self.n_copys).reshape(self.n_copys, 1), t.arange(self.a_dim)]  # [H, N', B, A]
-            mean = top_action_candidates.mean(dim=1)    # [H, B, A]
-            stddev = (top_action_candidates - mean.unsqueeze(1)
-                      ).abs().sum(dim=1) / (self.cem_tops - 1)  # [H, B, A]
-            action_dist = td.Normal(mean, stddev)
+            total_predicted_reward = total_predicted_reward.view(self.cem_candidates, self.n_copys, 1)    # [N, B, 1]
+            _, top_indexes = total_predicted_reward.topk(self.cem_tops, dim=0, largest=True, sorted=False)    # [N', B, 1]
+            action_candidates = action_candidates.view(self.cem_horizon, self.cem_candidates, self.n_copys, -1)   # [H, N, B, A]
+            top_action_candidates = action_candidates[:, top_indexes, t.arange(self.n_copys).reshape(self.n_copys, 1), t.arange(self.a_dim)]  # [H, N', B, A]
+            mean = top_action_candidates.mean(dim=1, keepdim=True)    # [H, 1, B, A]
+            stddev = top_action_candidates.std(dim=1, unbiased=False, keepdim=True)  # [H, 1, B, A]
 
         # Return only first action (replan each state based on new observation)
-        actions = mean[0]    # [B, A]
-
+        actions = t.tanh(mean[0].squeeze(0))    # [B, A]
         actions = self._exploration(actions)
         _, self.next_cell_state['hx'] = self.rssm.prior(state_posterior.sample(),
                                                         actions,
@@ -200,13 +166,11 @@ class PlaNet(SarlOffPolicy):
         :param action: action to take, shape (1,) (if categorical), or (action dim,) (if continuous)
         :return: action of the same shape passed in, augmented with some noise
         """
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
-            index = t.randint(0, self.a_dim, (self.n_copys, ))
-            action = t.zeros_like(action)
-            action[..., index] = 1
-        return action
+        sigma = self._action_sigma if self._is_train_mode else 0.
+        noise = t.randn(*action.shape) * sigma
+        return t.clamp(action + noise, -1, 1)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         T, B = BATCH.action.shape[:2]
         if self._is_visual:
@@ -235,30 +199,26 @@ class PlaNet(SarlOffPolicy):
                 rnn_hidden = rnn_hidden * (1. - trunced_mask)
             next_state_prior, next_state_posterior, rnn_hidden = \
                 self.rssm(state, pre_action, rnn_hidden,
-                          embedded_observations[l], build_dist=False)    # a, s_
-            state = self.rssm._build_dist(
-                next_state_posterior).rsample()  # [B, S] posterior of s_
+                          embedded_observations[l])    # a, s_
+            state = next_state_posterior.rsample()  # [B, S] posterior of s_
             states.append(state)  # [B, S]
             rnn_hiddens.append(rnn_hidden)   # [B, D]
             kl_loss += self._kl_loss(next_state_prior, next_state_posterior)
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        post_feat = t.cat(
-            [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
+        post_feat = t.cat([t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
-        reward_pred = self.reward_predictor(
-            post_feat[:-1])  # [T-1, B, 1], s_ => r
+        reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
 
         # compute loss for observation and reward
         obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
-        # [T-1, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward[1:]))
+        # [T, B, 1]=>1
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
 
         # add all losses and update model parameters with gradient descent
-        model_loss = self.kl_scale*kl_loss + obs_loss + \
-            self.reward_scale * reward_loss   # 1
+        model_loss = self.kl_scale*kl_loss + obs_loss + self.reward_scale * reward_loss   # 1
 
         self.model_oplr.optimize(model_loss)
 
@@ -275,6 +235,6 @@ class PlaNet(SarlOffPolicy):
     def _initial_cell_state(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}
 
-    def _kl_loss(self, prior, post):
+    def _kl_loss(self, prior_dist, post_dist):
         # 1
-        return td.kl_divergence(self.rssm._build_dist(prior), self.rssm._build_dist(post)).sum(dim=-1).clamp(min=self.kl_free_nats).mean()
+        return td.kl_divergence(prior_dist, post_dist).clamp(min=self.kl_free_nats).mean()

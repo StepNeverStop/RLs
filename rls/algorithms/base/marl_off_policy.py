@@ -8,7 +8,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.marl_policy import MarlPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.common.yaml_ops import load_config
 from rls.utils.np_utils import int2one_hot
@@ -29,7 +29,7 @@ class MultiAgentOffPolicy(MarlPolicy):
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self.use_priority = use_priority
-        self.train_interval = train_interval
+        self._should_train = Every(train_interval)
         super().__init__(**kwargs)
 
     def _build_buffer(self):
@@ -39,7 +39,7 @@ class MultiAgentOffPolicy(MarlPolicy):
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
                                            chunk_length=self._chunk_length,
-                                           max_train_step=self.max_train_step,
+                                           max_train_step=self._max_train_step,
                                            **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
         else:
             from rls.memories.er_buffer import DataBuffer
@@ -51,7 +51,7 @@ class MultiAgentOffPolicy(MarlPolicy):
 
     def episode_step(self, obs, env_rets: Dict[str, Data]):
         super().episode_step(obs, env_rets)
-        if self._is_train_mode and self._buffer.can_sample and self.cur_interact_step % self.train_interval == 0:
+        if self._is_train_mode and self._buffer.can_sample and self._should_train(self._cur_interact_step):
             ret = self.learn(self._buffer.sample())
             if self.use_priority:
                 # td_error   [T, B, 1]
@@ -107,12 +107,12 @@ class MultiAgentOffPolicy(MarlPolicy):
         self.summaries = {}
         return BATCH_DICT
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self.cur_train_step, self.summaries)
-        self.cur_train_step += 1
-        if self.cur_train_step % self._save_frequency == 0:
+        self._write_train_summaries(self._cur_train_step, self.summaries)
+        if self._should_save_model(self._cur_train_step):
             self.save()
+        self._cur_train_step += 1

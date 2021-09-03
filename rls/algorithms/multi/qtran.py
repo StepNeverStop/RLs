@@ -4,7 +4,7 @@
 import torch as t
 
 from rls.algorithms.multi.vdn import VDN
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.modules.wrappers import TargetTwin
 from rls.utils.torch_utils import n_step_return
@@ -42,7 +42,7 @@ class QTRAN(VDN):
                                              **self._mixer_settings)
         ).to(self.device)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]

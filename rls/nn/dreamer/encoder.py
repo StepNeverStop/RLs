@@ -8,7 +8,7 @@ from rls.nn.activations import Act_REGISTER
 
 class VisualEncoder(nn.Module):
     """
-    Encoder to embed image observation (3, 64, 64) to vector (1024,)
+    Encoder to embed image observation (3, 64, 64) to vector (32*depth,)
     """
 
     def __init__(self, visual_dim, depth=32, act='relu'):

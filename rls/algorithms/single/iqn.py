@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import IqnNet
 from rls.nn.modules.wrappers import TargetTwin
@@ -51,17 +51,17 @@ class IQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.q_net = TargetTwin(IqnNet(self.obs_spec,
                                        rep_net_params=self._rep_net_params,
                                        action_dim=self.a_dim,
                                        quantiles_idx=self.quantiles_idx,
                                        network_settings=network_settings)).to(self.device)
-        self.oplr = OPLR(self.q_net, lr)
+        self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
             batch_size=self.n_copys,
@@ -71,7 +71,7 @@ class IQN(SarlOffPolicy):
             obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
         self.next_cell_state = self.q_net.get_cell_state()
 
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             # [N, B, A] => [B, A] => [B,]
@@ -92,7 +92,7 @@ class IQN(SarlOffPolicy):
             batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
         return _quantiles, _quantiles_tiled  # [B, N, 1], [N*B, X]
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         time_step = BATCH.reward.shape[0]
         batch_size = BATCH.reward.shape[1]
@@ -181,5 +181,5 @@ class IQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()

@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
@@ -43,7 +43,7 @@ class MAXSQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.use_epsilon = use_epsilon
         self.ployak = ployak
         self.auto_adaption = auto_adaption
@@ -56,11 +56,11 @@ class MAXSQN(SarlOffPolicy):
                                  self.ployak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
-        self.critic_oplr = OPLR([self.critic, self.critic2], q_lr)
+        self.critic_oplr = OPLR([self.critic, self.critic2], q_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr, **self._oplr_params)
             self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
         else:
             self.log_alpha = t.tensor(alpha).log().to(self.device)
@@ -74,12 +74,12 @@ class MAXSQN(SarlOffPolicy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         q = self.critic(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.critic.get_cell_state()
 
-        if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self.use_epsilon and self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             cate_dist = td.Categorical(logits=(q / self.alpha))
@@ -87,7 +87,7 @@ class MAXSQN(SarlOffPolicy):
             actions = pi = cate_dist.sample()   # [B,]
         return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q1 = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         q2 = self.critic2(

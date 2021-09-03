@@ -6,36 +6,6 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
 import numpy as np
 import torch as t
 
-# TODO:
-
-
-class Every:
-
-    def __init__(self, every):
-        self._every = every
-        self._last = None
-
-    def __call__(self, step):
-        if self._last is None:
-            self._last = step
-            return True
-        if step >= self._last + self._every:
-            self._last += self._every
-            return True
-        return False
-
-
-class Once:
-
-    def __init__(self):
-        self._once = True
-
-    def __call__(self):
-        if self._once:
-            self._once = False
-            return True
-        return False
-
 
 @dataclass
 class SensorSpec:
@@ -176,18 +146,9 @@ class Data:
         else:
             return value
 
-    # TODO: remove
-    def unpack(self) -> Iterator:
-        for i in range(len(self)):
-            yield self[i]
 
-    @staticmethod
-    def pack(ds: List, func: Callable = lambda x: np.asarray(x)):
-        '''
-        TODO: Annotation
-        '''
-        params = {}
-        for k, v in ds[0].__dict__.items():
-            d = [getattr(rds, k) for rds in ds]
-            params[k] = Data.pack(d, func) if isinstance(v, Data) else func(d)
-        return ds[0].__class__(**params)
+class DictCls(dict):
+
+    def __getattr__(self, name):
+        assert name not in self.keys(), 'assert name not in self.keys()'
+        return [v.get(name) if isinstance(v, dict) else getattr(v, name) for k, v in self.items()]

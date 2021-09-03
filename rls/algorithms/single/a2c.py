@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
 from rls.nn.utils import OPLR
@@ -52,15 +52,15 @@ class A2C(SarlOnPolicy):
                                   rep_net_params=self._rep_net_params,
                                   network_settings=network_settings['critic']).to(self.device)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR(self.critic, critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)
 
         self._trainer_modules.update(actor=self.actor,
                                      critic=self.critic,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
         self.next_cell_state = self.actor.get_cell_state()
@@ -78,7 +78,7 @@ class A2C(SarlOnPolicy):
             acts_info.update(cell_state=self.cell_state)
         return action, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _get_value(self, obs, cell_state=None):
         value = self.critic(obs, cell_state=self.cell_state)
         return value
@@ -93,7 +93,7 @@ class A2C(SarlOnPolicy):
                                                  init_value=value)
         return BATCH
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         v = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         td_error = BATCH.discounted_reward - v   # [T, B, 1]

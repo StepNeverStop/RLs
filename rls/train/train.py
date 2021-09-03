@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+import sys
 from copy import deepcopy
 from typing import Callable, List, NoReturn, Tuple
 
@@ -92,11 +93,12 @@ def inference(env, agent,
               moving_average_episode: int,
               reset_config: dict,
               step_config: dict,
-              episodes: int) -> NoReturn:
+              episodes: int = sys.maxsize) -> NoReturn:
     """
     inference mode. algorithm agent will not be train, only used to show agents' behavior
     """
 
+    episodes = episodes or sys.maxsize
     recorder = SimpleMovingAverageRecoder(n_copys=env.n_copys,
                                           agent_ids=env.agent_ids,
                                           gamma=0.99,

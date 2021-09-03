@@ -6,7 +6,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd
 from rls.nn.utils import OPLR
@@ -40,12 +40,12 @@ class PG(SarlOnPolicy):
                                 rep_net_params=self._rep_net_params,
                                 output_shape=self.a_dim,
                                 network_settings=network_settings['actor_discrete']).to(self.device)
-        self.oplr = OPLR(self.net, lr)
+        self.oplr = OPLR(self.net, lr, **self._oplr_params)
 
         self._trainer_modules.update(model=self.net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         output = self.net(obs, cell_state=self.cell_state)  # [B, A]
         self.next_cell_state = self.net.get_cell_state()
@@ -73,7 +73,7 @@ class PG(SarlOnPolicy):
                                                  normalize=True)
         return BATCH
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):     # [B, T, *]
         output = self.net(
             BATCH.obs, begin_mask=BATCH.begin_mask)    # [B, T, A]

@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import ActorCts, ActorDct, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
@@ -75,12 +75,12 @@ class TAC(SarlOffPolicy):
         self.target_entropy = 0.98 * \
             (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
-        self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr, **self._oplr_params)
             self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
         else:
             self.log_alpha = t.tensor(alpha).log().to(self.device)
@@ -98,7 +98,7 @@ class TAC(SarlOffPolicy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -114,7 +114,7 @@ class TAC(SarlOffPolicy):
         actions = pi if self._is_train_mode else mu
         return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         if self.is_continuous:
             target_mu, target_log_std = self.actor(
@@ -217,4 +217,4 @@ class TAC(SarlOffPolicy):
 
         if self.annealing and not self.auto_adaption:
             self.log_alpha.copy_(
-                self.alpha_annealing(self.cur_train_step).log())
+                self.alpha_annealing(self._cur_train_step).log())

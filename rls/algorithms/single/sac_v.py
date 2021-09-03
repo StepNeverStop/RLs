@@ -8,7 +8,7 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import (ActorCts, ActorDct, CriticQvalueAll,
                            CriticQvalueOne, CriticValue)
@@ -88,13 +88,13 @@ class SAC_V(SarlOffPolicy):
                                          network_settings=network_settings['q']).to(self.device)
         self.q_net2 = deepcopy(self.q_net)
 
-        self.actor_oplr = OPLR(self.actor, actor_lr)
+        self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(
-            [self.q_net, self.q_net2, self.v_net], critic_lr)
+            [self.q_net, self.q_net2, self.v_net], critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
-            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr)
+            self.alpha_oplr = OPLR(self.log_alpha, alpha_lr, **self._oplr_params)
             self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
         else:
             self.log_alpha = t.tensor(alpha).log().to(self.device)
@@ -113,7 +113,7 @@ class SAC_V(SarlOffPolicy):
     def alpha(self):
         return self.log_alpha.exp()
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         if self.is_continuous:
             mu, log_std = self.actor(
@@ -136,7 +136,7 @@ class SAC_V(SarlOffPolicy):
             td_error, summaries = self._train_discrete(BATCH)
         return td_error, summaries
 
-    @iTensor_oNumpy
+    @iton
     def _train_continuous(self, BATCH):
         v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         v_target = self.v_net.t(
@@ -238,7 +238,7 @@ class SAC_V(SarlOffPolicy):
             ])
         return (td_error1 + td_error2) / 2, summaries
 
-    @iTensor_oNumpy
+    @iton
     def _train_discrete(self, BATCH):
         v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         v_target = self.v_net.t(
@@ -318,5 +318,5 @@ class SAC_V(SarlOffPolicy):
         super()._after_train()
         if self.annealing and not self.auto_adaption:
             self.log_alpha.copy_(
-                self.alpha_annealing(self.cur_train_step).log())
+                self.alpha_annealing(self._cur_train_step).log())
         self.v_net.sync()

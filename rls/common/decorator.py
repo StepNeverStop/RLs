@@ -21,7 +21,7 @@ def lazy_property(func):
     return wrapper
 
 
-def iTensor_oNumpy(func, dtype=t.float32, device='cpu'):
+def iton(func, dtype=t.float32, device='cpu'):
 
     def wrapper(*args, **kwargs):
         if args and hasattr(args[0], 'device'):

@@ -5,7 +5,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.common.decorator import iTensor_oNumpy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.nn.models import QrdqnDistributional
 from rls.nn.modules.wrappers import TargetTwin
@@ -44,30 +44,30 @@ class QRDQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self.q_net = TargetTwin(QrdqnDistributional(self.obs_spec,
                                                     rep_net_params=self._rep_net_params,
                                                     action_dim=self.a_dim,
                                                     nums=self.nums,
                                                     network_settings=network_settings)).to(self.device)
-        self.oplr = OPLR(self.q_net, lr)
+        self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
+    @iton
     def select_action(self, obs):
         q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A, N]
         self.next_cell_state = self.q_net.get_cell_state()
 
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             q = q_values.mean(-1)  # [B, A, N] => [B, A]
             actions = q.argmax(-1)  # [B,]
         return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         q_dist = self.q_net(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
@@ -118,5 +118,5 @@ class QRDQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()
