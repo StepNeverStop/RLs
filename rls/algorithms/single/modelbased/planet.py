@@ -127,7 +127,7 @@ class PlaNet(SarlOffPolicy):
 
         # Iteratively improve action distribution with CEM
         for itr in range(self.cem_iter_nums):
-            action_candidates = mean + stddev * t.randn(self.cem_horizon, self.n_copys, self.cem_candidates, self.a_dim)    # [H, N, B, A]
+            action_candidates = mean + stddev * t.randn(self.cem_horizon, self.cem_candidates, self.n_copys, self.a_dim)    # [H, N, B, A]
             action_candidates = action_candidates.reshape(self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
 
             # Initialize reward, state, and rnn hidden state
@@ -138,7 +138,7 @@ class PlaNet(SarlOffPolicy):
             state = state.view(-1, state.shape[-1])  # [N*B, *]
             rnn_hidden = self.cell_state['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
 
-            # Compute total predicted reward by open-loop prediction using prior
+            # Compute total predicted reward by open-loop prediction using pri
             for _t in range(self.cem_horizon):
                 next_state_prior, rnn_hidden = self.rssm.prior(state, t.tanh(action_candidates[_t]), rnn_hidden)
                 state = next_state_prior.sample()   # [N*B, *]
@@ -207,8 +207,7 @@ class PlaNet(SarlOffPolicy):
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        post_feat = t.cat(
-            [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
+        post_feat = t.cat([t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
         reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
@@ -219,8 +218,7 @@ class PlaNet(SarlOffPolicy):
         reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
 
         # add all losses and update model parameters with gradient descent
-        model_loss = self.kl_scale*kl_loss + obs_loss + \
-            self.reward_scale * reward_loss   # 1
+        model_loss = self.kl_scale*kl_loss + obs_loss + self.reward_scale * reward_loss   # 1
 
         self.model_oplr.optimize(model_loss)
 
