@@ -230,13 +230,12 @@ class PlaNet(SarlOffPolicy):
             [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
-        reward_pred = self.reward_predictor(
-            post_feat[:-1])  # [T-1, B, 1], s_ => r
+        reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
 
         # compute loss for observation and reward
         obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
-        # [T-1, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward[1:]))
+        # [T, B, 1]=>1
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
 
         # add all losses and update model parameters with gradient descent
         model_loss = self.kl_scale*kl_loss + obs_loss + \
