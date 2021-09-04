@@ -98,7 +98,7 @@ class SarlPolicy(Policy):
             exps = Data(obs=obs,
                         # [B, ] => [B, 1]
                         reward=env_rets.reward[:, np.newaxis],
-                        obs_=env_rets.obs,
+                        obs_=env_rets.obs_fs,
                         done=env_rets.done[:, np.newaxis],
                         begin_mask=begin_mask)
             exps.update(self._acts_info)

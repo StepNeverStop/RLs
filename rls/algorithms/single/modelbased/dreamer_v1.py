@@ -209,18 +209,15 @@ class DreamerV1(SarlOffPolicy):
         kl_loss = 0
         states, rnn_hiddens = [], []
         for l in range(T):
-            state = state * (1. - BATCH.done[l])
-            rnn_hidden = rnn_hidden * (1. - BATCH.done[l])
-            pre_action = BATCH.action[l] * (1. - BATCH.done[l])
-            if l > 0:
-                # begin_mask_{t} and not done_{t-1}, set state to zero
-                trunced_mask = t.logical_and(
-                    BATCH.begin_mask[l], 1. - BATCH.done[l-1]).float()
-                state = state * (1. - trunced_mask)
-                rnn_hidden = rnn_hidden * (1. - trunced_mask)
-            next_state_prior, next_state_posterior, rnn_hidden = \
-                self.rssm(state, pre_action, rnn_hidden,
-                          embedded_observations[l])    # a, s_
+            # if the begin of this episode, then reset to 0.
+            # No matther whether last episode is beened truncated of not.
+            state = state * (1. - BATCH.begin_mask[l])  # [B, S]
+            rnn_hidden = rnn_hidden * (1. - BATCH.begin_mask[l])     # [B, D]
+
+            next_state_prior, next_state_posterior, rnn_hidden = self.rssm(state,
+                                                                           BATCH.action[l],
+                                                                           rnn_hidden,
+                                                                           embedded_observations[l])    # a, s_
             state = next_state_posterior.rsample()  # [B, S] posterior of s_
             states.append(state)  # [B, S]
             rnn_hiddens.append(rnn_hidden)   # [B, D]
@@ -237,7 +234,7 @@ class DreamerV1(SarlOffPolicy):
         # compute loss for observation and reward
         obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
         # [T, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1))
 
         # add all losses and update model parameters with gradient descent
         model_loss = self.kl_scale*kl_loss + obs_loss + \
@@ -248,7 +245,7 @@ class DreamerV1(SarlOffPolicy):
             # https://github.com/danijar/dreamer/issues/2#issuecomment-605392659
             pcont_target = self.gamma * (1. - BATCH.done)
             # [T, B, 1]=>1
-            pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target).unsqueeze(-1)*(1. - BATCH.done))
+            pcont_loss = -t.mean(pcont_pred.log_prob(pcont_target).unsqueeze(-1))
             model_loss += self.pcont_scale * pcont_loss
 
         self.model_oplr.optimize(model_loss)

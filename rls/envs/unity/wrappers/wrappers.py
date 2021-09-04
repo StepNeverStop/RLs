@@ -183,7 +183,7 @@ class BasicUnityEnvironment(object):
 
         whole_done = np.full(self._n_copys, False)
         whole_info_max_step = np.full(self._n_copys, False)
-        all_obs = {}
+        all_obs_fa, all_obs_fs = {}, {}
         all_reward = {}
 
         for bn in behavior_names:
@@ -202,7 +202,8 @@ class BasicUnityEnvironment(object):
                     raise ValueError(
                         f'agents number error. Expected 0 or {self._n_copys}, received {len(ds)}')
 
-            obs, reward = ds.obs, ds.reward
+            obs_fs, reward = ds.obs, ds.reward
+            obs_fa = deepcopy(obs_fs)
             done = np.full(self._n_copys, False)
             begin_mask = np.full(self._n_copys, False)
             info_max_step = np.full(self._n_copys, False)
@@ -217,34 +218,38 @@ class BasicUnityEnvironment(object):
                 done[_ids] = True
                 begin_mask[_ids] = True
                 # zip: vector, visual, ...
-                for _obs, _tobs in zip(obs, ts.obs):
+                for _obs, _tobs in zip(obs_fa, ts.obs):
                     _obs[_ids] = _tobs
 
             if self._real_done:
                 done = np.array(info_real_done)
 
-            _obs = Data()
+            _obs_fa = Data()
+            _obs_fs = Data()
             if len(self._vector_idxs[bn]) > 0:
-                _obs.update(
-                    vector={f'vector_{i}': obs[vi] for i, vi in enumerate(self._vector_idxs[bn])})
+                _obs_fa.update(vector={f'vector_{i}': obs_fa[vi] for i, vi in enumerate(self._vector_idxs[bn])})
+                _obs_fs.update(vector={f'vector_{i}': obs_fs[vi] for i, vi in enumerate(self._vector_idxs[bn])})
 
             if len(self._visual_idxs[bn]) > 0:
-                _obs.update(
-                    visual={f'visual_{i}': obs[vi] for i, vi in enumerate(self._visual_idxs[bn])})
-            all_obs[bn] = _obs
+                _obs_fa.update(visual={f'visual_{i}': obs_fa[vi] for i, vi in enumerate(self._visual_idxs[bn])})
+                _obs_fs.update(visual={f'visual_{i}': obs_fs[vi] for i, vi in enumerate(self._visual_idxs[bn])})
+
+            all_obs_fa[bn] = _obs_fa
+            all_obs_fs[bn] = _obs_fs
             all_reward[bn] = reward
 
         whole_done = np.logical_or(whole_done, done)
         whole_info_max_step = np.logical_or(whole_info_max_step, info_max_step)
 
         if only_obs:
-            all_obs.update(
+            all_obs_fa.update(
                 {'global': Data(begin_mask=np.full((self._n_copys, 1), True))})
-            return all_obs
+            return all_obs_fa
         else:
             rets = {}
             for bn in self.behavior_names:
-                rets[bn] = Data(obs=all_obs[bn],
+                rets[bn] = Data(obs_fa=all_obs_fa[bn],
+                                obs_fs=all_obs_fs[bn],
                                 reward=all_reward[bn],
                                 done=whole_done,
                                 info=dict(max_step=whole_info_max_step))

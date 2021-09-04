@@ -124,7 +124,7 @@ class MarlPolicy(Policy):
                 expss[id] = Data(obs=obs[id],
                                  # [B, ] => [B, 1]
                                  reward=env_rets[id].reward[:, np.newaxis],
-                                 obs_=env_rets[id].obs,
+                                 obs_=env_rets[id].obs_fs,
                                  done=env_rets[id].done[:, np.newaxis])
                 expss[id].update(self._acts_info[id])
             expss['global'] = Data(begin_mask=obs['global'].begin_mask)

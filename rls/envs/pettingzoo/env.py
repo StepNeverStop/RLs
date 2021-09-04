@@ -10,6 +10,7 @@ from gym.spaces import Box, Discrete, Tuple
 from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.pettingzoo.wrappers import BasicWrapper
+from rls.envs.wrappers import MPIEnv, VECEnv
 
 
 class PettingZooEnv(EnvBase):
@@ -29,28 +30,36 @@ class PettingZooEnv(EnvBase):
         env_module = env_module.parallel_env
 
         self._initialize(env=BasicWrapper(env_module(**env_config)))
-        self._envs = [BasicWrapper(env_module(**env_config))
-                      for _ in range(self._n_copys)]
-        [env.seed(seed+i) for i, env in enumerate(self._envs)]
+
+        def env_fn(idx, **config):
+            return BasicWrapper(env_module(**env_config))
+
+        _env_wrapper = MPIEnv if multiprocessing else VECEnv
+        self._envs = _env_wrapper(n=self._n_copys, env_fn=env_fn, config=env_config)
+
+        params = []
+        for i in range(self._n_copys):
+            params.append(dict(args=(seed+i,)))
+        self._envs.run('seed', params)
 
     def reset(self, **kwargs) -> Dict[str, Data]:
-        obss = [env.reset() for env in self._envs]
-        _obs = defaultdict(list)
+        obss = dict()
+        obs = self._envs.run('reset')  # list(dict)
+
         for k in self._agents:
-            for obs in obss:
-                _obs[k].append(obs[k])
-            _obs[k] = np.asarray(_obs[k])   # [B, *]
+            obss[k] = np.stack([obs[i][k] for i in range(self._n_copys)], 0)
 
         rets = {}
         for k in self._agents:
             if self._is_obs_visual[k]:
-                rets[k] = Data(visual={'visual_0': _obs[k]})
+                rets[k] = Data(visual={'visual_0': obss[k]})
             else:
-                rets[k] = Data(vector={'vector_0': _obs[k]})
+                rets[k] = Data(vector={'vector_0': obss[k]})
         rets['global'] = Data(begin_mask=np.full((self._n_copys, 1), True))
 
         if self._has_global_state:
-            state = np.asarray([env.state() for env in self._envs])  # [B, *]
+            state = self._envs.run('state')
+            state = np.stack(state, 0)  # [B, *]
             if self._is_state_visual:
                 _state = Data(visual={'visual_0': state})
             else:
@@ -62,45 +71,54 @@ class PettingZooEnv(EnvBase):
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         actions = deepcopy(actions)   # [N, B, *]
 
-        obss, rewards, dones, infos = defaultdict(list), defaultdict(
-            list), defaultdict(list), defaultdict(list)
-        begin_mask = np.full((self._n_copys, 1), False)
+        obss_fs, rewards, dones, infos = dict(), dict(), dict(), dict()
 
-        for i, env in enumerate(self._envs):
+        params = []
+        for i in range(self._n_copys):
             action = {}
             for k in self._agents:
                 action[k] = actions[k][i]
-            obs, reward, done, info = env.step(action)
+            params.append(dict(args=(action,)))
 
-            if any(list(done.values())):
-                obs = env.reset()
-                begin_mask[i] = True
-
-            for k in self._agents:
-                obss[k].append(obs[k])
-                rewards[k].append(reward[k])
-                dones[k].append(done[k])
-                infos[k].append(infos[k])
+        rets = self._envs.run('step', params)   # list(tuple(dict))
+        obs, reward, done, info = list(zip(*rets))  # list(list(dict))
 
         for k in self._agents:
-            obss[k] = np.asarray(obss[k])   # [B, *]
-            rewards[k] = np.asarray(rewards[k])  # [B, *]
-            dones[k] = np.asarray(dones[k])  # [B, *]
+            obss_fs[k] = np.stack([obs[i][k] for i in range(self._n_copys)], 0)
+            rewards[k] = np.stack([reward[i][k] for i in range(self._n_copys)], 0)
+            dones[k] = np.stack([done[i][k] for i in range(self._n_copys)], 0)
+            infos[k] = np.stack([info[i][k] for i in range(self._n_copys)], 0)  # TODO: info
+
+        obss_fa = deepcopy(obss_fs)
+        dones_info = sum(list(dones.values()))
+        begin_mask = dones_info[:, np.newaxis]  # [B, 1]
+
+        idxs = np.where(dones_info)[0]
+        if len(idxs) > 0:
+            reset_obss = dict()
+            reset_obs = self._envs.run('reset', idxs=idxs)
+            for k in self._agents:
+                reset_obss[k] = np.stack([reset_obs[i][k] for i in range(len(idxs))], 0)
+                obss_fa[k][idxs] = reset_obss[k]
 
         rets = {}
         for k in self._agents:
             if self._is_obs_visual[k]:
-                _obs = Data(visual={'visual_0': obss[k]})
+                _obs_fs = Data(visual={'visual_0': obss_fs[k]})
+                _obs_fa = Data(visual={'visual_0': obss_fa[k]})
             else:
-                _obs = Data(vector={'vector_0': obss[k]})
-            rets[k] = Data(obs=_obs,
+                _obs_fs = Data(vector={'vector_0': obss_fs[k]})
+                _obs_fa = Data(vector={'vector_0': obss_fa[k]})
+            rets[k] = Data(obs_fa=_obs_fa,
+                           obs_fs=_obs_fs,
                            reward=rewards[k],
                            done=dones[k],
                            info=infos[k])
         rets['global'] = Data(begin_mask=begin_mask)
 
         if self._has_global_state:
-            state = np.asarray([env.state() for env in self._envs])
+            state = self._envs.run('state')
+            state = np.stack(state, 0)  # [B, *]
             if self._is_state_visual:
                 _state = Data(visual={'visual_0': state})
             else:
@@ -109,10 +127,10 @@ class PettingZooEnv(EnvBase):
         return rets
 
     def close(self, **kwargs) -> NoReturn:
-        [env.close() for env in self._envs]
+        self._envs.run('close')
 
     def render(self, **kwargs) -> NoReturn:
-        self._envs[0].render()
+        self._envs.run('render', idxs=0)
 
     @property
     def n_copys(self) -> int:
