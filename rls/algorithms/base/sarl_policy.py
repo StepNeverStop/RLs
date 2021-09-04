@@ -84,9 +84,9 @@ class SarlPolicy(Policy):
         '''reset model for each new episode.'''
         self._pre_act = np.zeros(
             (self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
-        self.cell_state = to_tensor(self._initial_cell_state(
+        self.rnncs = to_tensor(self._initial_rnncs(
             batch=self.n_copys), device=self.device)
-        self.next_cell_state = to_tensor(self._initial_cell_state(
+        self.rnncs_ = to_tensor(self._initial_rnncs(
             batch=self.n_copys), device=self.device)
 
     def episode_step(self,
@@ -98,7 +98,7 @@ class SarlPolicy(Policy):
             exps = Data(obs=obs,
                         # [B, ] => [B, 1]
                         reward=env_rets.reward[:, np.newaxis],
-                        obs_=env_rets.obs,
+                        obs_=env_rets.obs_fs,
                         done=env_rets.done[:, np.newaxis],
                         begin_mask=begin_mask)
             exps.update(self._acts_info)
@@ -106,10 +106,10 @@ class SarlPolicy(Policy):
 
         idxs = np.where(env_rets.done)[0]
         self._pre_act[idxs] = 0.
-        self.cell_state = self.next_cell_state
-        if self.cell_state is not None:
-            for k in self.cell_state.keys():
-                self.cell_state[k][idxs] = 0.
+        self.rnncs = self.rnncs_
+        if self.rnncs is not None:
+            for k in self.rnncs.keys():
+                self.rnncs[k][idxs] = 0.
 
     def learn(self, BATCH: Data):
         raise NotImplementedError

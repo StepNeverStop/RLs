@@ -51,7 +51,7 @@ def train(env, agent,
             agent.episode_step(obs, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             if recorder.is_all_done and agent.policy_mode == 'off-policy':
                 break
@@ -84,7 +84,7 @@ def prefill(env, agent,
     for _ in trange(0, prefill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
         env_rets = env.step(agent.random_action(), step_config={})
         agent.episode_step(obs, env_rets)
-        obs = {id: env_rets[id].obs for id in env.agent_ids}
+        obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
         obs['global'] = env_rets['global']
 
 
@@ -117,7 +117,7 @@ def inference(env, agent,
             agent.episode_step(obs, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             if recorder.is_all_done:
                 break
@@ -149,7 +149,7 @@ def evaluate(env, agent,
         for _ in range(episode_length):
             env_rets = env.step(agent(obs=obs), step_config={})
             agent.episode_step({id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})

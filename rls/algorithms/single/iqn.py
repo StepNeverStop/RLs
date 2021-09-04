@@ -67,9 +67,8 @@ class IQN(SarlOffPolicy):
             batch_size=self.n_copys,
             quantiles_num=self.select_quantiles
         )
-        q_values = self.q_net(
-            obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
-        self.next_cell_state = self.q_net.get_cell_state()
+        q_values = self.q_net(obs, select_quantiles_tiled, rnncs=self.rnncs)  # [N, B, A]
+        self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
@@ -80,16 +79,13 @@ class IQN(SarlOffPolicy):
 
     def _generate_quantiles(self, batch_size, quantiles_num):
         _quantiles = t.rand([quantiles_num*batch_size, 1])  # [N*B, 1]
-        _quantiles_tiled = _quantiles.repeat(
-            1, self.quantiles_idx)  # [N*B, 1] => [N*B, X]
+        _quantiles_tiled = _quantiles.repeat(1, self.quantiles_idx)  # [N*B, 1] => [N*B, X]
 
         # pi * i * tau [N*B, X] * [X, ] => [N*B, X]
-        _quantiles_tiled = t.arange(
-            self.quantiles_idx) * np.pi * _quantiles_tiled
+        _quantiles_tiled = t.arange(self.quantiles_idx) * np.pi * _quantiles_tiled
         _quantiles_tiled.cos_()   # [N*B, X]
 
-        _quantiles = _quantiles.view(
-            batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
+        _quantiles = _quantiles.view(batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
         return _quantiles, _quantiles_tiled  # [B, N, 1], [N*B, X]
 
     @iton
@@ -102,21 +98,17 @@ class IQN(SarlOffPolicy):
             quantiles_num=self.online_quantiles)
         # [T*B, N, 1] => [T, B, N, 1]
         quantiles = quantiles.view(time_step, batch_size, -1, 1)
-        quantiles_tiled = quantiles_tiled.view(
-            time_step, -1, self.quantiles_idx)    # [N*T*B, X] => [T, N*B, X]
+        quantiles_tiled = quantiles_tiled.view(time_step, -1, self.quantiles_idx)    # [N*T*B, X] => [T, N*B, X]
 
-        quantiles_value = self.q_net(
-            BATCH.obs, quantiles_tiled, begin_mask=BATCH.begin_mask)    # [T, N, B, A]
+        quantiles_value = self.q_net(BATCH.obs, quantiles_tiled, begin_mask=BATCH.begin_mask)    # [T, N, B, A]
         # [T, N, B, A] => [N, T, B, A] * [T, B, A] => [N, T, B, 1]
-        quantiles_value = (quantiles_value.swapaxes(
-            0, 1) * BATCH.action).sum(-1, keepdim=True)
+        quantiles_value = (quantiles_value.swapaxes(0, 1) * BATCH.action).sum(-1, keepdim=True)
         q_eval = quantiles_value.mean(0)  # [N, T, B, 1] => [T, B, 1]
 
         _, select_quantiles_tiled = self._generate_quantiles(   # [N*T*B, X]
             batch_size=time_step*batch_size,
             quantiles_num=self.select_quantiles)
-        select_quantiles_tiled = select_quantiles_tiled.view(
-            time_step, -1, self.quantiles_idx)  # [N*T*B, X] => [T, N*B, X]
+        select_quantiles_tiled = select_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N*T*B, X] => [T, N*B, X]
 
         q_values = self.q_net(
             BATCH.obs_, select_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N, B, A]
@@ -128,14 +120,10 @@ class IQN(SarlOffPolicy):
         _, target_quantiles_tiled = self._generate_quantiles(   # [N'*T*B, X]
             batch_size=time_step*batch_size,
             quantiles_num=self.target_quantiles)
-        target_quantiles_tiled = target_quantiles_tiled.view(
-            time_step, -1, self.quantiles_idx)  # [N'*T*B, X] => [T, N'*B, X]
-        target_quantiles_value = self.q_net.t(
-            BATCH.obs_, target_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N', B, A]
-        target_quantiles_value = target_quantiles_value.swapaxes(
-            0, 1)  # [T, N', B, A] => [N', T, B, A]
-        target_quantiles_value = (
-            target_quantiles_value * next_max_action).sum(-1, keepdim=True)   # [N', T, B, 1]
+        target_quantiles_tiled = target_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N'*T*B, X] => [T, N'*B, X]
+        target_quantiles_value = self.q_net.t(BATCH.obs_, target_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N', B, A]
+        target_quantiles_value = target_quantiles_value.swapaxes(0, 1)  # [T, N', B, A] => [N', T, B, A]
+        target_quantiles_value = (target_quantiles_value * next_max_action).sum(-1, keepdim=True)   # [N', T, B, 1]
 
         target_q = target_quantiles_value.mean(0)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,  # [T, B, 1]
@@ -151,19 +139,15 @@ class IQN(SarlOffPolicy):
             1, 2, 0)    # [N', T, B] => [T, B, N']
         quantiles_value_target = n_step_return(BATCH.reward.repeat(1, 1, self.target_quantiles),
                                                self.gamma,
-                                               BATCH.done.repeat(
-                                                   1, 1, self.target_quantiles),
+                                               BATCH.done.repeat(1, 1, self.target_quantiles),
                                                target_quantiles_value,
-                                               BATCH.begin_mask.repeat(
-                                                   1, 1, self.target_quantiles)).detach()  # [T, B, N']
+                                               BATCH.begin_mask.repeat(1, 1, self.target_quantiles)).detach()  # [T, B, N']
         # [T, B, N'] => [T, B, 1, N']
         quantiles_value_target = quantiles_value_target.unsqueeze(-2)
-        quantiles_value_online = quantiles_value.permute(
-            1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
+        quantiles_value_online = quantiles_value.permute(1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
         # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
         quantile_error = quantiles_value_online - quantiles_value_target
-        huber = t.nn.functional.huber_loss(
-            quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        huber = t.nn.functional.huber_loss(quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
         huber_abs = (quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N'] => [T, B, N]

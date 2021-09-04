@@ -59,8 +59,8 @@ class BootstrappedDQN(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        q_values = self.q_net(obs, cell_state=self.cell_state)  # [H, B, A]
-        self.next_cell_state = self.q_net.get_cell_state()
+        q_values = self.q_net(obs, rnncs=self.rnncs)  # [H, B, A]
+        self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
@@ -71,10 +71,8 @@ class BootstrappedDQN(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask).mean(
-            0)   # [H, T, B, A] => [T, B, A]
-        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask).mean(
-            0)    # [H, T, B, A] => [T, B, A]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask).mean(0)   # [H, T, B, A] => [T, B, A]
+        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask).mean(0)    # [H, T, B, A] => [T, B, A]
         # [T, B, A] * [T, B, A] => [T, B, 1]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)
         q_target = n_step_return(BATCH.reward,

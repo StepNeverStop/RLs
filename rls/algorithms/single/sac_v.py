@@ -73,8 +73,7 @@ class SAC_V(SarlOffPolicy):
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
         # entropy = -log(1/|A|) = log |A|
-        self.target_entropy = 0.98 * \
-            (-self.a_dim if self.is_continuous else np.log(self.a_dim))
+        self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
         if self.is_continuous or self.use_gumbel:
             self.q_net = CriticQvalueOne(self.obs_spec,
@@ -89,8 +88,7 @@ class SAC_V(SarlOffPolicy):
         self.q_net2 = deepcopy(self.q_net)
 
         self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
-        self.critic_oplr = OPLR(
-            [self.q_net, self.q_net2, self.v_net], critic_lr, **self._oplr_params)
+        self.critic_oplr = OPLR([self.q_net, self.q_net2, self.v_net], critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
@@ -116,16 +114,15 @@ class SAC_V(SarlOffPolicy):
     @iton
     def select_action(self, obs):
         if self.is_continuous:
-            mu, log_std = self.actor(
-                obs, cell_state=self.cell_state)   # [B, A]
+            mu, log_std = self.actor(obs, rnncs=self.rnncs)   # [B, A]
             pi = td.Normal(mu, log_std.exp()).sample().tanh()   # [B, A]
             mu.tanh_()    # squash mu   # [B, A]
         else:
-            logits = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+            logits = self.actor(obs, rnncs=self.rnncs)    # [B, A]
             mu = logits.argmax(-1)   # [B,]
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()  # [B,]
-        self.next_cell_state = self.actor.get_cell_state()
+        self.rnncs_ = self.actor.get_rnncs()
         actions = pi if self._is_train_mode else mu
         return actions, Data(action=actions)
 
@@ -139,43 +136,32 @@ class SAC_V(SarlOffPolicy):
     @iton
     def _train_continuous(self, BATCH):
         v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        v_target = self.v_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        v_target = self.v_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
         if self.is_continuous:
-            mu, log_std = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
-            pi, log_pi = squash_action(
-                pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
+            pi, log_pi = squash_action(pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) /
-                   self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(
-                _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
-        q1 = self.q_net(BATCH.obs, BATCH.action,
-                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
-        q2 = self.q_net2(BATCH.obs, BATCH.action,
-                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q1_pi = self.q_net(
-            BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q2_pi = self.q_net2(
-            BATCH.obs, pi, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        q1 = self.q_net(BATCH.obs, BATCH.action,                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q2 = self.q_net2(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1_pi = self.q_net(BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q2_pi = self.q_net2(BATCH.obs, pi, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              v_target,
                              BATCH.begin_mask).detach()  # [T, B, 1]
-        v_from_q_stop = (t.minimum(q1_pi, q2_pi) -
-                         self.alpha * log_pi).detach()    # [T, B, 1]
+        v_from_q_stop = (t.minimum(q1_pi, q2_pi) - self.alpha * log_pi).detach()    # [T, B, 1]
         td_v = v - v_from_q_stop    # [T, B, 1]
         td_error1 = q1 - dc_r   # [T, B, 1]
         td_error2 = q2 - dc_r   # [T, B, 1]
@@ -195,20 +181,17 @@ class SAC_V(SarlOffPolicy):
                 pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) /
-                   self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
             _pi_true_one_hot = t.nn.functional.one_hot(
                 _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
-        q1_pi = self.q_net(
-            BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1_pi = self.q_net(BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         actor_loss = -(q1_pi - self.alpha * log_pi).mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
@@ -229,8 +212,7 @@ class SAC_V(SarlOffPolicy):
             ['Statistics/v_mean', v.mean()]
         ])
         if self.auto_adaption:
-            alpha_loss = -(self.alpha * (log_pi.detach() +
-                           self.target_entropy)).mean()
+            alpha_loss = -(self.alpha * (log_pi.detach() + self.target_entropy)).mean()
             self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
@@ -241,17 +223,13 @@ class SAC_V(SarlOffPolicy):
     @iton
     def _train_discrete(self, BATCH):
         v = self.v_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
-        v_target = self.v_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        v_target = self.v_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
-        q1_all = self.q_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        q2_all = self.q_net2(
-            BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        q1_all = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q2_all = self.q_net2(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
         q1 = (q1_all * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q2 = (q2_all * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
-        logits = self.actor(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
         dc_r = n_step_return(BATCH.reward,
@@ -272,20 +250,15 @@ class SAC_V(SarlOffPolicy):
         critic_loss = 0.5 * q1_loss + 0.5 * q2_loss + 0.5 * v_loss_stop
         self.critic_oplr.optimize(critic_loss)
 
-        q1_all = self.q_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        q2_all = self.q_net2(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        logits = self.actor(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q1_all = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q2_all = self.q_net2(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
-        entropy = -(logp_all.exp() * logp_all).sum(-1,
-                                                   keepdim=True)    # [T, B, 1]
+        entropy = -(logp_all.exp() * logp_all).sum(-1,                                                   keepdim=True)    # [T, B, 1]
         q_all = t.minimum(self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask),
                           self.q_net2(BATCH.obs, begin_mask=BATCH.begin_mask))  # [T, B, A]
-        actor_loss = -((q_all - self.alpha * logp_all) *
-                       logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]
+        actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]
         actor_loss = actor_loss.mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
@@ -317,6 +290,5 @@ class SAC_V(SarlOffPolicy):
     def _after_train(self):
         super()._after_train()
         if self.annealing and not self.auto_adaption:
-            self.log_alpha.copy_(
-                self.alpha_annealing(self._cur_train_step).log())
+            self.log_alpha.copy_(self.alpha_annealing(self._cur_train_step).log())
         self.v_net.sync()

@@ -62,8 +62,8 @@ class A2C(SarlOnPolicy):
 
     @iton
     def select_action(self, obs):
-        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
-        self.next_cell_state = self.actor.get_cell_state()
+        output = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+        self.rnncs_ = self.actor.get_rnncs()
         if self.is_continuous:
             mu, log_std = output     # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
@@ -75,22 +75,33 @@ class A2C(SarlOnPolicy):
 
         acts_info = Data(action=action)
         if self.use_rnn:
-            acts_info.update(cell_state=self.cell_state)
+            acts_info.update(rnncs=self.rnncs)
         return action, acts_info
 
     @iton
-    def _get_value(self, obs, cell_state=None):
-        value = self.critic(obs, cell_state=self.cell_state)
+    def _get_value(self, obs, rnncs=None):
+        value = self.critic(obs, rnncs=self.rnncs)
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
-        value = self._get_value(BATCH.obs_[-1], cell_state=self.cell_state)
+        value = self._get_value(BATCH.obs_[-1], rnncs=self.rnncs)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
                                                  BATCH.begin_mask,
                                                  init_value=value)
+        td_error = calculate_td_error(BATCH.reward,
+                                      self.gamma,
+                                      BATCH.done,
+                                      value=BATCH.value,
+                                      next_value=np.concatenate((BATCH.value[1:], value[np.newaxis, :]), 0))
+        BATCH.gae_adv = discounted_sum(td_error,
+                                       self.lambda_*self.gamma,
+                                       BATCH.done,
+                                       BATCH.begin_mask,
+                                       init_value=0.,
+                                       normalize=True)
         return BATCH
 
     @iton
@@ -101,23 +112,17 @@ class A2C(SarlOnPolicy):
         self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
-            mu, log_std = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(
-                BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            log_act_prob = (BATCH.action * logp_all).sum(-1,
-                                                         keepdim=True)  # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(-1,
-                                                       keepdim=True)  # [T, B, 1]
+            log_act_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
         advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
-        actor_loss = -(log_act_prob * advantage +
-                       self.beta * entropy).mean()  # 1
+        actor_loss = -(log_act_prob * BATCH.gae_adv + self.beta * entropy).mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
         return dict([

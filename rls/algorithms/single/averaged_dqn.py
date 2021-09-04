@@ -61,15 +61,14 @@ class AveragedDQN(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, *]
-        self.next_cell_state = self.q_net.get_cell_state()
+        q_values = self.q_net(obs, rnncs=self.rnncs)  # [B, *]
+        self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
             for i in range(self.target_k):
-                target_q_values = self.target_nets[i](
-                    obs, cell_state=self.cell_state)
+                target_q_values = self.target_nets[i](obs, rnncs=self.rnncs)
                 q_values += target_q_values
             actions = q_values.argmax(-1)  # 不取平均也可以 [B, ]
         return actions, Data(action=actions)
@@ -79,8 +78,7 @@ class AveragedDQN(SarlOffPolicy):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, *]
         q_next = 0
         for i in range(self.target_k):
-            q_next += self.target_nets[i](BATCH.obs_,
-                                          begin_mask=BATCH.begin_mask)
+            q_next += self.target_nets[i](BATCH.obs_, begin_mask=BATCH.begin_mask)
         q_next /= self.target_k  # [T, B, *]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)     # [T, B, 1]
         q_target = n_step_return(BATCH.reward,
@@ -104,5 +102,4 @@ class AveragedDQN(SarlOffPolicy):
         super()._after_train()
         if self._cur_train_step % self.assign_interval == 0:
             sync_params(self.target_nets[self.current_target_idx], self.q_net)
-            self.current_target_idx = (
-                self.current_target_idx + 1) % self.target_k
+            self.current_target_idx = (self.current_target_idx + 1) % self.target_k

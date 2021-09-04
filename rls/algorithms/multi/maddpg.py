@@ -73,10 +73,8 @@ class MADDPG(MultiAgentOffPolicy):
         self.noised_actions = {id: Noise_action_REGISTER[noise_action](**noise_params)
                                for id in set(self.model_ids) if self.is_continuouss[id]}
 
-        self._trainer_modules.update(
-            {f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
-        self._trainer_modules.update(
-            {f"critic_{id}": self.critics[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"critic_{id}": self.critics[id] for id in set(self.model_ids)})
         self._trainer_modules.update(actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
 
@@ -90,9 +88,8 @@ class MADDPG(MultiAgentOffPolicy):
         acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            output = self.actors[mid](
-                obs[aid], cell_state=self.cell_state[aid])  # [B, A]
-            self.next_cell_state[aid] = self.actors[mid].get_cell_state()
+            output = self.actors[mid](obs[aid], rnncs=self.rnncs[aid])  # [B, A]
+            self.rnncs_[aid] = self.actors[mid].get_rnncs()
             if self.is_continuouss[aid]:
                 mu = output  # [B, A]
                 pi = self.noised_actions[mid](mu)   # [B, A]
@@ -115,11 +112,9 @@ class MADDPG(MultiAgentOffPolicy):
         target_actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                target_actions[aid] = self.actors[mid].t(
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                target_actions[aid] = self.actors[mid].t(BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
-                target_logits = self.actors[mid].t(
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
+                target_logits = self.actors[mid].t(BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()   # [T, B]
                 action_target = t.nn.functional.one_hot(
@@ -130,12 +125,10 @@ class MADDPG(MultiAgentOffPolicy):
 
         qs, q_targets = {}, {}
         for mid in self.model_ids:
-            qs[mid] = self.critics[mid](
-                [BATCH_DICT[id].obs for id in self.agent_ids],
-                t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
-            )   # [T, B, 1]
-            q_targets[mid] = self.critics[mid].t(
-                [BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
+            qs[mid] = self.critics[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
+                                        t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1))   # [T, B, 1]
+            q_targets[mid] = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
+                                                 target_actions)  # [T, B, 1]
 
         q_loss = {}
         td_errors = 0.
@@ -158,18 +151,15 @@ class MADDPG(MultiAgentOffPolicy):
         actor_loss = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                mu = self.actors[mid](
-                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                mu = self.actors[mid](BATCH_DICT[aid].obs,
+                                      begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
-                logits = self.actors[mid](
-                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                logits = self.actors[mid](BATCH_DICT[aid].obs,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 logp_all = logits.log_softmax(-1)   # [T, B, A]
-                gumbel_noise = td.Gumbel(0, 1).sample(
-                    logp_all.shape)   # [T, B, A]
-                _pi = ((logp_all + gumbel_noise) /
-                       self.discrete_tau).softmax(-1)   # [T, B, A]
-                _pi_true_one_hot = t.nn.functional.one_hot(
-                    _pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
+                gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
+                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+                _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
                 _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
                 mu = _pi_diff + _pi  # [T, B, A]
 
@@ -193,7 +183,7 @@ class MADDPG(MultiAgentOffPolicy):
             ['LOSS/actor_loss', sum(actor_loss.values())],
             ['LOSS/critic_loss', sum(q_loss.values())]
         ]))
-        return td_errors/self.n_agents_percopy, summaries
+        return td_errors / self.n_agents_percopy, summaries
 
     def _after_train(self):
         super()._after_train()

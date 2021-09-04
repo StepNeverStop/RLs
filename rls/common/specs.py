@@ -73,6 +73,11 @@ class Data:
     def items(self):
         return self.__dict__.items()
 
+    @property
+    def shape(self):
+        for k, v in self.__dict__.items():
+            return v.shape
+
     def __getitem__(self, item):
         params = {}
         for k in self.keys():
@@ -145,6 +150,33 @@ class Data:
             return getattr(self, name)
         else:
             return value
+
+    def sample(self, _t, _b, repeat=True):
+        for idxs in self._yield_sample_indexs(_t, _b, repeat):
+            yield self[idxs]
+
+    def _yield_sample_indexs(self, _t, _b, repeat=True):
+        T, B = self.shape[:2]
+        if repeat:
+            for _ in range((T-_t+1)*B//_b):
+                x = np.random.randint(0, T - _t + 1, _b)    # [B, ]
+                y = np.random.randint(0, B, _b)  # (B, )
+                xs = np.tile(np.arange(_t)[:, np.newaxis], _b) + x  # (T, B) + (B, ) = (T, B)
+                sample_idxs = (xs, y)
+                yield sample_idxs
+        else:
+            # [N, ] + [B, 1] => [B, N]
+            x = np.arange(0, T - _t + 1, _t) + np.random.randint(0, T % _t + 1, B)[:, np.newaxis]
+            y = np.arange(B).repeat(x.shape[-1])   # [B*N]
+            x = x.ravel()   # [B*N]
+            idxs = np.arange(len(x))  # [B*N]
+            np.random.shuffle(idxs)  # [B*N]
+            for i in range(len(idxs)//_b):
+                # [T, B]
+                start, end = i*_b, (i+1)*_b
+                xs = x[start:end] + np.tile(np.arange(_t)[:, np.newaxis], _b)
+                sample_idxs = (xs, y[start:end])
+                yield sample_idxs
 
 
 class DictCls(dict):

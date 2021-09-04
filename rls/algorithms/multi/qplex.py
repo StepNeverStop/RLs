@@ -28,14 +28,12 @@ class QPLEX(VDN):
             'qplex'], "assert self._mixer_type in ['qplex']"
         if self._mixer_type in ['qplex']:
             assert self._has_global_state, 'assert self._has_global_state'
-        return TargetTwin(
-            Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
-                                             state_spec=self.state_spec,
-                                             rep_net_params=self._rep_net_params,
-                                             a_dim=list(
-                                                 self.a_dims.values())[0],
-                                             **self._mixer_settings)
-        ).to(self.device)
+        return TargetTwin(Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
+                                                           state_spec=self.state_spec,
+                                                           rep_net_params=self._rep_net_params,
+                                                           a_dim=list(self.a_dims.values())[0],
+                                                           **self._mixer_settings)
+                          ).to(self.device)
 
     @iton
     def _train(self, BATCH_DICT):
@@ -54,33 +52,28 @@ class QPLEX(VDN):
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
-            q = self.q_nets[mid](
-                BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
-            q_eval = (q * BATCH_DICT[aid].action).sum(-1,
-                                                      keepdim=True)  # [T, B, 1]
+            q = self.q_nets[mid](BATCH_DICT[aid].obs,
+                                 begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
+            q_eval = (q * BATCH_DICT[aid].action).sum(-1, keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
             q_actions.append(BATCH_DICT[aid].action)    # N * [T, B, A]
             q_maxs.append(q.max(-1, keepdim=True)[0])   # [T, B, 1]
 
-            q_target = self.q_nets[mid].t(
-                BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+            q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
             # use double
-            next_q = self.q_nets[mid](
-                BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+            next_q = self.q_nets[mid](BATCH_DICT[aid].obs_,
+                                      begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
             next_max_action = next_q.argmax(-1)  # [T, B]
-            next_max_action_one_hot = t.nn.functional.one_hot(
-                next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+            next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
-            q_target_next_max = (
-                q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+            q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
 
-            q_target_next_choose_maxs.append(
-                q_target_next_max)    # N * [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
-            q_target_next_maxs.append(
-                q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
+            q_target_next_maxs.append(q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
 
         q_eval_tot = self.mixer(BATCH_DICT['global'].obs,
                                 q_evals,

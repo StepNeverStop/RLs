@@ -2,10 +2,12 @@
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch as t
+import torch.nn as nn
 
 from rls.nn.learningrates import LR_REGISTER
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.optimizers import OP_REGISTER
+from rls.nn.layers import NoisyLinear
 
 
 class OPLR:
@@ -84,3 +86,9 @@ class OPLR:
     def load_state_dict(self, state_dict):
         self.optimizer.load_state_dict(state_dict['optimizer'])
         self.lr_scheduler.load_state_dict(state_dict['lr_scheduler'])
+
+
+def reset_noise_layer(model: nn.Module):
+    for m in model.modules():
+        if isinstance(m, NoisyLinear):
+            m.reset_noise()

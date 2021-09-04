@@ -17,15 +17,15 @@ class BaseModel(t.nn.Module):
         super().__init__()
         self.rep_net = RepresentationNetwork(obs_spec=obs_spec,
                                              rep_net_params=rep_net_params)
-        self._cell_state = None
+        self._rnncs = None
 
-    def repre(self, x, cell_state=None, begin_mask=None):
-        x, self._cell_state = self.rep_net(
-            x, cell_state=cell_state, begin_mask=begin_mask)
+    def repre(self, x, rnncs=None, begin_mask=None):
+        x, self._rnncs = self.rep_net(
+            x, rnncs=rnncs, begin_mask=begin_mask)
         return x
 
-    def get_cell_state(self):
-        return self._cell_state
+    def get_rnncs(self):
+        return self._rnncs
 
     def forward(self, x):
         raise NotImplementedError
@@ -497,8 +497,7 @@ class C51Distributional(BaseModel):
         x = self.repre(x, **kwargs)
         qs = self.net(x)    # [B, A*N] or [T, B, A*N]
         # [B, A, N] or [T, B, A, N]
-        q_dist = qs.view(
-            qs.shape[:-1]+(self.action_dim, self._atoms)).softmax(-1)
+        q_dist = qs.view(qs.shape[:-1]+(self.action_dim, self._atoms)).softmax(-1)
         return q_dist
 
 

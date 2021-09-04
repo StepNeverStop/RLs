@@ -90,7 +90,6 @@ dependencies:
       - rlcard==0.2.8
       - rsa==4.7.2
       - scipy==1.7.0
-      - supersuit==3.0.1
       - tensorboard==2.5.0
       - tensorboard-data-server==0.6.1
       - tensorboard-plugin-wit==1.8.0

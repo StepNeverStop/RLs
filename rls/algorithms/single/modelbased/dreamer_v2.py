@@ -70,21 +70,17 @@ class DreamerV2(DreamerV1):
                 loss_lhs = value_lhs.mean().clamp(min=self.kl_free_nats)  # 1
                 loss_rhs = value_rhs.mean().clamp(min=self.kl_free_nats)  # 1
             else:
-                loss_lhs = value_lhs.clamp(
-                    min=self.kl_free_nats).mean()  # 1
-                loss_rhs = value_rhs.clamp(
-                    min=self.kl_free_nats).mean()  # 1
+                loss_lhs = value_lhs.clamp(min=self.kl_free_nats).mean()  # 1
+                loss_rhs = value_rhs.clamp(min=self.kl_free_nats).mean()  # 1
             mix = self.kl_balance if self.kl_forward else (1 - self.kl_balance)
             loss = mix * loss_lhs + (1 - mix) * loss_rhs
         return loss
 
     def _dreamer_target_img_value(self, imaginated_feats):
         if self._use_double:
-            imaginated_values = self.critic.t(
-                imaginated_feats).mean  # [H, T*B, 1]
+            imaginated_values = self.critic.t(imaginated_feats).mean  # [H, T*B, 1]
         else:
-            imaginated_values = self.critic(
-                imaginated_feats).mean  # [H, T*B, 1
+            imaginated_values = self.critic(imaginated_feats).mean  # [H, T*B, 1
         return imaginated_values
 
     def _dreamer_build_actor_loss(self, imaginated_feats, log_probs, entropies, discount, returns):
@@ -98,8 +94,7 @@ class DreamerV2(DreamerV1):
             baseline = self.critic(imaginated_feats[:-1]).mean  # [H-1, T*B, 1]
             advantage = (returns - baseline).detach()   # [H-1, T*B, 1]
             objective = log_probs[:1] * advantage    # [H-1, T*B, 1]
-            objective = self._actor_grad_mix * returns + \
-                (1. - self._actor_grad_mix) * objective
+            objective = self._actor_grad_mix * returns + (1. - self._actor_grad_mix) * objective
         else:
             raise NotImplementedError(self.actor_grad)
         objective += self._actor_entropy_scale * entropies[:-1]  # [H-1, T*B, 1]

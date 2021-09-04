@@ -48,11 +48,9 @@ class DDPG(SarlOffPolicy):
                              rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
-            self.target_noised_action = ClippedNormalNoisedAction(
-                sigma=0.2, noise_bound=0.2)
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
             if noise_action in ['ou', 'clip_normal']:
-                self.noised_action = Noise_action_REGISTER[noise_action](
-                    **noise_params)
+                self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
             elif noise_action == 'normal':
                 self.noised_action = self.target_noised_action
             else:
@@ -84,8 +82,8 @@ class DDPG(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
-        self.next_cell_state = self.actor.get_cell_state()
+        output = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+        self.rnncs_ = self.actor.get_rnncs()
         if self.is_continuous:
             mu = output  # [B, A]
             pi = self.noised_action(mu)  # [B, A]
@@ -100,22 +98,17 @@ class DDPG(SarlOffPolicy):
     @iton
     def _train(self, BATCH):
         if self.is_continuous:
-            action_target = self.actor.t(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
+            action_target = self.actor.t(BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(
-                    action_target)    # [T, B, A]
+                action_target = self.target_noised_action(action_target)    # [T, B, A]
         else:
-            target_logits = self.actor.t(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
+            target_logits = self.actor.t(BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()     # [T, B]
-            action_target = t.nn.functional.one_hot(
-                target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
         q = self.critic(BATCH.obs, BATCH.action,
                         begin_mask=BATCH.begin_mask)    # [T, B, 1]
-        q_target = self.critic.t(
-            BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        q_target = self.critic.t(BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
@@ -126,21 +119,16 @@ class DDPG(SarlOffPolicy):
         self.critic_oplr.optimize(q_loss)
 
         if self.is_continuous:
-            mu = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            mu = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) /
-                   self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(
-                _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
-        q_actor = self.critic(
-            BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q_actor = self.critic(BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         actor_loss = -q_actor.mean()   # 1
         self.actor_oplr.optimize(actor_loss)
 

@@ -5,11 +5,11 @@ from typing import Dict, List, NoReturn
 
 import numpy as np
 from gym.spaces import Box, Discrete, Tuple
-from supersuit import gym_vec_env_v0
 
 from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.gym.make_env import make_env
+from rls.envs.wrappers import MPIEnv, VECEnv
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
@@ -57,17 +57,19 @@ class GymEnv(EnvBase):
         Input:
             env_copys: environment number
         '''
-        if multiprocessing:
-            import multiprocessing
-            multiprocessing.set_start_method("fork")
         self._n_copys = env_copys   # environments number
         self._initialize(env=make_env(**kwargs))
-        self._envs = gym_vec_env_v0(make_env(**kwargs), self._n_copys,
-                                    multiprocessing=multiprocessing)
-        self._envs.seed(seed)
+        _env_wrapper = MPIEnv if multiprocessing else VECEnv
+        self._envs = _env_wrapper(n=self._n_copys, env_fn=make_env, config=kwargs)
+
+        params = []
+        for i in range(self._n_copys):
+            params.append(dict(args=(seed+i,)))
+        self._envs.run('seed', params)
 
     def reset(self, **kwargs) -> Dict[str, Data]:
-        obs = self._envs.reset()
+        obs = self._envs.run('reset')
+        obs = np.stack(obs, 0)
         if self._use_visual:
             ret = Data(visual={'visual_0': obs})
         else:
@@ -78,12 +80,31 @@ class GymEnv(EnvBase):
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         # choose the first agents' actions
         actions = deepcopy(actions['single'])
-        obs, reward, done, info = self._envs.step(actions)
+        params = []
+        for i in range(self._n_copys):
+            params.append(dict(args=(actions[i],)))
+        rets = self._envs.run('step', params)
+        obs_fs, reward, done, info = zip(*rets)
+        obs_fs = np.stack(obs_fs, 0)
+        reward = np.stack(reward, 0)
+        done = np.stack(done, 0)
+        # TODO: info
+
+        obs_fa = deepcopy(obs_fs)   # obs for next action choosing.
+
+        idxs = np.where(done)[0]
+        if len(idxs) > 0:
+            reset_obs = self._envs.run('reset', idxs=idxs)
+            obs_fa[idxs] = np.stack(reset_obs, 0)
+
         if self._use_visual:
-            obs = Data(visual={'visual_0': obs})
+            obs_fs = Data(visual={'visual_0': obs_fs})
+            obs_fa = Data(visual={'visual_0': obs_fa})
         else:
-            obs = Data(vector={'vector_0': obs})
-        return {'single': Data(obs=obs,
+            obs_fs = Data(vector={'vector_0': obs_fs})
+            obs_fa = Data(vector={'vector_0': obs_fa})
+        return {'single': Data(obs_fs=obs_fs,
+                               obs_fa=obs_fa,
                                reward=reward,
                                done=done,
                                info=info),
@@ -93,13 +114,13 @@ class GymEnv(EnvBase):
         '''
         close all environments.
         '''
-        self._envs.close()
+        self._envs.run('close')
 
     def render(self, **kwargs) -> NoReturn:
         '''
         render game windows.
         '''
-        raise NotImplementedError
+        self._envs.run('render', idxs=0)
 
     @property
     def n_copys(self) -> int:

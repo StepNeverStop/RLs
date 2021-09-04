@@ -62,8 +62,7 @@ class VDN(MultiAgentOffPolicy):
         self.mixer = self._build_mixer()
 
         self.oplr = OPLR(tuple(self.q_nets.values())+(self.mixer,), lr, **self._oplr_params)
-        self._trainer_modules.update(
-            {f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"model_{id}": self.q_nets[id] for id in set(self.model_ids)})
         self._trainer_modules.update(mixer=self.mixer,
                                      oplr=self.oplr)
 
@@ -72,21 +71,19 @@ class VDN(MultiAgentOffPolicy):
             'vdn', 'qmix', 'qatten'], "assert self._mixer_type in ['vdn', 'qmix', 'qatten']"
         if self._mixer_type in ['qmix', 'qatten']:
             assert self._has_global_state, 'assert self._has_global_state'
-        return TargetTwin(
-            Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
-                                             state_spec=self.state_spec,
-                                             rep_net_params=self._rep_net_params,
-                                             **self._mixer_settings)
-        ).to(self.device)
+        return TargetTwin(Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
+                                                           state_spec=self.state_spec,
+                                                           rep_net_params=self._rep_net_params,
+                                                           **self._mixer_settings)
+                          ).to(self.device)
 
     @iton  # TODO: optimization
     def select_action(self, obs):
         acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            q_values = self.q_nets[mid](
-                obs[aid], cell_state=self.cell_state[aid])   # [B, A]
-            self.next_cell_state[aid] = self.q_nets[mid].get_cell_state()
+            q_values = self.q_nets[mid](obs[aid], rnncs=self.rnncs[aid])   # [B, A]
+            self.rnncs_[aid] = self.q_nets[mid].get_rnncs()
 
             if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
@@ -107,34 +104,31 @@ class VDN(MultiAgentOffPolicy):
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
-            q = self.q_nets[mid](
-                BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
+            q = self.q_nets[mid](BATCH_DICT[aid].obs,
+                                 begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
             q_eval = (q * BATCH_DICT[aid].action).sum(-1,
                                                       keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
 
-            q_target = self.q_nets[mid].t(
-                BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+            q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             if self._use_double:
-                next_q = self.q_nets[mid](
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                next_q = self.q_nets[mid](BATCH_DICT[aid].obs_,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
                 next_max_action = next_q.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(
-                    next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
-                q_target_next_max = (
-                    q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+                q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
             else:
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_choose_maxs.append(
-                q_target_next_max)    # N * [T, B, 1]
-        q_eval_tot = self.mixer(
-            q_evals, BATCH_DICT['global'].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
-        q_target_next_max_tot = self.mixer.t(
-            q_target_next_choose_maxs, BATCH_DICT['global'].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
+        q_eval_tot = self.mixer(q_evals, BATCH_DICT['global'].obs,
+                                begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
+        q_target_next_max_tot = self.mixer.t(q_target_next_choose_maxs, BATCH_DICT['global'].obs_,
+                                             begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
         q_target_tot = n_step_return(reward,
                                      self.gamma,

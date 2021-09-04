@@ -72,8 +72,7 @@ class TAC(SarlOffPolicy):
                                   network_settings=network_settings['actor_discrete']).to(self.device)
 
         # entropy = -log(1/|A|) = log |A|
-        self.target_entropy = 0.98 * \
-            (-self.a_dim if self.is_continuous else np.log(self.a_dim))
+        self.target_entropy = 0.98 * (-self.a_dim if self.is_continuous else np.log(self.a_dim))
 
         self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR([self.critic, self.critic2], critic_lr, **self._oplr_params)
@@ -101,49 +100,37 @@ class TAC(SarlOffPolicy):
     @iton
     def select_action(self, obs):
         if self.is_continuous:
-            mu, log_std = self.actor(
-                obs, cell_state=self.cell_state)   # [B, A]
+            mu, log_std = self.actor(obs, rnncs=self.rnncs)   # [B, A]
             pi = td.Normal(mu, log_std.exp()).sample().tanh()   # [B, A]
             mu.tanh_()  # squash mu     # [B, A]
         else:
-            logits = self.actor(obs, cell_state=self.cell_state)    # [B, A]
+            logits = self.actor(obs, rnncs=self.rnncs)    # [B, A]
             mu = logits.argmax(-1)   # [B,]
             cate_dist = td.Categorical(logits=logits)
             pi = cate_dist.sample()  # [B,]
-        self.next_cell_state = self.actor.get_cell_state()
+        self.rnncs_ = self.actor.get_rnncs()
         actions = pi if self._is_train_mode else mu
         return actions, Data(action=actions)
 
     @iton
     def _train(self, BATCH):
         if self.is_continuous:
-            target_mu, target_log_std = self.actor(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            dist = td.Independent(
-                td.Normal(target_mu, target_log_std.exp()), 1)
+            target_mu, target_log_std = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            dist = td.Independent(td.Normal(target_mu, target_log_std.exp()), 1)
             target_pi = dist.sample()   # [T, B, A]
-            target_pi, target_log_pi = squash_action(
-                target_pi, dist.log_prob(target_pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
-            target_log_pi = tsallis_entropy_log_q(
-                target_log_pi, self.entropic_index)   # [T, B, 1]
+            target_pi, target_log_pi = squash_action(target_pi, dist.log_prob(target_pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
+            target_log_pi = tsallis_entropy_log_q(target_log_pi, self.entropic_index)   # [T, B, 1]
         else:
-            target_logits = self.actor(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            target_logits = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
-            target_log_pi = target_cate_dist.log_prob(
-                target_pi).unsqueeze(-1)  # [T, B, 1]
-            target_pi = t.nn.functional.one_hot(
-                target_pi, self.a_dim).float()  # [T, B, A]
-        q1 = self.critic(BATCH.obs, BATCH.action,
-                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q2 = self.critic2(BATCH.obs, BATCH.action,
-                          begin_mask=BATCH.begin_mask)  # [T, B, 1]
+            target_log_pi = target_cate_dist.log_prob(target_pi).unsqueeze(-1)  # [T, B, 1]
+            target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+        q1 = self.critic(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q2 = self.critic2(BATCH.obs, BATCH.action,                          begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
-        q1_target = self.critic.t(
-            BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)    # [T, B, 1]
-        q2_target = self.critic2.t(
-            BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1_target = self.critic.t(BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q2_target = self.critic2.t(BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q_target = t.minimum(q1_target, q2_target)  # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
@@ -159,24 +146,18 @@ class TAC(SarlOffPolicy):
         self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
-            mu, log_std = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             pi = dist.rsample()  # [T, B, A]
-            pi, log_pi = squash_action(pi, dist.log_prob(
-                pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
-            log_pi = tsallis_entropy_log_q(
-                log_pi, self.entropic_index)  # [T, B, 1]
+            pi, log_pi = squash_action(pi, dist.log_prob(pi).unsqueeze(-1), is_independent=False)  # [T, B, A]
+            log_pi = tsallis_entropy_log_q(log_pi, self.entropic_index)  # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) /
-                   self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(
-                _pi.argmax(-1), self.a_dim).float()   # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()   # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
@@ -201,8 +182,7 @@ class TAC(SarlOffPolicy):
             ['Statistics/q_max', t.maximum(q1, q2).max()]
         ])
         if self.auto_adaption:
-            alpha_loss = - \
-                (self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
+            alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
             self.alpha_oplr.optimize(alpha_loss)
             summaries.update([
                 ['LOSS/alpha_loss', alpha_loss],
@@ -216,5 +196,4 @@ class TAC(SarlOffPolicy):
         self.critic2.sync()
 
         if self.annealing and not self.auto_adaption:
-            self.log_alpha.copy_(
-                self.alpha_annealing(self._cur_train_step).log())
+            self.log_alpha.copy_(self.alpha_annealing(self._cur_train_step).log())

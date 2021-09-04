@@ -24,16 +24,12 @@ class DDQN(DQN):
     @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
-        q_next = self.q_net(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        q_target_next = self.q_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
+        q_next = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q_target_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
         next_max_action = q_next.argmax(-1)  # [T, B]
-        next_max_action_one_hot = t.nn.functional.one_hot(
-            next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
+        next_max_action_one_hot = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)    # [T, B, 1]
-        q_target_next_max = (
-            q_target_next * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+        q_target_next_max = (q_target_next * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,

@@ -46,13 +46,16 @@ class PlaNet(SarlOffPolicy):
 
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
-        if self.obs_spec.has_visual_observation and len(self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
+        if self.obs_spec.has_visual_observation \
+            and len(self.obs_spec.visual_dims) == 1 \
+                and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'
             self._is_visual = True
-        elif self.obs_spec.has_vector_observation and len(
-                self.obs_spec.vector_dims) == 1 and not self.obs_spec.has_visual_observation:
+        elif self.obs_spec.has_vector_observation \
+            and len(self.obs_spec.vector_dims) == 1 \
+                and not self.obs_spec.has_visual_observation:
             self._is_visual = False
         else:
             raise ValueError("please check the observation type")
@@ -90,8 +93,7 @@ class PlaNet(SarlOffPolicy):
                                            1,
                                            **network_settings['reward']).to(self.device)
 
-        self.model_oplr = OPLR([self.obs_encoder, self.rssm,
-                                self.obs_decoder, self.reward_predictor],
+        self.model_oplr = OPLR([self.obs_encoder, self.rssm, self.obs_decoder, self.reward_predictor],
                                model_lr, **self._oplr_params)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
                                      obs_decoder=self.obs_decoder,
@@ -119,7 +121,7 @@ class PlaNet(SarlOffPolicy):
         # Compute starting state for planning
         # while taking information from current observation (posterior)
         embedded_obs = self.obs_encoder(obs)    # [B, *]
-        state_posterior = self.rssm.posterior(self.cell_state['hx'], embedded_obs)     # dist # [B, *]
+        state_posterior = self.rssm.posterior(self.rnncs['hx'], embedded_obs)     # dist # [B, *]
 
         # Initialize action distribution
         mean = t.zeros((self.cem_horizon, 1, self.n_copys, self.a_dim))    # [H, 1, B, A]
@@ -136,7 +138,7 @@ class PlaNet(SarlOffPolicy):
 
             state = state_posterior.sample((self.cem_candidates,))   # [N, B, *]
             state = state.view(-1, state.shape[-1])  # [N*B, *]
-            rnn_hidden = self.cell_state['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
+            rnn_hidden = self.rnncs['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
 
             # Compute total predicted reward by open-loop prediction using pri
             for _t in range(self.cem_horizon):
@@ -156,9 +158,9 @@ class PlaNet(SarlOffPolicy):
         # Return only first action (replan each state based on new observation)
         actions = t.tanh(mean[0].squeeze(0))    # [B, A]
         actions = self._exploration(actions)
-        _, self.next_cell_state['hx'] = self.rssm.prior(state_posterior.sample(),
-                                                        actions,
-                                                        self.cell_state['hx'])
+        _, self.rnncs_['hx'] = self.rssm.prior(state_posterior.sample(),
+                                               actions,
+                                               self.rnncs['hx'])
         return actions, Data(action=actions)
 
     def _exploration(self, action: t.Tensor) -> t.Tensor:
@@ -188,18 +190,15 @@ class PlaNet(SarlOffPolicy):
         kl_loss = 0
         states, rnn_hiddens = [], []
         for l in range(T):
-            state = state * (1. - BATCH.done[l])
-            rnn_hidden = rnn_hidden * (1. - BATCH.done[l])
-            pre_action = BATCH.action[l] * (1. - BATCH.done[l])
-            if l > 0:
-                # begin_mask_{t} and not done_{t-1}, set state to zero
-                trunced_mask = t.logical_and(
-                    BATCH.begin_mask[l], 1. - BATCH.done[l-1]).float()
-                state = state * (1. - trunced_mask)
-                rnn_hidden = rnn_hidden * (1. - trunced_mask)
-            next_state_prior, next_state_posterior, rnn_hidden = \
-                self.rssm(state, pre_action, rnn_hidden,
-                          embedded_observations[l])    # a, s_
+            # if the begin of this episode, then reset to 0.
+            # No matther whether last episode is beened truncated of not.
+            state = state * (1. - BATCH.begin_mask[l])  # [B, S]
+            rnn_hidden = rnn_hidden * (1. - BATCH.begin_mask[l])     # [B, D]
+
+            next_state_prior, next_state_posterior, rnn_hidden = self.rssm(state,
+                                                                           BATCH.action[l],
+                                                                           rnn_hidden,
+                                                                           embedded_observations[l])    # a, s_
             state = next_state_posterior.rsample()  # [B, S] posterior of s_
             states.append(state)  # [B, S]
             rnn_hiddens.append(rnn_hidden)   # [B, D]
@@ -215,7 +214,7 @@ class PlaNet(SarlOffPolicy):
         # compute loss for observation and reward
         obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
         # [T, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1)*(1. - BATCH.done))
+        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1))
 
         # add all losses and update model parameters with gradient descent
         model_loss = self.kl_scale*kl_loss + obs_loss + self.reward_scale * reward_loss   # 1
@@ -232,7 +231,7 @@ class PlaNet(SarlOffPolicy):
 
         return t.ones_like(BATCH.reward), summaries
 
-    def _initial_cell_state(self, batch: int) -> Dict[str, np.ndarray]:
+    def _initial_rnncs(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}
 
     def _kl_loss(self, prior_dist, post_dist):
