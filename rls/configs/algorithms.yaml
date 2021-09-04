@@ -51,6 +51,7 @@ sarl_on_policy: &sarl_on_policy
     epochs: 4 # train multiple times per agent step
     chunk_length: 4 # n-step or rnn length
     batch_size: 64
+    sample_allow_repeat: true
 
 sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy

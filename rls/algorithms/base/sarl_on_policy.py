@@ -18,17 +18,19 @@ class SarlOnPolicy(SarlPolicy):
                  epochs=4,
                  chunk_length=1,
                  batch_size=256,
+                 sample_allow_repeat=True,
                  **kwargs):
         self._epochs = epochs
         self._chunk_length = chunk_length
         self.batch_size = batch_size
         self.buffer_size = buffer_size
+        self._sample_allow_repeat = sample_allow_repeat
         super().__init__(**kwargs)
 
     def learn(self, BATCH: Data):
         BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
         for _ in range(self._epochs):
-            for _BATCH in self._generate_BATCH(BATCH):
+            for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
                 summaries = self._train(_BATCH)
                 self.summaries.update(summaries)
@@ -36,20 +38,19 @@ class SarlOnPolicy(SarlPolicy):
 
     def episode_end(self):
         super().episode_end()
-        if self._is_train_mode \
-                and self._buffer.can_sample:
+        if self._is_train_mode:
             # on-policy replay buffer
-            self.learn(self._buffer.all_data()[self._agent_id])
+            self.learn(self._buffer.sample(0)[self._agent_id])
             self._buffer.clear()
 
     # customed
 
     def _build_buffer(self):
-        from rls.memories.onpolicy_buffer import OnPolicyDataBuffer
-        buffer = OnPolicyDataBuffer(n_copys=self.n_copys,
-                                    batch_size=self.batch_size,
-                                    buffer_size=self.buffer_size,
-                                    chunk_length=self._chunk_length)
+        from rls.memories import DataBuffer
+        buffer = DataBuffer(n_copys=self.n_copys,
+                            batch_size=self.batch_size,
+                            buffer_size=self.buffer_size,
+                            chunk_length=self._chunk_length)
         return buffer
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
@@ -64,39 +65,6 @@ class SarlOnPolicy(SarlPolicy):
             ), 0))
             BATCH.obs_.update(other=BATCH.action)
         return BATCH
-
-    def _generate_BATCH(self, BATCH, repeat=False):
-        shape = BATCH.action.shape
-        T = shape[0]
-        B = shape[1]
-
-        if repeat:
-            for _ in range((T-self._chunk_length+1)*self.n_copys//self.batch_size):
-                x = np.random.randint(
-                    0, T - self._chunk_length + 1, self.batch_size)    # [B, ]
-                y = np.random.randint(0, B, self.batch_size)  # (B, )
-                xs = np.tile(
-                    np.arange(self._chunk_length)[:, np.newaxis],
-                    self.batch_size) + x  # (T, B) + (B, ) = (T, B)
-                sample_idxs = (xs, y)
-                yield BATCH[sample_idxs]
-        else:
-            # [N, ] + [B, 1] => [B, N]
-            x = np.arange(0, T - self._chunk_length + 1, self._chunk_length) \
-                + np.random.randint(0, T %
-                                    self._chunk_length + 1, B)[:, np.newaxis]
-            y = np.arange(B).repeat(x.shape[-1])   # [B*N]
-            x = x.ravel()   # [B*N]
-            idxs = np.arange(len(x))  # [B*N]
-            np.random.shuffle(idxs)  # [B*N]
-            for i in range(len(idxs)//self.batch_size):
-                # [T, B]
-                start, end = i*self.batch_size, (i+1)*self.batch_size
-                xs = x[start:end] + \
-                    np.tile(np.arange(self._chunk_length)[
-                            :, np.newaxis], self.batch_size)
-                sample_idxs = (xs, y[start:end])
-                yield BATCH[sample_idxs]
 
     def _before_train(self, BATCH):
         self.summaries = {}

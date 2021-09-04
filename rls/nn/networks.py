@@ -78,30 +78,30 @@ class MemoryNetwork(t.nn.Module):
             in_dim=feat_dim, rnn_units=rnn_units)
         self.h_dim = self.net.h_dim
 
-    def forward(self, feat, cell_state: Optional[Dict], begin_mask: Optional[t.Tensor]):
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
         '''
         params:
             feat: [T, B, *]
-            cell_state: [T, B, *]
+            rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
-            cell_states: [T, B, *] or [B, *]
+            rnncs_s: [T, B, *] or [B, *]
         '''
 
         _squeeze = False
         if feat.ndim == 2:  # [B, *]
             _squeeze = True
             feat = feat.unsqueeze(0)    # [B, *] => [1, B, *]
-            if cell_state:
-                cell_state = {k: v.unsqueeze(0)  # [1, B, *]
-                              for k, v in cell_state.items()}
+            if rnncs:
+                rnncs = {k: v.unsqueeze(0)  # [1, B, *]
+                         for k, v in rnncs.items()}
 
-        output, cell_states = self.net(
-            feat, cell_state, begin_mask)    # [B, *] or [T, B, *]
+        output, rnncs_s = self.net(
+            feat, rnncs, begin_mask)    # [B, *] or [T, B, *]
 
         if _squeeze:
             output = output.squeeze(0)  # [B, *]
-            if cell_states:
-                cell_states = {k: v.squeeze(0)
-                               for k, v in cell_states.items()}  # [B, *]
-        return output, cell_states
+            if rnncs_s:
+                rnncs_s = {k: v.squeeze(0)
+                           for k, v in rnncs_s.items()}  # [B, *]
+        return output, rnncs_s

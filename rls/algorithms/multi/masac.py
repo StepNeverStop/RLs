@@ -74,14 +74,12 @@ class MASAC(MultiAgentOffPolicy):
                                            network_settings=network_settings['actor_discrete']).to(self.device)
             self.critics[id] = TargetTwin(MACriticQvalueOne(list(self.obs_specs.values()),
                                                             rep_net_params=self._rep_net_params,
-                                                            action_dim=sum(
-                                                                self.a_dims.values()),
+                                                            action_dim=sum(self.a_dims.values()),
                                                             network_settings=network_settings['q']),
                                           self.ployak).to(self.device)
             self.critics2[id] = deepcopy(self.critics[id])
         self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
-        self.critic_oplr = OPLR(
-            list(self.critics.values())+list(self.critics2.values()), critic_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(list(self.critics.values())+list(self.critics2.values()), critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
             self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
@@ -92,12 +90,9 @@ class MASAC(MultiAgentOffPolicy):
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
-        self._trainer_modules.update(
-            {f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
-        self._trainer_modules.update(
-            {f"critic_{id}": self.critics[id] for id in set(self.model_ids)})
-        self._trainer_modules.update(
-            {f"critic2_{id}": self.critics2[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"critic_{id}": self.critics[id] for id in set(self.model_ids)})
+        self._trainer_modules.update({f"critic2_{id}": self.critics2[id] for id in set(self.model_ids)})
         self._trainer_modules.update(log_alpha=self.log_alpha,
                                      actor_oplr=self.actor_oplr,
                                      critic_oplr=self.critic_oplr)
@@ -111,9 +106,8 @@ class MASAC(MultiAgentOffPolicy):
         acts_info = {}
         actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            output = self.actors[mid](
-                obs[aid], cell_state=self.cell_state[aid])  # [B, A]
-            self.next_cell_state[aid] = self.actors[mid].get_cell_state()
+            output = self.actors[mid](obs[aid], rnncs=self.rnncs[aid])  # [B, A]
+            self.rnncs_[aid] = self.actors[mid].get_rnncs()
             if self.is_continuouss[aid]:
                 mu, log_std = output  # [B, A]
                 pi = td.Normal(mu, log_std.exp()).sample().tanh()
@@ -138,28 +132,24 @@ class MASAC(MultiAgentOffPolicy):
         target_log_pis = 1.
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                target_mu, target_log_std = self.actors[mid](
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
-                dist = td.Independent(
-                    td.Normal(target_mu, target_log_std.exp()), 1)
+                target_mu, target_log_std = self.actors[mid](BATCH_DICT[aid].obs_,
+                                                             begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                dist = td.Independent(td.Normal(target_mu, target_log_std.exp()), 1)
                 target_pi = dist.sample()   # [T, B, A]
                 target_pi, target_log_pi = squash_action(
                     target_pi, dist.log_prob(target_pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
             else:
-                target_logits = self.actors[mid](
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
+                target_logits = self.actors[mid](BATCH_DICT[aid].obs_,
+                                                 begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()   # [T, B]
-                target_log_pi = target_cate_dist.log_prob(
-                    target_pi).unsqueeze(-1)  # [T, B, 1]
-                target_pi = t.nn.functional.one_hot(
-                    target_pi, self.a_dims[aid]).float()  # [T, B, A]
+                target_log_pi = target_cate_dist.log_prob(target_pi).unsqueeze(-1)  # [T, B, 1]
+                target_pi = t.nn.functional.one_hot(target_pi, self.a_dims[aid]).float()  # [T, B, A]
             target_actions[aid] = target_pi
             target_log_pis *= target_log_pi
 
         target_log_pis += t.finfo().eps
-        target_actions = t.cat(
-            list(target_actions.values()), -1)   # [T, B, N*A]
+        target_actions = t.cat(list(target_actions.values()), -1)   # [T, B, N*A]
 
         qs1, qs2, q_targets1, q_targets2 = {}, {}, {}, {}
         for mid in self.model_ids:
@@ -171,10 +161,10 @@ class MASAC(MultiAgentOffPolicy):
                 [BATCH_DICT[id].obs for id in self.agent_ids],
                 t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
             )   # [T, B, 1]
-            q_targets1[mid] = self.critics[mid].t(
-                [BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
-            q_targets2[mid] = self.critics2[mid].t(
-                [BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
+            q_targets1[mid] = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
+                                                  target_actions)  # [T, B, 1]
+            q_targets2[mid] = self.critics2[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
+                                                   target_actions)  # [T, B, 1]
 
         q_loss = {}
         td_errors = 0.
@@ -203,31 +193,24 @@ class MASAC(MultiAgentOffPolicy):
         sample_pis = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                mu, log_std = self.actors[mid](
-                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                mu, log_std = self.actors[mid](BATCH_DICT[aid].obs,
+                                               begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
                 pi = dist.rsample()  # [T, B, A]
-                pi, log_pi = squash_action(
-                    pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
+                pi, log_pi = squash_action(pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
                 pi_action = BATCH_DICT[aid].action.arctanh()
-                _, log_pi_action = squash_action(
-                    pi_action, dist.log_prob(pi_action).unsqueeze(-1)
-                )    # [T, B, A], [T, B, 1]
+                _, log_pi_action = squash_action(pi_action, dist.log_prob(pi_action).unsqueeze(-1))    # [T, B, A], [T, B, 1]
             else:
-                logits = self.actors[mid](
-                    BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                logits = self.actors[mid](BATCH_DICT[aid].obs,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 logp_all = logits.log_softmax(-1)   # [T, B, A]
-                gumbel_noise = td.Gumbel(0, 1).sample(
-                    logp_all.shape)   # [T, B, A]
-                _pi = ((logp_all + gumbel_noise) /
-                       self.discrete_tau).softmax(-1)   # [T, B, A]
-                _pi_true_one_hot = t.nn.functional.one_hot(
-                    _pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
+                gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
+                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+                _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
                 _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
                 pi = _pi_diff + _pi  # [T, B, A]
                 log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
-                log_pi_action = (
-                    logp_all * BATCH_DICT[aid].action).sum(-1, keepdim=True)   # [T, B, 1]
+                log_pi_action = (logp_all * BATCH_DICT[aid].action).sum(-1, keepdim=True)   # [T, B, 1]
             log_pi_actions[aid] = log_pi_action
             log_pis[aid] = log_pi
             sample_pis[aid] = pi
@@ -240,12 +223,10 @@ class MASAC(MultiAgentOffPolicy):
             all_log_pis[aid] = log_pis[aid]
 
             q_s_pi = t.minimum(self.critics[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
-                                                 t.cat(
-                                                     list(all_actions.values()), -1),
+                                                 t.cat(list(all_actions.values()), -1),
                                                  begin_mask=BATCH_DICT['global'].begin_mask),
                                self.critics2[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
-                                                  t.cat(
-                                                      list(all_actions.values()), -1),
+                                                  t.cat(list(all_actions.values()), -1),
                                                   begin_mask=BATCH_DICT['global'].begin_mask))  # [T, B, 1]
 
             _log_pis = 1.
@@ -281,13 +262,12 @@ class MASAC(MultiAgentOffPolicy):
                 ['LOSS/alpha_loss', alpha_loss],
                 ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
             ])
-        return td_errors/self.n_agents_percopy, summaries
+        return td_errors / self.n_agents_percopy, summaries
 
     def _after_train(self):
         super()._after_train()
         if self.annealing and not self.auto_adaption:
-            self.log_alpha.copy_(
-                self.alpha_annealing(self._cur_train_step).log())
+            self.log_alpha.copy_(self.alpha_annealing(self._cur_train_step).log())
         for critic in self.critics.values():
             critic.sync()
         for critic2 in self.critics2.values():

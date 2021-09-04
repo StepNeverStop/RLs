@@ -19,7 +19,7 @@ class RepresentationNetwork(t.nn.Module):
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
       vector -> vector_net -> feat ↗                             -> memory_net ->
-                                                      cell_state ↗                ↘ cell_state
+                                                      rnncs ↗                ↘ rnncs
     '''
 
     def __init__(self,
@@ -66,7 +66,7 @@ class RepresentationNetwork(t.nn.Module):
         logger.debug('initialize memory network successfully.')
         self.h_dim = self.memory_net.h_dim
 
-    def forward(self, obs, cell_state=None, begin_mask=None):
+    def forward(self, obs, rnncs=None, begin_mask=None):
         '''
         params:
             obs: [T, B, *] or [B, *]
@@ -88,9 +88,9 @@ class RepresentationNetwork(t.nn.Module):
 
         feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
-        feat, cell_state = self.memory_net(
-            feat, cell_state, begin_mask)    # [T, B, *] or [B, *]
-        return feat, cell_state
+        feat, rnncs = self.memory_net(
+            feat, rnncs, begin_mask)    # [T, B, *] or [B, *]
+        return feat, rnncs
 
 
 class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
@@ -98,7 +98,7 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
       vector -> vector_net -> feat ↗                             -> memory_net ->
-                                                      cell_state ↗                ↘ cell_state
+                                                      rnncs ↗                ↘ rnncs
     '''
 
     def __init__(self,
@@ -116,13 +116,13 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
         self.h_dim = sum(
             [rep_net.h_dim for rep_net in self.representation_nets])
 
-    def forward(self, obss, cell_state):
-        # TODO: cell_state
+    def forward(self, obss, rnncs):
+        # TODO: rnncs
         output = []
         for obs, rep_net in zip(obss, self.representation_nets):
-            output.append(rep_net(obs, cell_state=cell_state)[0])
+            output.append(rep_net(obs, rnncs=rnncs)[0])
         feats = t.cat(output, -1)
-        return feats, cell_state
+        return feats, rnncs
 
 
 Rep_REGISTER['default'] = RepresentationNetwork

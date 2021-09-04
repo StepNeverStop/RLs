@@ -23,7 +23,7 @@ batch like : {
                 'action': np.ndarray,
                 'reward': np.ndarray,
                 'done': np.ndarray,
-                'cell_states': (np.ndarray, ) or [np.ndarray, ] or np.ndarray
+                'rnncs_s': (np.ndarray, ) or [np.ndarray, ] or np.ndarray
             }
             ...
             'global':{
@@ -74,15 +74,18 @@ class DataBuffer:
         assert isinstance(data, dict), "assert isinstance(data, dict)"
         if self._not_builded():
             self._build_buffer(data)
-        else:
-            for k, v in data.items():
-                for _k, _v in v.nested_dict().items():
-                    self._buffer[k][_k][self._pointer] = _v
+
+        for k, v in data.items():
+            for _k, _v in v.nested_dict().items():
+                self._buffer[k][_k][self._pointer] = _v
 
         self._pointer = (self._pointer + 1) % self.max_horizon
         self._horizon_length = min(self._horizon_length+1, self.max_horizon)
 
     def sample(self, batchsize=None, chunk_length=None):
+        if batchsize == 0:
+            return self.all_data()
+
         B = batchsize or self.batch_size
         T = chunk_length or self._chunk_length
         assert T <= self._horizon_length
@@ -128,3 +131,13 @@ class DataBuffer:
 
     def __getitem__(self, item):
         return self._buffer[item]
+
+    def all_data(self):
+        samples = {}
+        for k, v in self._buffer.items():
+            samples[k] = Data.from_nested_dict(v)
+        return samples
+
+    def clear(self):
+        self._horizon_length = 0
+        self._pointer = 0

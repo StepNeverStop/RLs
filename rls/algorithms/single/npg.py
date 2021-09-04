@@ -46,7 +46,7 @@ class NPG(SarlOnPolicy):
         self.actor_step_size = actor_step_size
         self.beta = beta
         self.lambda_ = lambda_
-        self.epsilon = epsilon
+        self._epsilon = epsilon
         self._cg_iters = cg_iters
         self._damping_coeff = damping_coeff
         self._train_critic_iters = train_critic_iters
@@ -72,9 +72,9 @@ class NPG(SarlOnPolicy):
 
     @iton
     def select_action(self, obs):
-        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
-        self.next_cell_state = self.actor.get_cell_state()
-        value = self.critic(obs, cell_state=self.cell_state)     # [B, 1]
+        output = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+        self.rnncs_ = self.actor.get_rnncs()
+        value = self.critic(obs, rnncs=self.rnncs)     # [B, 1]
         if self.is_continuous:
             mu, log_std = output     # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
@@ -90,7 +90,7 @@ class NPG(SarlOnPolicy):
                          value=value,
                          log_prob=log_prob+t.finfo().eps)
         if self.use_rnn:
-            acts_info.update(cell_state=self.cell_state)
+            acts_info.update(rnncs=self.rnncs)
         if self.is_continuous:
             acts_info.update(mu=mu, log_std=log_std)
         else:
@@ -98,13 +98,13 @@ class NPG(SarlOnPolicy):
         return action, acts_info
 
     @iton
-    def _get_value(self, obs, cell_state=None):
-        value = self.critic(obs, cell_state=cell_state)    # [B, 1]
+    def _get_value(self, obs, rnncs=None):
+        value = self.critic(obs, rnncs=rnncs)    # [B, 1]
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
         BATCH = super()._preprocess_BATCH(BATCH)
-        value = self._get_value(BATCH.obs_[-1], cell_state=self.cell_state)
+        value = self._get_value(BATCH.obs_[-1], rnncs=self.rnncs)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -130,20 +130,17 @@ class NPG(SarlOnPolicy):
         if self.is_continuous:
             mu, log_std = output     # [T, B, A], [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(
-                BATCH.action).unsqueeze(-1)     # [T, B, 1]
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = output  # [T, B, A]
             logp_all = logits.log_softmax(-1)    # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1,
-                                                         keepdim=True)    # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)    # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()        # [T, B, 1]
         actor_loss = -(ratio * BATCH.gae_adv).mean()  # 1
 
-        flat_grads = self._get_flat_grad(
-            actor_loss, self.actor, retain_graph=True).detach()    # [1,]
+        flat_grads = self._get_flat_grad(actor_loss, self.actor, retain_graph=True).detach()    # [1,]
 
         if self.is_continuous:
             kl = td.kl_divergence(
@@ -151,23 +148,18 @@ class NPG(SarlOnPolicy):
                 td.Independent(td.Normal(mu, log_std.exp()), 1)
             ).mean()
         else:
-            kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)
-                  ).sum(-1).mean()    # 1
+            kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)).sum(-1).mean()    # 1
 
         flat_kl_grad = self._get_flat_grad(kl, self.actor, create_graph=True)
-        search_direction = - \
-            self._conjugate_gradients(
-                flat_grads, flat_kl_grad, cg_iters=self._cg_iters)    # [1,]
+        search_direction = -             self._conjugate_gradients(flat_grads, flat_kl_grad, cg_iters=self._cg_iters)    # [1,]
 
         with t.no_grad():
-            flat_params = t.cat([param.data.view(-1)
-                                 for param in self.actor.parameters()])
+            flat_params = t.cat([param.data.view(-1) for param in self.actor.parameters()])
             new_flat_params = flat_params + self.actor_step_size * search_direction
             self._set_from_flat_params(self.actor, new_flat_params)
 
         for _ in range(self._train_critic_iters):
-            value = self.critic(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+            value = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
             td_error = BATCH.discounted_reward - value  # [T, B, 1]
             critic_loss = td_error.square().mean()   # 1
             self.critic_oplr.optimize(critic_loss)
@@ -213,8 +205,7 @@ class NPG(SarlOnPolicy):
         """Matrix vector product."""
         # caculate second order gradient of kl with respect to theta
         kl_v = (flat_kl_grad * v).sum()
-        mvp = self._get_flat_grad(
-            kl_v, self.actor, retain_graph=True).detach()
+        mvp = self._get_flat_grad(kl_v, self.actor, retain_graph=True).detach()
         mvp += max(0, self._damping_coeff) * v
         return mvp
 
@@ -222,7 +213,6 @@ class NPG(SarlOnPolicy):
         prev_ind = 0
         for name, param in model.named_parameters():
             flat_size = int(np.prod(list(param.size())))
-            param.data.copy_(
-                flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
+            param.data.copy_(flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
             prev_ind += flat_size
         return model

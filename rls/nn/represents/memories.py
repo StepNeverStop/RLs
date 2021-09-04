@@ -28,22 +28,22 @@ class GRU_RNN(t.nn.Module):
         self.rnn = t.nn.GRUCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
-    def forward(self, feat, cell_state: Optional[Dict], begin_mask: Optional[t.Tensor]):
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
         '''
         params:
             feat: [T, B, *]
-            cell_state: [T, B, *]
+            rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
-            cell_states: [T, B, *] or [B, *]
+            rnncs_s: [T, B, *] or [B, *]
         '''
         T, B = feat.shape[:2]
 
         output = []
-        cell_states = defaultdict(list)
+        rnncs_s = defaultdict(list)
 
-        if cell_state:
-            hx = cell_state['hx'][0]
+        if rnncs:
+            hx = rnncs['hx'][0]
         else:
             hx = t.zeros(size=(B, self.h_dim))
         for i in range(T):  # T
@@ -52,13 +52,13 @@ class GRU_RNN(t.nn.Module):
             hx = self.rnn(feat[i, ...], hx)
 
             output.append(hx)
-            cell_states['hx'].append(hx)
+            rnncs_s['hx'].append(hx)
 
         output = t.stack(output, dim=0)  # [T, B, N]
-        if cell_states:
-            cell_states = {k: t.stack(v, 0)
-                           for k, v in cell_states.items()}  # [T, B, N]
-        return output, cell_states
+        if rnncs_s:
+            rnncs_s = {k: t.stack(v, 0)
+                       for k, v in rnncs_s.items()}  # [T, B, N]
+        return output, rnncs_s
 
 
 class LSTM_RNN(t.nn.Module):
@@ -69,22 +69,22 @@ class LSTM_RNN(t.nn.Module):
         self.rnn = t.nn.LSTMCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
-    def forward(self, feat, cell_state: Optional[Dict], begin_mask: Optional[t.Tensor]):
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
         '''
         params:
             feat: [T, B, *]
-            cell_state: [T, B, *]
+            rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
-            cell_states: [T, B, *] or [B, *]
+            rnncs_s: [T, B, *] or [B, *]
         '''
         T, B = feat.shape[:2]
 
         output = []
-        cell_states = defaultdict(list)
+        rnncs_s = defaultdict(list)
 
-        if cell_state:
-            hx, cx = cell_state['hx'][0], cell_state['cx'][0]
+        if rnncs:
+            hx, cx = rnncs['hx'][0], rnncs['cx'][0]
         else:
             hx, cx = t.zeros(size=(B, self.h_dim)), t.zeros(
                 size=(B, self.h_dim))
@@ -95,15 +95,15 @@ class LSTM_RNN(t.nn.Module):
             hx, cx = self.rnn(feat[i, ...], (hx, cx))
 
             output.append(hx)
-            cell_states['hx'].append(hx)
-            cell_states['cx'].append(cx)
+            rnncs_s['hx'].append(hx)
+            rnncs_s['cx'].append(cx)
 
         output = t.stack(output, dim=0)  # [T, B, N]
-        if cell_states:
-            cell_states = {k: t.stack(v, 0)
-                           for k, v in cell_states.items()}  # [T, B, N]
+        if rnncs_s:
+            rnncs_s = {k: t.stack(v, 0)
+                       for k, v in rnncs_s.items()}  # [T, B, N]
 
-        return output, cell_states
+        return output, rnncs_s
 
 
 Rnn_REGISTER['identity'] = Rnn_REGISTER['none'] = IdentityRNN

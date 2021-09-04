@@ -53,8 +53,8 @@ class DDDQN(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A]
-        self.next_cell_state = self.q_net.get_cell_state()
+        q_values = self.q_net(obs, rnncs=self.rnncs)  # [B, A]
+        self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
@@ -65,18 +65,14 @@ class DDDQN(SarlOffPolicy):
     @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
-        next_q = self.q_net(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        q_target = self.q_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        next_q = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q_target = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
 
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         next_max_action = next_q.argmax(-1)  # [T, B]
-        next_max_action_one_hot = t.nn.functional.one_hot(
-            next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
+        next_max_action_one_hot = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
 
-        q_target_next_max = (
-            q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+        q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,

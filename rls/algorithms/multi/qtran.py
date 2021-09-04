@@ -23,24 +23,20 @@ class QTRAN(VDN):
                  **kwargs):
         super().__init__(**kwargs)
         assert self.use_rnn == True, 'assert self.use_rnn == True'
-        assert len(set(list(self.a_dims.values()))
-                   ) == 1, 'all agents must have same action dimension.'
+        assert len(set(list(self.a_dims.values()))) == 1, 'all agents must have same action dimension.'
         self.opt_loss = opt_loss
         self.nopt_min_loss = nopt_min_loss
 
     def _build_mixer(self):
-        assert self._mixer_type in [
-            'qtran-base'], "assert self._mixer_type in ['qtran-base']"
+        assert self._mixer_type in ['qtran-base'], "assert self._mixer_type in ['qtran-base']"
         if self._mixer_type in ['qtran-base']:
             assert self._has_global_state, 'assert self._has_global_state'
-        return TargetTwin(
-            Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
-                                             state_spec=self.state_spec,
-                                             rep_net_params=self._rep_net_params,
-                                             a_dim=list(
-                                                 self.a_dims.values())[0],
-                                             **self._mixer_settings)
-        ).to(self.device)
+        return TargetTwin(Mixer_REGISTER[self._mixer_type](n_agents=self.n_agents_percopy,
+                                                           state_spec=self.state_spec,
+                                                           rep_net_params=self._rep_net_params,
+                                                           a_dim=list(self.a_dims.values())[0],
+                                                           **self._mixer_settings)
+                          ).to(self.device)
 
     @iton
     def _train(self, BATCH_DICT):
@@ -49,59 +45,53 @@ class QTRAN(VDN):
         done = 0.
 
         q_evals = []
-        q_cell_states = []
+        q_rnncs_s = []
         q_actions = []
         q_maxs = []
         q_max_actions = []
 
         q_target_next_choose_maxs = []
-        q_target_cell_states = []
+        q_target_rnncs_s = []
         q_target_actions = []
 
         for aid, mid in zip(self.agent_ids, self.model_ids):
             done += BATCH_DICT[aid].done    # [T, B, 1]
 
-            q = self.q_nets[mid](
-                BATCH_DICT[aid].obs, begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
-            q_cell_state = self.q_nets[mid].get_cell_state()  # [T, B, *]
-            q_eval = (q * BATCH_DICT[aid].action).sum(-1,
-                                                      keepdim=True)  # [T, B, 1]
+            q = self.q_nets[mid](BATCH_DICT[aid].obs,
+                                 begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
+            q_rnncs = self.q_nets[mid].get_rnncs()  # [T, B, *]
+            q_eval = (q * BATCH_DICT[aid].action).sum(-1, keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
-            q_cell_states.append(q_cell_state)  # N * [T, B, *]
+            q_rnncs_s.append(q_rnncs)  # N * [T, B, *]
             q_actions.append(BATCH_DICT[aid].action)    # N * [T, B, A]
             q_maxs.append(q.max(-1, keepdim=True)[0])   # [T, B, 1]
-            q_max_actions.append(t.nn.functional.one_hot(
-                q.argmax(-1), self.a_dims[aid]).float())  # [T, B, A]
+            q_max_actions.append(t.nn.functional.one_hot(q.argmax(-1), self.a_dims[aid]).float())  # [T, B, A]
 
-            q_target = self.q_nets[mid].t(
-                BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+            q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             # [T, B, *]
-            q_target_cell_state = self.q_nets[mid].target.get_cell_state()
+            q_target_rnncs = self.q_nets[mid].target.get_rnncs()
             if self._use_double:
-                next_q = self.q_nets[mid](
-                    BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
+                next_q = self.q_nets[mid](BATCH_DICT[aid].obs_,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
                 next_max_action = next_q.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(
-                    next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
-                q_target_next_max = (
-                    q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
+                q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
             else:
                 next_max_action = q_target.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(
-                    next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
-            q_target_next_choose_maxs.append(
-                q_target_next_max)    # N * [T, B, 1]
-            q_target_cell_states.append(q_target_cell_state)    # N * [T, B, *]
+            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
+            q_target_rnncs_s.append(q_target_rnncs)    # N * [T, B, *]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
 
-        joint_qs, vs = self.mixer(BATCH_DICT['global'].obs, q_cell_states, q_actions,
+        joint_qs, vs = self.mixer(BATCH_DICT['global'].obs, q_rnncs_s, q_actions,
                                   begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
-        target_joint_qs, target_vs = self.mixer.t(BATCH_DICT['global'].obs_, q_target_cell_states, q_target_actions,
+        target_joint_qs, target_vs = self.mixer.t(BATCH_DICT['global'].obs_, q_target_rnncs_s, q_target_actions,
                                                   begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
 
         q_target_tot = n_step_return(reward,
@@ -113,11 +103,10 @@ class QTRAN(VDN):
         td_loss = td_error.square().mean()   # 1
 
         # opt loss
-        max_joint_qs, _ = self.mixer(BATCH_DICT['global'].obs, q_cell_states, q_max_actions,
+        max_joint_qs, _ = self.mixer(BATCH_DICT['global'].obs, q_rnncs_s, q_max_actions,
                                      begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, 1]
         max_actions_qvals = sum(q_maxs)  # [T, B, 1]
-        opt_loss = (max_actions_qvals - max_joint_qs.detach() +
-                    vs).square().mean()   # 1
+        opt_loss = (max_actions_qvals - max_joint_qs.detach() + vs).square().mean()   # 1
 
         # nopt loss
         nopt_error = sum(q_evals) - joint_qs.detach() + vs  # [T, B, 1]

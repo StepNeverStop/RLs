@@ -74,17 +74,13 @@ class IOC(SarlOffPolicy):
                                             out_act='sigmoid').to(self.device)
 
         if self.is_continuous:
-            self.log_std = t.as_tensor(np.full(
-                (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
-            self.intra_option_oplr = OPLR(
-                [self.intra_option_net, self.log_std], intra_option_lr, **self._oplr_params)
+            self.log_std = t.as_tensor(np.full((self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
+            self.intra_option_oplr = OPLR([self.intra_option_net, self.log_std], intra_option_lr, **self._oplr_params)
         else:
-            self.intra_option_oplr = OPLR(
-                self.intra_option_net, intra_option_lr, **self._oplr_params)
+            self.intra_option_oplr = OPLR(self.intra_option_net, intra_option_lr, **self._oplr_params)
 
         self.q_oplr = OPLR(self.q_net, q_lr, **self._oplr_params)
-        self.termination_oplr = OPLR(
-            self.termination_net, termination_lr, **self._oplr_params)
+        self.termination_oplr = OPLR(self.termination_net, termination_lr, **self._oplr_params)
         self.interest_oplr = OPLR(self.interest_net, interest_lr, **self._oplr_params)
 
         self._trainer_modules.update(q_net=self.q_net,
@@ -96,8 +92,7 @@ class IOC(SarlOffPolicy):
                                      termination_oplr=self.termination_oplr,
                                      interest_oplr=self.interest_oplr)
 
-        self.options = self.new_options = t.tensor(np.random.randint(
-            0, self.options_num, self.n_copys)).to(self.device)
+        self.options = self.new_options = t.tensor(np.random.randint(0, self.options_num, self.n_copys)).to(self.device)
 
     def episode_step(self,
                      obs: Data,
@@ -108,12 +103,10 @@ class IOC(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        q = self.q_net(obs, cell_state=self.cell_state)  # [B, P]
-        self.next_cell_state = self.q_net.get_cell_state()
-        pi = self.intra_option_net(
-            obs, cell_state=self.cell_state)  # [B, P, A]
-        options_onehot = t.nn.functional.one_hot(
-            self.options, self.options_num).float()    # [B, P]
+        q = self.q_net(obs, rnncs=self.rnncs)  # [B, P]
+        self.rnncs_ = self.q_net.get_rnncs()
+        pi = self.intra_option_net(obs, rnncs=self.rnncs)  # [B, P, A]
+        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
@@ -125,8 +118,7 @@ class IOC(SarlOffPolicy):
             pi = pi / self.boltzmann_temperature    # [B, A]
             dist = td.Categorical(logits=pi)
             actions = dist.sample()  # [B, ]
-        interests = self.interest_net(
-            obs, cell_state=self.cell_state)  # [B, P]
+        interests = self.interest_net(obs, rnncs=self.rnncs)  # [B, P]
         op_logits = interests * q  # [B, P] or q.softmax(-1)
         self.new_options = td.Categorical(logits=op_logits).sample()    # [B, ]
         return actions, Data(action=actions,
@@ -150,20 +142,15 @@ class IOC(SarlOffPolicy):
     @iton
     def _train(self, BATCH):
         q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)    # [T, B, P]
-        q_next = self.q_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, P]
-        beta_next = self.termination_net(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
+        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, P]
+        beta_next = self.termination_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
 
         qu_eval = (q * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
-        beta_s_ = (beta_next * BATCH.options).sum(-1,
-                                                  keepdim=True)  # [T, B, 1]
+        beta_s_ = (beta_next * BATCH.options).sum(-1, keepdim=True)  # [T, B, 1]
         q_s_ = (q_next * BATCH.options).sum(-1, keepdim=True)   # [T, B, 1]
         if self.double_q:
-            q_ = self.q_net(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
-            max_a_idx = t.nn.functional.one_hot(
-                q_.argmax(-1), self.options_num).float()  # [T, B, P]
+            q_ = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
+            max_a_idx = t.nn.functional.one_hot(q_.argmax(-1), self.options_num).float()  # [T, B, P]
             q_s_max = (q_next * max_a_idx).sum(-1, keepdim=True)   # [T, B, 1]
         else:
             q_s_max = q_next.max(-1, keepdim=True)[0]   # [T, B, 1]
@@ -178,8 +165,7 @@ class IOC(SarlOffPolicy):
         self.q_oplr.optimize(q_loss)
 
         q_s = qu_eval.detach()  # [T, B, 1]
-        pi = self.intra_option_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P, A]
+        pi = self.intra_option_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P, A]
 
         if self.use_baseline:
             adv = (qu_target - q_s).detach()    # [T, B, 1]
@@ -198,23 +184,18 @@ class IOC(SarlOffPolicy):
         else:
             pi = pi / self.boltzmann_temperature    # [T, B, A]
             log_pi = pi.log_softmax(-1)  # [T, B, A]
-            entropy = -(log_pi.exp() * log_pi).sum(-1,
-                                                   keepdim=True)    # [T, B, 1]
+            entropy = -(log_pi.exp() * log_pi).sum(-1, keepdim=True)    # [T, B, 1]
             log_p = (log_pi * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()  # 1
         self.intra_option_oplr.optimize(pi_loss)
 
-        beta = self.termination_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
-        beta_s = (beta * BATCH.last_options).sum(-1,
-                                                 keepdim=True)   # [T, B, 1]
+        beta = self.termination_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
+        beta_s = (beta * BATCH.last_options).sum(-1, keepdim=True)   # [T, B, 1]
 
-        interests = self.interest_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P]
+        interests = self.interest_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, P]
         # [T, B, P] or q.softmax(-1)
         pi_op = (interests * q.detach()).softmax(-1)
-        interest_loss = -(beta_s.detach() * (pi_op *
-                          BATCH.options).sum(-1, keepdim=True) * q_s).mean()  # 1
+        interest_loss = -(beta_s.detach() * (pi_op * BATCH.options).sum(-1, keepdim=True) * q_s).mean()  # 1
         self.interest_oplr.optimize(interest_loss)
 
         v_s = (q * pi_op).sum(-1, keepdim=True)  # [T, B, 1]

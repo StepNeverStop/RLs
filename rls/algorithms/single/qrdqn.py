@@ -38,8 +38,7 @@ class QRDQN(SarlOffPolicy):
         assert not self.is_continuous, 'qrdqn only support discrete action space'
         self.nums = nums
         self.huber_delta = huber_delta
-        self.quantiles = t.tensor(
-            (2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().to(self.device)  # [N,]
+        self.quantiles = t.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().to(self.device)  # [N,]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -57,8 +56,8 @@ class QRDQN(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A, N]
-        self.next_cell_state = self.q_net.get_cell_state()
+        q_values = self.q_net(obs, rnncs=self.rnncs)  # [B, A, N]
+        self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
@@ -69,17 +68,13 @@ class QRDQN(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q_dist = self.q_net(
-            BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
-        q_dist = (q_dist * BATCH.action.unsqueeze(-1)
-                  ).sum(-2)  # [T, B, A, N] => [T, B, N]
+        q_dist = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
+        q_dist = (q_dist * BATCH.action.unsqueeze(-1)).sum(-2)  # [T, B, A, N] => [T, B, N]
 
-        target_q_dist = self.q_net.t(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
+        target_q_dist = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         target_q = target_q_dist.mean(-1)  # [T, B, A, N] => [T, B, A]
         _a = target_q.argmax(-1)  # [T, B]
-        next_max_action = t.nn.functional.one_hot(
-            _a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
+        next_max_action = t.nn.functional.one_hot(_a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
         # [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * next_max_action).sum(-2)
 
@@ -98,11 +93,9 @@ class QRDQN(SarlOffPolicy):
 
         # [T, B, 1, N] - [T, B, N, 1] => [T, B, N, N]
         quantile_error = target - q_dist
-        huber = t.nn.functional.huber_loss(
-            target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        huber = t.nn.functional.huber_loss(target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [N,] - [T, B, N, N] => [T, B, N, N]
-        huber_abs = (self.quantiles -
-                     quantile_error.detach().le(0.).float()).abs()
+        huber_abs = (self.quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N] => [T, B, N]
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
         loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1

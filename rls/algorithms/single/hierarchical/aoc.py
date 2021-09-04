@@ -49,17 +49,17 @@ class AOC(SarlOnPolicy):
         super().__init__(agent_spec=agent_spec, **kwargs)
         self.pi_beta = pi_beta
         self.lambda_ = lambda_
-        self.epsilon = epsilon
-        self.value_epsilon = value_epsilon
-        self.kl_reverse = kl_reverse
-        self.kl_target = kl_target
-        self.kl_alpha = kl_alpha
-        self.kl_coef = kl_coef
+        self._epsilon = epsilon
+        self._value_epsilon = value_epsilon
+        self._kl_reverse = kl_reverse
+        self._kl_target = kl_target
+        self._kl_alpha = kl_alpha
+        self._kl_coef = kl_coef
 
-        self.kl_cutoff = kl_target * kl_target_cutoff
-        self.kl_stop = kl_target * kl_target_earlystop
-        self.kl_low = kl_target * kl_beta[0]
-        self.kl_high = kl_target * kl_beta[-1]
+        self._kl_cutoff = kl_target * kl_target_cutoff
+        self._kl_stop = kl_target * kl_target_earlystop
+        self._kl_low = kl_target * kl_beta[0]
+        self._kl_high = kl_target * kl_beta[-1]
 
         self.options_num = options_num
         self.dc = dc
@@ -73,8 +73,7 @@ class AOC(SarlOnPolicy):
                             network_settings=network_settings,
                             is_continuous=self.is_continuous).to(self.device)
         if self.is_continuous:
-            self.log_std = t.as_tensor(np.full(
-                (self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
+            self.log_std = t.as_tensor(np.full((self.options_num, self.a_dim), -0.5)).requires_grad_().to(self.device)  # [P, A]
             self.oplr = OPLR([self.net, self.log_std], lr, **self._oplr_params)
         else:
             self.oplr = OPLR(self.net, lr, **self._oplr_params)
@@ -101,10 +100,9 @@ class AOC(SarlOnPolicy):
     @iton
     def select_action(self, obs):
         # [B, P], [B, P, A], [B, P]
-        (q, pi, beta) = self.net(obs, cell_state=self.cell_state)
-        self.next_cell_state = self.net.get_cell_state()
-        options_onehot = t.nn.functional.one_hot(
-            self.options, self.options_num).float()    # [B, P]
+        (q, pi, beta) = self.net(obs, rnncs=self.rnncs)
+        self.rnncs_ = self.net.get_rnncs()
+        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
@@ -125,8 +123,7 @@ class AOC(SarlOnPolicy):
         beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
         beta_dist = td.Bernoulli(probs=beta_probs)
         # <1 则不改变op， =1 则改变op
-        new_options = t.where(beta_dist.sample() < 1,
-                              self.options, max_options)
+        new_options = t.where(beta_dist.sample() < 1,                              self.options, max_options)
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
         acts_info = Data(action=action,
@@ -137,12 +134,12 @@ class AOC(SarlOnPolicy):
                          options=self.new_options,
                          reward_offset=-((1 - self.oc_mask) * self.dc).unsqueeze(-1))
         if self.use_rnn:
-            acts_info.update(cell_state=self.cell_state)
+            acts_info.update(rnncs=self.rnncs)
         return action, acts_info
 
     @iton
-    def _get_value(self, obs, options, cell_state=None):
-        (q, _, _) = self.net(obs, cell_state=cell_state)   # [B, P]
+    def _get_value(self, obs, options, rnncs=None):
+        (q, _, _) = self.net(obs, rnncs=rnncs)   # [B, P]
         value = (q * options).sum(-1, keepdim=True)  # [B, 1]
         return value
 
@@ -152,8 +149,7 @@ class AOC(SarlOnPolicy):
 
         BATCH.last_options = int2one_hot(BATCH.last_options, self.options_num)
         BATCH.options = int2one_hot(BATCH.options, self.options_num)
-        value = self._get_value(
-            BATCH.obs_[-1], BATCH.options[-1], cell_state=self.cell_state)
+        value = self._get_value(BATCH.obs_[-1], BATCH.options[-1], rnncs=self.rnncs)
         BATCH.discounted_reward = discounted_sum(BATCH.reward,
                                                  self.gamma,
                                                  BATCH.done,
@@ -176,13 +172,13 @@ class AOC(SarlOnPolicy):
         BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
         for _ in range(self._epochs):
             kls = []
-            for _BATCH in self._generate_BATCH(BATCH):
+            for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
                 summaries, kl = self._train(_BATCH)
                 kls.append(kl)
                 self.summaries.update(summaries)
                 self._after_train()
-            if sum(kls)/len(kls) > self.kl_stop:
+            if sum(kls)/len(kls) > self._kl_stop:
                 break
 
     @iton
@@ -198,45 +194,37 @@ class AOC(SarlOnPolicy):
             mu = pi  # [T, B, A]
             log_std = self.log_std[BATCH.options.argmax(-1)]    # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(
-                BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
             entropy = dist.entropy().mean()  # 1
         else:
             logits = pi  # [T, B, A]
             logp_all = logits.log_softmax(-1)   # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1,
-                                                         keepdim=True)   # [T, B, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1,
-                                                       keepdim=True).mean()  # 1
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True).mean()  # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()   # [T, B, 1]
 
-        if self.kl_reverse:
+        if self._kl_reverse:
             kl = (new_log_prob - BATCH.log_prob).mean()  # 1
         else:
             # a sample estimate for KL-divergence, easy to compute
             kl = (BATCH.log_prob - new_log_prob).mean()
         surrogate = ratio * BATCH.gae_adv   # [T, B, 1]
 
-        value_clip = BATCH.value + \
-            (value - BATCH.value).clamp(-self.value_epsilon,
-                                        self.value_epsilon)  # [T, B, 1]
+        value_clip = BATCH.value + (value - BATCH.value).clamp(-self._value_epsilon, self._value_epsilon)  # [T, B, 1]
         td_error = BATCH.discounted_reward - value  # [T, B, 1]
         td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
-        td_square = t.maximum(
-            td_error.square(), td_error_clip.square())    # [T, B, 1]
+        td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
 
         pi_loss = -t.minimum(
             surrogate,
-            ratio.clamp(1.0 - self.epsilon, 1.0 + self.epsilon) * BATCH.gae_adv
+            ratio.clamp(1.0 - self._epsilon, 1.0 + self._epsilon) * BATCH.gae_adv
         ).mean()    # [T, B, 1]
-        kl_loss = self.kl_coef * kl
-        extra_loss = 1000.0 * \
-            t.maximum(t.zeros_like(kl), kl - self.kl_cutoff).square().mean()
+        kl_loss = self._kl_coef * kl
+        extra_loss = 1000.0 * t.maximum(t.zeros_like(kl), kl - self._kl_cutoff).square().mean()
         pi_loss = pi_loss + kl_loss + extra_loss    # 1
         q_loss = 0.5 * td_square.mean()  # 1
 
-        beta_s = (beta * BATCH.last_options).sum(-1,
-                                                 keepdim=True)   # [T, B, 1]
+        beta_s = (beta * BATCH.last_options).sum(-1, keepdim=True)   # [T, B, 1]
         beta_loss = (beta_s * BATCH.beta_advantage)  # [T, B, 1]
         if self.terminal_mask:
             beta_loss *= (1 - BATCH.done)   # [T, B, 1]
@@ -245,10 +233,10 @@ class AOC(SarlOnPolicy):
         loss = pi_loss + 1.0 * q_loss + beta_loss - self.pi_beta * entropy
         self.oplr.optimize(loss)
 
-        if kl > self.kl_high:
-            self.kl_coef *= self.kl_alpha
-        elif kl < self.kl_low:
-            self.kl_coef /= self.kl_alpha
+        if kl > self._kl_high:
+            self._kl_coef *= self._kl_alpha
+        elif kl < self._kl_low:
+            self._kl_coef /= self._kl_alpha
 
         return dict([
             ['LOSS/loss', loss],
@@ -256,7 +244,7 @@ class AOC(SarlOnPolicy):
             ['LOSS/q_loss', q_loss],
             ['LOSS/beta_loss', beta_loss],
             ['Statistics/kl', kl],
-            ['Statistics/kl_coef', self.kl_coef],
+            ['Statistics/kl_coef', self._kl_coef],
             ['Statistics/entropy', entropy],
             ['LEARNING_RATE/lr', self.oplr.lr]
         ]), kl

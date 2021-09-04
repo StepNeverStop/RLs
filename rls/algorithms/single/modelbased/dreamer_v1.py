@@ -47,14 +47,16 @@ class DreamerV1(SarlOffPolicy):
 
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
-        if self.obs_spec.has_visual_observation and len(
-                self.obs_spec.visual_dims) == 1 and not self.obs_spec.has_vector_observation:
+        if self.obs_spec.has_visual_observation \
+                and len(self.obs_spec.visual_dims) == 1 \
+            a           and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'
             self._is_visual = True
-        elif self.obs_spec.has_vector_observation and len(
-                self.obs_spec.vector_dims) == 1 and not self.obs_spec.has_visual_observation:
+        elif self.obs_spec.has_vector_observation \
+            and len(self.obs_spec.vector_dims) == 1 \
+                and not self.obs_spec.has_visual_observation:
             self._is_visual = False
         else:
             raise ValueError("please check the observation type")
@@ -110,19 +112,16 @@ class DreamerV1(SarlOffPolicy):
                                    **network_settings['actor']).to(self.device)
         self.critic = self._dreamer_build_critic()
 
-        _modules = [self.obs_encoder, self.rssm,
-                    self.obs_decoder, self.reward_predictor]
+        _modules = [self.obs_encoder, self.rssm, self.obs_decoder, self.reward_predictor]
         if self.use_pcont:
             self.pcont_decoder = DenseModel(self.decoder_input_dim,
                                             1,
                                             **network_settings['pcont']).to(self.device)
             _modules.append(self.pcont_decoder)
 
-        self.model_oplr = OPLR(
-            _modules, model_lr, **self._oplr_params)
+        self.model_oplr = OPLR(_modules, model_lr, **self._oplr_params)
         self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
-        self.critic_oplr = OPLR(
-            self.critic, critic_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)
         self._trainer_modules.update(obs_encoder=self.obs_encoder,
                                      obs_decoder=self.obs_decoder,
                                      reward_predictor=self.reward_predictor,
@@ -162,15 +161,13 @@ class DreamerV1(SarlOffPolicy):
         else:
             obs = obs.vector.vector_0
         embedded_obs = self.obs_encoder(obs)    # [B, *]
-        state_posterior = self.rssm.posterior(
-            self.cell_state['hx'], embedded_obs)
+        state_posterior = self.rssm.posterior(self.rnncs['hx'], embedded_obs)
         state = state_posterior.sample()    # [B, *]
-        actions = self.actor.sample_actions(
-            t.cat((state, self.cell_state['hx']), -1), is_train=self._is_train_mode)
+        actions = self.actor.sample_actions(t.cat((state, self.rnncs['hx']), -1), is_train=self._is_train_mode)
         actions = self._exploration(actions)
-        _, self.next_cell_state['hx'] = self.rssm.prior(state,
-                                                        actions,
-                                                        self.cell_state['hx'])
+        _, self.rnncs_['hx'] = self.rssm.prior(state,
+                                               actions,
+                                               self.rnncs['hx'])
         if not self.is_continuous:
             actions = actions.argmax(-1)    # [B,]
         return actions, Data(action=actions)
@@ -225,8 +222,7 @@ class DreamerV1(SarlOffPolicy):
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        post_feat = t.cat(
-            [t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
+        post_feat = t.cat([t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
         reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
@@ -237,8 +233,7 @@ class DreamerV1(SarlOffPolicy):
         reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1))
 
         # add all losses and update model parameters with gradient descent
-        model_loss = self.kl_scale*kl_loss + obs_loss + \
-            self.reward_scale * reward_loss   # 1
+        model_loss = self.kl_scale*kl_loss + obs_loss + self.reward_scale * reward_loss   # 1
 
         if self.use_pcont:
             pcont_pred = self.pcont_decoder(post_feat)  # [T, B, 1], s_ => done
@@ -269,8 +264,7 @@ class DreamerV1(SarlOffPolicy):
                 imaginated_states.append(flatten_states)   # [T*B, S]
                 imaginated_rnn_hiddens.append(flatten_rnn_hiddens)  # [T*B, D]
 
-                flatten_feat = t.cat(
-                    [flatten_states, flatten_rnn_hiddens], -1).detach()
+                flatten_feat = t.cat([flatten_states, flatten_rnn_hiddens], -1).detach()
                 action_dist = self.actor(flatten_feat)
                 actions = action_dist.rsample()  # [T*B, A]
                 log_probs.append(action_dist.log_prob(actions.detach()).unsqueeze(-1))   # [T*B, 1]
@@ -301,15 +295,13 @@ class DreamerV1(SarlOffPolicy):
         returns = compute_return(imaginated_rewards[:-1], imaginated_values[:-1], discount_arr[:-1],
                                  bootstrap=imaginated_values[-1], lambda_=self.lambda_)    # [H-1, T*B, 1]
         # Make the top row 1 so the cumulative product starts with discount^0
-        discount_arr = t.cat(
-            [t.ones_like(discount_arr[:1]), discount_arr[:-1]], 0)  # [H, T*B, 1]
+        discount_arr = t.cat([t.ones_like(discount_arr[:1]), discount_arr[:-1]], 0)  # [H, T*B, 1]
         discount = t.cumprod(discount_arr, 0).detach()[:-1]   # [H-1, T*B, 1]
 
         # discount_arr = t.cat([t.ones_like(discount_arr[:1]), discount_arr[1:]])
         # discount = t.cumprod(discount_arr[:-1], 0)
 
-        actor_loss = self._dreamer_build_actor_loss(
-            imaginated_feats, log_probs, entropies, discount, returns)   # 1
+        actor_loss = self._dreamer_build_actor_loss(imaginated_feats, log_probs, entropies, discount, returns)   # 1
 
         # Don't let gradients pass through to prevent overwriting gradients.
         # Value Loss
@@ -349,7 +341,7 @@ class DreamerV1(SarlOffPolicy):
 
         return td_error, summaries
 
-    def _initial_cell_state(self, batch: int) -> Dict[str, np.ndarray]:
+    def _initial_rnncs(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}
 
     def _kl_loss(self, prior_dist, post_dist):
@@ -357,8 +349,7 @@ class DreamerV1(SarlOffPolicy):
         return td.kl_divergence(prior_dist, post_dist).clamp(min=self.kl_free_nats).mean()
 
     def _dreamer_target_img_value(self, imaginated_feats):
-        imaginated_values = self.critic(
-            imaginated_feats).mean  # [H, T*B, 1]
+        imaginated_values = self.critic(imaginated_feats).mean  # [H, T*B, 1]
         return imaginated_values
 
     def _dreamer_build_actor_loss(self, imaginated_feats, log_probs, entropies, discount, returns):

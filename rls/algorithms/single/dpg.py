@@ -41,10 +41,8 @@ class DPG(SarlOffPolicy):
         self.use_target_action_noise = use_target_action_noise
 
         if self.is_continuous:
-            self.target_noised_action = ClippedNormalNoisedAction(
-                sigma=0.2, noise_bound=0.2)
-            self.noised_action = Noise_action_REGISTER[noise_action](
-                **noise_params)
+            self.target_noised_action = ClippedNormalNoisedAction(sigma=0.2, noise_bound=0.2)
+            self.noised_action = Noise_action_REGISTER[noise_action](**noise_params)
             self.actor = ActorDPG(self.obs_spec,
                                   rep_net_params=self._rep_net_params,
                                   output_shape=self.a_dim,
@@ -74,8 +72,8 @@ class DPG(SarlOffPolicy):
 
     @iton
     def select_action(self, obs):
-        output = self.actor(obs, cell_state=self.cell_state)    # [B, A]
-        self.next_cell_state = self.actor.get_cell_state()
+        output = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+        self.rnncs_ = self.actor.get_rnncs()
         if self.is_continuous:
             mu = output  # [B, A]
             pi = self.noised_action(mu)  # [B, A]
@@ -90,44 +88,35 @@ class DPG(SarlOffPolicy):
     @iton
     def _train(self, BATCH):
         if self.is_continuous:
-            action_target = self.actor(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            action_target = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             if self.use_target_action_noise:
-                action_target = self.target_noised_action(
-                    action_target)    # [T, B, A]
+                action_target = self.target_noised_action(action_target)    # [T, B, A]
         else:
-            target_logits = self.actor(
-                BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            target_logits = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
-            action_target = t.nn.functional.one_hot(
-                target_pi, self.a_dim).float()  # [T, B, A]
-        q_target = self.critic(BATCH.obs_, action_target,
-                               begin_mask=BATCH.begin_mask)   # [T, B, 1]
+            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+        q_target = self.critic(BATCH.obs_, action_target,                               begin_mask=BATCH.begin_mask)   # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
                              BATCH.begin_mask).detach()  # [T, B, 1]
-        q = self.critic(BATCH.obs, BATCH.action,
-                        begin_mask=BATCH.begin_mask)    # [T, B, A]
+        q = self.critic(BATCH.obs, BATCH.action,                        begin_mask=BATCH.begin_mask)    # [T, B, A]
         td_error = dc_r - q  # [T, B, A]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.optimize(q_loss)
 
         if self.is_continuous:
-            mu = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            mu = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         else:
-            logits = self.actor(
-                BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             _pi = logits.softmax(-1)    # [T, B, A]
             _pi_true_one_hot = t.nn.functional.one_hot(
                 logits.argmax(-1), self.a_dim).float()   # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
-        q_actor = self.critic(
-            BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q_actor = self.critic(BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         actor_loss = -q_actor.mean()   # 1
         self.actor_oplr.optimize(actor_loss)
 

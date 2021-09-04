@@ -107,11 +107,11 @@ class MarlPolicy(Policy):
         for id in self.agent_ids:
             self._pre_acts[id] = np.zeros(
                 (self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
-        self.cell_state, self.next_cell_state = {}, {}
+        self.rnncs, self.rnncs_ = {}, {}
         for id in self.agent_ids:
-            self.cell_state[id] = to_tensor(self._initial_cell_state(
+            self.rnncs[id] = to_tensor(self._initial_rnncs(
                 batch=self.n_copys), device=self.device)
-            self.next_cell_state[id] = to_tensor(self._initial_cell_state(
+            self.rnncs_[id] = to_tensor(self._initial_rnncs(
                 batch=self.n_copys), device=self.device)
 
     def episode_step(self,
@@ -136,10 +136,10 @@ class MarlPolicy(Policy):
         for id in self.agent_ids:
             idxs = np.where(env_rets[id].done)[0]
             self._pre_acts[id][idxs] = 0.
-            self.cell_state[id] = self.next_cell_state[id]
-            if self.cell_state[id] is not None:
-                for k in self.cell_state[id].keys():
-                    self.cell_state[id][k][idxs] = 0.
+            self.rnncs[id] = self.rnncs_[id]
+            if self.rnncs[id] is not None:
+                for k in self.rnncs[id].keys():
+                    self.rnncs[id][k][idxs] = 0.
 
     def write_recorder_summaries(self, summaries):
         if 'model' in summaries.keys():
