@@ -52,15 +52,14 @@ class QattenMixer(nn.Module):
     def forward(self, q_values, state, **kwargs):
         '''
         params:
-            q_values: N * [T, B, 1]
+            q_values: [T, B, 1, N]
             state: [T, B, *]
         '''
-        time_step = q_values[0].shape[0]    # T
-        batch_size = q_values[0].shape[1]   # B
+        time_step = q_values.shape[0]    # T
+        batch_size = q_values.shape[1]   # B
 
         # state: [T, B, *]
         state_feat, _ = self.rep_net(state, **kwargs)    # [T, B, *]
-        q_values = t.stack(q_values, -1)  # [T, B, 1, N]
 
         us = self._get_us(state_feat)   # [T, B, N, *]
 

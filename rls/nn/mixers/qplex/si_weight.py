@@ -34,10 +34,8 @@ class SI_Weight(nn.Module):
         '''
         data = t.cat([state_feat]+actions, dim=-1)  # [T, B, *]
 
-        all_head_key = [k_ext(state_feat)
-                        for k_ext in self.key_extractors]  # List[[T, B, 1]]
-        all_head_agents = [k_ext(state_feat)
-                           for k_ext in self.agents_extractors]   # List[[T, B, N]]
+        all_head_key = [k_ext(state_feat) for k_ext in self.key_extractors]  # List[[T, B, 1]]
+        all_head_agents = [k_ext(state_feat) for k_ext in self.agents_extractors]   # List[[T, B, N]]
         # List[[T, B, N]]
         all_head_action = [sel_ext(data) for sel_ext in self.action_extractors]
 

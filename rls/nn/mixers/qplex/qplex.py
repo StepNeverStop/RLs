@@ -45,16 +45,16 @@ class QPLEXMixer(nn.Module):
     def forward(self, state, q_values, actions, max_q_i, **kwargs):
         '''
         state: [T, B, *]
-        q_values: N * [T, B, 1]
+        q_values: [T, B, 1, N]
         actions: N * [T, B, A]
-        max_q_i: N * [T, B, 1]
+        max_q_i: [T, B, 1, N]
         '''
 
-        time_step = q_values[0].shape[0]    # T
-        batch_size = q_values[0].shape[1]   # B
+        time_step = q_values.shape[0]    # T
+        batch_size = q_values.shape[1]   # B
 
-        q_values = t.cat(q_values, -1)  # [T, B, N]
-        max_q_i = t.cat(max_q_i, -1)    # [T, B, N]
+        q_values = q_values.squeeze(-2)  # [T, B, N]
+        max_q_i = max_q_i.squeeze(-2)    # [T, B, N]
 
         # state: [T, B, *]
         state_feat, _ = self.rep_net(state, **kwargs)    # [T, B, *]

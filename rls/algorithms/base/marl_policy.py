@@ -78,7 +78,8 @@ class MarlPolicy(Policy):
                     ), -1)
                 else:
                     other = _id_onehot
-            obs[id].update(other=other)
+            if self._obs_with_pre_action or self._obs_with_agent_id:
+                obs[id].update(other=other)
         return obs
 
     def __call__(self, obs):
