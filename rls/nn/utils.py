@@ -4,10 +4,10 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch as t
 import torch.nn as nn
 
+from rls.nn.layers import NoisyLinear
 from rls.nn.learningrates import LR_REGISTER
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.optimizers import OP_REGISTER
-from rls.nn.layers import NoisyLinear
 
 
 class OPLR:
@@ -15,10 +15,10 @@ class OPLR:
     def __init__(self,
                  models: Union[
                      t.Tensor,
-                     t.nn.Module,
+                     nn.Module,
                      TargetTwin,
-                     List[Union[t.Tensor, t.nn.Module, TargetTwin]],
-                     Tuple[Union[t.Tensor, t.nn.Module, TargetTwin]]
+                     List[Union[t.Tensor, nn.Module, TargetTwin]],
+                     Tuple[Union[t.Tensor, nn.Module, TargetTwin]]
                  ],
                  lr: float,
                  scheduler: str = 'default',
@@ -45,12 +45,12 @@ class OPLR:
         self._hooks = []
         if 'grad_max_norm' in grad_params.keys():
             self._hooks.append(
-                lambda: t.nn.utils.clip_grad_norm_(
+                lambda: nn.utils.clip_grad_norm_(
                     self.params, max_norm=grad_params['grad_max_norm'])
             )
         if 'grad_clip_value' in grad_params.keys():
             self._hooks.append(
-                lambda: t.nn.utils.clip_grad_value_(
+                lambda: nn.utils.clip_grad_value_(
                     self.params, clip_value=grad_params['grad_clip_value'])
             )
 

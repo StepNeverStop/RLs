@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 import torch as t
+import torch.nn as nn
 
 default_act = 'relu'
 Act_REGISTER = {}
 
 Act_REGISTER[None] = lambda: lambda x: x
-Act_REGISTER['relu'] = t.nn.ReLU
-Act_REGISTER['elu'] = t.nn.ELU
-Act_REGISTER['gelu'] = t.nn.GELU
-Act_REGISTER['leakyrelu'] = t.nn.LeakyReLU
-Act_REGISTER['tanh'] = t.nn.Tanh
-Act_REGISTER['softplus'] = t.nn.Softplus
-Act_REGISTER['mish'] = t.nn.Mish
-Act_REGISTER['sigmoid'] = t.nn.Sigmoid
-Act_REGISTER['log_softmax'] = lambda: t.nn.LogSoftmax(-1)
+Act_REGISTER['relu'] = nn.ReLU
+Act_REGISTER['elu'] = nn.ELU
+Act_REGISTER['gelu'] = nn.GELU
+Act_REGISTER['leakyrelu'] = nn.LeakyReLU
+Act_REGISTER['tanh'] = nn.Tanh
+Act_REGISTER['softplus'] = nn.Softplus
+Act_REGISTER['mish'] = nn.Mish
+Act_REGISTER['sigmoid'] = nn.Sigmoid
+Act_REGISTER['log_softmax'] = lambda: nn.LogSoftmax(-1)
 
 
-class Swish(t.nn.Module):
+class Swish(nn.Module):
     '''
     https://arxiv.org/abs/1710.05941
     '''

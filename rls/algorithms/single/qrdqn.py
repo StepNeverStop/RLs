@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.decorator import iton
@@ -74,7 +75,7 @@ class QRDQN(SarlOffPolicy):
         target_q_dist = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A, N]
         target_q = target_q_dist.mean(-1)  # [T, B, A, N] => [T, B, A]
         _a = target_q.argmax(-1)  # [T, B]
-        next_max_action = t.nn.functional.one_hot(_a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
+        next_max_action = F.one_hot(_a, self.a_dim).float().unsqueeze(-1)  # [T, B, A, 1]
         # [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * next_max_action).sum(-2)
 
@@ -93,7 +94,7 @@ class QRDQN(SarlOffPolicy):
 
         # [T, B, 1, N] - [T, B, N, 1] => [T, B, N, N]
         quantile_error = target - q_dist
-        huber = t.nn.functional.huber_loss(target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        huber = F.huber_loss(target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [N,] - [T, B, N, N] => [T, B, N, N]
         huber_abs = (self.quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N] => [T, B, N]

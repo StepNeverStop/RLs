@@ -6,6 +6,7 @@ from typing import List, NoReturn, Optional, Tuple, Union
 
 import numpy as np
 import torch as t
+import torch.nn as nn
 
 
 def clip_nn_log_std(log_std, _min=-20, _max=2):
@@ -102,7 +103,7 @@ def tsallis_entropy_log_q(log_pi, q):
         return log_q_pi.sum(-1, keepdim=True)
 
 
-def sync_params(tge: t.nn.Module, src: t.nn.Module, ployak: float = 0.) -> NoReturn:
+def sync_params(tge: nn.Module, src: nn.Module, ployak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
     ployak = 1 - tau

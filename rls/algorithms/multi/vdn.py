@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
 from rls.common.decorator import iton
@@ -88,7 +89,7 @@ class VDN(MultiAgentOffPolicy):
             if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
                 action = np.random.randint(0, self.a_dims[aid], self.n_copys)
             else:
-                action = action = q_values.argmax(-1)    # [B,]
+                action = q_values.argmax(-1)    # [B,]
 
             actions[aid] = action
             acts_info[aid] = Data(action=action)
@@ -117,7 +118,7 @@ class VDN(MultiAgentOffPolicy):
                                           begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
                 next_max_action = next_q.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
                 q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
             else:

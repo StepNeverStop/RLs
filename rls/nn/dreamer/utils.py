@@ -1,11 +1,11 @@
 from typing import Iterable
 
 import torch as t
-from torch.nn import Module, Parameter
+import torch.nn as nn
 
 
 class FreezeParameters:
-    def __init__(self, params: Iterable[Parameter]):
+    def __init__(self, params: Iterable[nn.Parameter]):
         """
         Context manager to locally freeze gradients.
         In some cases with can speed up computation because gradients aren't calculated for these listed modules.

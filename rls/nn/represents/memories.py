@@ -3,14 +3,14 @@ from collections import defaultdict
 from typing import Dict, Optional, Tuple
 
 import torch as t
-from torch.nn import Identity, Linear, Sequential
+import torch.nn as nn
 
 from rls.nn.activations import Act_REGISTER, default_act
 
 Rnn_REGISTER = {}
 
 
-class IdentityRNN(t.nn.Module):
+class IdentityRNN(nn.Module):
 
     def __init__(self, in_dim, *args, **kwargs):
         super().__init__()
@@ -20,12 +20,12 @@ class IdentityRNN(t.nn.Module):
         return x, None
 
 
-class GRU_RNN(t.nn.Module):
+class GRU_RNN(nn.Module):
 
     def __init__(self, in_dim, rnn_units=16, **kwargs):
         super().__init__()
         self.in_dim = in_dim
-        self.rnn = t.nn.GRUCell(self.in_dim, rnn_units)
+        self.rnn = nn.GRUCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
     def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
@@ -61,12 +61,12 @@ class GRU_RNN(t.nn.Module):
         return output, rnncs_s
 
 
-class LSTM_RNN(t.nn.Module):
+class LSTM_RNN(nn.Module):
 
     def __init__(self, in_dim, rnn_units=16, **kwargs):
         super().__init__()
         self.in_dim = in_dim
-        self.rnn = t.nn.LSTMCell(self.in_dim, rnn_units)
+        self.rnn = nn.LSTMCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
     def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):

@@ -1,9 +1,10 @@
 from typing import List
 
 import torch as t
+import torch.nn as nn
 
 
-class VDNMixer(t.nn.Module):
+class VDNMixer(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
 

@@ -3,6 +3,7 @@
 
 from abc import abstractmethod
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
 
 import numpy as np
@@ -81,7 +82,7 @@ class MarlPolicy(Policy):
         return obs
 
     def __call__(self, obs):
-        obs = self._preprocess_obs(obs)
+        obs = self._preprocess_obs(deepcopy(obs))
         self._pre_acts, self._acts_info = self.select_action(obs)
         return self._pre_acts
 

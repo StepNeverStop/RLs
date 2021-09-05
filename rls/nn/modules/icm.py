@@ -1,6 +1,7 @@
 
 import torch as t
-from torch.nn import Linear, Sequential, Tanh
+import torch.nn as nn
+import torch.nn.functional as F
 
 from rls.common.decorator import iton
 from rls.nn.activations import Act_REGISTER, default_act
@@ -8,7 +9,7 @@ from rls.nn.represent_nets import RepresentationNetwork
 from rls.nn.utils import OPLR
 
 
-class CuriosityModel(t.nn.Module):
+class CuriosityModel(nn.Module):
     '''
     Model of Intrinsic Curiosity Module (ICM).
     Curiosity-driven Exploration by Self-supervised Prediction, https://arxiv.org/abs/1705.05363
@@ -42,19 +43,19 @@ class CuriosityModel(t.nn.Module):
         self.feat_dim = self.rep_net.h_dim
 
         # S, S' => A
-        self.inverse_dynamic_net = Sequential(
-            Linear(self.feat_dim * 2, self.feat_dim * 2),
+        self.inverse_dynamic_net = nn.Sequential(
+            nn.Linear(self.feat_dim * 2, self.feat_dim * 2),
             Act_REGISTER[default_act](),
-            Linear(self.feat_dim * 2, action_dim)
+            nn.Linear(self.feat_dim * 2, action_dim)
         )
         if self.is_continuous:
-            self.inverse_dynamic_net.add_module('tanh', Tanh())
+            self.inverse_dynamic_net.add_module('tanh', nn.Tanh())
 
         # S, A => S'
-        self.forward_net = Sequential(
-            Linear(self.feat_dim + action_dim, self.feat_dim),
+        self.forward_net = nn.Sequential(
+            nn.Linear(self.feat_dim + action_dim, self.feat_dim),
             Act_REGISTER[default_act](),
-            Linear(self.feat_dim, self.feat_dim)
+            nn.Linear(self.feat_dim, self.feat_dim)
         )
 
         self.oplr = OPLR(models=[self.rep_net, self.inverse_dynamic_net, self.forward_net],
@@ -78,7 +79,7 @@ class CuriosityModel(t.nn.Module):
                 (a_eval - BATCH.action).square().sum(-1).mean()
         else:
             idx = BATCH.action.argmax(-1)  # [T, B]
-            loss_inverse = t.nn.functional.cross_entropy(
+            loss_inverse = F.cross_entropy(
                 a_eval.view(-1, self.action_dim), idx.view(-1))  # 1
 
         loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward

@@ -5,6 +5,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -125,7 +126,7 @@ class TAC(SarlOffPolicy):
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
             target_log_pi = target_cate_dist.log_prob(target_pi).unsqueeze(-1)  # [T, B, 1]
-            target_pi = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            target_pi = F.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
         q1 = self.critic(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q2 = self.critic2(BATCH.obs, BATCH.action,                          begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
@@ -157,7 +158,7 @@ class TAC(SarlOffPolicy):
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()   # [T, B, A]
+            _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dim).float()   # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]

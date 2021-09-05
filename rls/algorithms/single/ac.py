@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -89,7 +90,7 @@ class AC(SarlOffPolicy):
         else:
             logits = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, *]
             max_a = logits.argmax(-1)    # [T, B]
-            max_a_one_hot = t.nn.functional.one_hot(max_a, self.a_dim).float()  # [T, B, N]
+            max_a_one_hot = F.one_hot(max_a, self.a_dim).float()  # [T, B, N]
             max_q_next = self.critic(BATCH.obs_, max_a_one_hot).detach()    # [T, B, 1]
         td_error = q - n_step_return(BATCH.reward,
                                      self.gamma,

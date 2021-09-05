@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.decorator import iton
@@ -70,7 +71,7 @@ class DDDQN(SarlOffPolicy):
 
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         next_max_action = next_q.argmax(-1)  # [T, B]
-        next_max_action_one_hot = t.nn.functional.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
+        next_max_action_one_hot = F.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
 
         q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,

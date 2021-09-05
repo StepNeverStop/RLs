@@ -1,5 +1,6 @@
 import numpy as np
 import torch as t
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
@@ -7,7 +8,7 @@ from rls.nn.represent_nets import RepresentationNetwork
 from .si_weight import SI_Weight
 
 
-class QPLEXMixer(t.nn.Module):
+class QPLEXMixer(nn.Module):
     '''https://github.com/wjh720/QPLEX/'''
 
     def __init__(self,

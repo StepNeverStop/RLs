@@ -1,22 +1,22 @@
 
 import math
 
-from torch.nn import Identity, Linear, Sequential
+import torch.nn as nn
 
 from rls.nn.activations import Act_REGISTER, default_act
 
 Vec_REGISTER = {}
 
 
-class VectorIdentityNetwork(Sequential):
+class VectorIdentityNetwork(nn.Sequential):
 
     def __init__(self, in_dim, *args, **kwargs):
         super().__init__()
         self.h_dim = self.in_dim = in_dim
-        self.add_module(f'identity', Identity())
+        self.add_module(f'identity', nn.Identity())
 
 
-class VectorAdaptiveNetwork(Sequential):
+class VectorAdaptiveNetwork(nn.Sequential):
 
     def __init__(self, in_dim, h_dim=16, **kwargs):
         super().__init__()
@@ -31,14 +31,14 @@ class VectorAdaptiveNetwork(Sequential):
         ins = [self.in_dim] + outs[:-1]
 
         for i, (_in, _out) in enumerate(zip(ins, outs)):
-            self.add_module(f'linear_{i}', Linear(_in, _out))
+            self.add_module(f'linear_{i}', nn.Linear(_in, _out))
             self.add_module(f'{default_act}_{i}', Act_REGISTER[default_act]())
 
         if outs:
             ins = outs[-1]
         else:
             ins = self.in_dim
-        self.add_module('linear', Linear(ins, self.h_dim))
+        self.add_module('linear', nn.Linear(ins, self.h_dim))
         self.add_module(f'{default_act}', Act_REGISTER[default_act]())
 
 

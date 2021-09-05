@@ -1,7 +1,7 @@
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional as F
 
 from rls.nn.activations import Act_REGISTER
 

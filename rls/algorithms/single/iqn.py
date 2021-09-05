@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.decorator import iton
@@ -114,7 +115,7 @@ class IQN(SarlOffPolicy):
             BATCH.obs_, select_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N, B, A]
         q_values = q_values.mean(1)  # [T, N, B, A] => [T, B, A]
         next_max_action = q_values.argmax(-1)   # [T, B]
-        next_max_action = t.nn.functional.one_hot(
+        next_max_action = F.one_hot(
             next_max_action, self.a_dim).float()  # [T, B, A]
 
         _, target_quantiles_tiled = self._generate_quantiles(   # [N'*T*B, X]
@@ -147,7 +148,7 @@ class IQN(SarlOffPolicy):
         quantiles_value_online = quantiles_value.permute(1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
         # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
         quantile_error = quantiles_value_online - quantiles_value_target
-        huber = t.nn.functional.huber_loss(quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        huber = F.huber_loss(quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
         # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
         huber_abs = (quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N'] => [T, B, N]

@@ -1,11 +1,13 @@
 import numpy as np
 import torch as t
+import torch.nn as nn
+import torch.nn.functional as F
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
 
 
-class QMixer(t.nn.Module):
+class QMixer(nn.Module):
     def __init__(self,
                  n_agents,
                  state_spec,
@@ -24,7 +26,7 @@ class QMixer(t.nn.Module):
         self.hyper_w_final = MLP(input_dim=self.rep_net.h_dim, hidden_units=hidden_units,
                                  layer='linear', act_fn='relu', output_shape=self.embed_dim)
         # State dependent bias for hidden layer
-        self.hyper_b_1 = t.nn.Linear(self.rep_net.h_dim, self.embed_dim)
+        self.hyper_b_1 = nn.Linear(self.rep_net.h_dim, self.embed_dim)
         # V(s) instead of a bias for the last layers
         self.V = MLP(input_dim=self.rep_net.h_dim, hidden_units=[self.embed_dim],
                      layer='linear', act_fn='relu', output_shape=1)
@@ -47,7 +49,7 @@ class QMixer(t.nn.Module):
         b1 = self.hyper_b_1(state_feat)  # [T, B, *]
         w1 = w1.view(time_step, batch_size, -1, self.embed_dim)  # [T, B, N, *]
         b1 = b1.view(time_step, batch_size, 1, self.embed_dim)  # [T, B, 1, *]
-        hidden = t.nn.functional.elu(q_values @ w1 + b1)  # [T, B, 1, *]
+        hidden = F.elu(q_values @ w1 + b1)  # [T, B, 1, *]
         # Second layer
         w_final = t.abs(self.hyper_w_final(state_feat))  # [T, B, *]
         w_final = w_final.view(time_step, batch_size,
