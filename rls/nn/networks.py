@@ -5,7 +5,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch as t
-from torch.nn import Linear, Sequential
+import torch.nn as nn
 
 from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.represents.encoders import End_REGISTER
@@ -14,10 +14,10 @@ from rls.nn.represents.vectors import Vec_REGISTER
 from rls.nn.represents.visuals import Vis_REGISTER
 
 
-class MultiVectorNetwork(t.nn.Module):
+class MultiVectorNetwork(nn.Module):
     def __init__(self, vector_dim=[], h_dim=16, network_type='identity'):
         super().__init__()
-        self.nets = t.nn.ModuleList()
+        self.nets = nn.ModuleList()
         for in_dim in vector_dim:
             self.nets.append(Vec_REGISTER[network_type](
                 in_dim=in_dim, h_dim=h_dim))
@@ -31,17 +31,17 @@ class MultiVectorNetwork(t.nn.Module):
         return output
 
 
-class MultiVisualNetwork(t.nn.Module):
+class MultiVisualNetwork(nn.Module):
 
     def __init__(self, visual_dim=[], h_dim=128, network_type='nature'):
         super().__init__()
-        self.dense_nets = t.nn.ModuleList()
+        self.dense_nets = nn.ModuleList()
         for vd in visual_dim:
             net = Vis_REGISTER[network_type](visual_dim=vd)
             self.dense_nets.append(
-                Sequential(
+                nn.Sequential(
                     net,
-                    Linear(net.output_dim, h_dim),
+                    nn.Linear(net.output_dim, h_dim),
                     Act_REGISTER[default_act]()
                 )
             )
@@ -61,7 +61,7 @@ class MultiVisualNetwork(t.nn.Module):
         return output
 
 
-class EncoderNetwork(t.nn.Module):
+class EncoderNetwork(nn.Module):
     def __init__(self, feat_dim=64, h_dim=64, network_type='identity'):
         super().__init__()
         self.net = End_REGISTER[network_type](in_dim=feat_dim, h_dim=h_dim)
@@ -71,7 +71,7 @@ class EncoderNetwork(t.nn.Module):
         return self.net(feat)
 
 
-class MemoryNetwork(t.nn.Module):
+class MemoryNetwork(nn.Module):
     def __init__(self, feat_dim=64, rnn_units=8, network_type='lstm'):
         super().__init__()
         self.net = Rnn_REGISTER[network_type](

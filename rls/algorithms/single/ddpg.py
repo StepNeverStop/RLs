@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -105,7 +106,7 @@ class DDPG(SarlOffPolicy):
             target_logits = self.actor.t(BATCH.obs_, begin_mask=BATCH.begin_mask)    # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()     # [T, B]
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = F.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
         q = self.critic(BATCH.obs, BATCH.action,
                         begin_mask=BATCH.begin_mask)    # [T, B, 1]
         q_target = self.critic.t(BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)  # [T, B, 1]
@@ -125,7 +126,7 @@ class DDPG(SarlOffPolicy):
             logp_all = logits.log_softmax(-1)   # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]
         q_actor = self.critic(BATCH.obs, mu, begin_mask=BATCH.begin_mask)    # [T, B, 1]

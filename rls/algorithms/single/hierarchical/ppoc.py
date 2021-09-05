@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
@@ -103,7 +104,7 @@ class PPOC(SarlOnPolicy):
         # [B, P], [B, P, A], [B, P], [B, P]
         (q, pi, beta, o) = self.net(obs, rnncs=self.rnncs)
         self.rnncs_ = self.net.get_rnncs()
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = F.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:

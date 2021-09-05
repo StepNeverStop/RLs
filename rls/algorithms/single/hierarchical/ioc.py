@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -106,7 +107,7 @@ class IOC(SarlOffPolicy):
         q = self.q_net(obs, rnncs=self.rnncs)  # [B, P]
         self.rnncs_ = self.q_net.get_rnncs()
         pi = self.intra_option_net(obs, rnncs=self.rnncs)  # [B, P, A]
-        options_onehot = t.nn.functional.one_hot(self.options, self.options_num).float()    # [B, P]
+        options_onehot = F.one_hot(self.options, self.options_num).float()    # [B, P]
         options_onehot_expanded = options_onehot.unsqueeze(-1)  # [B, P, 1]
         pi = (pi * options_onehot_expanded).sum(-2)  # [B, A]
         if self.is_continuous:
@@ -150,7 +151,7 @@ class IOC(SarlOffPolicy):
         q_s_ = (q_next * BATCH.options).sum(-1, keepdim=True)   # [T, B, 1]
         if self.double_q:
             q_ = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, P]
-            max_a_idx = t.nn.functional.one_hot(q_.argmax(-1), self.options_num).float()  # [T, B, P]
+            max_a_idx = F.one_hot(q_.argmax(-1), self.options_num).float()  # [T, B, P]
             q_s_max = (q_next * max_a_idx).sum(-1, keepdim=True)   # [T, B, 1]
         else:
             q_s_max = q_next.max(-1, keepdim=True)[0]   # [T, B, 1]

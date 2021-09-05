@@ -4,15 +4,17 @@
 import math
 
 import torch as t
+import torch.nn as nn
+import torch.nn.functional as F
 
 Layer_REGISTER = {}
 
-Layer_REGISTER['linear'] = t.nn.Linear
+Layer_REGISTER['linear'] = nn.Linear
 
 # cite from https://github.com/Curt-Park/rainbow-is-all-you-need/blob/master/05.noisy_net.ipynb
 
 
-class NoisyLinear(t.nn.Module):
+class NoisyLinear(nn.Module):
     """
     Noisy Net: https://arxiv.org/abs/1706.10295
     Noisy linear module for NoisyNet.
@@ -36,16 +38,16 @@ class NoisyLinear(t.nn.Module):
         self.out_features = out_features
         self.std_init = std_init
 
-        self.weight_mu = t.nn.Parameter(t.Tensor(out_features, in_features))
-        self.weight_sigma = t.nn.Parameter(
+        self.weight_mu = nn.Parameter(t.Tensor(out_features, in_features))
+        self.weight_sigma = nn.Parameter(
             t.Tensor(out_features, in_features)
         )
         self.register_buffer(
             "weight_epsilon", t.Tensor(out_features, in_features)
         )
 
-        self.bias_mu = t.nn.Parameter(t.Tensor(out_features))
-        self.bias_sigma = t.nn.Parameter(t.Tensor(out_features))
+        self.bias_mu = nn.Parameter(t.Tensor(out_features))
+        self.bias_sigma = nn.Parameter(t.Tensor(out_features))
         self.register_buffer("bias_epsilon", t.Tensor(out_features))
 
         self.reset_parameters()
@@ -79,7 +81,7 @@ class NoisyLinear(t.nn.Module):
         We don't use separate statements on train / eval mode.
         It doesn't show remarkable difference of performance.
         """
-        return t.nn.functional.linear(
+        return F.linear(
             x,
             self.weight_mu + self.weight_sigma * self.weight_epsilon,
             self.bias_mu + self.bias_sigma * self.bias_epsilon,

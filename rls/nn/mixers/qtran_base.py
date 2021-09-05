@@ -2,12 +2,13 @@ from typing import Dict, List
 
 import numpy as np
 import torch as t
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
 
 
-class QTranBase(t.nn.Module):
+class QTranBase(nn.Module):
 
     def __init__(self,
                  n_agents,

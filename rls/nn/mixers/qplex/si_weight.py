@@ -1,10 +1,11 @@
 import numpy as np
 import torch as t
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
 
 
-class SI_Weight(t.nn.Module):
+class SI_Weight(nn.Module):
     """https://github.com/wjh720/QPLEX/"""
 
     def __init__(self,
@@ -15,9 +16,9 @@ class SI_Weight(t.nn.Module):
                  adv_hidden_units):
         super().__init__()
 
-        self.key_extractors = t.nn.ModuleList()
-        self.agents_extractors = t.nn.ModuleList()
-        self.action_extractors = t.nn.ModuleList()
+        self.key_extractors = nn.ModuleList()
+        self.agents_extractors = nn.ModuleList()
+        self.action_extractors = nn.ModuleList()
         for i in range(num_kernel):  # multi-head attention
             self.key_extractors.append(MLP(input_dim=state_feat_dim, hidden_units=adv_hidden_units,
                                            layer='linear', act_fn='relu', output_shape=1))  # key
@@ -33,10 +34,8 @@ class SI_Weight(t.nn.Module):
         '''
         data = t.cat([state_feat]+actions, dim=-1)  # [T, B, *]
 
-        all_head_key = [k_ext(state_feat)
-                        for k_ext in self.key_extractors]  # List[[T, B, 1]]
-        all_head_agents = [k_ext(state_feat)
-                           for k_ext in self.agents_extractors]   # List[[T, B, N]]
+        all_head_key = [k_ext(state_feat) for k_ext in self.key_extractors]  # List[[T, B, 1]]
+        all_head_agents = [k_ext(state_feat) for k_ext in self.agents_extractors]   # List[[T, B, N]]
         # List[[T, B, N]]
         all_head_action = [sel_ext(data) for sel_ext in self.action_extractors]
 

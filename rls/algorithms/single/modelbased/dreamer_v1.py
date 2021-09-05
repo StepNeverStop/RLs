@@ -48,8 +48,8 @@ class DreamerV1(SarlOffPolicy):
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
         if self.obs_spec.has_visual_observation \
-                and len(self.obs_spec.visual_dims) == 1 \
-            a           and not self.obs_spec.has_vector_observation:
+            and len(self.obs_spec.visual_dims) == 1 \
+                and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'

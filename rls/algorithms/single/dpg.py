@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -95,7 +96,7 @@ class DPG(SarlOffPolicy):
             target_logits = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
-            action_target = t.nn.functional.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
+            action_target = F.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
         q_target = self.critic(BATCH.obs_, action_target,                               begin_mask=BATCH.begin_mask)   # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
@@ -112,7 +113,7 @@ class DPG(SarlOffPolicy):
         else:
             logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             _pi = logits.softmax(-1)    # [T, B, A]
-            _pi_true_one_hot = t.nn.functional.one_hot(
+            _pi_true_one_hot = F.one_hot(
                 logits.argmax(-1), self.a_dim).float()   # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             mu = _pi_diff + _pi  # [T, B, A]

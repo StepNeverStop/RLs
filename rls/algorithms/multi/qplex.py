@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.multi.vdn import VDN
 from rls.common.decorator import iton
@@ -67,13 +68,18 @@ class QPLEX(VDN):
                                       begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
             next_max_action = next_q.argmax(-1)  # [T, B]
-            next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+            next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
             q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
 
             q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
             q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
             q_target_next_maxs.append(q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
+
+        q_evals = t.stack(q_evals, -1)  # [T, B, 1, N]
+        q_maxs = t.stack(q_maxs, -1)  # [T, B, 1, N]
+        q_target_next_choose_maxs = t.stack(q_target_next_choose_maxs, -1)  # [T, B, 1, N]
+        q_target_next_maxs = t.stack(q_target_next_maxs, -1)  # [T, B, 1, N]
 
         q_eval_tot = self.mixer(BATCH_DICT['global'].obs,
                                 q_evals,

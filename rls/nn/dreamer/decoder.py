@@ -2,9 +2,9 @@ from typing import Union
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 from torch import distributions as td
 from torch import nn
-from torch.nn import functional as F
 
 from rls.nn.activations import Act_REGISTER
 from rls.nn.dreamer.distributions import SampleDist

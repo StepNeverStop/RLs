@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.multi.vdn import VDN
 from rls.common.decorator import iton
@@ -65,7 +66,7 @@ class QTRAN(VDN):
             q_rnncs_s.append(q_rnncs)  # N * [T, B, *]
             q_actions.append(BATCH_DICT[aid].action)    # N * [T, B, A]
             q_maxs.append(q.max(-1, keepdim=True)[0])   # [T, B, 1]
-            q_max_actions.append(t.nn.functional.one_hot(q.argmax(-1), self.a_dims[aid]).float())  # [T, B, A]
+            q_max_actions.append(F.one_hot(q.argmax(-1), self.a_dims[aid]).float())  # [T, B, A]
 
             q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_,
                                           begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
@@ -76,12 +77,12 @@ class QTRAN(VDN):
                                           begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
                 next_max_action = next_q.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
 
                 q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
             else:
                 next_max_action = q_target.argmax(-1)  # [T, B]
-                next_max_action_one_hot = t.nn.functional.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+                next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
                 # [T, B, 1]
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 

@@ -1,5 +1,5 @@
 import torch as t
-from torch.nn import Sequential
+import torch.nn as nn
 
 from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.layers import Layer_REGISTER
@@ -7,7 +7,7 @@ from rls.nn.layers import Layer_REGISTER
 Mlp_REGISTER = {}
 
 
-class MLP(Sequential):
+class MLP(nn.Sequential):
     '''Multi-Layer Perceptron'''
 
     def __init__(self,

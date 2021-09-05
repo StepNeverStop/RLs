@@ -1,11 +1,12 @@
 import numpy as np
 import torch as t
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
 
 
-class QattenMixer(t.nn.Module):
+class QattenMixer(nn.Module):
 
     def __init__(self,
                  n_agents: int,
@@ -32,13 +33,13 @@ class QattenMixer(t.nn.Module):
         self.n_attention_head = n_attention_head
         self.is_weighted = is_weighted
 
-        self.query_embedding_layers = t.nn.ModuleList()
-        self.key_embedding_layers = t.nn.ModuleList()
+        self.query_embedding_layers = nn.ModuleList()
+        self.key_embedding_layers = nn.ModuleList()
         for i in range(self.n_attention_head):
             self.query_embedding_layers.append(MLP(input_dim=self.rep_net.h_dim, hidden_units=query_hidden_units,
                                                    layer='linear', act_fn='relu', output_shape=query_embed_dim))
             self.key_embedding_layers.append(
-                t.nn.Linear(self.u_dim, self.key_embed_dim))
+                nn.Linear(self.u_dim, self.key_embed_dim))
 
         self.scaled_product_value = np.sqrt(self.query_embed_dim)
 
@@ -51,15 +52,14 @@ class QattenMixer(t.nn.Module):
     def forward(self, q_values, state, **kwargs):
         '''
         params:
-            q_values: N * [T, B, 1]
+            q_values: [T, B, 1, N]
             state: [T, B, *]
         '''
-        time_step = q_values[0].shape[0]    # T
-        batch_size = q_values[0].shape[1]   # B
+        time_step = q_values.shape[0]    # T
+        batch_size = q_values.shape[1]   # B
 
         # state: [T, B, *]
         state_feat, _ = self.rep_net(state, **kwargs)    # [T, B, *]
-        q_values = t.stack(q_values, -1)  # [T, B, 1, N]
 
         us = self._get_us(state_feat)   # [T, B, N, *]
 

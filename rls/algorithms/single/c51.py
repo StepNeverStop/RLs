@@ -3,6 +3,7 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.decorator import iton
@@ -79,7 +80,7 @@ class C51(SarlOffPolicy):
         # [T, B, A, N] * [1, N] => [T, B, A]
         target_q = (target_q_dist * self._z).sum(-1)
         a_ = target_q.argmax(-1)  # [T, B]
-        a_onehot = t.nn.functional.one_hot(a_, self.a_dim).float()  # [T, B, A]
+        a_onehot = F.one_hot(a_, self.a_dim).float()  # [T, B, A]
         # [T, B, A, N] * [T, B, A, 1] => [T, B, A, N] => [T, B, N]
         target_q_dist = (target_q_dist * a_onehot.unsqueeze(-1)).sum(-2)
 

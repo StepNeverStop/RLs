@@ -10,6 +10,7 @@ import torch as t
 from rls.algorithms.base.marl_policy import MarlPolicy
 from rls.common.decorator import iton
 from rls.common.specs import Data
+from rls.common.when import Every
 from rls.common.yaml_ops import load_config
 from rls.utils.np_utils import int2one_hot
 
@@ -99,8 +100,9 @@ class MultiAgentOffPolicy(MarlPolicy):
                     ), -1)
                 else:
                     other, other_ = _id_onehot, _id_onehot
-            BATCH_DICT[id].obs.update(other=other)
-            BATCH_DICT[id].obs_.update(other=other_)
+            if self._obs_with_pre_action or self._obs_with_agent_id:
+                BATCH_DICT[id].obs.update(other=other)
+                BATCH_DICT[id].obs_.update(other=other_)
         return BATCH_DICT
 
     def _before_train(self, BATCH_DICT):

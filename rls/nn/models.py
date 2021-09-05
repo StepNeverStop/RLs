@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import torch as t
-from torch.nn import Linear, Sequential, Softmax
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
 from rls.nn.represent_nets import RepresentationNetwork
@@ -11,7 +11,7 @@ from rls.utils.torch_utils import clip_nn_log_std
 Model_REGISTER = {}
 
 
-class BaseModel(t.nn.Module):
+class BaseModel(nn.Module):
 
     def __init__(self, obs_spec, rep_net_params):
         super().__init__()
@@ -72,7 +72,7 @@ class ActorMuLogstd(BaseModel):
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = t.nn.Parameter(-0.5 * t.ones(output_shape))
+            self.log_std = nn.Parameter(-0.5 * t.ones(output_shape))
 
     def forward(self, x, **kwargs):
         x = self.repre(x, **kwargs)
@@ -268,7 +268,7 @@ class CriticQvalueBootstrap(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, output_shape, head_num, network_settings):
         super().__init__(obs_spec, rep_net_params)
-        self.nets = t.nn.ModuleList(
+        self.nets = nn.ModuleList(
             [MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape) for _ in range(head_num)])
 
     def forward(self, x, **kwargs):
@@ -432,7 +432,7 @@ class ActorCriticValueCts(BaseModel):
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = t.nn.Parameter(-0.5 * t.ones(output_shape))
+            self.log_std = nn.Parameter(-0.5 * t.ones(output_shape))
 
     def forward(self, x, **kwargs):
         x = self.repre(x, **kwargs)
@@ -612,7 +612,7 @@ class IqnNet(BaseModel):
 Model_REGISTER['iqn'] = IqnNet
 
 
-class MACriticQvalueOne(t.nn.Module):
+class MACriticQvalueOne(nn.Module):
     '''
     use for evaluate the value given a state-action pair.
     input: t.cat((state, action),axis = 1)
@@ -621,7 +621,7 @@ class MACriticQvalueOne(t.nn.Module):
 
     def __init__(self, obs_specs, rep_net_params, action_dim, network_settings):
         super().__init__()
-        self.rep_nets = t.nn.ModuleList()
+        self.rep_nets = nn.ModuleList()
         for obs_spec in obs_specs:
             self.rep_nets.append(RepresentationNetwork(
                 obs_spec, rep_net_params

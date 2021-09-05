@@ -3,6 +3,7 @@
 
 from abc import abstractmethod
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
 
 import numpy as np
@@ -77,11 +78,12 @@ class MarlPolicy(Policy):
                     ), -1)
                 else:
                     other = _id_onehot
-            obs[id].update(other=other)
+            if self._obs_with_pre_action or self._obs_with_agent_id:
+                obs[id].update(other=other)
         return obs
 
     def __call__(self, obs):
-        obs = self._preprocess_obs(obs)
+        obs = self._preprocess_obs(deepcopy(obs))
         self._pre_acts, self._acts_info = self.select_action(obs)
         return self._pre_acts
 

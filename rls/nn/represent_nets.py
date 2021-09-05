@@ -3,6 +3,7 @@
 from typing import Dict, List
 
 import torch as t
+import torch.nn as nn
 
 from rls.common.specs import SensorSpec
 from rls.nn.networks import (EncoderNetwork, MemoryNetwork, MultiVectorNetwork,
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 Rep_REGISTER = {}
 
 
-class RepresentationNetwork(t.nn.Module):
+class RepresentationNetwork(nn.Module):
     '''
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
