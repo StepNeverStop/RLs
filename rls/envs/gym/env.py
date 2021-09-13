@@ -1,48 +1,47 @@
 
 
-import numpy as np
-
-from typing import (Dict,
-                    List,
-                    NoReturn)
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
-from supersuit import gym_vec_env_v0
 from copy import deepcopy
+from typing import Dict, List, NoReturn
 
+import numpy as np
+from gym.spaces import Box, Discrete, Tuple
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
 from rls.envs.gym.make_env import make_env
+from rls.envs.wrappers import MPIEnv, VECEnv
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 try:
     import gym_minigrid
 except ImportError:
-    logger.warning(colorize("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
 except ImportError:
-    logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
 try:
     import gym_donkeycar
 except ImportError:
-    logger.warning(colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
     pass
 
 try:
     import highway_env
 except ImportError:
-    logger.warning(colorize("import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
+    logger.warning(colorize(
+        "import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
     pass
 
 
@@ -58,17 +57,19 @@ class GymEnv(EnvBase):
         Input:
             env_copys: environment number
         '''
-        if multiprocessing:
-            import multiprocessing
-            multiprocessing.set_start_method("fork")
         self._n_copys = env_copys   # environments number
         self._initialize(env=make_env(**kwargs))
-        self._envs = gym_vec_env_v0(make_env(**kwargs), self._n_copys,
-                                    multiprocessing=multiprocessing)
-        self._envs.seed(seed)
+        _env_wrapper = MPIEnv if multiprocessing else VECEnv
+        self._envs = _env_wrapper(n=self._n_copys, env_fn=make_env, config=kwargs)
+
+        params = []
+        for i in range(self._n_copys):
+            params.append(dict(args=(seed+i,)))
+        self._envs.run('seed', params)
 
     def reset(self, **kwargs) -> Dict[str, Data]:
-        obs = self._envs.reset()
+        obs = self._envs.run('reset')
+        obs = np.stack(obs, 0)
         if self._use_visual:
             ret = Data(visual={'visual_0': obs})
         else:
@@ -77,13 +78,33 @@ class GymEnv(EnvBase):
                 'global': Data(begin_mask=np.full((self._n_copys, 1), True))}
 
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
-        actions = deepcopy(actions['single'])  # choose the first agents' actions
-        obs, reward, done, info = self._envs.step(actions)
+        # choose the first agents' actions
+        actions = deepcopy(actions['single'])
+        params = []
+        for i in range(self._n_copys):
+            params.append(dict(args=(actions[i],)))
+        rets = self._envs.run('step', params)
+        obs_fs, reward, done, info = zip(*rets)
+        obs_fs = np.stack(obs_fs, 0)
+        reward = np.stack(reward, 0)
+        done = np.stack(done, 0)
+        # TODO: info
+
+        obs_fa = deepcopy(obs_fs)   # obs for next action choosing.
+
+        idxs = np.where(done)[0]
+        if len(idxs) > 0:
+            reset_obs = self._envs.run('reset', idxs=idxs)
+            obs_fa[idxs] = np.stack(reset_obs, 0)
+
         if self._use_visual:
-            obs = Data(visual={'visual_0': obs})
+            obs_fs = Data(visual={'visual_0': obs_fs})
+            obs_fa = Data(visual={'visual_0': obs_fa})
         else:
-            obs = Data(vector={'vector_0': obs})
-        return {'single': Data(obs=obs,
+            obs_fs = Data(vector={'vector_0': obs_fs})
+            obs_fa = Data(vector={'vector_0': obs_fa})
+        return {'single': Data(obs_fs=obs_fs,
+                               obs_fa=obs_fa,
                                reward=reward,
                                done=done,
                                info=info),
@@ -93,13 +114,13 @@ class GymEnv(EnvBase):
         '''
         close all environments.
         '''
-        self._envs.close()
+        self._envs.run('close')
 
     def render(self, **kwargs) -> NoReturn:
         '''
         render game windows.
         '''
-        raise NotImplementedError
+        self._envs.run('render', idxs=0)
 
     @property
     def n_copys(self) -> int:
@@ -116,8 +137,7 @@ class GymEnv(EnvBase):
 
     @property
     def StateSpec(self) -> SensorSpec:
-        return SensorSpec(vector_dims=None,
-                          visual_dims=None)
+        return SensorSpec()
 
     @property
     def is_multi(self) -> bool:
@@ -130,7 +150,8 @@ class GymEnv(EnvBase):
     # --- custom
 
     def _initialize(self, env):
-        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(
+            env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
         # process observation
         ObsSpace = env.observation_space
 
@@ -153,11 +174,13 @@ class GymEnv(EnvBase):
         # process action
         ActSpace = env.action_space
         if isinstance(ActSpace, Box):
-            assert len(ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
+            assert len(
+                ActSpace.shape) == 1, 'if action space is continuous, the shape length of action must equal to 1'
             self._is_continuous = True
             self.a_dim = ActSpace.shape[0]
         elif isinstance(ActSpace, Tuple):
-            assert all([isinstance(i, Discrete) for i in ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
+            assert all([isinstance(i, Discrete) for i in ActSpace]
+                       ) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self._is_continuous = False
             self.a_dim = int(np.asarray([i.n for i in ActSpace]).prod())
         else:

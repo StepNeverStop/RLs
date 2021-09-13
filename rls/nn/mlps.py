@@ -1,16 +1,13 @@
 import torch as t
+import torch.nn as nn
 
-from torch.nn import Sequential
-
-from rls.nn.activations import (Act_REGISTER,
-                                default_act)
+from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.layers import Layer_REGISTER
-
 
 Mlp_REGISTER = {}
 
 
-class MLP(Sequential):
+class MLP(nn.Sequential):
     '''Multi-Layer Perceptron'''
 
     def __init__(self,
@@ -36,7 +33,8 @@ class MLP(Sequential):
 
         input_dim = outs[-1] if len(outs) > 0 else input_dim
         if output_shape:
-            self.add_module('out_layer', Layer_REGISTER[layer](input_dim, output_shape))
+            self.add_module('out_layer', Layer_REGISTER[layer](
+                input_dim, output_shape))
             if out_act:
                 self.add_module('out_act', Act_REGISTER[out_act]())
 

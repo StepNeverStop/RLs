@@ -3,16 +3,16 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import (huber_loss,
-                                   q_target_func)
-from rls.nn.models import IqnNet
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
+from rls.common.decorator import iton
 from rls.common.specs import Data
+from rls.nn.models import IqnNet
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
+from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.torch_utils import n_step_return
 
 
 class IQN(SarlOffPolicy):
@@ -52,41 +52,44 @@ class IQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.q_net = TargetTwin(IqnNet(self.obs_spec,
-                                       rep_net_params=self.rep_net_params,
+                                       rep_net_params=self._rep_net_params,
                                        action_dim=self.a_dim,
                                        quantiles_idx=self.quantiles_idx,
                                        network_settings=network_settings)).to(self.device)
-        self.oplr = OPLR(self.q_net, lr)
+        self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
-    def __call__(self, obs):
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+    @iton
+    def select_action(self, obs):
+        _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
+            batch_size=self.n_copys,
+            quantiles_num=self.select_quantiles
+        )
+        q_values = self.q_net(obs, select_quantiles_tiled, rnncs=self.rnncs)  # [N, B, A]
+        self.rnncs_ = self.q_net.get_rnncs()
+
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            _, select_quantiles_tiled = self._generate_quantiles(   # [N*B, X]
-                batch_size=self.n_copys,
-                quantiles_num=self.select_quantiles
-            )
-            q_values = self.q_net(obs, select_quantiles_tiled, cell_state=self.cell_state)  # [N, B, A]
-            self.next_cell_state = self.q_net.get_cell_state()
-            actions = q_values.mean(0).argmax(-1)  # [N, B, A] => [B, A] => [B,]
-        return Data(action=actions)
+            # [N, B, A] => [B, A] => [B,]
+            actions = q_values.mean(0).argmax(-1)
+        return actions, Data(action=actions)
 
     def _generate_quantiles(self, batch_size, quantiles_num):
         _quantiles = t.rand([quantiles_num*batch_size, 1])  # [N*B, 1]
         _quantiles_tiled = _quantiles.repeat(1, self.quantiles_idx)  # [N*B, 1] => [N*B, X]
 
-        _quantiles_tiled = t.arange(self.quantiles_idx) * np.pi * _quantiles_tiled  # pi * i * tau [N*B, X] * [X, ] => [N*B, X]
+        # pi * i * tau [N*B, X] * [X, ] => [N*B, X]
+        _quantiles_tiled = t.arange(self.quantiles_idx) * np.pi * _quantiles_tiled
         _quantiles_tiled.cos_()   # [N*B, X]
 
         _quantiles = _quantiles.view(batch_size, quantiles_num, 1)    # [N*B, 1] => [B, N, 1]
         return _quantiles, _quantiles_tiled  # [B, N, 1], [N*B, X]
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
         time_step = BATCH.reward.shape[0]
         batch_size = BATCH.reward.shape[1]
@@ -94,10 +97,11 @@ class IQN(SarlOffPolicy):
         quantiles, quantiles_tiled = self._generate_quantiles(   # [T*B, N, 1], [N*T*B, X]
             batch_size=time_step*batch_size,
             quantiles_num=self.online_quantiles)
-        quantiles = quantiles.view(time_step, batch_size, -1, 1)    # [T*B, N, 1] => [T, B, N, 1]
+        # [T*B, N, 1] => [T, B, N, 1]
+        quantiles = quantiles.view(time_step, batch_size, -1, 1)
         quantiles_tiled = quantiles_tiled.view(time_step, -1, self.quantiles_idx)    # [N*T*B, X] => [T, N*B, X]
 
-        quantiles_value = self.q_net(BATCH.obs, quantiles_tiled)    # [T, N, B, A]
+        quantiles_value = self.q_net(BATCH.obs, quantiles_tiled, begin_mask=BATCH.begin_mask)    # [T, N, B, A]
         # [T, N, B, A] => [N, T, B, A] * [T, B, A] => [N, T, B, 1]
         quantiles_value = (quantiles_value.swapaxes(0, 1) * BATCH.action).sum(-1, keepdim=True)
         q_eval = quantiles_value.mean(0)  # [N, T, B, 1] => [T, B, 1]
@@ -107,46 +111,51 @@ class IQN(SarlOffPolicy):
             quantiles_num=self.select_quantiles)
         select_quantiles_tiled = select_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N*T*B, X] => [T, N*B, X]
 
-        q_values = self.q_net(BATCH.obs_, select_quantiles_tiled)  # [T, N, B, A]
+        q_values = self.q_net(
+            BATCH.obs_, select_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N, B, A]
         q_values = q_values.mean(1)  # [T, N, B, A] => [T, B, A]
         next_max_action = q_values.argmax(-1)   # [T, B]
-        next_max_action = t.nn.functional.one_hot(next_max_action, self.a_dim).float()  # [T, B, A]
+        next_max_action = F.one_hot(
+            next_max_action, self.a_dim).float()  # [T, B, A]
 
         _, target_quantiles_tiled = self._generate_quantiles(   # [N'*T*B, X]
             batch_size=time_step*batch_size,
             quantiles_num=self.target_quantiles)
         target_quantiles_tiled = target_quantiles_tiled.view(time_step, -1, self.quantiles_idx)  # [N'*T*B, X] => [T, N'*B, X]
-        target_quantiles_value = self.q_net.t(BATCH.obs_, target_quantiles_tiled)  # [T, N', B, A]
+        target_quantiles_value = self.q_net.t(BATCH.obs_, target_quantiles_tiled, begin_mask=BATCH.begin_mask)  # [T, N', B, A]
         target_quantiles_value = target_quantiles_value.swapaxes(0, 1)  # [T, N', B, A] => [N', T, B, A]
         target_quantiles_value = (target_quantiles_value * next_max_action).sum(-1, keepdim=True)   # [N', T, B, 1]
 
         target_q = target_quantiles_value.mean(0)  # [T, B, 1]
-        q_target = q_target_func(BATCH.reward,  # [T, B, 1]
+        q_target = n_step_return(BATCH.reward,  # [T, B, 1]
                                  self.gamma,
                                  BATCH.done,    # [T, B, 1]
                                  target_q,  # [T, B, 1]
-                                 BATCH.begin_mask,  # [T, B, 1]
-                                 use_rnn=self.use_rnn)   # [T, B, 1]
+                                 BATCH.begin_mask).detach()   # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
 
-        target_quantiles_value = target_quantiles_value.squeeze(-1)  # [N', T, B, 1] => [N', T, B]
-        target_quantiles_value = target_quantiles_value.permute(1, 2, 0)    # [N', T, B] => [T, B, N']
-        quantiles_value_target = q_target_func(BATCH.reward.repeat(1, 1, self.target_quantiles),
+        # [N', T, B, 1] => [N', T, B]
+        target_quantiles_value = target_quantiles_value.squeeze(-1)
+        target_quantiles_value = target_quantiles_value.permute(
+            1, 2, 0)    # [N', T, B] => [T, B, N']
+        quantiles_value_target = n_step_return(BATCH.reward.repeat(1, 1, self.target_quantiles),
                                                self.gamma,
                                                BATCH.done.repeat(1, 1, self.target_quantiles),
                                                target_quantiles_value,
-                                               BATCH.begin_mask.repeat(1, 1, self.target_quantiles),
-                                               use_rnn=self.use_rnn)  # [T, B, N']
-        quantiles_value_target = quantiles_value_target.unsqueeze(-2)    # [T, B, N'] => [T, B, 1, N']
+                                               BATCH.begin_mask.repeat(1, 1, self.target_quantiles)).detach()  # [T, B, N']
+        # [T, B, N'] => [T, B, 1, N']
+        quantiles_value_target = quantiles_value_target.unsqueeze(-2)
         quantiles_value_online = quantiles_value.permute(1, 2, 0, 3)   # [N, T, B, 1] => [T, B, N, 1]
-        quantile_error = quantiles_value_online - quantiles_value_target    # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
-        huber = huber_loss(quantile_error, delta=self.huber_delta)  # [T, B, N, N']
-        huber_abs = (quantiles - t.where(quantile_error < 0, 1., 0.)).abs()   # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
+        # [T, B, N, 1] - [T, B, 1, N'] => [T, B, N, N']
+        quantile_error = quantiles_value_online - quantiles_value_target
+        huber = F.huber_loss(quantiles_value_online, quantiles_value_target, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        # [T, B, N, 1] - [T, B, N, N'] => [T, B, N, N']
+        huber_abs = (quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N'] => [T, B, N]
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
 
         loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1
-        self.oplr.step(loss)
+        self.oplr.optimize(loss)
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
             ['LOSS/loss', loss],
@@ -157,5 +166,5 @@ class IQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()

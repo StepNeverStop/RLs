@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import itertools
+
 import numpy as np
 
 
@@ -45,7 +46,8 @@ def calculate_td_error(reward, gamma, done, value, next_value):
     n_step = reward.shape[0]
     rets = np.zeros_like(reward)    # [T, B, 1]
     for _t in range(n_step):
-        rets[_t] = reward[_t] + gamma * (1 - done[_t]) * next_value[_t] - value[_t]
+        rets[_t] = reward[_t] + gamma * \
+            (1 - done[_t]) * next_value[_t] - value[_t]
     return rets
 
 

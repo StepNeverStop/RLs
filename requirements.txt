@@ -3,3 +3,4 @@ pyyaml
 tqdm
 colored_traceback
 gym>=0.15.4
+easydict

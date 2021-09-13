@@ -3,15 +3,16 @@
 
 import numpy as np
 import torch as t
+import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
-from rls.utils.expl_expt import ExplorationExploitationClass
-from rls.utils.torch_utils import q_target_func
-from rls.nn.models import CriticDueling
-from rls.nn.utils import OPLR
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
+from rls.common.decorator import iton
 from rls.common.specs import Data
+from rls.nn.models import CriticDueling
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.utils import OPLR
+from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.torch_utils import n_step_return
 
 
 class DDDQN(SarlOffPolicy):
@@ -39,49 +40,48 @@ class DDDQN(SarlOffPolicy):
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,
-                                                          max_step=self.max_train_step)
+                                                          max_step=self._max_train_step)
         self.assign_interval = assign_interval
 
         self.q_net = TargetTwin(CriticDueling(self.obs_spec,
-                                              rep_net_params=self.rep_net_params,
+                                              rep_net_params=self._rep_net_params,
                                               output_shape=self.a_dim,
                                               network_settings=network_settings)).to(self.device)
 
-        self.oplr = OPLR(self.q_net, lr)
+        self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,
                                      oplr=self.oplr)
 
-    @iTensor_oNumpy
-    def __call__(self, obs):
-        if self._is_train_mode and self.expl_expt_mng.is_random(self.cur_train_step):
+    @iton
+    def select_action(self, obs):
+        q_values = self.q_net(obs, rnncs=self.rnncs)  # [B, A]
+        self.rnncs_ = self.q_net.get_rnncs()
+
+        if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
             actions = np.random.randint(0, self.a_dim, self.n_copys)
         else:
-            q_values = self.q_net(obs, cell_state=self.cell_state)  # [B, A]
-            self.next_cell_state = self.q_net.get_cell_state()
             actions = q_values.argmax(-1)    # [B,]
-        return Data(action=actions)
+        return actions, Data(action=actions)
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs)   # [T, B, A]
-        next_q = self.q_net(BATCH.obs_)  # [T, B, A]
-        q_target = self.q_net.t(BATCH.obs_)  # [T, B, A]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        next_q = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        q_target = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
 
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         next_max_action = next_q.argmax(-1)  # [T, B]
-        next_max_action_one_hot = t.nn.functional.one_hot(
-            next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
+        next_max_action_one_hot = F.one_hot(next_max_action.squeeze(), self.a_dim).float()  # [T, B, A]
 
         q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
-        q_target = q_target_func(BATCH.reward,
+        q_target = n_step_return(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
                                  q_target_next_max,
-                                 BATCH.begin_mask,
-                                 use_rnn=self.use_rnn)  # [T, B, 1]
+                                 BATCH.begin_mask).detach()  # [T, B, 1]
         td_error = q_target - q_eval    # [T, B, 1]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
-        self.oplr.step(q_loss)
+        self.oplr.optimize(q_loss)
 
         return td_error, dict([
             ['LEARNING_RATE/lr', self.oplr.lr],
@@ -93,5 +93,5 @@ class DDDQN(SarlOffPolicy):
 
     def _after_train(self):
         super()._after_train()
-        if self.cur_train_step % self.assign_interval == 0:
+        if self._cur_train_step % self.assign_interval == 0:
             self.q_net.sync()

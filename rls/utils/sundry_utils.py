@@ -2,16 +2,16 @@
 # encoding: utf-8
 
 import os
-import sys
 import random
+import sys
+from typing import List, NoReturn
+
 import numpy as np
 import torch as t
 
-from typing import (List,
-                    NoReturn)
-
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 

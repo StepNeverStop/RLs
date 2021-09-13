@@ -1,80 +1,32 @@
 
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
+
 import numpy as np
 import torch as t
 
-from typing import (Dict,
-                    List,
-                    Union,
-                    Tuple,
-                    Optional,
-                    Iterator,
-                    Callable)
-from dataclasses import dataclass
-from collections import defaultdict
 
-
-class NamedDict(defaultdict):
-
-    def __getattr__(self, attr):
-        if attr in self.keys():
-            return self[attr]
-        else:
-            raise AttributeError(f'{self.__class__.__name__} don\'t have this attribute: {attr}')
-
-    def __setattr__(self, attr, value):
-        self[attr] = value
-
-# TODO:
-
-
-class Every:
-
-    def __init__(self, every):
-        self._every = every
-        self._last = None
-
-    def __call__(self, step):
-        if self._last is None:
-            self._last = step
-            return True
-        if step >= self._last + self._every:
-            self._last += self._every
-            return True
-        return False
-
-
-class Once:
-
-    def __init__(self):
-        self._once = True
-
-    def __call__(self):
-        if self._once:
-            self._once = False
-            return True
-        return False
-
-
-@dataclass(frozen=True)
+@dataclass
 class SensorSpec:
-    vector_dims: Optional[List[int]]
-    visual_dims: Optional[List[Union[List[int], Tuple[int]]]]
-
-    @property
-    def total_vector_dim(self):
-        '''TODO: Remove'''
-        return sum(self.vector_dims)
+    vector_dims: Optional[List[int]] = None
+    visual_dims: Optional[List[Union[List[int], Tuple[int]]]] = None
+    other_dims: int = 0
 
     @property
     def has_vector_observation(self):
-        return self.vector_dims is not None
+        return self.vector_dims is not None and len(self.vector_dims) > 0
 
     @property
     def has_visual_observation(self):
-        return self.visual_dims is not None
+        return self.visual_dims is not None and len(self.visual_dims) > 0
+
+    @property
+    def has_other_observation(self):
+        return self.other_dims > 0
 
 
-@dataclass(frozen=True)
+@dataclass
 class EnvAgentSpec:
     obs_spec: SensorSpec
     a_dim: int
@@ -120,6 +72,11 @@ class Data:
 
     def items(self):
         return self.__dict__.items()
+
+    @property
+    def shape(self):
+        for k, v in self.__dict__.items():
+            return v.shape
 
     def __getitem__(self, item):
         params = {}
@@ -168,7 +125,8 @@ class Data:
             if keys[0] not in params.keys():
                 params[keys[0]] = {}
             if len(keys) > 1:
-                params.update({keys[0]: func3(params[keys[0]], value, keys[1:])})
+                params.update(
+                    {keys[0]: func3(params[keys[0]], value, keys[1:])})
             else:
                 params.update({keys[0]: value})
             return params
@@ -193,18 +151,36 @@ class Data:
         else:
             return value
 
-    # TODO: remove
-    def unpack(self) -> Iterator:
-        for i in range(len(self)):
-            yield self[i]
+    def sample(self, _t, _b, repeat=True):
+        for idxs in self._yield_sample_indexs(_t, _b, repeat):
+            yield self[idxs]
 
-    @staticmethod
-    def pack(ds: List, func: Callable = lambda x: np.asarray(x)):
-        '''
-        TODO: Annotation
-        '''
-        params = {}
-        for k, v in ds[0].__dict__.items():
-            d = [getattr(rds, k) for rds in ds]
-            params[k] = Data.pack(d, func) if isinstance(v, Data) else func(d)
-        return ds[0].__class__(**params)
+    def _yield_sample_indexs(self, _t, _b, repeat=True):
+        T, B = self.shape[:2]
+        if repeat:
+            for _ in range((T-_t+1)*B//_b):
+                x = np.random.randint(0, T - _t + 1, _b)    # [B, ]
+                y = np.random.randint(0, B, _b)  # (B, )
+                xs = np.tile(np.arange(_t)[:, np.newaxis], _b) + x  # (T, B) + (B, ) = (T, B)
+                sample_idxs = (xs, y)
+                yield sample_idxs
+        else:
+            # [N, ] + [B, 1] => [B, N]
+            x = np.arange(0, T - _t + 1, _t) + np.random.randint(0, T % _t + 1, B)[:, np.newaxis]
+            y = np.arange(B).repeat(x.shape[-1])   # [B*N]
+            x = x.ravel()   # [B*N]
+            idxs = np.arange(len(x))  # [B*N]
+            np.random.shuffle(idxs)  # [B*N]
+            for i in range(len(idxs)//_b):
+                # [T, B]
+                start, end = i*_b, (i+1)*_b
+                xs = x[start:end] + np.tile(np.arange(_t)[:, np.newaxis], _b)
+                sample_idxs = (xs, y[start:end])
+                yield sample_idxs
+
+
+class DictCls(dict):
+
+    def __getattr__(self, name):
+        assert name not in self.keys(), 'assert name not in self.keys()'
+        return [v.get(name) if isinstance(v, dict) else getattr(v, name) for k, v in self.items()]

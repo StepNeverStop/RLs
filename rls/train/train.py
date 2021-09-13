@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
-
-from tqdm import trange
+import sys
 from copy import deepcopy
-from typing import (Tuple,
-                    List,
-                    Callable,
-                    NoReturn)
+from typing import Callable, List, NoReturn, Tuple
+
+import numpy as np
+from tqdm import trange
 
 from rls.common.recorder import SimpleMovingAverageRecoder
 from rls.common.specs import Data
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 bar_format = '{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
 
@@ -48,12 +47,11 @@ def train(env, agent,
         for _ in range(episode_length):
             if render:
                 env.render(record=False)
-            acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
-            agent.episode_step(obs, acts, env_rets)
+            env_rets = env.step(agent(obs=obs), step_config={})
+            agent.episode_step(obs, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             if recorder.is_all_done and agent.policy_mode == 'off-policy':
                 break
@@ -84,10 +82,9 @@ def prefill(env, agent,
     obs = env.reset(reset_config={})
 
     for _ in trange(0, prefill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
-        acts = agent.random_action()
-        env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
-        agent.episode_step(obs, acts, env_rets)
-        obs = {id: env_rets[id].obs for id in env.agent_ids}
+        env_rets = env.step(agent.random_action(), step_config={})
+        agent.episode_step(obs, env_rets)
+        obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
         obs['global'] = env_rets['global']
 
 
@@ -96,11 +93,12 @@ def inference(env, agent,
               moving_average_episode: int,
               reset_config: dict,
               step_config: dict,
-              episodes: int) -> NoReturn:
+              episodes: int = sys.maxsize) -> NoReturn:
     """
     inference mode. algorithm agent will not be train, only used to show agents' behavior
     """
 
+    episodes = episodes or sys.maxsize
     recorder = SimpleMovingAverageRecoder(n_copys=env.n_copys,
                                           agent_ids=env.agent_ids,
                                           gamma=0.99,
@@ -115,12 +113,11 @@ def inference(env, agent,
 
         while True:
             env.render(record=False)
-            acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
-            agent.episode_step(obs, acts, env_rets)
+            env_rets = env.step(agent(obs=obs), step_config={})
+            agent.episode_step(obs, env_rets)
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             if recorder.is_all_done:
                 break
@@ -150,10 +147,9 @@ def evaluate(env, agent,
         recorder.episode_reset()
 
         for _ in range(episode_length):
-            acts = agent(obs=obs)
-            env_rets = env.step({id: acts[id].action for id in env.agent_ids}, step_config={})
+            env_rets = env.step(agent(obs=obs), step_config={})
             agent.episode_step({id: env_rets[id].done for id in env.agent_ids})
-            obs = {id: env_rets[id].obs for id in env.agent_ids}
+            obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
             obs['global'] = env_rets['global']
             recorder.episode_step(rewards={id: env_rets[id].reward for id in env.agent_ids},
                                   dones={id: env_rets[id].done for id in env.agent_ids})

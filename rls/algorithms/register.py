@@ -4,10 +4,7 @@
 # algorithms based on PyTorch
 
 import importlib
-
-from typing import (Tuple,
-                    Callable,
-                    Dict)
+from typing import Callable, Dict, Tuple
 
 from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
@@ -49,5 +46,6 @@ def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
     '''
     algo_info = registry.get_model_info(name)
     logger.info(colorize(algo_info.get('logo', ''), color='green'))
-    model_class = getattr(importlib.import_module(f"rls.algorithms.{algo_info['path']}"), algo_info['class_name'])
+    model_class = getattr(importlib.import_module(
+        f"rls.algorithms.{algo_info['path']}"), algo_info['class_name'])
     return model_class, algo_info['is_multi']

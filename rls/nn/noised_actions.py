@@ -2,10 +2,10 @@
 # encoding: utf-8
 
 import math
+from abc import ABC, abstractmethod
+
 import numpy as np
 import torch as t
-
-from abc import ABC, abstractmethod
 
 Noise_action_REGISTER = {}
 
@@ -87,7 +87,9 @@ class OrnsteinUhlenbeckNoisedAction(NormalNoisedAction):
         self.reset()
 
     def __call__(self, action):
-        self.x_prev = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.sigma * math.sqrt(self.dt) * t.randn(action.shape)
+        self.x_prev = self.x_prev + self.theta * \
+            (self.mu - self.x_prev) * self.dt + self.sigma * \
+            math.sqrt(self.dt) * t.randn(action.shape)
         return (action + self.x_prev).clamp(-self.action_bound, self.action_bound)
 
     def reset(self):

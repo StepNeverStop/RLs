@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import gym
-
-import numpy as np
-
 from collections import deque
-from gym.spaces import (Box,
-                        Discrete,
-                        Tuple)
 
-from rls.utils.LazyFrames import LazyFrames
+import gym
+import numpy as np
+from gym.spaces import Box, Discrete, Tuple
+
 from rls.utils.display import colorize
+from rls.utils.LazyFrames import LazyFrames
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 try:
     import cv2
     cv2.ocl.setUseOpenCL(False)
 except:
-    logger.warning(colorize('opencv-python is needed to train visual-based model.', color='yellow'))
+    logger.warning(colorize(
+        'opencv-python is needed to train visual-based model.', color='yellow'))
     pass
 
 try:
     import imageio
 except:
-    logger.warning(colorize('imageio should be installed to record vedio if needed.', color='yellow'))
+    logger.warning(colorize(
+        'imageio should be installed to record vedio if needed.', color='yellow'))
     pass
 
 
@@ -72,7 +72,8 @@ class NoopResetEnv(gym.Wrapper):
         if self.override_num_noops is not None:
             noops = self.override_num_noops
         else:
-            noops = self.unwrapped.np_random.randint(1, self.noop_max + 1)  # pylint: disable=E1101
+            noops = self.unwrapped.np_random.randint(
+                1, self.noop_max + 1)  # pylint: disable=E1101
         assert noops > 0
         obs = None
         for _ in range(noops):
@@ -147,7 +148,8 @@ class GrayResizeEnv(gym.ObservationWrapper):
 class ScaleEnv(gym.ObservationWrapper):
     def __init__(self, env):
         super().__init__(env)
-        self.observation_space = Box(low=0, high=1, shape=env.observation_space.shape, dtype=np.float32)
+        self.observation_space = Box(
+            low=0, high=1, shape=env.observation_space.shape, dtype=np.float32)
 
     def observation(self, obs):
         return np.array(obs).astype(np.float32) / 255.0
@@ -235,14 +237,16 @@ class DiscreteActEnv(gym.ActionWrapper):
     def __init__(self, env):
         super().__init__(env)
         asp = env.action_space
-        assert isinstance(asp, Discrete) or (isinstance(asp, Tuple) and all([isinstance(x) for x in asp]))
+        assert isinstance(asp, Discrete) or (isinstance(
+            asp, Tuple) and all([isinstance(x) for x in asp]))
         self._is_tuple = not isinstance(asp, Discrete)
         if self._is_tuple:
             discrete_action_dim_list = [i.n for i in asp]
         else:
             discrete_action_dim_list = [asp.n]
         from rls.utils.np_utils import get_discrete_action_list
-        self.discrete_action_list = get_discrete_action_list(discrete_action_dim_list)
+        self.discrete_action_list = get_discrete_action_list(
+            discrete_action_dim_list)
 
     def step(self, action):
         return self.env.step(self.action(action))
@@ -310,31 +314,35 @@ class MaxAndSkipEnv(gym.Wrapper):
     底层，因为这样可以减少对状态的数据处理
     '''
 
-    def __init__(self, env, skip=4):
+    def __init__(self, env, skip=4, use_max=False):
         """Return only every `skip`-th frame"""
         gym.Wrapper.__init__(self, env)
-        # most recent raw observations (for max pooling across time steps)
-        self._obs_buffer = np.zeros((2,) + env.observation_space.shape, dtype=np.uint8)
         self._skip = skip
+        self._use_max = use_max
+        # most recent raw observations (for max pooling across time steps)
+        _dtype = np.uint8 if len(
+            env.observation_space.shape) == 3 else np.float32
+        self._obs_buffer = np.zeros(
+            (self._skip,) + env.observation_space.shape, dtype=_dtype)
 
     def step(self, action):
         """Repeat action, sum reward, and max over last observations."""
         total_reward = 0.0
-        done = None
         for i in range(self._skip):
             obs, reward, done, info = self.env.step(action)
-            if i == self._skip - 2:
-                self._obs_buffer[0] = obs
-            if i == self._skip - 1:
-                self._obs_buffer[1] = obs
+            self._obs_buffer[i] = obs
             total_reward += reward
             if done:
+                for j in range(i+1, self._skip):
+                    self._obs_buffer[j] = obs
                 break
         # Note that the observation on the done=True frame
         # doesn't matter
-        max_frame = self._obs_buffer.max(axis=0)
-
-        return max_frame, total_reward, done, info
+        if self._use_max:
+            obs = self._obs_buffer.max(axis=0)
+        else:
+            obs = self._obs_buffer[-1]
+        return obs, total_reward, done, info
 
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)

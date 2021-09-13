@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
-
-from PIL import Image
 from time import sleep
+
+import numpy as np
+from PIL import Image
 
 
 def show_img(img_arr, normalized=True):

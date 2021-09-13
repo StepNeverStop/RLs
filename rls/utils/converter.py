@@ -1,12 +1,14 @@
 
-import torch as t
-import numpy as np
 
 from numbers import Number
+
+import numpy as np
+import torch as t
 
 from rls.common.specs import Data
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 
@@ -25,7 +27,8 @@ def to_numpy(x):
         elif isinstance(x, (tuple, list)):
             return [to_numpy(_x) for _x in x]
         else:
-            raise Exception(f'Data: {x}.\n Unexpected data type when convert data to Numpy: {type(x)}')
+            raise Exception(
+                f'Data: {x}.\n Unexpected data type when convert data to Numpy: {type(x)}')
     except Exception as e:
         logger.error(x)
         logger.error(e)
@@ -46,7 +49,8 @@ def to_tensor(x, dtype=t.float32, device='cpu'):
         elif isinstance(x, (tuple, list)):
             return [to_tensor(_x, dtype=dtype, device=device) for _x in x]
         else:
-            raise Exception(f'Data: {x}.\n Unexpected data type when convert data to Torch.Tensor: {type(x)}')
+            raise Exception(
+                f'Data: {x}.\n Unexpected data type when convert data to Torch.Tensor: {type(x)}')
     except Exception as e:
         logger.error(x)
         logger.error(e)

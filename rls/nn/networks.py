@@ -1,29 +1,26 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import torch as t
+from typing import Dict, Optional, Tuple
+
 import numpy as np
+import torch as t
+import torch.nn as nn
 
-from typing import (Tuple,
-                    Dict,
-                    Optional)
-from torch.nn import (Sequential,
-                      Linear)
-from collections import defaultdict
-
-from rls.nn.activations import (default_act,
-                                Act_REGISTER)
-
+from rls.nn.activations import Act_REGISTER, default_act
+from rls.nn.represents.encoders import End_REGISTER
+from rls.nn.represents.memories import Rnn_REGISTER
 from rls.nn.represents.vectors import Vec_REGISTER
 from rls.nn.represents.visuals import Vis_REGISTER
 
 
-class MultiVectorNetwork(t.nn.Module):
-    def __init__(self, vector_dim=[], network_type='concat'):
+class MultiVectorNetwork(nn.Module):
+    def __init__(self, vector_dim=[], h_dim=16, network_type='identity'):
         super().__init__()
-        self.nets = t.nn.ModuleList()
+        self.nets = nn.ModuleList()
         for in_dim in vector_dim:
-            self.nets.append(Vec_REGISTER[network_type](in_dim=in_dim))
+            self.nets.append(Vec_REGISTER[network_type](
+                in_dim=in_dim, h_dim=h_dim))
         self.h_dim = sum([net.h_dim for net in self.nets])
 
     def forward(self, *vector_inputs):
@@ -34,96 +31,77 @@ class MultiVectorNetwork(t.nn.Module):
         return output
 
 
-class MultiVisualNetwork(t.nn.Module):
+class MultiVisualNetwork(nn.Module):
 
-    def __init__(self, visual_dim=[], visual_feature=128, network_type='nature'):
+    def __init__(self, visual_dim=[], h_dim=128, network_type='nature'):
         super().__init__()
-        self.dense_nets = t.nn.ModuleList()
+        self.dense_nets = nn.ModuleList()
         for vd in visual_dim:
             net = Vis_REGISTER[network_type](visual_dim=vd)
             self.dense_nets.append(
-                Sequential(
+                nn.Sequential(
                     net,
-                    Linear(net.output_dim, visual_feature),
+                    nn.Linear(net.output_dim, h_dim),
                     Act_REGISTER[default_act]()
                 )
             )
-        self.h_dim = visual_feature * len(self.dense_nets)
+        self.h_dim = h_dim * len(self.dense_nets)
 
     def forward(self, *visual_inputs):
         # h, w, c => c, h, w
-        visual_inputs = [vi.swapaxes(-1, -3).swapaxes(-1, -2) for vi in visual_inputs]
+        batch = visual_inputs[0].shape[:-3]
+        visual_inputs = [vi.view((-1,)+vi.shape[-3:]).swapaxes(-1, -3).swapaxes(-1, -2)
+                         for vi in visual_inputs]
         output = []
         for dense_net, visual_s in zip(self.dense_nets, visual_inputs):
             output.append(
-                dense_net(visual_s)
+                dense_net(visual_s).view(batch+(-1,))
             )
         output = t.cat(output, -1)
         return output
 
 
-class EncoderNetwork(t.nn.Module):
-    def __init__(self, feat_dim=64, output_dim=64):
+class EncoderNetwork(nn.Module):
+    def __init__(self, feat_dim=64, h_dim=64, network_type='identity'):
         super().__init__()
-        self.h_dim = output_dim
-        self.net = Linear(feat_dim, output_dim)
-        self.act = Act_REGISTER[default_act]()
+        self.net = End_REGISTER[network_type](in_dim=feat_dim, h_dim=h_dim)
+        self.h_dim = self.net.h_dim
 
     def forward(self, feat):
-        return self.act(self.net(feat))
+        return self.net(feat)
 
 
-class MemoryNetwork(t.nn.Module):
-    def __init__(self, feat_dim=64, rnn_units=8, *, network_type='lstm'):
+class MemoryNetwork(nn.Module):
+    def __init__(self, feat_dim=64, rnn_units=8, network_type='lstm'):
         super().__init__()
-        self.h_dim = rnn_units
-        self.network_type = network_type
+        self.net = Rnn_REGISTER[network_type](
+            in_dim=feat_dim, rnn_units=rnn_units)
+        self.h_dim = self.net.h_dim
 
-        if self.network_type == 'gru':
-            self.rnn = t.nn.GRUCell(feat_dim, rnn_units)
-        elif self.network_type == 'lstm':
-            self.rnn = t.nn.LSTMCell(feat_dim, rnn_units)
-
-    def forward(self, feat, cell_state: Optional[Dict]):
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
         '''
         params:
             feat: [T, B, *]
-            cell_state: [T, B, *]
+            rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
-            cell_states: [T, B, *] or [B, *]
+            rnncs_s: [T, B, *] or [B, *]
         '''
 
-        T = feat.shape[0]
+        _squeeze = False
+        if feat.ndim == 2:  # [B, *]
+            _squeeze = True
+            feat = feat.unsqueeze(0)    # [B, *] => [1, B, *]
+            if rnncs:
+                rnncs = {k: v.unsqueeze(0)  # [1, B, *]
+                         for k, v in rnncs.items()}
 
-        output = []
-        cell_states = defaultdict(list)
-        if self.network_type == 'gru':
-            if cell_state:
-                hx = cell_state['hx'][0]
-            else:
-                hx = None
-            for i in range(T):  # T
-                hx = self.rnn(feat[i, ...], hx)
+        output, rnncs_s = self.net(
+            feat, rnncs, begin_mask)    # [B, *] or [T, B, *]
 
-                output.append(hx)
-                cell_states['hx'].append(hx)
-
-        elif self.network_type == 'lstm':
-            if cell_state:
-                hc = cell_state['hx'][0], cell_state['cx'][0]
-            else:
-                hc = None
-            for i in range(T):  # T
-                hx, cx = self.rnn(feat[i, ...], hc)
-                hc = (hx, cx)
-
-                output.append(hx)
-                cell_states['hx'].append(hx)
-                cell_states['cx'].append(cx)
-        if T > 1:
-            output = t.stack(output, dim=0)  # [T, B, N]
-            cell_states = {k: t.stack(v, 0) for k, v in cell_states.items()}  # [T, B, N]
-            return output, cell_states
-        else:
-            return output[0], {k: v[0] for k, v in cell_states.items()}  # [B, *]
+        if _squeeze:
+            output = output.squeeze(0)  # [B, *]
+            if rnncs_s:
+                rnncs_s = {k: v.squeeze(0)
+                           for k, v in rnncs_s.items()}  # [B, *]
+        return output, rnncs_s

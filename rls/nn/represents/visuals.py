@@ -1,28 +1,21 @@
-import torch as t
 import numpy as np
-
-from torch.nn import (Sequential,
-                      Conv2d,
-                      ReLU,
-                      ELU,
-                      BatchNorm2d,
-                      MaxPool2d,
-                      AvgPool2d,
-                      Flatten)
+import torch as t
+import torch.nn as nn
+import torch.nn.functional as F
 
 Vis_REGISTER = {}
 
 
-class SimpleConvNetwork(t.nn.Module):
+class SimpleConvNetwork(nn.Module):
 
     def __init__(self, visual_dim):
         super().__init__()
-        self.net = Sequential(
-            Conv2d(visual_dim[-1], 16, kernel_size=8, stride=4),
-            ELU(inplace=True),
-            Conv2d(16, 32, kernel_size=4, stride=2),
-            ELU(inplace=True),
-            Flatten()
+        self.net = nn.Sequential(
+            nn.Conv2d(visual_dim[-1], 16, kernel_size=8, stride=4),
+            nn.ELU(inplace=True),
+            nn.Conv2d(16, 32, kernel_size=4, stride=2),
+            nn.ELU(inplace=True),
+            nn.Flatten()
         )
         with t.no_grad():
             self.output_dim = np.prod(
@@ -32,18 +25,18 @@ class SimpleConvNetwork(t.nn.Module):
         return self.net(x)
 
 
-class NatureConvNetwork(t.nn.Module):
+class NatureConvNetwork(nn.Module):
 
     def __init__(self, visual_dim):
         super().__init__()
-        self.net = Sequential(
-            Conv2d(visual_dim[-1], 32, kernel_size=8, stride=4),
-            ReLU(inplace=True),
-            Conv2d(32, 64, kernel_size=4, stride=2),
-            ReLU(inplace=True),
-            Conv2d(64, 64, kernel_size=3, stride=1),
-            ReLU(inplace=True),
-            Flatten()
+        self.net = nn.Sequential(
+            nn.Conv2d(visual_dim[-1], 32, kernel_size=8, stride=4),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(inplace=True),
+            nn.Flatten()
         )
         with t.no_grad():
             self.output_dim = np.prod(
@@ -53,16 +46,16 @@ class NatureConvNetwork(t.nn.Module):
         return self.net(x)
 
 
-class Match3ConvNetwork(t.nn.Module):
+class Match3ConvNetwork(nn.Module):
 
     def __init__(self, visual_dim):
         super().__init__()
-        self.net = Sequential(
-            Conv2d(visual_dim[-1], 35, kernel_size=3, stride=3),
-            ELU(inplace=True),
-            Conv2d(35, 144, kernel_size=1, stride=1),
-            ELU(inplace=True),
-            Flatten()
+        self.net = nn.Sequential(
+            nn.Conv2d(visual_dim[-1], 35, kernel_size=3, stride=3),
+            nn.ELU(inplace=True),
+            nn.Conv2d(35, 144, kernel_size=1, stride=1),
+            nn.ELU(inplace=True),
+            nn.Flatten()
         )
         with t.no_grad():
             self.output_dim = np.prod(
@@ -72,7 +65,7 @@ class Match3ConvNetwork(t.nn.Module):
         return self.net(x)
 
 
-class DeepConvNetwork(Sequential):
+class DeepConvNetwork(nn.Sequential):
 
     def __init__(self,
                  visual_dim,
@@ -90,28 +83,28 @@ class DeepConvNetwork(Sequential):
         super().__init__()
         in_channels = [visual_dim[-1]] + out_channels[:-1]
         for i in range(conv_layers):
-            self.add_module(f'conv2d_{i}', Conv2d(in_channels=in_channels[i],
-                                                  out_channels=channels[i],
-                                                  kernel_size=kernel_sizes[i],
-                                                  stride=stride[i]))
-            self.add_module(f'relu_{i}', ReLU())
+            self.add_module(f'conv2d_{i}', nn.Conv2d(in_channels=in_channels[i],
+                                                     out_channels=channels[i],
+                                                     kernel_size=kernel_sizes[i],
+                                                     stride=stride[i]))
+            self.add_module(f'relu_{i}', nn.ReLU())
             if use_bn:
-                self.add_module(f'bachnorm2d_{i}', BatchNorm2d(channels[i]))
+                self.add_module(f'bachnorm2d_{i}', nn.BatchNorm2d(channels[i]))
 
             if max_pooling:
-                self.add_module(f'maxpool2d_{i}', MaxPool2d(kernel_size=pool_sizes[i],
-                                                            stride=pool_strides[i]))
+                self.add_module(f'maxpool2d_{i}', nn.MaxPool2d(kernel_size=pool_sizes[i],
+                                                               stride=pool_strides[i]))
             elif avg_pooling:
-                self.add_module(f'avgpool2d_{i}', AvgPool2d(kernel_size=pool_sizes[i],
-                                                            stride=pool_strides[i]))
-        self.add_module('flatten', Flatten())
+                self.add_module(f'avgpool2d_{i}', nn.AvgPool2d(kernel_size=pool_sizes[i],
+                                                               stride=pool_strides[i]))
+        self.add_module('flatten', nn.Flatten())
 
         with t.no_grad():
             self.output_dim = np.prod(
                 self(t.zeros(1, visual_dim[-1], visual_dim[0], visual_dim[1])).shape[1:])
 
 
-class ResnetNetwork(t.nn.Module):
+class ResnetNetwork(nn.Module):
 
     def __init__(self, visual_dim):
         super().__init__()
@@ -119,11 +112,14 @@ class ResnetNetwork(t.nn.Module):
         in_channels = [visual_dim[-1]] + self.out_channels[:-1]
         self.res_blocks = 2
         for i in range(len(self.out_channels)):
-            setattr(self, 'conv' + str(i), Conv2d(in_channels=in_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1)))
-            setattr(self, 'pool' + str(i), MaxPool2d(kernel_size=[3, 3], stride=[2, 2], padding='same'))
+            setattr(self, 'conv' + str(i), nn.Conv2d(
+                in_channels=in_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1)))
+            setattr(self, 'pool' + str(i),
+                    nn.MaxPool2d(kernel_size=[3, 3], stride=[2, 2], padding='same'))
             for j in range(self.res_blocks):
-                setattr(self, 'resblock' + str(i) + 'conv' + str(j), Conv2d(in_channels=self.out_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1), padding='same'))
-        self.flatten = Flatten()
+                setattr(self, 'resblock' + str(i) + 'conv' + str(j), nn.Conv2d(
+                    in_channels=self.out_channels[i], out_channels=self.out_channels[i], kernel_size=[3, 3], stride=(1, 1), padding='same'))
+        self.flatten = nn.Flatten()
 
         with t.no_grad():
             self.output_dim = np.prod(
@@ -142,10 +138,10 @@ class ResnetNetwork(t.nn.Module):
             x = getattr(self, 'conv' + str(i))(x)
             block_x = x = getattr(self, 'pool' + str(i))(x)
             for j in range(self.res_blocks):
-                x = t.nn.functional.relu(x)
+                x = F.relu(x)
                 x = getattr(self, 'resblock' + str(i) + 'conv' + str(j))(x)
             x += block_x
-        x = t.nn.functional.relu(x)
+        x = F.relu(x)
         x = self.flatten(x)
         return x
 

@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
+from collections import defaultdict
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 import torch as t
-
-from collections import defaultdict
+import torch.nn.functional as F
 from torch import distributions as td
-from typing import (List,
-                    Union,
-                    NoReturn,
-                    Dict)
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
-from rls.nn.noised_actions import Noise_action_REGISTER
-from rls.nn.models import (MACriticQvalueOne,
-                           ActorDct,
-                           ActorDPG)
-from rls.utils.torch_utils import q_target_func
-from rls.common.decorator import iTensor_oNumpy
-from rls.nn.modules.wrappers import TargetTwin
-from rls.nn.utils import OPLR
+from rls.common.decorator import iton
 from rls.common.specs import Data
+from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
+from rls.nn.modules.wrappers import TargetTwin
+from rls.nn.noised_actions import Noise_action_REGISTER
+from rls.nn.utils import OPLR
+from rls.utils.torch_utils import n_step_return
 
 
 class MADDPG(MultiAgentOffPolicy):
@@ -55,23 +51,24 @@ class MADDPG(MultiAgentOffPolicy):
         for id in set(self.model_ids):
             if self.is_continuouss[id]:
                 self.actors[id] = TargetTwin(ActorDPG(self.obs_specs[id],
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_continuous']),
                                              self.ployak).to(self.device)
             else:
                 self.actors[id] = TargetTwin(ActorDct(self.obs_specs[id],
-                                                      rep_net_params=self.rep_net_params,
+                                                      rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_discrete']),
                                              self.ployak).to(self.device)
             self.critics[id] = TargetTwin(MACriticQvalueOne(list(self.obs_specs.values()),
-                                                            rep_net_params=self.rep_net_params,
-                                                            action_dim=sum(self.a_dims.values()),
+                                                            rep_net_params=self._rep_net_params,
+                                                            action_dim=sum(
+                                                                self.a_dims.values()),
                                                             network_settings=network_settings['q']),
                                           self.ployak).to(self.device)
-        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr)
-        self.critic_oplr = OPLR(list(self.critics.values()), critic_lr)
+        self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(list(self.critics.values()), critic_lr, **self._oplr_params)
 
         # TODO: 添加动作类型判断
         self.noised_actions = {id: Noise_action_REGISTER[noise_action](**noise_params)
@@ -84,15 +81,16 @@ class MADDPG(MultiAgentOffPolicy):
 
     def episode_reset(self):
         super().episode_reset()
-        for noised_action in self.noised_actions:
+        for noised_action in self.noised_actions.values():
             noised_action.reset()
 
-    @iTensor_oNumpy
-    def __call__(self, obs: Dict):
-        mus = {}
-        pis = {}
+    @iton
+    def select_action(self, obs: Dict):
+        acts_info = {}
+        actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            output = self.actors[mid](obs[aid])  # [B, A]
+            output = self.actors[mid](obs[aid], rnncs=self.rnncs[aid])  # [B, A]
+            self.rnncs_[aid] = self.actors[mid].get_rnncs()
             if self.is_continuouss[aid]:
                 mu = output  # [B, A]
                 pi = self.noised_actions[mid](mu)   # [B, A]
@@ -101,11 +99,12 @@ class MADDPG(MultiAgentOffPolicy):
                 mu = logits.argmax(-1)   # [B,]
                 cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()  # [B,]
-            mus[aid] = Data(action=mu)
-            pis[aid] = Data(action=pi)
-        return mus if not self._is_train_mode else pis
+            action = pi if self._is_train_mode else mu
+            acts_info[aid] = Data(action=action)
+            actions[aid] = action
+        return actions, acts_info
 
-    @iTensor_oNumpy
+    @iton
     def _train(self, BATCH_DICT):
         '''
         TODO: Annotation
@@ -114,74 +113,76 @@ class MADDPG(MultiAgentOffPolicy):
         target_actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                target_actions[aid] = self.actors[mid].t(BATCH_DICT[aid].obs_)  # [T, B, A]
+                target_actions[aid] = self.actors[mid].t(BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
-                target_logits = self.actors[mid].t(BATCH_DICT[aid].obs_)    # [T, B, A]
+                target_logits = self.actors[mid].t(BATCH_DICT[aid].obs_, begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
                 target_pi = target_cate_dist.sample()   # [T, B]
-                action_target = t.nn.functional.one_hot(target_pi, self.a_dims[aid]).float()  # [T, B, A]
+                action_target = F.one_hot(target_pi, self.a_dims[aid]).float()  # [T, B, A]
                 target_actions[aid] = action_target  # [T, B, A]
         target_actions = t.cat(list(target_actions.values()), -1)   # [T, B, N*A]
 
+        qs, q_targets = {}, {}
+        for mid in self.model_ids:
+            qs[mid] = self.critics[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
+                                        t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1))   # [T, B, 1]
+            q_targets[mid] = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
+                                                 target_actions)  # [T, B, 1]
+
         q_loss = {}
+        td_errors = 0.
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            q_target = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids], target_actions)  # [T, B, 1]
-            q = self.critics[mid](
-                [BATCH_DICT[id].obs for id in self.agent_ids],
-                t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
-            )   # [T, B, 1]
-            dc_r = q_target_func(BATCH_DICT[aid].reward,
+            dc_r = n_step_return(BATCH_DICT[aid].reward,
                                  self.gamma,
-                                 (1. - BATCH_DICT[aid].done),
-                                 q_target,
-                                 BATCH_DICT['global'].begin_mask,
-                                 use_rnn=True
-                                 )  # [T, B, 1]
-            td_error = dc_r - q  # [T, B, 1]
+                                 BATCH_DICT[aid].done,
+                                 q_targets[mid],
+                                 BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
+            td_error = dc_r - qs[mid]  # [T, B, 1]
+            td_errors += td_error
             q_loss[aid] = 0.5 * td_error.square().mean()    # 1
             summaries[aid].update(dict([
-                ['Statistics/q_min', q.min()],
-                ['Statistics/q_mean', q.mean()],
-                ['Statistics/q_max', q.max()]
+                ['Statistics/q_min', qs[mid].min()],
+                ['Statistics/q_mean', qs[mid].mean()],
+                ['Statistics/q_max', qs[mid].max()]
             ]))
-        self.critic_oplr.step(sum(q_loss.values()))
+        self.critic_oplr.optimize(sum(q_loss.values()))
 
         actor_loss = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
-                mu = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+                mu = self.actors[mid](BATCH_DICT[aid].obs,
+                                      begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             else:
-                logits = self.actors[mid](BATCH_DICT[aid].obs)  # [T, B, A]
+                logits = self.actors[mid](BATCH_DICT[aid].obs,
+                                          begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 logp_all = logits.log_softmax(-1)   # [T, B, A]
                 gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
                 _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
-                _pi_true_one_hot = t.nn.functional.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
+                _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
                 _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
                 mu = _pi_diff + _pi  # [T, B, A]
 
-            all_actions = {id: BATCH_DICT[aid].action for id in self.agent_ids}
+            all_actions = {id: BATCH_DICT[id].action for id in self.agent_ids}
             all_actions[aid] = mu
             q_actor = self.critics[mid](
-                [BATCH_DICT[aid].obs for id in self.agent_ids],
-                t.cat(list(all_actions.values()), -1)
+                [BATCH_DICT[id].obs for id in self.agent_ids],
+                t.cat(list(all_actions.values()), -1),
+                begin_mask=BATCH_DICT['global'].begin_mask
             )   # [T, B, 1]
             actor_loss[aid] = -q_actor.mean()   # 1
 
-        self.actor_oplr.step(sum(actor_loss.values()))
+        self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
             summaries[aid].update(dict([
                 ['LOSS/actor_loss', actor_loss[aid]],
-                ['LOSS/critic_loss', q_loss[aid]],
-                # ['Statistics/q_min', q.min()],
-                # ['Statistics/q_mean', q.mean()],
-                # ['Statistics/q_max', q.max()]
+                ['LOSS/critic_loss', q_loss[aid]]
             ]))
         summaries['model'].update(dict([
             ['LOSS/actor_loss', sum(actor_loss.values())],
             ['LOSS/critic_loss', sum(q_loss.values())]
         ]))
-        return summaries
+        return td_errors / self.n_agents_percopy, summaries
 
     def _after_train(self):
         super()._after_train()

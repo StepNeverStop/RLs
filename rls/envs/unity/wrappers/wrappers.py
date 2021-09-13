@@ -2,23 +2,21 @@
 # encoding: utf-8
 
 import os
-import numpy as np
-
-from copy import deepcopy
-from typing import (List,
-                    Dict)
 from collections import defaultdict
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
-from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
+from copy import deepcopy
+from typing import Dict, List
 
+import numpy as np
+from mlagents_envs.environment import UnityEnvironment
+from mlagents_envs.side_channel.engine_configuration_channel import \
+    EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import \
+    EnvironmentParametersChannel
+
+from rls.common.specs import Data, EnvAgentSpec, SensorSpec
 from rls.common.yaml_ops import load_config
+from rls.envs.unity.wrappers.core import ActionWrapper, ObservationWrapper
 from rls.utils.np_utils import get_discrete_action_list
-from rls.common.specs import (Data,
-                              SensorSpec,
-                              EnvAgentSpec)
-from rls.envs.unity.wrappers.core import (ObservationWrapper,
-                                          ActionWrapper)
 
 
 class BasicUnityEnvironment(object):
@@ -46,7 +44,8 @@ class BasicUnityEnvironment(object):
         self._n_copys = env_copys
         self._real_done = real_done
 
-        self._side_channels = self.initialize_all_side_channels(initialize_config, engine_config)
+        self._side_channels = self.initialize_all_side_channels(
+            initialize_config, engine_config)
         env_kwargs = dict(seed=seed,
                           worker_id=worker_id,
                           timeout_wait=timeout_wait,
@@ -68,9 +67,11 @@ class BasicUnityEnvironment(object):
         初始化所有的通讯频道
         '''
         engine_configuration_channel = EngineConfigurationChannel()
-        engine_configuration_channel.set_configuration_parameters(**engine_config)
+        engine_configuration_channel.set_configuration_parameters(
+            **engine_config)
         float_properties_channel = EnvironmentParametersChannel()
-        float_properties_channel.set_float_parameter('env_copys', self._n_copys)
+        float_properties_channel.set_float_parameter(
+            'env_copys', self._n_copys)
         for k, v in initialize_config.items():
             float_properties_channel.set_float_parameter(k, v)
         return dict(engine_configuration_channel=engine_configuration_channel,
@@ -102,7 +103,8 @@ class BasicUnityEnvironment(object):
                     self._visual_idxs[bn].append(i)
                     self._visual_dims[bn].append(list(obs_spec.shape))
                 else:
-                    raise ValueError("shape of observation cannot be understood.")
+                    raise ValueError(
+                        "shape of observation cannot be understood.")
 
             action_spec = spec.action_spec
             if action_spec.is_continuous():
@@ -110,17 +112,22 @@ class BasicUnityEnvironment(object):
                 self._discrete_action_lists[bn] = None
                 self._is_continuous[bn] = True
             elif action_spec.is_discrete():
-                self._a_dim[bn] = int(np.asarray(action_spec.discrete_branches).prod())
-                self._discrete_action_lists[bn] = get_discrete_action_list(action_spec.discrete_branches)
+                self._a_dim[bn] = int(np.asarray(
+                    action_spec.discrete_branches).prod())
+                self._discrete_action_lists[bn] = get_discrete_action_list(
+                    action_spec.discrete_branches)
                 self._is_continuous[bn] = False
             else:
-                raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
+                raise NotImplementedError(
+                    "doesn't support continuous and discrete actions simultaneously for now.")
 
-            self._actiontuples[bn] = action_spec.empty_action(n_agents=self._n_copys)
+            self._actiontuples[bn] = action_spec.empty_action(
+                n_agents=self._n_copys)
 
     def reset(self, reset_config):
         for k, v in reset_config.items():
-            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
+            self._side_channels['float_properties_channel'].set_float_parameter(
+                k, v)
         self.env.reset()
         return self.get_obs(only_obs=True)
 
@@ -130,7 +137,8 @@ class BasicUnityEnvironment(object):
                 not dict, then set those actions for the first behavior controller.
         '''
         for k, v in step_config.items():
-            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
+            self._side_channels['float_properties_channel'].set_float_parameter(
+                k, v)
 
         actions = deepcopy(actions)
 
@@ -161,8 +169,7 @@ class BasicUnityEnvironment(object):
 
     @property
     def StateSpec(self) -> SensorSpec:
-        return SensorSpec(vector_dims=None,
-                          visual_dims=None)
+        return SensorSpec()
 
     @property
     def agent_ids(self) -> List[str]:
@@ -176,12 +183,13 @@ class BasicUnityEnvironment(object):
 
         whole_done = np.full(self._n_copys, False)
         whole_info_max_step = np.full(self._n_copys, False)
-        all_obs = {}
+        all_obs_fa, all_obs_fs = {}, {}
         all_reward = {}
 
         for bn in behavior_names:
             ps = []
 
+            # TODO: optimize
             while True:
                 ds, ts = self.env.get_steps(bn)
                 if len(ts):
@@ -191,50 +199,62 @@ class BasicUnityEnvironment(object):
                 elif len(ds) == 0:
                     self.env.step()  # some of environments done, but some of not
                 else:
-                    raise ValueError(f'agents number error. Expected 0 or {self._n_copys}, received {len(ds)}')
+                    raise ValueError(
+                        f'agents number error. Expected 0 or {self._n_copys}, received {len(ds)}')
 
-            obs, reward = ds.obs, ds.reward
+            obs_fs, reward = ds.obs, ds.reward
+            obs_fa = deepcopy(obs_fs)
             done = np.full(self._n_copys, False)
             begin_mask = np.full(self._n_copys, False)
             info_max_step = np.full(self._n_copys, False)
             info_real_done = np.full(self._n_copys, False)
 
             for ts in ps:    # TODO: 有待优化
-                _ids = np.asarray(list(ts.agent_id_to_index.values()))
+                _ids = ts.agent_id
                 reward[_ids] = ts.reward
                 info_max_step[_ids] = ts.interrupted    # 因为达到episode最大步数而终止的
-                info_real_done[_ids[~ts.interrupted]] = True  # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                # 去掉因为max_step而done的，只记录因为失败/成功而done的
+                info_real_done[_ids[~ts.interrupted]] = True
                 done[_ids] = True
                 begin_mask[_ids] = True
                 # zip: vector, visual, ...
-                for _obs, _tobs in zip(obs, ts.obs):
+                for _obs, _tobs in zip(obs_fa, ts.obs):
                     _obs[_ids] = _tobs
 
             if self._real_done:
                 done = np.array(info_real_done)
 
-            _obs = Data()
+            _obs_fa = Data()
+            _obs_fs = Data()
             if len(self._vector_idxs[bn]) > 0:
-                _obs.update(vector={f'vector_{i}': obs[vi] for i, vi in enumerate(self._vector_idxs[bn])})
-            elif len(self._visual_idxs[bn]) > 0:
-                _obs.updata(visual={f'visual_{i}': obs[vi] for i, vi in enumerate(self._visual_idxs[bn])})
-            all_obs[bn] = _obs
+                _obs_fa.update(vector={f'vector_{i}': obs_fa[vi] for i, vi in enumerate(self._vector_idxs[bn])})
+                _obs_fs.update(vector={f'vector_{i}': obs_fs[vi] for i, vi in enumerate(self._vector_idxs[bn])})
+
+            if len(self._visual_idxs[bn]) > 0:
+                _obs_fa.update(visual={f'visual_{i}': obs_fa[vi] for i, vi in enumerate(self._visual_idxs[bn])})
+                _obs_fs.update(visual={f'visual_{i}': obs_fs[vi] for i, vi in enumerate(self._visual_idxs[bn])})
+
+            all_obs_fa[bn] = _obs_fa
+            all_obs_fs[bn] = _obs_fs
             all_reward[bn] = reward
 
         whole_done = np.logical_or(whole_done, done)
         whole_info_max_step = np.logical_or(whole_info_max_step, info_max_step)
 
         if only_obs:
-            all_obs.update({'global': Data(begin_mask=np.full((self._n_copys, 1), True))})
-            return all_obs
+            all_obs_fa.update(
+                {'global': Data(begin_mask=np.full((self._n_copys, 1), True))})
+            return all_obs_fa
         else:
             rets = {}
             for bn in self.behavior_names:
-                rets[bn] = Data(obs=all_obs[bn],
+                rets[bn] = Data(obs_fa=all_obs_fa[bn],
+                                obs_fs=all_obs_fs[bn],
                                 reward=all_reward[bn],
                                 done=whole_done,
                                 info=dict(max_step=whole_info_max_step))
-            rets.update({'global': Data(begin_mask=begin_mask[:, np.newaxis])})  # [B, 1]
+            rets.update(
+                {'global': Data(begin_mask=begin_mask[:, np.newaxis])})  # [B, 1]
             return rets
 
     def __getattr__(self, name):
@@ -242,7 +262,8 @@ class BasicUnityEnvironment(object):
         不允许获取BasicUnityEnvironment中以'_'开头的属性
         '''
         if name.startswith('_'):
-            raise AttributeError("attempted to get missing private attribute '{}'".format(name))
+            raise AttributeError(
+                "attempted to get missing private attribute '{}'".format(name))
         return getattr(self.env, name)
 
 

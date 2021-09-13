@@ -3,12 +3,14 @@
 
 from copy import deepcopy
 
-from rls.common.specs import NamedDict
+from easydict import EasyDict
+
 from rls.utils.logging_utils import get_logger
+
 logger = get_logger(__name__)
 
 
-def make_env(env_kargs: NamedDict):
+def make_env(env_kargs: EasyDict):
     logger.info('Initialize environment begin...')
 
     copied_env_kargs = deepcopy(env_kargs)

@@ -1,14 +1,11 @@
 import sys
+from typing import Dict, List, NoReturn, Union
+
 import numpy as np
 
-from typing import (List,
-                    Dict,
-                    Union,
-                    NoReturn)
-
 from rls.common.specs import Data
-from rls.memories.sum_tree import Sum_Tree
 from rls.memories.er_buffer import DataBuffer
+from rls.memories.sum_tree import Sum_Tree
 
 
 class PrioritizedDataBuffer(DataBuffer):
@@ -17,7 +14,7 @@ class PrioritizedDataBuffer(DataBuffer):
                  n_copys=1,
                  batch_size=1,
                  buffer_size=4,
-                 time_step=1,
+                 chunk_length=1,
                  max_train_step: int = sys.maxsize,
 
                  alpha: float = 0.6,
@@ -34,8 +31,9 @@ class PrioritizedDataBuffer(DataBuffer):
         super().__init__(n_copys=n_copys,
                          batch_size=batch_size,
                          buffer_size=buffer_size,
-                         time_step=time_step)
-        self._tree = Sum_Tree(self.buffer_size)  # [T0B0, ..., T0BN, T1B0, ..., T1BN, ..., TNBN]
+                         chunk_length=chunk_length)
+        # [T0B0, ..., T0BN, T1B0, ..., T1BN, ..., TNBN]
+        self._tree = Sum_Tree(self.buffer_size)
         self.alpha = alpha
         self.beta = beta
         self.beta_interval = (1. - beta) / max_train_step
@@ -46,14 +44,15 @@ class PrioritizedDataBuffer(DataBuffer):
 
     def add(self, data: Dict[str, Data]):
         super().add(data)
-        self._tree.add_batch(np.full(self.n_copys, self.max_p), n_step_delay=self.time_step-1)
+        self._tree.add_batch(np.full(self.n_copys, self.max_p),
+                             n_step_delay=self._chunk_length-1)
 
-    def sample(self, batchsize=None, timestep=None):
+    def sample(self, batchsize=None, chunk_length=None):
         B = batchsize or self.batch_size
-        if timestep is not None:     # TODO: optimize timestep
-            T = min(timestep, self.time_step)
+        if chunk_length is not None:     # TODO: optimize chunk_length
+            T = min(chunk_length, self._chunk_length)
         else:
-            T = self.time_step
+            T = self._chunk_length
         assert T <= self._horizon_length
 
         all_intervals = np.linspace(0, self._tree.total, B + 1)
@@ -63,7 +62,9 @@ class PrioritizedDataBuffer(DataBuffer):
         _min_p = self.min_p if self.global_v and self.min_p < sys.maxsize else p.min()
         x, y = didx // self.n_copys, didx % self.n_copys    # t, b
 
-        xs = (np.tile(np.arange(T)[:, np.newaxis], B) + x) % self._horizon_length    # (T, B) + (B, ) = (T, B)
+        # (T, B) + (B, ) = (T, B)
+        xs = (np.tile(np.arange(T)[:, np.newaxis],
+              B) + x) % self._horizon_length
         sample_idxs = (xs, y)
 
         # weights of variables by using Importance Sampling

@@ -1,6 +1,5 @@
 
 import torch as t
-
 from torch.optim import Optimizer
 
 OP_REGISTER = {}

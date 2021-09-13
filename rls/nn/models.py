@@ -2,30 +2,30 @@
 # encoding: utf-8
 
 import torch as t
-
-from torch.nn import (Linear,
-                      Softmax,
-                      Sequential)
+import torch.nn as nn
 
 from rls.nn.mlps import MLP
-from rls.utils.torch_utils import clip_nn_log_std
 from rls.nn.represent_nets import RepresentationNetwork
+from rls.utils.torch_utils import clip_nn_log_std
+
+Model_REGISTER = {}
 
 
-class BaseModel(t.nn.Module):
+class BaseModel(nn.Module):
 
     def __init__(self, obs_spec, rep_net_params):
         super().__init__()
         self.rep_net = RepresentationNetwork(obs_spec=obs_spec,
                                              rep_net_params=rep_net_params)
-        self._cell_state = None
+        self._rnncs = None
 
-    def repre(self, x, cell_state=None):
-        x, self._cell_state = self.rep_net(x, cell_state=cell_state)
+    def repre(self, x, rnncs=None, begin_mask=None):
+        x, self._rnncs = self.rep_net(
+            x, rnncs=rnncs, begin_mask=begin_mask)
         return x
 
-    def get_cell_state(self):
-        return self._cell_state
+    def get_rnncs(self):
+        return self._rnncs
 
     def forward(self, x):
         raise NotImplementedError
@@ -40,11 +40,15 @@ class ActorDPG(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, output_shape, network_settings, out_act='tanh'):
         super().__init__(obs_spec, rep_net_params)
-        self.net = MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape, out_act=out_act)
+        self.net = MLP(self.rep_net.h_dim, network_settings,
+                       output_shape=output_shape, out_act=out_act)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         return self.net(x)
+
+
+Model_REGISTER['actor_dpg'] = ActorDPG
 
 
 class ActorMuLogstd(BaseModel):
@@ -68,19 +72,23 @@ class ActorMuLogstd(BaseModel):
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = t.nn.Parameter(-0.5 * t.ones(output_shape))
+            self.log_std = nn.Parameter(-0.5 * t.ones(output_shape))
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         x = self.share(x)
         mu = self.mu(x)
         if self.condition_sigma:
             log_std = self.log_std(x)   # [T, B, *] or [B, *]
         else:
             # TODO:
-            log_std = self.log_std.repeat(mu.shape[:-1]+(1,))   # [T, B, *] or [B, *]
+            log_std = self.log_std.repeat(
+                mu.shape[:-1]+(1,))   # [T, B, *] or [B, *]
         log_std = log_std.clamp(self.log_std_min, self.log_std_max)
         return (mu, log_std)
+
+
+Model_REGISTER['actor_mulogstd'] = ActorMuLogstd
 
 
 class ActorCts(BaseModel):
@@ -100,19 +108,25 @@ class ActorCts(BaseModel):
         else:
             ins = self.rep_net.h_dim
         self.mu = MLP(ins, network_settings['mu'], output_shape=output_shape)
-        self.log_std = MLP(ins, network_settings['log_std'], output_shape=output_shape)
+        self.log_std = MLP(
+            ins, network_settings['log_std'], output_shape=output_shape)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         x = self.share(x)   # [B, *] or [T, B, *]
         mu = self.mu(x)  # [B, *] or [T, B, *]
         log_std = self.log_std(x)   # [B, *] or [T, B, *]
         if self.soft_clip:
             log_std.tanh_()  # [B, *] or [T, B, *]
-            log_std = clip_nn_log_std(log_std, self.log_std_min, self.log_std_max)  # [B, *] or [T, B, *]
+            log_std = clip_nn_log_std(
+                log_std, self.log_std_min, self.log_std_max)  # [B, *] or [T, B, *]
         else:
-            log_std.clamp_(self.log_std_min, self.log_std_max)  # [B, *] or [T, B, *]
+            # [B, *] or [T, B, *]
+            log_std.clamp_(self.log_std_min, self.log_std_max)
         return (mu, log_std)
+
+
+Model_REGISTER['actor_continuous'] = ActorCts
 
 
 class ActorDct(BaseModel):
@@ -124,12 +138,16 @@ class ActorDct(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, output_shape, network_settings):
         super().__init__(obs_spec, rep_net_params)
-        self.logits = MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape)
+        self.logits = MLP(self.rep_net.h_dim, network_settings,
+                          output_shape=output_shape)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         logits = self.logits(x)  # [B, *] or [T, B, *]
         return logits
+
+
+Model_REGISTER['actor_discrete'] = ActorDct
 
 
 class CriticQvalueOne(BaseModel):
@@ -141,12 +159,16 @@ class CriticQvalueOne(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, action_dim, network_settings):
         super().__init__(obs_spec, rep_net_params)
-        self.net = MLP(self.rep_net.h_dim + action_dim, network_settings, output_shape=1)
+        self.net = MLP(self.rep_net.h_dim + action_dim,
+                       network_settings, output_shape=1)
 
-    def forward(self, x, a, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, a, **kwargs):
+        x = self.repre(x, **kwargs)
         q = self.net(t.cat((x, a), -1))  # [B, 1] or [T, B, 1]
         return q
+
+
+Model_REGISTER['critic_q1'] = CriticQvalueOne
 
 
 class CriticQvalueOneDDPG(BaseModel):
@@ -156,16 +178,21 @@ class CriticQvalueOneDDPG(BaseModel):
     '''
 
     def __init__(self, obs_spec, rep_net_params, action_dim, network_settings):
-        assert len(network_settings) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
+        assert len(
+            network_settings) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
         super().__init__(obs_spec, rep_net_params)
         self.state_feature_net = MLP(self.rep_net.h_dim, network_settings[0:1])
-        self.net = MLP(self.rep_net.h_dim + action_dim, network_settings[1:], output_shape=1)
+        self.net = MLP(self.rep_net.h_dim + action_dim,
+                       network_settings[1:], output_shape=1)
 
-    def forward(self, x, a, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, a, **kwargs):
+        x = self.repre(x, **kwargs)
         features = self.state_feature_net(x)
         q = self.net(t.cat((x, a), -1))
         return q
+
+
+Model_REGISTER['critic_q1_ddpg'] = CriticQvalueOneDDPG
 
 
 class CriticQvalueOneTD3(BaseModel):
@@ -175,17 +202,22 @@ class CriticQvalueOneTD3(BaseModel):
     '''
 
     def __init__(self, obs_spec, rep_net_params, action_dim, network_settings):
-        assert len(network_settings) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
+        assert len(
+            network_settings) > 1, "if you want to use this architecture of critic network, the number of layers must greater than 1"
         super().__init__(obs_spec, rep_net_params)
-        self.feature_net = MLP(self.rep_net.h_dim + action_dim, network_settings[0:1])
+        self.feature_net = MLP(self.rep_net.h_dim +
+                               action_dim, network_settings[0:1])
         ins = network_settings[-1] + action_dim
         self.net = MLP(ins, network_settings[1:], output_shape=1)
 
-    def forward(self, x, a, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, a, **kwargs):
+        x = self.repre(x, **kwargs)
         features = self.feature_net(t.cat((x, a), -1))
         q = self.net(t.cat((features, a), -1))
         return q
+
+
+Model_REGISTER['critic_q1_td3'] = CriticQvalueOneTD3
 
 
 class CriticValue(BaseModel):
@@ -199,10 +231,13 @@ class CriticValue(BaseModel):
         super().__init__(obs_spec, rep_net_params)
         self.net = MLP(self.rep_net.h_dim, network_settings, output_shape=1)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         v = self.net(x)  # [B, *] or [T, B, *]
         return v
+
+
+Model_REGISTER['critic_v'] = CriticValue
 
 
 class CriticQvalueAll(BaseModel):
@@ -214,12 +249,16 @@ class CriticQvalueAll(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, output_shape, network_settings, out_act=None):
         super().__init__(obs_spec, rep_net_params)
-        self.net = MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape, out_act=out_act)
+        self.net = MLP(self.rep_net.h_dim, network_settings,
+                       output_shape=output_shape, out_act=out_act)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         q = self.net(x)  # [B, *] or [T, B, *]
         return q
+
+
+Model_REGISTER['critic_q_all'] = CriticQvalueAll
 
 
 class CriticQvalueBootstrap(BaseModel):
@@ -229,12 +268,17 @@ class CriticQvalueBootstrap(BaseModel):
 
     def __init__(self, obs_spec, rep_net_params, output_shape, head_num, network_settings):
         super().__init__(obs_spec, rep_net_params)
-        self.nets = t.nn.ModuleList([MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape) for _ in range(head_num)])
+        self.nets = nn.ModuleList(
+            [MLP(self.rep_net.h_dim, network_settings, output_shape=output_shape) for _ in range(head_num)])
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
-        q = t.stack([net(x) for net in self.nets], 0)  # [H, T, B, A] or [H, B, A]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
+        # [H, T, B, A] or [H, B, A]
+        q = t.stack([net(x) for net in self.nets], 0)
         return q
+
+
+Model_REGISTER['critic_q_bootstrap'] = CriticQvalueBootstrap
 
 
 class CriticDueling(BaseModel):
@@ -257,13 +301,16 @@ class CriticDueling(BaseModel):
         self.v = MLP(ins, network_settings['v'], output_shape=1)
         self.adv = MLP(ins, network_settings['adv'], output_shape=output_shape)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         x = self.share(x)   # [B, *] or [T, B, *]
         v = self.v(x)    # [B, 1] or [T, B, 1]
         adv = self.adv(x)  # [B, *] or [T, B, *]
         q = v + adv - adv.mean(-1, keepdim=True)  # [B, *] or [T, B, *]
         return q
+
+
+Model_REGISTER['critic_dueling'] = CriticDueling
 
 
 class OcIntraOption(BaseModel):
@@ -275,14 +322,18 @@ class OcIntraOption(BaseModel):
         super().__init__(obs_spec, rep_net_params)
         self.actions_num = output_shape
         self.options_num = options_num
-        self.pi = MLP(self.rep_net.h_dim, network_settings, output_shape=options_num * output_shape)
+        self.pi = MLP(self.rep_net.h_dim, network_settings,
+                      output_shape=options_num * output_shape)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)    # [B, *] or [T, B, *]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)    # [B, *] or [T, B, *]
         pi = self.pi(x)  # [B, P*A] or [T, B, P*A]
         _shape = pi.shape[:-1] + (self.options_num, self.actions_num)
         pi = pi.view(_shape)  # [B, P, A] or [T, B, P, A]
         return pi
+
+
+Model_REGISTER['oc_intra_option'] = OcIntraOption
 
 
 class AocShare(BaseModel):
@@ -300,11 +351,13 @@ class AocShare(BaseModel):
         else:
             ins = self.rep_net.h_dim
         self.q = MLP(ins, network_settings['q'], output_shape=options_num)
-        self.pi = MLP(ins, network_settings['intra_option'], output_shape=options_num * action_dim, out_act='tanh' if is_continuous else None)
-        self.beta = MLP(ins, network_settings['termination'], output_shape=options_num, out_act='sigmoid')
+        self.pi = MLP(ins, network_settings['intra_option'], output_shape=options_num *
+                      action_dim, out_act='tanh' if is_continuous else None)
+        self.beta = MLP(
+            ins, network_settings['termination'], output_shape=options_num, out_act='sigmoid')
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)    # [B, *] or [T, B, *]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)    # [B, *] or [T, B, *]
         x = self.share(x)   # [B, *] or [T, B, *]
         q = self.q(x)   # [B, P] or [T, B, P]
         pi = self.pi(x)  # [B, P*A] or [T, B, P*A]
@@ -312,6 +365,9 @@ class AocShare(BaseModel):
         pi = pi.view(_shape)  # [B, P, A] or [T, B, P, A]
         beta = self.beta(x)  # [B, P] or [T, B, P]
         return q, pi, beta
+
+
+Model_REGISTER['aoc_share'] = AocShare
 
 
 class PpocShare(BaseModel):
@@ -329,12 +385,15 @@ class PpocShare(BaseModel):
         else:
             ins = self.rep_net.h_dim
         self.q = MLP(ins, network_settings['q'], output_shape=options_num)
-        self.pi = MLP(ins, network_settings['intra_option'], output_shape=options_num * action_dim, out_act='tanh' if is_continuous else None)
-        self.beta = MLP(ins, network_settings['termination'], output_shape=options_num, out_act='sigmoid')
-        self.o = MLP(ins, network_settings['o'], output_shape=options_num, out_act='log_softmax')
+        self.pi = MLP(ins, network_settings['intra_option'], output_shape=options_num *
+                      action_dim, out_act='tanh' if is_continuous else None)
+        self.beta = MLP(
+            ins, network_settings['termination'], output_shape=options_num, out_act='sigmoid')
+        self.o = MLP(
+            ins, network_settings['o'], output_shape=options_num, out_act='log_softmax')
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)    # [B, *] or [T, B, *]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)    # [B, *] or [T, B, *]
         x = self.share(x)   # [B, *] or [T, B, *]
         q = self.q(x)   # [B, P] or [T, B, P]
         pi = self.pi(x)  # [B, P*A] or [T, B, P*A]
@@ -343,6 +402,9 @@ class PpocShare(BaseModel):
         beta = self.beta(x)  # [B, P] or [T, B, P]
         o = self.o(x)  # [B, P] or [T, B, P]
         return q, pi, beta, o
+
+
+Model_REGISTER['ppoc_share'] = PpocShare
 
 
 class ActorCriticValueCts(BaseModel):
@@ -370,10 +432,10 @@ class ActorCriticValueCts(BaseModel):
         if self.condition_sigma:
             self.log_std = MLP(ins, [], output_shape=output_shape)
         else:
-            self.log_std = t.nn.Parameter(-0.5 * t.ones(output_shape))
+            self.log_std = nn.Parameter(-0.5 * t.ones(output_shape))
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         x = self.share(x)
         v = self.v(x)
         x_mu_logstd = self.mu_logstd_share(x)
@@ -381,9 +443,13 @@ class ActorCriticValueCts(BaseModel):
         if self.condition_sigma:
             log_std = self.log_std(x_mu_logstd)  # [T, B, *] or [B, *]
         else:
-            log_std = self.log_std.repeat(mu.shape[:-1]+(1,))   # [T, B, *] or [B, *]
+            log_std = self.log_std.repeat(
+                mu.shape[:-1]+(1,))   # [T, B, *] or [B, *]
         log_std = log_std.clamp(self.log_std_min, self.log_std_max)
         return (mu, log_std, v)
+
+
+Model_REGISTER['ac_v_continuous'] = ActorCriticValueCts
 
 
 class ActorCriticValueDct(BaseModel):
@@ -400,15 +466,19 @@ class ActorCriticValueDct(BaseModel):
             ins = network_settings['share'][-1]
         else:
             ins = self.rep_net.h_dim
-        self.logits = MLP(ins, network_settings['logits'], output_shape=output_shape)
+        self.logits = MLP(
+            ins, network_settings['logits'], output_shape=output_shape)
         self.v = MLP(ins, network_settings['v'], output_shape=1)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         x = self.share(x)
         logits = self.logits(x)
         v = self.v(x)
         return (logits, v)
+
+
+Model_REGISTER['ac_v_discrete'] = ActorCriticValueDct
 
 
 class C51Distributional(BaseModel):
@@ -419,27 +489,19 @@ class C51Distributional(BaseModel):
     def __init__(self, obs_spec, rep_net_params, action_dim, atoms, network_settings):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
-        self.atoms = atoms
-        self.net = MLP(self.rep_net.h_dim, network_settings)
-        if network_settings:
-            ins = network_settings[-1]
-        else:
-            ins = self.rep_net.h_dim
-        self.outputs = []
-        for _ in range(action_dim):
-            self.outputs.append(
-                Sequential(
-                    Linear(ins, atoms),
-                    Softmax(-1)
-                )
-            )
+        self._atoms = atoms
+        self.net = MLP(self.rep_net.h_dim, network_settings,
+                       output_shape=self.action_dim*self._atoms)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
-        feat = self.net(x)    # [B, *] or [T, B, *]
-        outputs = [output(feat) for output in self.outputs]  # A * [B, *] or A * [T, B, *]
-        q_dist = t.stack(outputs, -1)  # [B, *, A] or [T, B, *, A]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
+        qs = self.net(x)    # [B, A*N] or [T, B, A*N]
+        # [B, A, N] or [T, B, A, N]
+        q_dist = qs.view(qs.shape[:-1]+(self.action_dim, self._atoms)).softmax(-1)
         return q_dist
+
+
+Model_REGISTER['c51'] = C51Distributional
 
 
 class QrdqnDistributional(BaseModel):
@@ -451,14 +513,18 @@ class QrdqnDistributional(BaseModel):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
         self.nums = nums
-        self.net = MLP(self.rep_net.h_dim, network_settings, output_shape=nums * action_dim)
+        self.net = MLP(self.rep_net.h_dim, network_settings,
+                       output_shape=nums * action_dim)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
         q_dist = self.net(x)    # [B, A*N] or [T, B, A*N]
         _shape = q_dist.shape[:-1] + (self.action_dim, self.nums)
         q_dist = q_dist.view(_shape)   # [B, A, N] or [T, B, A, N]
         return q_dist
+
+
+Model_REGISTER['qrdqn'] = C51Distributional
 
 
 class RainbowDueling(BaseModel):
@@ -474,60 +540,79 @@ class RainbowDueling(BaseModel):
     def __init__(self, obs_spec, rep_net_params, action_dim, atoms, network_settings):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
-        self.atoms = atoms
-        self.share = MLP(self.rep_net.h_dim, network_settings['share'], layer='noisy')
+        self._atoms = atoms
+        self.share = MLP(self.rep_net.h_dim,
+                         network_settings['share'], layer='noisy')
         if network_settings['share']:
             ins = network_settings['share'][-1]
         else:
             ins = self.rep_net.h_dim
-        self.v = MLP(ins, network_settings['v'], layer='noisy', output_shape=atoms)
-        self.adv = MLP(ins, network_settings['adv'], layer='noisy', output_shape=action_dim * atoms)
+        self.v = MLP(ins, network_settings['v'],
+                     layer='noisy', output_shape=atoms)
+        self.adv = MLP(
+            ins, network_settings['adv'], layer='noisy', output_shape=action_dim * atoms)
 
-    def forward(self, x, cell_state=None):
-        x = self.repre(x, cell_state=cell_state)    # [B, N] or [T, B, N]
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)    # [B, N] or [T, B, N]
         x = self.share(x)   # [B, N] or [T, B, N]
         v = self.v(x)       # [B, N] or [T, B, N]
         adv = self.adv(x)   # [B, A*N] or [T, B, A*N]
         adv -= adv.mean(-1, keepdim=True)  # [B, A*N] or [T, B, A*N]
-        q = v.repeat((1,)*(v.ndim-1)+(self.action_dim,)) + adv  # [B, A*N] or [T, B, A*N]
-        q = q.view(q.shape[:-1]+(self.action_dim, self.atoms))  # [B, A, N] or [T, B, A, N]
-        q = q.softmax(-1)    # [B, A, N] or [T, B, A, N]
-        return q  # [B, A, N] or [T, B, A, N]
+        q = v.repeat((1,)*(v.ndim-1)+(self.action_dim,)) + \
+            adv  # [B, A*N] or [T, B, A*N]
+        # [B, A, N] or [T, B, A, N]
+        qs = q.view(q.shape[:-1]+(self.action_dim, self._atoms)
+                    ).softmax(-1)    # [B, A, N] or [T, B, A, N]
+        return qs  # [B, A, N] or [T, B, A, N]
+
+
+Model_REGISTER['rainbow'] = RainbowDueling
 
 
 class IqnNet(BaseModel):
     def __init__(self, obs_spec, rep_net_params, action_dim, quantiles_idx, network_settings):
         super().__init__(obs_spec, rep_net_params)
         self.action_dim = action_dim
-        self.q_net_head = MLP(self.rep_net.h_dim, network_settings['q_net'])   # [B, self.rep_net.h_dim]
-        self.quantile_net = MLP(quantiles_idx, network_settings['quantile'])  # [N*B, quantiles_idx]
+        # [B, self.rep_net.h_dim]
+        self.q_net_head = MLP(self.rep_net.h_dim, network_settings['q_net'])
+        # [N*B, quantiles_idx]
+        self.quantile_net = MLP(quantiles_idx, network_settings['quantile'])
         if network_settings['quantile']:    # TODO
             ins = network_settings['quantile'][-1]
         else:
             ins = quantiles_idx
-        self.q_net_tile = MLP(ins, network_settings['tile'], output_shape=action_dim)   # [N*B, network_settings['quantile'][-1]]
+        # [N*B, network_settings['quantile'][-1]]
+        self.q_net_tile = MLP(
+            ins, network_settings['tile'], output_shape=action_dim)
 
-    def forward(self, x, quantiles_tiled, *, cell_state=None):
+    def forward(self, x, quantiles_tiled, **kwargs):
         '''
         params:
             x: [B, *] or [T, B, *]
             quantiles_tiled: [N*B, *] or [T, N*B, *]
         '''
-        x = self.repre(x, cell_state=cell_state)    # [B, *] or [T, B, *]
+        x = self.repre(x, **kwargs)    # [B, *] or [T, B, *]
         q_h = self.q_net_head(x)  # [B, *] or [T, B, *]
 
         quantiles_num = quantiles_tiled.shape[-2] // q_h.shape[-2]
 
-        q_h = q_h.repeat((1,)*(q_h.ndim-2) + (quantiles_num, 1))  # [B, *] => [N*B, *] or [T, B, *] => [T, N*B, *]
-        quantile_h = self.quantile_net(quantiles_tiled)  # [N*B, *] or [T, N*B, *]
+        # [B, *] => [N*B, *] or [T, B, *] => [T, N*B, *]
+        q_h = q_h.repeat((1,)*(q_h.ndim-2) + (quantiles_num, 1))
+        quantile_h = self.quantile_net(
+            quantiles_tiled)  # [N*B, *] or [T, N*B, *]
         hh = q_h * quantile_h  # [N*B, *] or [T, N*B, *]
         quantiles_value = self.q_net_tile(hh)  # [N*B, A] or [T, N*B, *]
-        _shape = quantiles_value.shape[:-2] + (quantiles_num, -1, self.action_dim)
-        quantiles_value = quantiles_value.view(_shape)   # [N*B, A] => [N, B, A]  or [T, N*B, A] => [T, N, B, A]
+        _shape = quantiles_value.shape[:-2] + \
+            (quantiles_num, -1, self.action_dim)
+        # [N*B, A] => [N, B, A]  or [T, N*B, A] => [T, N, B, A]
+        quantiles_value = quantiles_value.view(_shape)
         return quantiles_value  # [N, B, A] or [T, N, B, A]
 
 
-class MACriticQvalueOne(t.nn.Module):
+Model_REGISTER['iqn'] = IqnNet
+
+
+class MACriticQvalueOne(nn.Module):
     '''
     use for evaluate the value given a state-action pair.
     input: t.cat((state, action),axis = 1)
@@ -536,7 +621,7 @@ class MACriticQvalueOne(t.nn.Module):
 
     def __init__(self, obs_specs, rep_net_params, action_dim, network_settings):
         super().__init__()
-        self.rep_nets = t.nn.ModuleList()
+        self.rep_nets = nn.ModuleList()
         for obs_spec in obs_specs:
             self.rep_nets.append(RepresentationNetwork(
                 obs_spec, rep_net_params
@@ -544,11 +629,14 @@ class MACriticQvalueOne(t.nn.Module):
         h_dim = sum([rep_net.h_dim for rep_net in self.rep_nets])
         self.net = MLP(h_dim + action_dim, network_settings, output_shape=1)
 
-    def forward(self, x, a):
+    def forward(self, x, a, **kwargs):
         outs = []
         for _in, rep_net in zip(x, self.rep_nets):
-            _out, _ = rep_net(_in)
+            _out, _ = rep_net(_in, **kwargs)
             outs.append(_out)
         x = t.cat(outs, -1)
         q = self.net(t.cat((x, a), -1))
         return q
+
+
+Model_REGISTER['ma_critic_q1'] = MACriticQvalueOne
