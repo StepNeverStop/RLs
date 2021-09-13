@@ -1,0 +1,30 @@
+# command
+platform: gym
+algorithm: ppo
+render: false
+copys: 1
+device: cpu
+env_name: CartPole-v0
+file_name: ~
+inference: false
+load_path: ~
+models: 1
+seed: 42
+name: default_train
+config_file: ~
+store_dir: ./data
+max_train_step: 0 # if max_train_step > 0, then training will stop when training steps > max_train_step.
+episode_length: 1000 # episode_length per episode, if gym.env.max_episode_steps > episode_length, then PEB(Partial Episode Bootstraping), else TimeLimit.
+prefill_steps: 10000 # prefill_steps should be set to an integer multiple of '--copy' to get an accurate pre-fill number
+prefill_choose: false
+hostname: false
+save: true
+info: ""
+#
+
+logger2file: false
+inference_episode: 0
+moving_average_episode: 100
+allow_print: true
+reset_config: {}
+step_config: {}

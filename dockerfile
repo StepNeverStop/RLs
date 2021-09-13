@@ -3,7 +3,7 @@ FROM nvidia/cuda:10.1-cudnn7-runtime-ubuntu16.04
 LABEL maintainer="StepNeverStop(Keavnn)"\
       github="https://github.com/StepNeverStop/RLs"\
       description="Docker image for runing RLs."\
-      rls_version="0.0.1"\
+      rls_version="5.0.0"\
       email="keavnn.wjs@gmail.com"
 
 ENV LANG C.UTF-8
@@ -48,7 +48,7 @@ RUN . /opt/conda/etc/profile.d/conda.sh && \
     pip install -e . && \
     /opt/conda/bin/conda build purge-all && \
     rm -rf ~/.cache/pip/* && \
-    python run.py --gym -a dqn -t 2000 -s 100 --prefill-steps 1000 --no-save && \
+    python run.py -p gym -a dqn -c 4 -t 10000 && \
     echo -e "\033[4;41;32m run rls successed. \033[0m"
 
 # 22:ssh 6006:tensorboard 8888:jupyter lab

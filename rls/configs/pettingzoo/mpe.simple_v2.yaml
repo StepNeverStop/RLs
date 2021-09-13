@@ -1,0 +1,5 @@
+env_name: mpe.simple_v2
+
+env_config:
+  max_cycles: 25
+  continuous_actions: false

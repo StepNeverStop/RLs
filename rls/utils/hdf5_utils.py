@@ -1,7 +1,9 @@
+from typing import NamedTuple
+
 import h5py
 import numpy as np
 
-from typing import NamedTuple
+# TODO:
 
 
 def namedtuple2hdf5(path: str, data: NamedTuple):

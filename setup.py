@@ -2,7 +2,8 @@
 # encoding: utf-8
 import platform
 from importlib import util as import_util
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 spec = import_util.spec_from_file_location('_metadata', 'rls/_metadata.py')
 _metadata = import_util.module_from_spec(spec)
@@ -22,31 +23,13 @@ systembased_extras = {
     'nowindows': []
 }
 extras = {
-    'ray': [
-        'pytest-runner',
-        'ray'
-    ],
-    'unity': [
-        'mlagents-envs==0.26.0'
-    ],
-
-    'atari': [
-        'imageio',
-        'atari-py==0.2.6',
-        'opencv-python==4.4.0.46'
-    ],
-    'mujoco': [
-        'mujoco_py'
-    ],
-    'pybullet': [
-        'PyBullet'
-    ],
-    'gym-minigrid': [
-        'gym-minigrid'
-    ],
-    'gym_donkeycar': [
-        'gym_donkeycar'
-    ]
+    'pr': ['autopep8', 'isort'],
+    'unity': ['mlagents-envs==0.27.0'],
+    'mujoco': ['mujoco_py'],
+    'pybullet': ['PyBullet'],
+    'gym-minigrid': ['gym-minigrid'],
+    'gym_donkeycar': ['gym_donkeycar'],
+    'pettingzoo': ['pettingzoo']
 }
 
 all_deps = []
@@ -64,8 +47,8 @@ extras['all'] = all_deps
 setup(
     name="RLs",
     version=_metadata.__version__,
-    description="Reinforcement Learning Algorithm Based On TensorFlow 2.x.",
-    keywords='reinforcement learning gym ml-agents tf2',
+    description="Reinforcement Learning Algorithm Based On PyTorch.",
+    keywords='reinforcement learning gym ml-agents pytorch',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/StepNeverStop/RLs',
@@ -96,15 +79,15 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        'docopt',
-        'numpy',
+        'easydict',
+        'gym>=0.15.4',
+        "torch>=1.9.0",
+        'numpy>=1.19.0',
         'pyyaml',
         'tqdm',
+        'tensorboard',
         'colored_traceback',
-        'pyglet==1.5.11',
-        'gym>=0.15.0, <=0.15.3',
-        'tensorflow>=2.0.0, <=2.3.1',
-        'tensorflow_probability>=0.8.0, <=0.11.1'
+        # 'imageio'
     ],
     extras_require=extras,
 )

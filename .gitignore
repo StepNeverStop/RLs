@@ -106,5 +106,6 @@ venv.bak/
 test/
 test.py
 .vscode/
+data/
 videos/
 unitylog.txt

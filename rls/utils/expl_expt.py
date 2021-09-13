@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
+import numpy as np
+
 
 class ExplorationExploitationClass(object):
     """Exploration and exploitation compromise
@@ -34,25 +36,28 @@ class ExplorationExploitationClass(object):
 
         # Slopes and intercepts for exploration decrease
         # eps_init decay to eps_mid
-        self.slope_init2mid = (self.eps_mid - self.eps_init) / self.init2mid_annealing_step
+        self.slope_init2mid = (self.eps_mid - self.eps_init) / \
+            self.init2mid_annealing_step
         self.intercept_init2mid = self.eps_init - self.slope_init2mid * self.start_step
         # eps_mid decay to eps_final
-        self.slope_mid2end = (self.eps_final - self.eps_mid) / (self.max_step - self.init2mid_annealing_step - self.start_step)
+        self.slope_mid2end = (self.eps_final - self.eps_mid) / \
+            (self.max_step - self.init2mid_annealing_step - self.start_step)
         self.intercept_mid2end = self.eps_final - self.slope_mid2end * self.max_step
 
-    def get_esp(self, step_now, evaluation=False):
+    def get_esp(self, step_now):
         """
         Args:
             step_now: Integer, number of the current step
         Returns:
             An integer between 0 and 1 epsilon value for the current step number
         """
-        if evaluation:
-            eps = self.eps_eval
-        elif step_now < self.start_step:
+        if step_now < self.start_step:
             eps = self.eps_init
         elif self.start_step <= step_now < self.mid_step:
             eps = self.slope_init2mid * step_now + self.intercept_init2mid
         elif self.mid_step <= step_now:
             eps = self.slope_mid2end * step_now + self.intercept_mid2end
         return eps
+
+    def is_random(self, step_now):
+        return np.random.uniform() < self.get_esp(step_now)

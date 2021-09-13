@@ -1,102 +1,79 @@
-# algorithm config = general UNION on_policy/off_policy UNION specific algorithm config
-# if same key happened in multiple configurations, then specific algorithm config override on_policy/off_policy override general
-# priority 1: specific algorithm config
-# priority 2: on_policy/off_policy
-# priority 3: general
-
-general:
+policy: &policy
+    max_frame_step: 0
+    max_train_episode: 0
+    save_frequency: 1000
+    save2single_file: false
+    n_step_value: 4
+    gamma: 0.99
     decay_lr: false
-    tf_dtype: float32 # float32 or float64
+    normalize_vector_obs: false
 
+    obs_with_pre_action: false
+
+    oplr_params:
+        optim_params:
+            eps: 1.e-4
+        grad_params:
+            grad_max_norm: 100.
+            grad_clip_value: 100.
+
+    # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
+    rep_net_params: &rep_net_params
+        vector_net_params:
+            h_dim: 16
+            network_type: "adaptive" # rls.nn.represents.vectors
+        visual_net_params:
+            h_dim: 128
+            network_type: "simple" # rls.nn.represents.visuals
+        encoder_net_params:
+            h_dim: 16
+            network_type: "identity" # rls.nn.represents.encoders
+        memory_net_params:
+            rnn_units: 16
+            network_type: "identity" # rls.nn.represents.memories
+    # -----
+
+sarl_policy: &sarl_policy
+    <<: *policy
     use_curiosity: false # whether to use ICM or not
     curiosity_lr: 1.0e-3 # the learning rate for ICM
     curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
     curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
 
-    normalize_vector_obs: false
-    logger2file: false
-    # ----- could be overrided in specific algorithms, i.e. dqn, so as to using different type of visual net, memory net.
-    vector_net_kwargs:
-        network_type: adaptive # rls.utils.specs.VectorNetworkType
-    visual_net_kwargs:
-        visual_feature: 128
-        network_type: simple # rls.utils.specs.VisualNetworkType
-    encoder_net_kwargs:
-        use_encoder: false
-        output_dim: 16
-    memory_net_kwargs:
-        use_rnn: false # always false, using -r to active RNN
-        rnn_units: 16
-        network_type: lstm
-    # -----
+marl_policy: &marl_policy
+    <<: *policy
+    obs_with_pre_action: true
+    obs_with_agent_id: true
+    share_params: true
 
-on_policy:
-    rnn_time_step: 8
+sarl_on_policy: &sarl_on_policy
+    <<: *sarl_policy
+    epochs: 4 # train multiple times per agent step
+    chunk_length: 4 # n-step or rnn length
+    batch_size: 64
+    sample_allow_repeat: true
 
-off_policy:
-    train_times_per_step: 1 # train multiple times per agent step
-    # PER
-    use_isw: false
-    # rnn
-    burn_in_time_step: 4
-    train_time_step: 5
-    episode_batch_size: 32
-    episode_buffer_size: 10000
-
-hiro:
-    gamma: 0.99
-    intrinsic_reward_mode: os # os or cos
-    ployak: 0.995
-    discrete_tau: 1.0
-    high_scale: 1.0
-    reward_scale: 1.0
-    sample_g_nums: 100
-    sub_goal_steps: 10
-    # 指定从第几位之后开始是真实目标信息
-    fn_goal_dim: 1
-    high_batch_size: 128
-    high_buffer_size: 100000
-    low_batch_size: 128
-    low_buffer_size: 100000
-    high_actor_lr: 1.0e-4
-    high_critic_lr: 1.0e-3
-    low_actor_lr: 1.0e-4
-    low_critic_lr: 1.0e-3
-    network_settings:
-        high_actor: [64, 64]
-        high_critic: [64, 64]
-        low_actor: [64, 64]
-        low_critic: [64, 64]
-
-curl:
-    alpha: 0.2
-    auto_adaption: true
-    annealing: true
-    last_alpha: 0.01
-    actor_lr: 5.0e-4
-    critic_lr: 1.0e-3
-    alpha_lr: 5.0e-4
-    curl_lr: 5.0e-4
-    gamma: 0.99
-    ployak: 0.995
-    discrete_tau: 1.0
-    batch_size: 8
-    buffer_size: 1000
-    img_size: 64
+sarl_off_policy: &sarl_off_policy
+    <<: *sarl_policy
+    chunk_length: 4 # n-step or rnn length
+    epochs: 1 # train multiple times per agent step
+    train_times: 1
+    batch_size: 64
+    buffer_size: 100000
     use_priority: false
-    n_step: 1
-    network_settings:
-        actor_continuous:
-            share: [64, 64]
-            mu: [64]
-            log_std: [64]
-            soft_clip: False
-            log_std_bound: [-20, 2]
-        actor_discrete: [64, 64]
-        q: [64, 64]
-        encoder: 128
+    train_interval: 1
+
+marl_off_policy: &marl_off_policy
+    <<: *marl_policy
+    chunk_length: 4
+    epochs: 1
+    batch_size: 64
+    buffer_size: 100000
+    use_priority: false
+    train_interval: 1
 
 cem:
+    <<: *sarl_on_policy
     frac: 0.2
     init_var: 1
     extra_std: 1
@@ -104,31 +81,20 @@ cem:
     extra_var_last_multiplier: 0.2
     network_settings: [32, 32]
 
-qs:
-    mode: "q" # 'q', 'sarsa', 'expected_sarsa'
-    lr: 0.2
-    gamma: 0.99
-    eps_init: 1
-    eps_mid: 0.2
-    eps_final: 0.01
-    init2mid_annealing_step: 100
-
 dqn: &dqn
+    <<: *sarl_off_policy
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
+    init2mid_annealing_step: 10000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
-    visual_net_kwargs:
-        visual_feature: 128
-        network_type: nature
+    rep_net_params:
+        <<: *rep_net_params
+        visual_net_params:
+            h_dim: 128
+            network_type: "nature"
 
 ddqn: *dqn
 
@@ -137,22 +103,22 @@ averaged_dqn:
     <<: *dqn
 
 dddqn:
+    <<: *dqn
     network_settings:
         share: [64]
         v: [64]
         adv: [64]
-    <<: *dqn
 
 bootstrappeddqn:
     head_num: 4
     <<: *dqn
 
 oc:
+    <<: *sarl_off_policy
     q_lr: 5.0e-3
     intra_option_lr: 5.0e-4
     termination_lr: 5.0e-4
     use_eps_greedy: false
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
@@ -162,24 +128,20 @@ oc:
     terminal_mask: true
     double_q: false
     termination_regularizer: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     options_num: 4
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q: [32, 32]
         intra_option: [32, 32]
         termination: [32, 32]
 
 ioc:
+    <<: *sarl_off_policy
     q_lr: 5.0e-3
     intra_option_lr: 5.0e-4
     termination_lr: 5.0e-4
     interest_lr: 5.0e-4
-    gamma: 0.99
     ent_coff: 0.01
     boltzmann_temperature: 1.0
     use_baseline: true
@@ -187,11 +149,7 @@ ioc:
     double_q: false
     termination_regularizer: 0.01
     options_num: 4
-    batch_size: 256
-    buffer_size: 100000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q: [32, 32]
         intra_option: [32, 32]
@@ -199,18 +157,16 @@ ioc:
         interest: [32, 32]
 
 aoc:
+    <<: *sarl_on_policy
     options_num: 4
     dc: 0.01
     terminal_mask: false
     eps: 0.1
     epsilon: 0.2
     value_epsilon: 0.2
-    gamma: 0.99
     pi_beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 256
-    epoch: 4 # very important
     kl_reverse: false
     kl_target: 0.02
     kl_target_cutoff: 2
@@ -225,18 +181,16 @@ aoc:
         termination: [32, 32]
 
 ppoc:
+    <<: *sarl_on_policy
     options_num: 4
     dc: 0.01
     terminal_mask: false
     o_beta: 1.0e-3
     epsilon: 0.2
     value_epsilon: 0.2
-    gamma: 0.99
     pi_beta: 1.0e-3
     lr: 5.0e-4
     lambda_: 0.97
-    batch_size: 256
-    epoch: 4 # very important
     kl_reverse: false
     kl_target: 0.02
     kl_target_cutoff: 2
@@ -252,96 +206,74 @@ ppoc:
         o: [32, 32]
 
 sql:
+    <<: *sarl_off_policy
     lr: 5.0e-4
     alpha: 2
     ployak: 0.995
-    gamma: 0.99
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
 
 c51:
+    <<: *sarl_off_policy
     v_min: -100
     v_max: 100
     atoms: 51
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
+    init2mid_annealing_step: 10000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [256, 256]
 
 rainbow:
+    <<: *sarl_off_policy
     v_min: -100
     v_max: 100
     atoms: 51
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
+    init2mid_annealing_step: 10000
     assign_interval: 1000
-    use_priority: true
-    n_step: 4
     network_settings:
         share: [128]
         v: [128, 128]
         adv: [128, 128]
 
 qrdqn:
+    <<: *sarl_off_policy
     nums: 20
     huber_delta: 1.
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
+    init2mid_annealing_step: 10000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings: [256, 256]
 
 iqn:
+    <<: *sarl_off_policy
     online_quantiles: 8 # quantile number of online network
     target_quantiles: 8 # quantile number of target network
     select_quantiles: 32 # quantile number for selecting actions
     quantiles_idx: 64 # trails
     huber_delta: 1. # delta for huber loss
     lr: 5.0e-4
-    gamma: 0.99
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
-    batch_size: 256
-    buffer_size: 100000
+    init2mid_annealing_step: 10000
     assign_interval: 1000
-    use_priority: false
-    n_step: 4
     network_settings:
         q_net: [128, &iqn_hm 64]
         quantile: [128, *iqn_hm]
         tile: [64]
 
 pg:
+    <<: *sarl_on_policy
     lr: 5.0e-4
-    gamma: 0.99
-    batch_size: 64
-    epoch: 1 # very important
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -350,13 +282,9 @@ pg:
         actor_discrete: [64, 64]
 
 ac:
+    <<: *sarl_off_policy
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    gamma: 0.99
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -366,12 +294,10 @@ ac:
         critic: [64, 64]
 
 a2c:
+    <<: *sarl_on_policy
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    gamma: 0.99
     beta: 1.0e-3
-    batch_size: 64
-    epoch: 4 # very important
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -381,26 +307,22 @@ a2c:
         critic: [64, 64]
 
 ppo:
+    <<: *sarl_on_policy
     share_net: true
     epsilon: 0.2
-    gamma: 0.99
     ent_coef: 0.005
     vf_coef: 0.5
     lr: 0.0003
     lambda_: 0.97
-    batch_size: 32
-    policy_epoch: 4 # very important
-    value_epoch: 4
     actor_lr: 3.0e-4
     critic_lr: 1.0e-3
-    max_grad_norm: null
 
     # duel clip
     use_duel_clip: false
     duel_epsilon: 0.1
 
     # value function clip
-    use_vclip: true
+    use_vclip: false
     value_epsilon: 0.2
 
     # kl loss
@@ -439,20 +361,17 @@ ppo:
         actor_discrete: [64, 64]
         critic: [64, 64]
 
-trpo:
+npg: &npg
+    <<: *sarl_on_policy
+    actor_step_size: 0.5
     epsilon: 0.2
-    gamma: 0.99
     beta: 1.0e-3
     lr: 5.0e-4
-    delta: 0.01
     lambda_: 0.97
     cg_iters: 10
     damping_coeff: 0.1
-    backtrack_iters: 10
-    backtrack_coeff: 0.8
-    train_v_iters: 10
-    batch_size: 64
     critic_lr: 1.0e-3
+    train_critic_iters: 10
     network_settings:
         actor_continuous:
             hidden_units: [64, 64]
@@ -461,82 +380,59 @@ trpo:
         actor_discrete: [64, 64]
         critic: [64, 64]
 
+trpo:
+    <<: *npg
+    delta: 0.01
+    backtrack_iters: 10
+    backtrack_coeff: 0.8
+
 dpg:
-    gamma: 0.99
-    use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    <<: *sarl_off_policy
+    use_target_action_noise: false
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 ddpg:
-    gamma: 0.99
+    <<: *sarl_off_policy
     ployak: 0.995
-    noise_type: "ou" # ou or gaussian
-    use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    use_target_action_noise: false
+    noise_action: "clip_normal"
+    noise_params:
+        sigma: 0.2
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
-pd_ddpg:
-    gamma: 0.99
-    ployak: 0.995
-    use_target_action_noise: False
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
-    actor_lr: 5.0e-4
-    reward_critic_lr: 1.0e-3
-    cost_critic_lr: 1.0e-3
-    lambda_lr: 5.0e-4
-    discrete_tau: 1.0
-    cost_constraint: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    network_settings:
-        actor_continuous: [64, 64]
-        actor_discrete: [64, 64]
-        reward: [64, 64]
-        cost: [64, 64]
-
 td3:
-    gamma: 0.99
+    <<: *sarl_off_policy
     ployak: 0.995
     delay_num: 2
-    gaussian_noise_sigma: 0.2 # specify the variance of gaussian distribution
-    gaussian_noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+    noise_action: "clip_normal"
+    noise_params:
+        sigma: 0.2 # specify the variance of gaussian distribution
+        noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous: [64, 64]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 sac:
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
@@ -544,52 +440,44 @@ sac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    gamma: 0.99
     ployak: 0.995
-    use_gumbel: true
+    use_gumbel: false
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 sac_v:
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    gamma: 0.99
     ployak: 0.995
-    use_gumbel: true
+    use_gumbel: false
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
     discrete_tau: 1.0
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
         v: [64, 64]
 
 tac:
+    <<: *sarl_off_policy
     alpha: 0.2
     auto_adaption: true
     annealing: true
@@ -602,49 +490,267 @@ tac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    gamma: 0.99
     ployak: 0.995
     discrete_tau: 1.0
-    batch_size: 64
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings:
         actor_continuous:
             share: [64, 64]
             mu: [64]
             log_std: [64]
-            soft_clip: False
+            soft_clip: false
             log_std_bound: [-20, 2]
         actor_discrete: [64, 64]
         q: [64, 64]
 
 maxsqn:
+    <<: *sarl_off_policy
     alpha: 0.2
     beta: 0.1 # 0 <= beta < 1 when beta approaches 1 the distribution of convergence points is closer to uniform distribution means more entropy. when beta approaches 0 the final policy is more deterministic.
     use_epsilon: false
     eps_init: 1
     eps_mid: 0.2
     eps_final: 0.01
-    init2mid_annealing_step: 100
+    init2mid_annealing_step: 10000
     auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
-    gamma: 0.999
     ployak: 0.995
-    batch_size: 256
-    buffer_size: 100000
-    use_priority: false
-    n_step: 4
     network_settings: [64, 64]
 
 maddpg:
-    gamma: 0.99
+    <<: *marl_off_policy
     ployak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
-    batch_size: 32
-    buffer_size: 100000
+    discrete_tau: 1.0
+    noise_action: "ou"
+    noise_params:
+        sigma: 0.2
     network_settings:
-        actor: [32, 32]
-        q: [32, 32]
+        actor_continuous: [64, 64]
+        actor_discrete: [64, 64]
+        q: [64, 64]
+
+masac:
+    <<: *marl_off_policy
+    alpha: 0.2
+    auto_adaption: true
+    annealing: true
+    last_alpha: 0.01
+    actor_lr: 5.0e-4
+    critic_lr: 1.0e-3
+    alpha_lr: 5.0e-4
+    ployak: 0.995
+    discrete_tau: 1.0
+    network_settings:
+        actor_continuous:
+            share: [64, 64]
+            mu: [64]
+            log_std: [64]
+            soft_clip: false
+            log_std_bound: [-20, 2]
+        actor_discrete: [64, 64]
+        q: [64, 64]
+
+vdn: &vdn
+    <<: *marl_off_policy
+    mixer: "vdn"
+    mixer_settings: {}
+    lr: 5.0e-4
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    use_double: true
+    init2mid_annealing_step: 10000
+    assign_interval: 1000
+    network_settings:
+        share: [64]
+        v: [64]
+        adv: [64]
+
+qmix:
+    <<: *vdn
+    mixer: "qmix"
+    mixer_settings:
+        mixing_embed_dim: 16
+        hidden_units: [16]
+
+qatten:
+    <<: *vdn
+    mixer: "qatten"
+    mixer_settings:
+        agent_own_state_size: 1 # TODO: implement this
+        query_hidden_units: [64]
+        query_embed_dim: 32
+        key_embed_dim: 32
+        head_hidden_units: [64]
+        n_attention_head: 4
+        constrant_hidden_units: [32]
+        is_weighted: true
+
+qtran:
+    <<: *vdn
+    opt_loss: 1
+    nopt_min_loss: 0.1
+    mixer: "qtran-base"
+    mixer_settings:
+        qtran_arch: "coma_critic" # "coma_critic", "qtran_paper"
+        hidden_units: [64, 64]
+
+qplex:
+    <<: *vdn
+    mixer: "qplex"
+    mixer_settings:
+        hidden_units: [64]
+        is_minus_one: true
+        weighted_head: true
+        # adv
+        num_kernel: 4
+        adv_hidden_units: [64]
+
+planet:
+    <<: *sarl_off_policy
+    train_times: 1
+    train_interval: 1
+
+    cem_horizon: 12
+    cem_iter_nums: 10
+    cem_candidates: 100
+    # same hyperparameter as original implementation.
+    chunk_length: 10 # n-step or rnn length
+    batch_size: 50
+    stoch_dim: 30
+    deter_dim: 30
+    model_lr: 1.e-3
+    action_sigma: 0.3
+    kl_free_nats: 3
+    kl_scale: 1.0
+    reward_scale: 1.0
+    network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "mse"
+        rssm:
+            hidden_units: 64
+            std_act: "softplus"
+        reward:
+            layers: 2
+            hidden_units: 64
+            dist: "mse"
+
+dreamer: &dreamer
+    <<: *sarl_off_policy
+    train_times: 1
+    train_interval: 1
+
+    eps_init: 1
+    eps_mid: 0.2
+    eps_final: 0.01
+    init2mid_annealing_step: 10000
+    # same hyperparameter as original implementation.
+    chunk_length: 50 # n-step or rnn length
+    batch_size: 50
+    stoch_dim: 30
+    deter_dim: 30
+    model_lr: 3.e-4
+    actor_lr: 1.e-4
+    critic_lr: 1.e-4
+    kl_free_nats: 3
+    action_sigma: 0.3
+    imagination_horizon: 10
+    lambda_: 0.95
+    kl_scale: 1.0
+    reward_scale: 1.0
+    use_pcont: true
+    pcont_scale: 10.0
+    network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "mse"
+        rssm:
+            hidden_units: 64
+            std_act: "softplus"
+        actor:
+            layers: 2
+            hidden_units: 64
+        critic:
+            layers: 2
+            hidden_units: 64
+            dist: "mse"
+        reward:
+            layers: 2
+            hidden_units: 64
+            dist: "mse"
+        pcont:
+            layers: 2
+            hidden_units: 64
+            dist: "binary"
+
+dreamerv2:
+    <<: *dreamer
+    optim_params:
+        eps: 1.e-4
+        weight_decay: 1.e-6
+    discretes: 4
+    kl_forward: false
+    kl_balance: 0.8
+    kl_free_avg: true
+    # for discrete, use 'reinforce' and entropy_scale 1e-3
+    # for continuous, use 'dynamics' and entropy_scale 1e-4
+    actor_grad: "dynamics"
+    actor_entropy_scale: 1.e-4
+    actor_grad_mix: 0.
+    use_double: true
+    assign_interval: 1000
+    network_settings:
+        obs_encoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector: {}
+        obs_decoder:
+            visual:
+                depth: 32
+                act: "relu"
+            vector:
+                layers: 2
+                hidden_units: 64
+                dist: "mse"
+        rssm:
+            hidden_units: 64
+            std_act: "sigmoid2"
+        actor:
+            layers: 2
+            hidden_units: 64
+        critic:
+            layers: 2
+            hidden_units: 64
+            dist: "mse"
+        reward:
+            layers: 2
+            hidden_units: 64
+            dist: "mse"
+        pcont:
+            layers: 2
+            hidden_units: 64
+            dist: "binary"

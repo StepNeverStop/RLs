@@ -1,0 +1,5 @@
+env_name: mpe.simple_speaker_listener_v3
+
+env_config:
+  max_cycles: 25
+  continuous_actions: false

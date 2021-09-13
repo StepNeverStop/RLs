@@ -1,0 +1,5 @@
+PrioritizedDataBuffer: &PrioritizedDataBuffer
+  alpha: 0.6 # priority
+  beta: 0.4 # importance sampling ratio
+  epsilon: 0.01
+  global_v: false

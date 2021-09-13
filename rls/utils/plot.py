@@ -2,8 +2,8 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def ion():
@@ -42,7 +42,8 @@ def plot_heatmap(s_dim, a_dim, table):
     ax.set_yticklabels(y)
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    plt.setp(ax.get_xticklabels(), rotation=45,
+             ha="right", rotation_mode="anchor")
 
     ax.set_title(title)
     fig.tight_layout()

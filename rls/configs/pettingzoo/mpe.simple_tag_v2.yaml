@@ -1,0 +1,8 @@
+env_name: mpe.simple_tag_v2
+
+env_config:
+  num_good: 1
+  num_adversaries: 3
+  num_obstacles: 2
+  max_cycles: 25
+  continuous_actions: false
