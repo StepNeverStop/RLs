@@ -34,6 +34,7 @@ class Policy(Base):
                  save2single_file=False,
                  n_step_value=4,
                  gamma=0.999,
+                 logger_types=['none'],
                  decay_lr=False,
                  normalize_vector_obs=False,
                  obs_with_pre_action=False,
@@ -63,7 +64,8 @@ class Policy(Base):
         '''
         self.n_copys = n_copys
         self._is_save = is_save
-        self.base_dir = base_dir
+        self._base_dir = base_dir
+        self._training_name = os.path.split(self._base_dir)[-1]
         self.device = device
         logger.info(colorize(f"PyTorch Tensor Device: {self.device}"))
         self._max_train_step = max_train_step
@@ -75,6 +77,7 @@ class Policy(Base):
 
         self._save2single_file = save2single_file
         self.gamma = gamma
+        self._logger_types = logger_types
         self._n_step_value = n_step_value
         self._decay_lr = decay_lr    # TODO: implement
         self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
@@ -96,7 +99,6 @@ class Policy(Base):
 
         if self._is_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
-        self.writer = self._create_writer(self.log_dir)  # TODO: Annotation
 
         self._cur_interact_step = t.tensor(0).long().to(self.device)
         self._cur_train_step = t.tensor(0).long().to(self.device)
@@ -111,6 +113,7 @@ class Policy(Base):
         }
 
         self._buffer = self._build_buffer()
+        self._loggers = self._build_loggers() if self._is_save else list()
 
     def __call__(self, obs):
         raise NotImplementedError
@@ -166,7 +169,7 @@ class Policy(Base):
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
-        cp_dir = os.path.join(base_dir or self.base_dir, 'model')
+        cp_dir = os.path.join(base_dir or self._base_dir, 'model')
         if self._save2single_file:
             ckpt_path = os.path.join(cp_dir, 'checkpoint.pth')
             if os.path.exists(ckpt_path):
@@ -183,12 +186,10 @@ class Policy(Base):
                 model_path = os.path.join(cp_dir, f'{k}.pth')
                 if os.path.exists(model_path):
                     if hasattr(v, 'load_state_dict'):
-                        self._trainer_modules[k].load_state_dict(
-                            t.load(model_path))
+                        self._trainer_modules[k].load_state_dict(t.load(model_path))
                     else:
                         getattr(self, k).fill_(t.load(model_path))
-                    logger.info(
-                        colorize(f'Resume model from {model_path} SUCCESSFULLY.', color='green'))
+                    logger.info(colorize(f'Resume model from {model_path} SUCCESSFULLY.', color='green'))
 
     @property
     def still_learn(self):
@@ -196,30 +197,36 @@ class Policy(Base):
             and self._should_learn_cond_frame_step(self._cur_frame_step) \
             and self._should_learn_cond_train_episode(self._cur_episode)
 
-    def write_recorder_summaries(self, summaries):
-        raise NotImplementedError
+    def write_log(self,
+                  log_step: Union[int, t.Tensor] = None,
+                  summaries: Dict = {},
+                  step_type: str = None):
+        self._write_log(log_step, summaries, step_type)
 
     # customed
 
     def _build_buffer(self):
         raise NotImplementedError
 
-    def _create_writer(self, log_dir: str) -> SummaryWriter:
-        if self._is_save:
-            check_or_create(log_dir, 'logs(summaries)')
-            return SummaryWriter(log_dir)
+    def _build_loggers(self):
+        raise NotImplementedError
 
-    def _write_train_summaries(self,
-                               cur_train_step: Union[int, t.Tensor],
-                               summaries: Dict = {},
-                               writer: Optional[SummaryWriter] = None) -> NoReturn:
-        '''
-        write summaries showing in tensorboard.
-        '''
-        if self._is_save:
-            writer = writer or self.writer
-            for k, v in summaries.items():
-                writer.add_scalar(k, v, global_step=cur_train_step)
+    def _write_log(self,
+                   log_step: Union[int, t.Tensor] = None,
+                   summaries: Dict = {},
+                   step_type: str = None):
+        assert step_type is not None or log_step is not None, 'assert step_type is not None or log_step is not None'
+        if log_step is None:
+            if step_type == 'step':
+                log_step = self._cur_train_step
+            elif step_type == 'episode':
+                log_step = self._cur_episode
+            elif log_step == 'frame':
+                log_step = self._cur_frame_step
+            else:
+                raise NotImplementedError("log_step must be in ['step', 'episode', 'frame'] for now.")
+        for logger in self._loggers:
+            logger.write(summaries=summaries, step=log_step)
 
     def _initial_rnncs(self, batch: int, rnn_units: int = None, keys: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
         rnn_units = rnn_units or self.memory_net_params['rnn_units']

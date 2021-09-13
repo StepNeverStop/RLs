@@ -58,7 +58,8 @@ def train(env, agent,
 
         recorder.episode_end()
         agent.episode_end()
-        agent.write_recorder_summaries(recorder.summary_dict(title='Train'))
+        agent.write_log(summaries=recorder.summary_dict(title='Train'),
+                        step_type='episode')
         print_func(str(recorder), out_time=True)
 
     # TODO: print training end info.
@@ -157,4 +158,5 @@ def evaluate(env, agent,
                 break
         recorder.episode_end()
         agent.episode_end()
-        agent.write_recorder_summaries(recorder.summary_dict(title='Eval'))
+        agent.write_log(summaries=recorder.summary_dict(title='Eval'),
+                        step_type='episode')

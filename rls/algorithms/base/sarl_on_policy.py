@@ -7,6 +7,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
+from rls.common.decorator import iton
 from rls.common.specs import Data
 from rls.utils.np_utils import int2one_hot
 
@@ -75,12 +76,13 @@ class SarlOnPolicy(SarlPolicy):
             self.summaries.update(crsty_summaries)
         return BATCH
 
+    @iton
     def _train(self, BATCH):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(
-            self._cur_train_step, self.summaries, self.writer)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

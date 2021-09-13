@@ -114,7 +114,8 @@ class MultiAgentOffPolicy(MarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self._cur_train_step, self.summaries)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

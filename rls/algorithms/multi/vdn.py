@@ -126,7 +126,7 @@ class VDN(MultiAgentOffPolicy):
                 q_target_next_max = q_target.max(-1, keepdim=True)[0]
 
             q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
-        
+
         q_evals = t.stack(q_evals, -1)  # [T, B, 1, N]
         q_target_next_choose_maxs = t.stack(q_target_next_choose_maxs, -1)  # [T, B, 1, N]
         q_eval_tot = self.mixer(q_evals, BATCH_DICT['global'].obs,

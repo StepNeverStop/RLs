@@ -31,6 +31,8 @@ class IndependentMA(Base):
             logger.info(colorize(
                 'using SARL algorithm to train Multi-Agent task, model has been changed to independent-SARL automatically.'))
 
+            assert 'wandb' not in algo_args.logger_types, "assert 'wandb' not in algo_args.logger_types"
+
         self.models = {}
         for id in self._agent_ids:
             _algo_args = deepcopy(algo_args)
@@ -97,9 +99,14 @@ class IndependentMA(Base):
     def still_learn(self):
         return all(model.still_learn for model in self.models.values())
 
-    def write_recorder_summaries(self, summaries: Dict[str, Dict]) -> NoReturn:
+    def write_log(self,
+                  log_step: Union[int, t.Tensor] = None,
+                  summaries: Dict[str, Dict] = {},
+                  step_type: str = None):
         '''
         write summaries showing in tensorboard.
         '''
         for id in self._agent_ids:
-            self.models[id].write_recorder_summaries(summaries=summaries[id])
+            self.models[id].write_log(log_step=log_step,
+                                      summaries=summaries[id],
+                                      step_type=step_type)

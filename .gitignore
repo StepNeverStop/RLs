@@ -109,3 +109,4 @@ test.py
 data/
 videos/
 unitylog.txt
+wandb/

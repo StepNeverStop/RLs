@@ -13,6 +13,7 @@ from rls.algorithms.base.policy import Policy
 from rls.common.specs import Data, EnvAgentSpec
 from rls.nn.modules import CuriosityModel
 from rls.utils.converter import to_tensor
+from rls.utils.loggers import Log_REGISTER
 from rls.utils.np_utils import int2one_hot
 from rls.utils.vector_runing_average import (DefaultRunningAverage,
                                              SimpleRunningAverage)
@@ -115,10 +116,16 @@ class SarlPolicy(Policy):
     def learn(self, BATCH: Data):
         raise NotImplementedError
 
-    def write_recorder_summaries(self, summaries):
-        self._write_train_summaries(self._cur_episode, summaries, self.writer)
-
     # customed
 
     def _train(self, BATCH):
         raise NotImplementedError
+
+    def _build_loggers(self):
+        return [
+            Log_REGISTER[logger_type](
+                log_dir=self.log_dir,
+                training_name=self._training_name,  # wandb
+            )
+            for logger_type in self._logger_types
+        ]
