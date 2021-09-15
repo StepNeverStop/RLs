@@ -4,6 +4,7 @@
 from rls.algorithms.register import get_model_info, register
 from rls.algorithms.single.hierarchical import *
 from rls.algorithms.single.modelbased import *
+from rls.algorithms.single.offline import *
 
 # logo: font-size: 12, foreground character: 'O', font: 幼圆
 # http://life.chacuo.net/convertfont2char
