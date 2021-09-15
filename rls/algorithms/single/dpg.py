@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorDPG, CriticQvalueOne
 from rls.nn.noised_actions import (ClippedNormalNoisedAction,
                                    Noise_action_REGISTER)
@@ -97,13 +97,13 @@ class DPG(SarlOffPolicy):
             target_cate_dist = td.Categorical(logits=target_logits)
             target_pi = target_cate_dist.sample()   # [T, B]
             action_target = F.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
-        q_target = self.critic(BATCH.obs_, action_target,                               begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q_target = self.critic(BATCH.obs_, action_target, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
                              self.gamma,
                              BATCH.done,
                              q_target,
                              BATCH.begin_mask).detach()  # [T, B, 1]
-        q = self.critic(BATCH.obs, BATCH.action,                        begin_mask=BATCH.begin_mask)    # [T, B, A]
+        q = self.critic(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)    # [T, B, A]
         td_error = dc_r - q  # [T, B, A]
         q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
         self.critic_oplr.optimize(q_loss)

@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticQvalueOne
 from rls.nn.utils import OPLR
 from rls.utils.torch_utils import n_step_return
@@ -83,7 +83,7 @@ class AC(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q = self.critic(BATCH.obs, BATCH.action,                       begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q = self.critic(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         if self.is_continuous:
             next_mu, _ = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, *]
             max_q_next = self.critic(BATCH.obs_, next_mu, begin_mask=BATCH.begin_mask).detach()  # [T, B, 1]

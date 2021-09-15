@@ -2,7 +2,7 @@ from typing import Dict, List, NoReturn, Union
 
 import numpy as np
 
-from rls.common.specs import Data
+from rls.common.data import Data
 from rls.common.when import Once
 
 '''

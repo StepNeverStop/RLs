@@ -50,7 +50,3 @@ class Base(ABC):
     @abstractmethod
     def still_learn(self):
         pass
-
-    @abstractmethod
-    def write_recorder_summaries(self):
-        pass

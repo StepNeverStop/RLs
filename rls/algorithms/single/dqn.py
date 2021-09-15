@@ -7,8 +7,8 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -61,8 +61,8 @@ class DQN(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,
                                  self.gamma,

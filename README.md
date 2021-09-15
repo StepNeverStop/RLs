@@ -141,6 +141,8 @@ For now, these algorithms are available:
         - [Learning Latent Dynamics for Planning from Pixels, PlaNet](http://arxiv.org/abs/1811.04551)
         - [Dream to Control, Dreamer](http://arxiv.org/abs/1912.01603)
         - [Mastering Atari with Discrete World Models, DreamerV2](http://arxiv.org/abs/2010.02193)
+    - Offline algorithms(**under implementation**):
+        - [Conservative Q-Learning for Offline Reinforcement Learning, CQL](http://arxiv.org/abs/2006.04779)
 
 
 
@@ -183,6 +185,7 @@ For now, these algorithms are available:
 |              QTRAN              |    ✓     |            |   ✓   |  ✓   |       qtran       |
 |             MADDPG              |    ✓     |     ✓      |   ✓   |  ✓   |      maddpg       |
 |              MASAC              |    ✓     |     ✓      |   ✓   |  ✓   |       masac       |
+|               CQL               |    ✓     |            |   ✓   |  ✓   |      cql_dqn      |
 
 *1 means must use rnn or rnn is used by default.*
 
@@ -191,9 +194,9 @@ For now, these algorithms are available:
 ```python
 """
 usage: run.py [-h] [-c COPYS] [--seed SEED] [-r] [-p {gym,unity,pettingzoo}]
-              [-a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}]
-              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH]
-              [--hostname] [-e ENV_NAME] [-f FILE_NAME] [-s] [-d DEVICE] [-t MAX_TRAIN_STEP]
+              [-a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,cql_dqn,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}]
+              [-i] [-l LOAD_PATH] [-m MODELS] [-n NAME] [--config-file CONFIG_FILE] [--store-dir STORE_DIR] [--episode-length EPISODE_LENGTH] [--hostname] [-e ENV_NAME] [-f FILE_NAME]
+              [-s] [-d DEVICE] [-t MAX_TRAIN_STEP]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -203,7 +206,7 @@ optional arguments:
   -r, --render          whether render game interface
   -p {gym,unity,pettingzoo}, --platform {gym,unity,pettingzoo}
                         specify the platform of training environment
-  -a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}, --algorithm {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}
+  -a {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,cql_dqn,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}, --algorithm {maddpg,masac,vdn,qmix,qatten,qtran,qplex,aoc,ppoc,oc,ioc,planet,dreamer,dreamerv2,cql_dqn,pg,npg,trpo,ppo,a2c,ac,dpg,ddpg,td3,sac_v,sac,tac,dqn,ddqn,dddqn,averaged_dqn,c51,qrdqn,rainbow,iqn,maxsqn,sql,bootstrappeddqn}
                         specify the training algorithm
   -i, --inference       inference the trained model, not train policies
   -l LOAD_PATH, --load-path LOAD_PATH

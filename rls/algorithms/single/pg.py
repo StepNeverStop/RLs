@@ -6,8 +6,8 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import discounted_sum
@@ -86,8 +86,8 @@ class PG(SarlOnPolicy):
         else:
             logits = output  # [B, T, A]
             logp_all = logits.log_softmax(-1)   # [B, T, A]
-            log_act_prob = (logp_all * BATCH.action).sum(-1,                                                         keepdim=True)  # [B, T, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1,                                                       keepdim=True)  # [B, T, 1]
+            log_act_prob = (logp_all * BATCH.action).sum(-1, keepdim=True)  # [B, T, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)  # [B, T, 1]
         loss = -(log_act_prob * BATCH.discounted_reward).mean()
         self.oplr.optimize(loss)
         return dict([

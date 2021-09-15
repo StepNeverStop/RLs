@@ -7,8 +7,8 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.common.when import Every
 from rls.common.yaml_ops import load_config
 from rls.utils.converter import to_numpy, to_tensor
@@ -103,8 +103,8 @@ class SarlOffPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(
-            self._cur_train_step, self.summaries, self.writer)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

@@ -7,7 +7,8 @@ import numpy as np
 import pettingzoo
 from gym.spaces import Box, Discrete, Tuple
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.pettingzoo.wrappers import BasicWrapper
 from rls.envs.wrappers import MPIEnv, VECEnv

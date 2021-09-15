@@ -8,8 +8,8 @@ from typing import Callable, List, NoReturn, Tuple
 import numpy as np
 from tqdm import trange
 
+from rls.common.data import Data
 from rls.common.recorder import SimpleMovingAverageRecoder
-from rls.common.specs import Data
 from rls.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -58,7 +58,8 @@ def train(env, agent,
 
         recorder.episode_end()
         agent.episode_end()
-        agent.write_recorder_summaries(recorder.summary_dict(title='Train'))
+        agent.write_log(summaries=recorder.summary_dict(title='Train'),
+                        step_type='episode')
         print_func(str(recorder), out_time=True)
 
     # TODO: print training end info.
@@ -157,4 +158,5 @@ def evaluate(env, agent,
                 break
         recorder.episode_end()
         agent.episode_end()
-        agent.write_recorder_summaries(recorder.summary_dict(title='Eval'))
+        agent.write_log(summaries=recorder.summary_dict(title='Eval'),
+                        step_type='episode')

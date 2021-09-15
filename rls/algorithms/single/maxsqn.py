@@ -8,8 +8,8 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -95,7 +95,7 @@ class MAXSQN(SarlOffPolicy):
         q2_eval = (q2 * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
 
         q1_log_probs = (q1 / (self.alpha + t.finfo().eps)).log_softmax(-1)  # [T, B, A]
-        q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(-1,                                                              keepdim=True).mean()  # 1
+        q1_entropy = -(q1_log_probs.exp() * q1_log_probs).sum(-1, keepdim=True).mean()  # 1
 
         q1_target = self.critic.t(BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, A]
         q2_target = self.critic2.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]

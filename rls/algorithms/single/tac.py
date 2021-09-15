@@ -9,8 +9,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorCts, ActorDct, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -127,8 +127,8 @@ class TAC(SarlOffPolicy):
             target_pi = target_cate_dist.sample()   # [T, B]
             target_log_pi = target_cate_dist.log_prob(target_pi).unsqueeze(-1)  # [T, B, 1]
             target_pi = F.one_hot(target_pi, self.a_dim).float()  # [T, B, A]
-        q1 = self.critic(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q2 = self.critic2(BATCH.obs, BATCH.action,                          begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        q1 = self.critic(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q2 = self.critic2(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
         q1_target = self.critic.t(BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)    # [T, B, 1]
         q2_target = self.critic2.t(BATCH.obs_, target_pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]

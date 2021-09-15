@@ -9,8 +9,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import (ActorCts, ActorDct, CriticQvalueAll,
                            CriticQvalueOne, CriticValue)
 from rls.nn.modules.wrappers import TargetTwin
@@ -153,8 +153,8 @@ class SAC_V(SarlOffPolicy):
             _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
-        q1 = self.q_net(BATCH.obs, BATCH.action,                        begin_mask=BATCH.begin_mask)    # [T, B, 1]
-        q2 = self.q_net2(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1 = self.q_net(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)    # [T, B, 1]
+        q2 = self.q_net2(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q1_pi = self.q_net(BATCH.obs, pi, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         q2_pi = self.q_net2(BATCH.obs, pi, begin_mask=BATCH.begin_mask)  # [T, B, 1]
         dc_r = n_step_return(BATCH.reward,
@@ -256,7 +256,7 @@ class SAC_V(SarlOffPolicy):
         logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)  # [T, B, A]
 
-        entropy = -(logp_all.exp() * logp_all).sum(-1,                                                   keepdim=True)    # [T, B, 1]
+        entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)    # [T, B, 1]
         q_all = t.minimum(self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask),
                           self.q_net2(BATCH.obs, begin_mask=BATCH.begin_mask))  # [T, B, A]
         actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]

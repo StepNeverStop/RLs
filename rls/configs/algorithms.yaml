@@ -5,6 +5,10 @@ policy: &policy
     save2single_file: false
     n_step_value: 4
     gamma: 0.99
+    logger_types:
+        # - "none"
+        - "tensorboard"
+        # - "wandb"
     decay_lr: false
     normalize_vector_obs: false
 
@@ -49,13 +53,13 @@ marl_policy: &marl_policy
 sarl_on_policy: &sarl_on_policy
     <<: *sarl_policy
     epochs: 4 # train multiple times per agent step
-    chunk_length: 4 # n-step or rnn length
+    chunk_length: 4 # rnn length
     batch_size: 64
     sample_allow_repeat: true
 
 sarl_off_policy: &sarl_off_policy
     <<: *sarl_policy
-    chunk_length: 4 # n-step or rnn length
+    chunk_length: 4 # rnn length
     epochs: 1 # train multiple times per agent step
     train_times: 1
     batch_size: 64
@@ -95,6 +99,10 @@ dqn: &dqn
         visual_net_params:
             h_dim: 128
             network_type: "nature"
+
+cql_dqn:
+    <<: *dqn
+    cql_weight: 0.5
 
 ddqn: *dqn
 

@@ -6,8 +6,8 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.single.npg import NPG
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import calculate_td_error, discounted_sum
@@ -52,7 +52,7 @@ class TRPO(NPG):
         else:
             logits = output  # [T, B, A]
             logp_all = logits.log_softmax(-1)    # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1,                                                         keepdim=True)    # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)    # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1).mean()   # 1
         ratio = (new_log_prob - BATCH.log_prob).exp()        # [T, B, 1]
         actor_loss = -(ratio * BATCH.gae_adv).mean()  # 1

@@ -3,7 +3,8 @@ from typing import Dict, List, NoReturn
 
 import numpy as np
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.unity.wrappers import BasicUnityEnvironment, ScaleVisualWrapper
 

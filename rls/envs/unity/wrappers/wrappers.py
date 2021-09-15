@@ -13,7 +13,8 @@ from mlagents_envs.side_channel.engine_configuration_channel import \
 from mlagents_envs.side_channel.environment_parameters_channel import \
     EnvironmentParametersChannel
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.common.yaml_ops import load_config
 from rls.envs.unity.wrappers.core import ActionWrapper, ObservationWrapper
 from rls.utils.np_utils import get_discrete_action_list

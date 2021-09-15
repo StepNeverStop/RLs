@@ -3,7 +3,7 @@ from typing import Dict, List, NoReturn, Union
 
 import numpy as np
 
-from rls.common.specs import Data
+from rls.common.data import Data
 from rls.memories.er_buffer import DataBuffer
 from rls.memories.sum_tree import Sum_Tree
 

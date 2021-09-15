@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll, OcIntraOption
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -204,7 +204,7 @@ class OC(SarlOffPolicy):
         pi_loss = -(log_p * adv + self.ent_coff * entropy).mean()    # 1
 
         beta = self.termination_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, P]
-        beta_s = (beta * BATCH.last_options).sum(-1,  keepdim=True)   # [T, B, 1]
+        beta_s = (beta * BATCH.last_options).sum(-1, keepdim=True)   # [T, B, 1]
         if self.use_eps_greedy:
             v_s = q.max(-1, keepdim=True)[0] - self.termination_regularizer   # [T, B, 1]
         else:
