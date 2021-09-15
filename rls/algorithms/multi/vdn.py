@@ -6,8 +6,8 @@ import torch as t
 import torch.nn.functional as F
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.mixers import Mixer_REGISTER
 from rls.nn.models import CriticDueling
 from rls.nn.modules.wrappers import TargetTwin

@@ -6,7 +6,8 @@ from typing import Dict, List, NoReturn
 import numpy as np
 from gym.spaces import Box, Discrete, Tuple
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.gym.make_env import make_env
 from rls.envs.wrappers import MPIEnv, VECEnv

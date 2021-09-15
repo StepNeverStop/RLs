@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import PpocShare
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import calculate_td_error, discounted_sum, int2one_hot
@@ -127,7 +127,7 @@ class PPOC(SarlOnPolicy):
         beta_probs = (beta * options_onehot).sum(-1)   # [B, P] => [B,]
         beta_dist = td.Bernoulli(probs=beta_probs)
         # <1 则不改变op， =1 则改变op
-        new_options = t.where(beta_dist.sample() < 1,                              self.options, sample_options)
+        new_options = t.where(beta_dist.sample() < 1, self.options, sample_options)
         self.new_options = t.where(self._done_mask, max_options, new_options)
         self.oc_mask = (self.new_options == self.options).float()
 

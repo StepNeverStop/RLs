@@ -10,7 +10,8 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.policy import Policy
-from rls.common.specs import Data, EnvAgentSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec
 from rls.nn.modules import CuriosityModel
 from rls.utils.converter import to_tensor
 from rls.utils.loggers import Log_REGISTER

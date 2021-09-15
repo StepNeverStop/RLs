@@ -10,7 +10,7 @@ import torch as t
 from torch.utils.tensorboard import SummaryWriter
 
 from rls.algorithms.base.base import Base
-from rls.common.specs import Data
+from rls.common.data import Data
 from rls.common.when import Every, Until
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger

@@ -9,8 +9,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorCts, ActorDct, CriticQvalueAll, CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -129,8 +129,8 @@ class SAC(SarlOffPolicy):
 
     @iton
     def _train_continuous(self, BATCH):
-        q1 = self.critic(BATCH.obs, BATCH.action,                         begin_mask=BATCH.begin_mask)   # [T, B, 1]
-        q2 = self.critic2(BATCH.obs, BATCH.action,                          begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q1 = self.critic(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)   # [T, B, 1]
+        q2 = self.critic2(BATCH.obs, BATCH.action, begin_mask=BATCH.begin_mask)   # [T, B, 1]
         if self.is_continuous:
             target_mu, target_log_std = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, A]
             dist = td.Independent(td.Normal(target_mu, target_log_std.exp()), 1)
@@ -238,7 +238,7 @@ class SAC(SarlOffPolicy):
 
         logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         logp_all = logits.log_softmax(-1)   # [T, B, A]
-        entropy = -(logp_all.exp() * logp_all).sum(-1,                                                   keepdim=True)    # [T, B, 1]
+        entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)    # [T, B, 1]
         q_all = t.minimum(q1_all, q2_all)  # [T, B, A]
         actor_loss = -((q_all - self.alpha * logp_all) * logp_all.exp()).sum(-1)  # [T, B, A] => [T, B]
         actor_loss = actor_loss.mean()  # 1

@@ -8,8 +8,8 @@ from typing import Callable, List, NoReturn, Tuple
 import numpy as np
 from tqdm import trange
 
+from rls.common.data import Data
 from rls.common.recorder import SimpleMovingAverageRecoder
-from rls.common.specs import Data
 from rls.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)

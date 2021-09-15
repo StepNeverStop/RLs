@@ -6,8 +6,8 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import CriticQvalueAll
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -54,7 +54,7 @@ class SQL(SarlOffPolicy):
         return actions, Data(action=actions)
 
     def _get_v(self, q):
-        v = self.alpha * (q / self.alpha).exp().mean(-1,                                                     keepdim=True).log()    # [B, 1] or [T, B, 1]
+        v = self.alpha * (q / self.alpha).exp().mean(-1, keepdim=True).log()    # [B, 1] or [T, B, 1]
         return v
 
     @iton

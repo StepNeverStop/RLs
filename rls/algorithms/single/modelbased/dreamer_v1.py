@@ -8,8 +8,8 @@ import torch as t
 from torch import distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data, get_first_vector, get_first_visual
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.dreamer import ActionDecoder, DenseModel, RecurrentStateSpaceModel
 from rls.nn.dreamer.utils import FreezeParameters, compute_return
 from rls.nn.utils import OPLR
@@ -157,9 +157,9 @@ class DreamerV1(SarlOffPolicy):
     @iton
     def select_action(self, obs):
         if self._is_visual:
-            obs = obs.visual.visual_0
+            obs = get_first_visual(obs)
         else:
-            obs = obs.vector.vector_0
+            obs = get_first_vector(obs)
         embedded_obs = self.obs_encoder(obs)    # [B, *]
         state_posterior = self.rssm.posterior(self.rnncs['hx'], embedded_obs)
         state = state_posterior.sample()    # [B, *]
@@ -192,9 +192,9 @@ class DreamerV1(SarlOffPolicy):
     def _train(self, BATCH):
         T, B = BATCH.action.shape[:2]
         if self._is_visual:
-            obs_ = BATCH.obs_.visual.visual_0
+            obs_ = get_first_visual(BATCH.obs_)
         else:
-            obs_ = BATCH.obs_.vector.vector_0
+            obs_ = get_first_vector(BATCH.obs_)
 
         # embed observations with CNN
         embedded_observations = self.obs_encoder(obs_)  # [T, B, *]

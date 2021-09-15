@@ -7,7 +7,7 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.base import Base
-from rls.common.specs import Data
+from rls.common.data import Data
 from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger

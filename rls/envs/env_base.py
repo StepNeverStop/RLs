@@ -5,7 +5,8 @@ from typing import Dict, List, NoReturn
 
 import numpy as np
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 
 
 class EnvBase(ABC):

@@ -7,8 +7,8 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.utils.np_utils import int2one_hot
 
 

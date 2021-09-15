@@ -10,7 +10,8 @@ import numpy as np
 import torch as t
 
 from rls.algorithms.base.policy import Policy
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.utils.converter import to_tensor
 from rls.utils.loggers import Log_REGISTER
 from rls.utils.np_utils import int2one_hot

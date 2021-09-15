@@ -10,8 +10,8 @@ import torch.nn.functional as F
 from torch import distributions as td
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorDPG, MACriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.noised_actions import Noise_action_REGISTER
