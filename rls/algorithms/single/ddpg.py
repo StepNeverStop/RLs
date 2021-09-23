@@ -24,7 +24,7 @@ class DDPG(SarlOffPolicy):
     policy_mode = 'off-policy'
 
     def __init__(self,
-                 ployak=0.995,
+                 polyak=0.995,
                  noise_action='ou',
                  noise_params={
                      'sigma': 0.2
@@ -40,7 +40,7 @@ class DDPG(SarlOffPolicy):
                  },
                  **kwargs):
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.discrete_tau = discrete_tau
         self.use_target_action_noise = use_target_action_noise
 
@@ -62,12 +62,12 @@ class DDPG(SarlOffPolicy):
                              rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_discrete'])
-        self.actor = TargetTwin(actor, self.ployak).to(self.device)
+        self.actor = TargetTwin(actor, self.polyak).to(self.device)
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
                                                  rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
-                                 self.ployak).to(self.device)
+                                 self.polyak).to(self.device)
 
         self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(self.critic, critic_lr, **self._oplr_params)

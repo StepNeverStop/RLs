@@ -28,7 +28,7 @@ class TAC(SarlOffPolicy):
                  alpha=0.2,
                  annealing=True,
                  last_alpha=0.01,
-                 ployak=0.995,
+                 polyak=0.995,
                  entropic_index=1.5,
                  discrete_tau=1.0,
                  network_settings={
@@ -48,7 +48,7 @@ class TAC(SarlOffPolicy):
                  alpha_lr=5.0e-4,
                  **kwargs):
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.discrete_tau = discrete_tau
         self.entropic_index = 2 - entropic_index
         self.auto_adaption = auto_adaption
@@ -58,7 +58,7 @@ class TAC(SarlOffPolicy):
                                                  rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
-                                 self.ployak).to(self.device)
+                                 self.polyak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
         if self.is_continuous:

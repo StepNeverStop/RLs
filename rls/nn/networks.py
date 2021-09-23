@@ -74,8 +74,8 @@ class EncoderNetwork(nn.Module):
 class MemoryNetwork(nn.Module):
     def __init__(self, feat_dim=64, rnn_units=8, network_type='lstm'):
         super().__init__()
-        self.net = Rnn_REGISTER[network_type](
-            in_dim=feat_dim, rnn_units=rnn_units)
+        self.net = Rnn_REGISTER[network_type](in_dim=feat_dim,
+                                              rnn_units=rnn_units)
         self.h_dim = self.net.h_dim
 
     def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
@@ -96,8 +96,7 @@ class MemoryNetwork(nn.Module):
                 rnncs = {k: v.unsqueeze(0)  # [1, B, *]
                          for k, v in rnncs.items()}
 
-        output, rnncs_s = self.net(
-            feat, rnncs, begin_mask)    # [B, *] or [T, B, *]
+        output, rnncs_s = self.net(feat, rnncs, begin_mask)    # [B, *] or [T, B, *]
 
         if _squeeze:
             output = output.squeeze(0)  # [B, *]

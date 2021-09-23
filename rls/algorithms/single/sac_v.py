@@ -30,7 +30,7 @@ class SAC_V(SarlOffPolicy):
                  alpha=0.2,
                  annealing=True,
                  last_alpha=0.01,
-                 ployak=0.995,
+                 polyak=0.995,
                  use_gumbel=True,
                  discrete_tau=1.0,
                  network_settings={
@@ -51,7 +51,7 @@ class SAC_V(SarlOffPolicy):
                  auto_adaption=True,
                  **kwargs):
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
         self.auto_adaption = auto_adaption
@@ -60,7 +60,7 @@ class SAC_V(SarlOffPolicy):
         self.v_net = TargetTwin(CriticValue(self.obs_spec,
                                             rep_net_params=self._rep_net_params,
                                             network_settings=network_settings['v']),
-                                self.ployak).to(self.device)
+                                self.polyak).to(self.device)
 
         if self.is_continuous:
             self.actor = ActorCts(self.obs_spec,

@@ -25,7 +25,7 @@ class TD3(SarlOffPolicy):
     policy_mode = 'off-policy'
 
     def __init__(self,
-                 ployak=0.995,
+                 polyak=0.995,
                  delay_num=2,
                  noise_action='clip_normal',
                  noise_params={
@@ -42,7 +42,7 @@ class TD3(SarlOffPolicy):
                  },
                  **kwargs):
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.delay_num = delay_num
         self.discrete_tau = discrete_tau
 
@@ -57,13 +57,13 @@ class TD3(SarlOffPolicy):
                              rep_net_params=self._rep_net_params,
                              output_shape=self.a_dim,
                              network_settings=network_settings['actor_continuous'])
-        self.actor = TargetTwin(actor, self.ployak).to(self.device)
+        self.actor = TargetTwin(actor, self.polyak).to(self.device)
 
         self.critic = TargetTwin(CriticQvalueOne(self.obs_spec,
                                                  rep_net_params=self._rep_net_params,
                                                  action_dim=self.a_dim,
                                                  network_settings=network_settings['q']),
-                                 self.ployak).to(self.device)
+                                 self.polyak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
         self.actor_oplr = OPLR(self.actor, actor_lr, **self._oplr_params)

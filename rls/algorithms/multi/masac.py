@@ -27,7 +27,7 @@ class MASAC(MultiAgentOffPolicy):
                  alpha=0.2,
                  annealing=True,
                  last_alpha=0.01,
-                 ployak=0.995,
+                 polyak=0.995,
                  discrete_tau=1.0,
                  network_settings={
                      'actor_continuous': {
@@ -49,7 +49,7 @@ class MASAC(MultiAgentOffPolicy):
         TODO: Annotation
         '''
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.discrete_tau = discrete_tau
         self.auto_adaption = auto_adaption
         self.annealing = annealing
@@ -77,7 +77,7 @@ class MASAC(MultiAgentOffPolicy):
                                                             rep_net_params=self._rep_net_params,
                                                             action_dim=sum(self.a_dims.values()),
                                                             network_settings=network_settings['q']),
-                                          self.ployak).to(self.device)
+                                          self.polyak).to(self.device)
             self.critics2[id] = deepcopy(self.critics[id])
         self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(list(self.critics.values())+list(self.critics2.values()), critic_lr, **self._oplr_params)

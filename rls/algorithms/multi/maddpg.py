@@ -26,7 +26,7 @@ class MADDPG(MultiAgentOffPolicy):
     policy_mode = 'off-policy'
 
     def __init__(self,
-                 ployak=0.995,
+                 polyak=0.995,
                  noise_action='ou',
                  noise_params={
                      'sigma': 0.2
@@ -44,7 +44,7 @@ class MADDPG(MultiAgentOffPolicy):
         TODO: Annotation
         '''
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.discrete_tau = discrete_tau
 
         self.actors, self.critics = {}, {}
@@ -54,19 +54,19 @@ class MADDPG(MultiAgentOffPolicy):
                                                       rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_continuous']),
-                                             self.ployak).to(self.device)
+                                             self.polyak).to(self.device)
             else:
                 self.actors[id] = TargetTwin(ActorDct(self.obs_specs[id],
                                                       rep_net_params=self._rep_net_params,
                                                       output_shape=self.a_dims[id],
                                                       network_settings=network_settings['actor_discrete']),
-                                             self.ployak).to(self.device)
+                                             self.polyak).to(self.device)
             self.critics[id] = TargetTwin(MACriticQvalueOne(list(self.obs_specs.values()),
                                                             rep_net_params=self._rep_net_params,
                                                             action_dim=sum(
                                                                 self.a_dims.values()),
                                                             network_settings=network_settings['q']),
-                                          self.ployak).to(self.device)
+                                          self.polyak).to(self.device)
         self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
         self.critic_oplr = OPLR(list(self.critics.values()), critic_lr, **self._oplr_params)
 

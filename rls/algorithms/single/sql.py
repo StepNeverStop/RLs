@@ -25,19 +25,19 @@ class SQL(SarlOffPolicy):
     def __init__(self,
                  lr=5.0e-4,
                  alpha=2,
-                 ployak=0.995,
+                 polyak=0.995,
                  network_settings=[32, 32],
                  **kwargs):
         super().__init__(**kwargs)
         assert not self.is_continuous, 'sql only support discrete action space'
         self.alpha = alpha
-        self.ployak = ployak
+        self.polyak = polyak
 
         self.q_net = TargetTwin(CriticQvalueAll(self.obs_spec,
                                                 rep_net_params=self._rep_net_params,
                                                 output_shape=self.a_dim,
                                                 network_settings=network_settings),
-                                self.ployak).to(self.device)
+                                self.polyak).to(self.device)
 
         self.oplr = OPLR(self.q_net, lr, **self._oplr_params)
         self._trainer_modules.update(model=self.q_net,

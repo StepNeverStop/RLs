@@ -89,8 +89,7 @@ class RepresentationNetwork(nn.Module):
 
         feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
-        feat, rnncs = self.memory_net(
-            feat, rnncs, begin_mask)    # [T, B, *] or [B, *]
+        feat, rnncs = self.memory_net(feat, rnncs, begin_mask)    # [T, B, *] or [B, *]
         return feat, rnncs
 
 

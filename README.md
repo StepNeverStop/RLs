@@ -143,6 +143,9 @@ For now, these algorithms are available:
         - [Mastering Atari with Discrete World Models, DreamerV2](http://arxiv.org/abs/2010.02193)
     - Offline algorithms(**under implementation**):
         - [Conservative Q-Learning for Offline Reinforcement Learning, CQL](http://arxiv.org/abs/2006.04779)
+        - BCQ
+            - Benchmarking Batch Deep Reinforcement Learning Algorithms, [Discrete](http://arxiv.org/abs/1910.01708)
+            - Off-Policy Deep Reinforcement Learning without Exploration, [Continuous](http://arxiv.org/abs/1812.02900)
 
 
 
@@ -186,6 +189,7 @@ For now, these algorithms are available:
 |             MADDPG              |    ✓     |     ✓      |   ✓   |  ✓   |      maddpg       |
 |              MASAC              |    ✓     |     ✓      |   ✓   |  ✓   |       masac       |
 |               CQL               |    ✓     |            |   ✓   |  ✓   |      cql_dqn      |
+|               BCQ               |    ✓     |     ✓      |   ✓   |  ✓   |        bcq        |
 
 *1 means must use rnn or rnn is used by default.*
 

@@ -20,8 +20,9 @@ class BaseModel(nn.Module):
         self._rnncs = None
 
     def repre(self, x, rnncs=None, begin_mask=None):
-        x, self._rnncs = self.rep_net(
-            x, rnncs=rnncs, begin_mask=begin_mask)
+        x, self._rnncs = self.rep_net(x,
+                                      rnncs=rnncs,
+                                      begin_mask=begin_mask)
         return x
 
     def get_rnncs(self):
@@ -640,3 +641,67 @@ class MACriticQvalueOne(nn.Module):
 
 
 Model_REGISTER['ma_critic_q1'] = MACriticQvalueOne
+
+
+class BCQ_DCT(BaseModel):
+    '''
+    use for evaluate all values of Q(S,A) given a state. must be discrete action space.
+    input: vector of state
+    output: q(s, *)
+    '''
+
+    def __init__(self, obs_spec, rep_net_params, output_shape, network_settings, out_act=None):
+        super().__init__(obs_spec, rep_net_params)
+        self.net_q = MLP(self.rep_net.h_dim, network_settings,
+                         output_shape=output_shape, out_act=out_act)
+        self.net_i = MLP(self.rep_net.h_dim, network_settings,
+                         output_shape=output_shape, out_act=out_act)
+
+    def forward(self, x, **kwargs):
+        x = self.repre(x, **kwargs)
+        q = self.net_q(x)  # [B, *] or [T, B, *]
+        i = self.net_i(x)  # [B, *] or [T, B, *]
+        return q, i
+
+
+Model_REGISTER['bcq_discrete'] = BCQ_DCT
+
+
+class BCQ_Act_Cts(BaseModel):
+
+    def __init__(self, obs_spec, rep_net_params, action_dim, phi, network_settings):
+        super().__init__(obs_spec, rep_net_params)
+        self._phi = phi
+        self.net = MLP(self.rep_net.h_dim + action_dim,
+                       network_settings,
+                       output_shape=action_dim,
+                       out_act='tanh')
+
+    def forward(self, x, a, **kwargs):
+        x = self.repre(x, **kwargs)
+        noise = self.net(t.cat((x, a), -1))  # [B, A] or [T, B, A]
+        return (a + self._phi * noise).clamp(-1, 1)
+
+
+Model_REGISTER['bcq_continuous_act'] = BCQ_Act_Cts
+
+
+class BCQ_CriticQvalueOne(BaseModel):
+
+    def __init__(self, obs_spec, rep_net_params, action_dim, network_settings):
+        super().__init__(obs_spec, rep_net_params)
+        self.q1 = MLP(self.rep_net.h_dim + action_dim,
+                      network_settings,
+                      output_shape=1)
+        self.q2 = MLP(self.rep_net.h_dim + action_dim,
+                      network_settings,
+                      output_shape=1)
+
+    def forward(self, x, a, **kwargs):
+        x = self.repre(x, **kwargs)
+        q1 = self.q1(t.cat((x, a), -1))  # [B, 1] or [T, B, 1]
+        q2 = self.q2(t.cat((x, a), -1))  # [B, 1] or [T, B, 1]
+        return q1, q2
+
+
+Model_REGISTER['bcq_continuous_critic'] = BCQ_CriticQvalueOne

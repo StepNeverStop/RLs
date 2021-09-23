@@ -217,7 +217,7 @@ sql:
     <<: *sarl_off_policy
     lr: 5.0e-4
     alpha: 2
-    ployak: 0.995
+    polyak: 0.995
     network_settings: [64, 64]
 
 c51:
@@ -410,7 +410,7 @@ dpg:
 
 ddpg:
     <<: *sarl_off_policy
-    ployak: 0.995
+    polyak: 0.995
     use_target_action_noise: false
     noise_action: "clip_normal"
     noise_params:
@@ -425,7 +425,7 @@ ddpg:
 
 td3:
     <<: *sarl_off_policy
-    ployak: 0.995
+    polyak: 0.995
     delay_num: 2
     noise_action: "clip_normal"
     noise_params:
@@ -448,7 +448,7 @@ sac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    ployak: 0.995
+    polyak: 0.995
     use_gumbel: false
     discrete_tau: 1.0
     network_settings:
@@ -467,7 +467,7 @@ sac_v:
     auto_adaption: true
     annealing: true
     last_alpha: 0.01
-    ployak: 0.995
+    polyak: 0.995
     use_gumbel: false
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
@@ -498,7 +498,7 @@ tac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    ployak: 0.995
+    polyak: 0.995
     discrete_tau: 1.0
     network_settings:
         actor_continuous:
@@ -522,12 +522,12 @@ maxsqn:
     auto_adaption: true
     q_lr: 5.0e-4
     alpha_lr: 5.0e-4
-    ployak: 0.995
+    polyak: 0.995
     network_settings: [64, 64]
 
 maddpg:
     <<: *marl_off_policy
-    ployak: 0.995
+    polyak: 0.995
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     discrete_tau: 1.0
@@ -548,7 +548,7 @@ masac:
     actor_lr: 5.0e-4
     critic_lr: 1.0e-3
     alpha_lr: 5.0e-4
-    ployak: 0.995
+    polyak: 0.995
     discrete_tau: 1.0
     network_settings:
         actor_continuous:
@@ -762,3 +762,31 @@ dreamerv2:
             layers: 2
             hidden_units: 64
             dist: "binary"
+
+bcq:
+    <<: *sarl_off_policy
+    polyak: 0.995
+
+    discrete:
+        threshold: 0.3
+        lr: 5.0e-4
+        eps_init: 1
+        eps_mid: 0.2
+        eps_final: 0.01
+        init2mid_annealing_step: 10000
+        assign_interval: 1000
+        network_settings: [64, 64]
+    continuous:
+        phi: 0.05
+        lmbda: 0.75
+        select_samples: 100
+        train_samples: 10
+        actor_lr: 1.e-3
+        critic_lr: 1.e-3
+        vae_lr: 1.e-3
+        network_settings:
+            actor: [32, 32]
+            critic: [32, 32]
+            vae:
+                encoder: [750, 750]
+                decoder: [750, 750]

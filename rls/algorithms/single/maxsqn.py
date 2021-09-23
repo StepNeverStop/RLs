@@ -26,7 +26,7 @@ class MAXSQN(SarlOffPolicy):
     def __init__(self,
                  alpha=0.2,
                  beta=0.1,
-                 ployak=0.995,
+                 polyak=0.995,
                  eps_init=1,
                  eps_mid=0.2,
                  eps_final=0.01,
@@ -45,7 +45,7 @@ class MAXSQN(SarlOffPolicy):
                                                           init2mid_annealing_step=init2mid_annealing_step,
                                                           max_step=self._max_train_step)
         self.use_epsilon = use_epsilon
-        self.ployak = ployak
+        self.polyak = polyak
         self.auto_adaption = auto_adaption
         self.target_entropy = beta * np.log(self.a_dim)
 
@@ -53,7 +53,7 @@ class MAXSQN(SarlOffPolicy):
                                                  rep_net_params=self._rep_net_params,
                                                  output_shape=self.a_dim,
                                                  network_settings=network_settings),
-                                 self.ployak).to(self.device)
+                                 self.polyak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
         self.critic_oplr = OPLR([self.critic, self.critic2], q_lr, **self._oplr_params)

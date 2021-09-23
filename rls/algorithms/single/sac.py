@@ -29,7 +29,7 @@ class SAC(SarlOffPolicy):
                  alpha=0.2,
                  annealing=True,
                  last_alpha=0.01,
-                 ployak=0.995,
+                 polyak=0.995,
                  use_gumbel=True,
                  discrete_tau=1.0,
                  network_settings={
@@ -49,7 +49,7 @@ class SAC(SarlOffPolicy):
                  alpha_lr=5.0e-4,
                  **kwargs):
         super().__init__(**kwargs)
-        self.ployak = ployak
+        self.polyak = polyak
         self.use_gumbel = use_gumbel
         self.discrete_tau = discrete_tau
         self.auto_adaption = auto_adaption
@@ -68,7 +68,7 @@ class SAC(SarlOffPolicy):
                                      rep_net_params=self._rep_net_params,
                                      output_shape=self.a_dim,
                                      network_settings=network_settings['q'])
-        self.critic = TargetTwin(critic, self.ployak).to(self.device)
+        self.critic = TargetTwin(critic, self.polyak).to(self.device)
         self.critic2 = deepcopy(self.critic)
 
         if self.is_continuous:

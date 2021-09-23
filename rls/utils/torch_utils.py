@@ -103,22 +103,22 @@ def tsallis_entropy_log_q(log_pi, q):
         return log_q_pi.sum(-1, keepdim=True)
 
 
-def sync_params(tge: nn.Module, src: nn.Module, ployak: float = 0.) -> NoReturn:
+def sync_params(tge: nn.Module, src: nn.Module, polyak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
-    ployak = 1 - tau
+    polyak = 1 - tau
     '''
     for _t, _s in zip(tge.parameters(), src.parameters()):
-        _t.data.copy_(_t.data * ployak + _s.data * (1. - ployak))
+        _t.data.copy_(_t.data * polyak + _s.data * (1. - polyak))
 
 
-def sync_params_list(nets_list: List[Union[List, Tuple]], ployak: float = 0.) -> NoReturn:
+def sync_params_list(nets_list: List[Union[List, Tuple]], polyak: float = 0.) -> NoReturn:
     '''
     update weights of target neural network.
-    ployak = 1 - tau
+    polyak = 1 - tau
     '''
     for tge, src in zip(*nets_list):
-        sync_params(tge, src, ployak)
+        sync_params(tge, src, polyak)
 
 
 def q_target_func(reward, gamma, done, q_next, begin_mask,
