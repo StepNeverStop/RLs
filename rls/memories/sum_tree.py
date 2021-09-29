@@ -30,7 +30,7 @@ class Sum_Tree:
         self._now = 0
         self._size = 0
         self.tree = np.zeros(self.tree_data_offset + self.capacity)
-        self.tree[0] = len(self.tree) - 1   # 树的总节点数，也是最后一个节点的索引值
+        self.tree[0] = len(self.tree) - 1  # 树的总节点数，也是最后一个节点的索引值
 
     def add_batch(self, p, n_step_delay=0):
         """
@@ -38,7 +38,7 @@ class Sum_Tree:
         """
         p = p.ravel()
         B = p.shape[0]
-        idx = (np.arange(B) + self._now) % self.capacity   # [0, capacity-1]
+        idx = (np.arange(B) + self._now) % self.capacity  # [0, capacity-1]
         # [parent_node_count+1, parent_node_count+capacity]
         tidx = idx + self.tree_data_offset
         if n_step_delay <= 0:
@@ -46,7 +46,7 @@ class Sum_Tree:
         else:
             self._updatetree_batch(tidx, np.zeros_like(p))
             # [0, capacity-1]
-            _pre_idx = (idx - B*n_step_delay + self.capacity) % self.capacity
+            _pre_idx = (idx - B * n_step_delay + self.capacity) % self.capacity
             p = np.where(_pre_idx < self._size, p, 0.)
             _pre_tidx = _pre_idx + self.tree_data_offset
             self._updatetree_batch(_pre_tidx, p)

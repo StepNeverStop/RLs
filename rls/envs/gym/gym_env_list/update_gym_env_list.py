@@ -25,16 +25,18 @@ untrainable_file = open('untrainable_envs.txt', 'a')
 print(len(env_list))
 for i, env_info in enumerate(env_list):
     try:
-        if 'Defender' in env_info.id:   # Defender envs could make program no response.
+        if 'Defender' in env_info.id:  # Defender envs could make program no response.
             continue
         env = gym.make(env_info.id)
         info = '|' + str(env_info.id).ljust(50) + str(env.observation_space).ljust(
             80) + str(env.action_space).rjust(80) + '|'
         print(i, info)
         available_file.write(info + '\n')
-        if not isinstance(env.observation_space, (Box, Discrete)) or not isinstance(env.action_space, (Box, Discrete, Tuple)):
+        if not isinstance(env.observation_space, (Box, Discrete)) or not isinstance(env.action_space,
+                                                                                    (Box, Discrete, Tuple)):
             untrainable_file.write(info + '\n')
-        elif not isinstance(env.action_space, Tuple) and (len(env.action_space.shape) == 2 or len(env.observation_space.shape) == 2):
+        elif not isinstance(env.action_space, Tuple) and (
+                len(env.action_space.shape) == 2 or len(env.observation_space.shape) == 2):
             untrainable_file.write(info + '\n')
         elif isinstance(env.action_space, Tuple) and not all([isinstance(i, Discrete) for i in env.action_space]):
             untrainable_file.write(info + '\n')

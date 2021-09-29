@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # encoding: utf-8
-import torch as t
+import torch as th
 import torch.nn as nn
 
 default_act = 'relu'
@@ -19,12 +19,12 @@ Act_REGISTER['log_softmax'] = lambda: nn.LogSoftmax(-1)
 
 
 class Swish(nn.Module):
-    '''
+    """
     https://arxiv.org/abs/1710.05941
-    '''
+    """
 
-    def forward(self, input: t.Tensor) -> t.Tensor:
-        return input * t.sigmoid(input)
+    def forward(self, inp: th.Tensor) -> th.Tensor:
+        return inp * th.sigmoid(inp)
 
 
 Act_REGISTER['swish'] = Swish

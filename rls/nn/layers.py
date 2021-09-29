@@ -3,13 +3,14 @@
 
 import math
 
-import torch as t
+import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
 Layer_REGISTER = {}
 
 Layer_REGISTER['linear'] = nn.Linear
+
 
 # cite from https://github.com/Curt-Park/rainbow-is-all-you-need/blob/master/05.noisy_net.ipynb
 
@@ -38,17 +39,17 @@ class NoisyLinear(nn.Module):
         self.out_features = out_features
         self.std_init = std_init
 
-        self.weight_mu = nn.Parameter(t.Tensor(out_features, in_features))
+        self.weight_mu = nn.Parameter(th.Tensor(out_features, in_features))
         self.weight_sigma = nn.Parameter(
-            t.Tensor(out_features, in_features)
+            th.Tensor(out_features, in_features)
         )
         self.register_buffer(
-            "weight_epsilon", t.Tensor(out_features, in_features)
+            "weight_epsilon", th.Tensor(out_features, in_features)
         )
 
-        self.bias_mu = nn.Parameter(t.Tensor(out_features))
-        self.bias_sigma = nn.Parameter(t.Tensor(out_features))
-        self.register_buffer("bias_epsilon", t.Tensor(out_features))
+        self.bias_mu = nn.Parameter(th.Tensor(out_features))
+        self.bias_sigma = nn.Parameter(th.Tensor(out_features))
+        self.register_buffer("bias_epsilon", th.Tensor(out_features))
 
         self.reset_parameters()
         self.reset_noise()
@@ -75,7 +76,7 @@ class NoisyLinear(nn.Module):
         self.weight_epsilon.copy_(epsilon_out.ger(epsilon_in))
         self.bias_epsilon.copy_(epsilon_out)
 
-    def forward(self, x: t.Tensor) -> t.Tensor:
+    def forward(self, x: th.Tensor) -> th.Tensor:
         """Forward method implementation.
 
         We don't use separate statements on train / eval mode.
@@ -88,9 +89,9 @@ class NoisyLinear(nn.Module):
         )
 
     @staticmethod
-    def scale_noise(size: int) -> t.Tensor:
+    def scale_noise(size: int) -> th.Tensor:
         """Set scale to make noise (factorized gaussian noise)."""
-        x = t.randn(size)
+        x = th.randn(size)
 
         return x.sign().mul(x.abs().sqrt())
 

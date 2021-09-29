@@ -1,7 +1,5 @@
 from copy import deepcopy
 
-import torch as t
-
 from rls.utils.torch_utils import sync_params
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 import multiprocessing
-from typing import Any, Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 
 class CloudpickleWrapper(object):
@@ -74,10 +74,12 @@ if __name__ == '__main__':
 
     import gym
 
+
     def env_fn(idx, **config):
         _env = gym.make(**config)
         _env.seed(idx)
         return _env
+
 
     config = {'id': 'CartPole-v0'}
 

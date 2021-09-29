@@ -1,5 +1,3 @@
-
-
 from typing import Dict, List, NoReturn
 
 import numpy as np
@@ -12,6 +10,7 @@ from rls.envs.env_base import EnvBase
 class ExampleEnv(EnvBase):
 
     def __init__(self):
+        super().__init__()
         raise NotImplementedError
 
     def reset(self, **kwargs) -> Dict[str, Data]:
@@ -27,7 +26,7 @@ class ExampleEnv(EnvBase):
         raise NotImplementedError
 
     @property
-    def n_copys(self) -> int:
+    def n_copies(self) -> int:
         raise NotImplementedError
 
     @property

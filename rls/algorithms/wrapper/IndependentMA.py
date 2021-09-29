@@ -1,14 +1,10 @@
-
-from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
+from typing import Dict, Optional, Union
 
-import numpy as np
-import torch as t
+import torch as th
 
 from rls.algorithms.base.base import Base
 from rls.common.data import Data
-from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
@@ -100,12 +96,12 @@ class IndependentMA(Base):
         return all(model.still_learn for model in self.models.values())
 
     def write_log(self,
-                  log_step: Union[int, t.Tensor] = None,
+                  log_step: Union[int, th.Tensor] = None,
                   summaries: Dict[str, Dict] = {},
                   step_type: str = None):
-        '''
+        """
         write summaries showing in tensorboard.
-        '''
+        """
         for id in self._agent_ids:
             self.models[id].write_log(log_step=log_step,
                                       summaries=summaries[id],

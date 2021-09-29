@@ -1,6 +1,4 @@
-
-
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Union
 
 import numpy as np
 
@@ -17,7 +15,7 @@ def get_first_visual(d: "Data"):
 
 def get_flat_vector(d: "Data"):
     assert hasattr(d, 'vector'), "assert hasattr(d, 'vector')"
-    return np.concatenate(obs.vector.values(), axis=-1)
+    return np.concatenate(d.vector.values(), axis=-1)
 
 
 class Data:
@@ -37,7 +35,7 @@ class Data:
         for k in keys or self.keys():
             v = getattr(self, k)
             if isinstance(v, Data):
-                v.convert_(func)    # TODO: optimize
+                v.convert_(func)  # TODO: optimize
             else:
                 setattr(self, k, func(v))
 
@@ -83,7 +81,7 @@ class Data:
         return str
 
     def __eq__(self, other):
-        '''TODO: Annotation'''
+        """TODO: Annotation"""
         assert isinstance(other, Data), 'assert isinstance(other, Data)'
         for x, y in zip(self.values(), other.values()):
             if isinstance(x, Data) and isinstance(y, Data):
@@ -100,9 +98,9 @@ class Data:
         x = dict()
         for k, v in self.items():
             if isinstance(v, Data):
-                x.update(v.nested_dict(pre=pre+f'{k}{mark}', mark=mark))
+                x.update(v.nested_dict(pre=pre + f'{k}{mark}', mark=mark))
             else:
-                x[pre+k] = v
+                x[pre + k] = v
         return x
 
     @staticmethod
@@ -112,8 +110,7 @@ class Data:
             if keys[0] not in params.keys():
                 params[keys[0]] = {}
             if len(keys) > 1:
-                params.update(
-                    {keys[0]: func3(params[keys[0]], value, keys[1:])})
+                params.update({keys[0]: func3(params[keys[0]], value, keys[1:])})
             else:
                 params.update({keys[0]: value})
             return params
@@ -145,8 +142,8 @@ class Data:
     def _yield_sample_indexs(self, _t, _b, repeat=True):
         T, B = self.shape[:2]
         if repeat:
-            for _ in range((T-_t+1)*B//_b):
-                x = np.random.randint(0, T - _t + 1, _b)    # [B, ]
+            for _ in range((T - _t + 1) * B // _b):
+                x = np.random.randint(0, T - _t + 1, _b)  # [B, ]
                 y = np.random.randint(0, B, _b)  # (B, )
                 xs = np.tile(np.arange(_t)[:, np.newaxis], _b) + x  # (T, B) + (B, ) = (T, B)
                 sample_idxs = (xs, y)
@@ -154,13 +151,13 @@ class Data:
         else:
             # [N, ] + [B, 1] => [B, N]
             x = np.arange(0, T - _t + 1, _t) + np.random.randint(0, T % _t + 1, B)[:, np.newaxis]
-            y = np.arange(B).repeat(x.shape[-1])   # [B*N]
-            x = x.ravel()   # [B*N]
+            y = np.arange(B).repeat(x.shape[-1])  # [B*N]
+            x = x.ravel()  # [B*N]
             idxs = np.arange(len(x))  # [B*N]
             np.random.shuffle(idxs)  # [B*N]
-            for i in range(len(idxs)//_b):
+            for i in range(len(idxs) // _b):
                 # [T, B]
-                start, end = i*_b, (i+1)*_b
+                start, end = i * _b, (i + 1) * _b
                 xs = x[start:end] + np.tile(np.arange(_t)[:, np.newaxis], _b)
                 sample_idxs = (xs, y[start:end])
                 yield sample_idxs

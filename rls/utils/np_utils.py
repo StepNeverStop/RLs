@@ -11,7 +11,7 @@ def intprod(x):
 
 
 def discounted_sum(reward, gamma, done, begin_mask, init_value=0., normalize=False):
-    '''
+    """
     params:
         reward: [T, B, 1],
         gamma: float
@@ -20,20 +20,20 @@ def discounted_sum(reward, gamma, done, begin_mask, init_value=0., normalize=Fal
         init_value: [B, 1]
     return:
         rets: [T, B, 1]
-    '''
+    """
     n_step = reward.shape[0]
-    rets = np.zeros_like(reward)    # [T, B, 1]
+    rets = np.zeros_like(reward)  # [T, B, 1]
 
-    for _t in range(n_step)[::-1]:
-        rets[_t] = reward[_t] + gamma * (1 - done[_t]) * init_value
-        init_value = np.where(begin_mask[_t] > 0, 0, rets[_t])
+    for t in range(n_step)[::-1]:
+        rets[t] = reward[t] + gamma * (1 - done[t]) * init_value
+        init_value = np.where(begin_mask[t] > 0, 0, rets[t])
     if normalize:
         rets = standardization(rets)
     return rets
 
 
 def calculate_td_error(reward, gamma, done, value, next_value):
-    '''
+    """
     params:
         reward: [T, B, 1],
         gamma: float
@@ -42,12 +42,12 @@ def calculate_td_error(reward, gamma, done, value, next_value):
         next_value: [T, B, 1]
     return:
         rets: [T, B, 1]
-    '''
+    """
     n_step = reward.shape[0]
-    rets = np.zeros_like(reward)    # [T, B, 1]
-    for _t in range(n_step):
-        rets[_t] = reward[_t] + gamma * \
-            (1 - done[_t]) * next_value[_t] - value[_t]
+    rets = np.zeros_like(reward)  # [T, B, 1]
+    for t in range(n_step):
+        rets[t] = reward[t] + gamma * \
+                  (1 - done[t]) * next_value[t] - value[t]
     return rets
 
 
@@ -72,7 +72,7 @@ def get_discrete_action_list(action_dim_list):
 
 
 def int2one_hot(x, act_nums):
-    '''
+    """
     params:
         x: 1D or 2D
     input: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 12
@@ -88,46 +88,46 @@ def int2one_hot(x, act_nums):
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0. 0.]
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1. 0.]
             [0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 1.]]
-    '''
+    """
     x = np.asarray(x).astype(np.int32)
     _shape = x.shape
     x = np.ravel(x)
     a = np.eye(act_nums)[x]
-    a = np.reshape(a, _shape+(-1,))
+    a = np.reshape(a, _shape + (-1,))
     return a
 
 
 def all_equal(x):
-    '''
+    """
     return whether items in x all equal or not.
-    '''
+    """
     return (x == x.reshape(-1)[0]).all()
 
 
 def get_first_item(x):
-    '''
+    """
     return the first item in numpy array.
-    '''
+    """
     return x.reshape(-1)[0]
 
 
 def is_inf_inside(x):
-    '''
+    """
     return whether np.inf, -np.inf is in x or not.
-    '''
+    """
     return np.isinf(x).any()
 
 
 def arrprint(x, n):
     assert isinstance(x, np.ndarray)
-    return ', '.join([str(f'%{4+n}.{n}f' % i) for i in sorted(x)])
+    return ', '.join([str('%{}.{}f'.format(4 + n, n) % i) for i in sorted(x)])
 
 
 def normalization(data):
-    '''
+    """
     归一化，规范化，规范化给定数据集中的所有数值(或者分别对每个feature列处理)属性值，类属性除外。结果值默认在区间[0,1]，但是利用缩放和平移参数，我们能将数值属性值规范到任何区间。
     data -> [0, 1]
-    '''
+    """
     assert isinstance(data, np.ndarray)
     _min = np.min(data)
     _max = np.max(data)
@@ -135,20 +135,20 @@ def normalization(data):
 
 
 def normalization_neg(data):
-    '''
+    """
     归一化，规范化，规范化给定数据集中的所有数值(或者分别对每个feature列处理)属性值，类属性除外。结果值默认在区间[0,1]，但是利用缩放和平移参数，我们能将数值属性值规范到任何区间。
     data -> [-1, 1]
-    '''
+    """
     assert isinstance(data, np.ndarray)
     _max = np.max(abs(data))
     return data / _max
 
 
 def standardization(data):
-    '''
+    """
     标准化，标准化给定数据集中所有数值属性(或者分别对每个feature列处理)的值到一个0均值和单位方差的正态分布。
     data -> Normal(0, 1)
-    '''
+    """
     assert isinstance(data, np.ndarray)
     mu = np.mean(data)
     sigma = np.std(data) + np.finfo(np.float32).eps
@@ -156,9 +156,9 @@ def standardization(data):
 
 
 class SMA:
-    '''
+    """
     Simple Moving Average
-    '''
+    """
 
     def __init__(self, n):
         self.n = n
@@ -183,11 +183,11 @@ class SMA:
 
     @property
     def rs(self):
-        return dict([
-            ['sma_max', self.max],
-            ['sma_min', self.min],
-            ['sma_mean', self.mean]
-        ])
+        return {
+            'sma_max': self.max,
+            'sma_min': self.min,
+            'sma_mean': self.mean
+        }
 
 
 if __name__ == "__main__":

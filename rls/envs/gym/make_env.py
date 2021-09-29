@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import os
 import re
 from collections import defaultdict
-from typing import Dict
 
-import gym
-
-from rls.common.yaml_ops import load_config
 from rls.envs.gym.wrappers.wrappers import *
 
 
 def get_env_type(env_id):
-
     _game_envs = defaultdict(set)
     # Re-parse the gym registry, since we could have new envs since last time.
     for env in gym.envs.registry.all():
@@ -143,10 +137,9 @@ def make_env(index: int = 0,
         env = make_atari(env, **atari_config)
     else:
         if env_name.split('-')[0] == 'MiniGrid':
-            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(
-                env)  # Get pixel observations, or RGBImgObsWrapper
-            env = gym_minigrid.wrappers.ImgObsWrapper(
-                env)  # Get rid of the 'mission' field
+            import gym_minigrid
+            env = gym_minigrid.wrappers.RGBImgPartialObsWrapper(env)  # Get pixel observations, or RGBImgObsWrapper
+            env = gym_minigrid.wrappers.ImgObsWrapper(env)  # Get rid of the 'mission' field
         if noop and isinstance(env.observation_space, Box) and len(env.observation_space.shape) == 3:
             env = NoopResetEnv(env, noop_max=noop_max)
         if action_skip:

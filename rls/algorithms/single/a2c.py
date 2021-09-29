@@ -2,15 +2,14 @@
 # encoding: utf-8
 
 import numpy as np
-import torch as t
-from torch import distributions as td
+import torch.distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
 from rls.common.data import Data
 from rls.common.decorator import iton
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
 from rls.nn.utils import OPLR
-from rls.utils.np_utils import discounted_sum
+from rls.utils.np_utils import calculate_td_error, discounted_sum
 
 
 class A2C(SarlOnPolicy):
@@ -62,16 +61,16 @@ class A2C(SarlOnPolicy):
 
     @iton
     def select_action(self, obs):
-        output = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+        output = self.actor(obs, rnncs=self.rnncs)  # [B, A]
         self.rnncs_ = self.actor.get_rnncs()
         if self.is_continuous:
-            mu, log_std = output     # [B, A]
+            mu, log_std = output  # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            action = dist.sample().clamp(-1, 1)   # [B, A]
+            action = dist.sample().clamp(-1, 1)  # [B, A]
         else:
             logits = output  # [B, A]
             norm_dist = td.Categorical(logits=logits)
-            action = norm_dist.sample()   # [B,]
+            action = norm_dist.sample()  # [B,]
 
         acts_info = Data(action=action)
         if self.use_rnn:
@@ -97,7 +96,7 @@ class A2C(SarlOnPolicy):
                                       value=BATCH.value,
                                       next_value=np.concatenate((BATCH.value[1:], value[np.newaxis, :]), 0))
         BATCH.gae_adv = discounted_sum(td_error,
-                                       self.lambda_*self.gamma,
+                                       self.lambda_ * self.gamma,
                                        BATCH.done,
                                        BATCH.begin_mask,
                                        init_value=0.,
@@ -107,28 +106,28 @@ class A2C(SarlOnPolicy):
     @iton
     def _train(self, BATCH):
         v = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
-        td_error = BATCH.discounted_reward - v   # [T, B, 1]
+        td_error = BATCH.discounted_reward - v  # [T, B, 1]
         critic_loss = td_error.square().mean()  # 1
         self.critic_oplr.optimize(critic_loss)
 
         if self.is_continuous:
             mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)     # [T, B, 1]
-            entropy = dist.entropy().unsqueeze(-1)     # [T, B, 1]
+            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)  # [T, B, 1]
+            entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
             logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            logp_all = logits.log_softmax(-1)   # [T, B, A]
+            logp_all = logits.log_softmax(-1)  # [T, B, A]
             log_act_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
-        advantage = BATCH.discounted_reward - v.detach()    # [T, B, 1]
+        # advantage = BATCH.discounted_reward - v.detach()  # [T, B, 1]
         actor_loss = -(log_act_prob * BATCH.gae_adv + self.beta * entropy).mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
-        return dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss],
-            ['Statistics/entropy', entropy.mean()],
-            ['LEARNING_RATE/actor_lr', self.actor_oplr.lr],
-            ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
-        ])
+        return {
+            'LOSS/actor_loss': actor_loss,
+            'LOSS/critic_loss': critic_loss,
+            'Statistics/entropy': entropy.mean(),
+            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
+            'LEARNING_RATE/critic_lr': self.critic_oplr.lr
+        }

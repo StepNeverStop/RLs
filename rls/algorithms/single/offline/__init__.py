@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from rls.algorithms.register import get_model_info, register
+from rls.algorithms.register import register
 
 # logo: font-size: 12, foreground character: 'O', font: 幼圆
 # http://life.chacuo.net/convertfont2char
@@ -11,7 +11,7 @@ register(
     path='single.offline.cql_dqn',
     is_multi=False,
     class_name='CQL_DQN',
-    logo='''
+    logo="""
 　　　　　　　　　　　　　　　　　ＯＯＯ　　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　
 　　　　ＯＯＯＯＯＯ　　　　　　ＯＯＯＯＯ　　　　　　　ＯＯＯ　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯＯ　　　　　ＯＯＯＯ　　ＯＯＯ　
 　　　ＯＯＯ　　ＯＯ　　　　　ＯＯ　　ＯＯＯ　　　　　　　Ｏ　　　　　　　　　　　　　　　　　　　　　ＯＯ　　ＯＯＯ　　　　　ＯＯ　　ＯＯＯ　　　　　ＯＯＯＯ　　Ｏ　　
@@ -22,7 +22,7 @@ register(
 　　　ＯＯＯＯ　ＯＯ　　　　　ＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　ＯＯＯＯＯＯＯ　　　　　ＯＯ　　　ＯＯ　　
 　　　　ＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　　ＯＯＯ　　　　Ｏ　　
 　　　　　　　　　　　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯ　　　　
-    '''
+    """
 )
 
 register(
@@ -30,7 +30,7 @@ register(
     path='single.offline.bcq',
     is_multi=False,
     class_name='BCQ',
-    logo='''
+    logo="""
 　　　　ＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯ　　　　
 　　　　　ＯＯ　ＯＯＯＯ　　　　　　　ＯＯＯＯ　ＯＯＯ　　　　　　　ＯＯＯ　ＯＯＯＯ　　　
 　　　　　ＯＯ　　ＯＯＯ　　　　　　ＯＯＯＯ　　　　Ｏ　　　　　　ＯＯＯ　　　ＯＯＯＯ　　
@@ -43,5 +43,5 @@ register(
 　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯ　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯ　　　　
-    '''
+    """
 )

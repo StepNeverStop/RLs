@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import os
-import sys
 import time
-from typing import Dict, NoReturn, Optional
+from typing import NoReturn
 
-import numpy as np
 from easydict import EasyDict
 
 from rls.algorithms import get_model_info
 from rls.algorithms.wrapper.IndependentMA import IndependentMA
-from rls.common.yaml_ops import load_config
 from rls.envs.make_env import make_env
 from rls.train.train import inference, prefill, train
 from rls.utils.logging_utils import get_logger
@@ -26,12 +22,12 @@ class Trainer:
                  env_args: EasyDict,
                  train_args: EasyDict,
                  algo_args: EasyDict):
-        '''
+        """
         Initilize an agent that consists of training environments, algorithm agent.
         params:
             env_args: configurations of training environments
             train_args: configurations of training
-        '''
+        """
         self.env_args = env_args
         self.train_args = train_args
         self.algo_args = algo_args
@@ -42,10 +38,9 @@ class Trainer:
         # logger.info(self.env.AgentSpecs)
 
         # ALGORITHM CONFIG
-        self.agent_class, self.is_multi = get_model_info(
-            self.train_args.algorithm)
+        self.agent_class, self.is_multi = get_model_info(self.train_args.algorithm)
         if self.agent_class.policy_mode == 'on-policy':
-            self.algo_args.buffer_size = self.train_args.episode_length * self.algo_args.n_copys
+            self.algo_args.buffer_size = self.train_args.episode_length * self.algo_args.n_copies
 
         logger.info('Initialize Agent Begin.')
         if not self.is_multi:
@@ -69,9 +64,9 @@ class Trainer:
             logger.info(''.join([model_info, *args]))
 
     def __call__(self) -> NoReturn:
-        '''
+        """
         train
-        '''
+        """
         try:
             prefill(env=self.env,
                     agent=self.agent,

@@ -10,7 +10,6 @@ OUTPUT_FILE = 'rls/configs/unity/env_dict.yaml'
 
 
 def get_env_dict(in_path, out_path):
-
     all_env_path = []
     if os.path.exists(in_path):
         with open(in_path, 'r') as f:

@@ -1,5 +1,3 @@
-
-
 from torch.utils.tensorboard import SummaryWriter
 
 from rls.utils.sundry_utils import check_or_create
@@ -21,7 +19,7 @@ class TensorboardLogger:
             self._is_multi_logger = True
             self._writer = {}
             for id in ids:
-                _log_dir = log_dir+f'_{id}'
+                _log_dir = log_dir + f'_{id}'
                 check_or_create(_log_dir, 'logs(summaries)')
                 self._writer['id'] = SummaryWriter(_log_dir)
 

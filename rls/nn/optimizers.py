@@ -1,8 +1,6 @@
-
-import torch as t
-from torch.optim import Optimizer
+import torch as th
 
 OP_REGISTER = {}
-OP_REGISTER['adam'] = t.optim.Adam
-OP_REGISTER['sgd'] = t.optim.SGD
-OP_REGISTER['rmsprop'] = t.optim.RMSprop
+OP_REGISTER['adam'] = th.optim.Adam
+OP_REGISTER['sgd'] = th.optim.SGD
+OP_REGISTER['rmsprop'] = th.optim.RMSprop

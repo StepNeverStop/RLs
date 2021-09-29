@@ -1,7 +1,6 @@
+from typing import Dict, List, Tuple, Union
 
-from typing import Dict, List, Optional, Tuple, Union
-
-import torch as t
+import torch as th
 import torch.nn as nn
 
 from rls.nn.layers import NoisyLinear
@@ -14,11 +13,11 @@ class OPLR:
 
     def __init__(self,
                  models: Union[
-                     t.Tensor,
+                     th.Tensor,
                      nn.Module,
                      TargetTwin,
-                     List[Union[t.Tensor, nn.Module, TargetTwin]],
-                     Tuple[Union[t.Tensor, nn.Module, TargetTwin]]
+                     List[Union[th.Tensor, nn.Module, TargetTwin]],
+                     Tuple[Union[th.Tensor, nn.Module, TargetTwin]]
                  ],
                  lr: float,
                  scheduler: str = 'default',

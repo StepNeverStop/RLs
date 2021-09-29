@@ -4,10 +4,10 @@
 import math
 from abc import ABC, abstractmethod
 
-import numpy as np
-import torch as t
+import torch as th
 
 Noise_action_REGISTER = {}
+
 
 # copy from openai baseline https://github.com/openai/baselines/blob/master/baselines/ddpg/noise.py
 
@@ -54,12 +54,13 @@ class NoisedAction(ABC, object):
 
 class NormalNoisedAction(NoisedAction):
     def __init__(self, mu=0.0, sigma=1.0, action_bound=1.0):
+        super().__init__()
         self.mu = mu
         self.sigma = sigma
         self.action_bound = action_bound
 
     def __call__(self, action):
-        return (action + t.normal(self.mu, self.sigma, action.shape)).clamp(-self.action_bound, self.action_bound)
+        return (action + th.normal(self.mu, self.sigma, action.shape)).clamp(-self.action_bound, self.action_bound)
 
     def __repr__(self):
         return 'NormalNoisedAction(mu={}, sigma={}, action_bound={})'.format(self.mu, self.sigma, self.action_bound)
@@ -71,10 +72,13 @@ class ClippedNormalNoisedAction(NormalNoisedAction):
         self.noise_bound = noise_bound
 
     def __call__(self, action):
-        return (action + t.normal(self.mu, self.sigma, action.shape).clamp(-self.noise_bound, self.noise_bound)).clamp(-self.action_bound, self.action_bound)
+        return (action + th.normal(self.mu, self.sigma, action.shape).clamp(-self.noise_bound, self.noise_bound)).clamp(
+            -self.action_bound, self.action_bound)
 
     def __repr__(self):
-        return 'ClippedNormalNoisedAction(mu={}, sigma={}, action_bound={}, noise_bound={})'.format(self.mu, self.sigma, self.action_bound, self.noise_bound)
+        return 'ClippedNormalNoisedAction(mu={}, sigma={}, action_bound={}, noise_bound={})'.format(self.mu, self.sigma,
+                                                                                                    self.action_bound,
+                                                                                                    self.noise_bound)
 
 
 # Based on http://math.stackexchange.com/questions/1287634/implementing-ornstein-uhlenbeck-in-matlab
@@ -88,15 +92,19 @@ class OrnsteinUhlenbeckNoisedAction(NormalNoisedAction):
 
     def __call__(self, action):
         self.x_prev = self.x_prev + self.theta * \
-            (self.mu - self.x_prev) * self.dt + self.sigma * \
-            math.sqrt(self.dt) * t.randn(action.shape)
+                      (self.mu - self.x_prev) * self.dt + self.sigma * \
+                      math.sqrt(self.dt) * th.randn(action.shape)
         return (action + self.x_prev).clamp(-self.action_bound, self.action_bound)
 
     def reset(self):
         self.x_prev = self.x0 if self.x0 is not None else 0.
 
     def __repr__(self):
-        return 'OrnsteinUhlenbeckNoisedAction(mu={}, sigma={}, action_bound={}, theta={}, dt={})'.format(self.mu, self.sigma, self.action_bound, self.theta, self.dt)
+        return 'OrnsteinUhlenbeckNoisedAction(mu={}, sigma={}, action_bound={}, theta={}, dt={})'.format(self.mu,
+                                                                                                         self.sigma,
+                                                                                                         self.action_bound,
+                                                                                                         self.theta,
+                                                                                                         self.dt)
 
 
 Noise_action_REGISTER['normal'] = NormalNoisedAction

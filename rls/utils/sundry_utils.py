@@ -3,11 +3,10 @@
 
 import os
 import random
-import sys
-from typing import List, NoReturn
+from typing import NoReturn
 
 import numpy as np
-import torch as t
+import torch as th
 
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
@@ -31,9 +30,9 @@ def set_global_seeds(seed: int) -> NoReturn:
     params:
         seed: an integer refers to the random seed
     """
-    t.manual_seed(seed)
-    t.cuda.manual_seed_all(seed)
-    t.backends.cudnn.deterministic = True
+    th.manual_seed(seed)
+    th.cuda.manual_seed_all(seed)
+    th.backends.cudnn.deterministic = True
     np.random.seed(seed)
     random.seed(seed)
 
@@ -41,21 +40,21 @@ def set_global_seeds(seed: int) -> NoReturn:
 class LinearAnnealing:
 
     def __init__(self, x: float, x_: float, end: int):
-        '''
+        """
         Params:
             x: start value
             x_: end value
             end: annealing time
-        '''
+        """
         assert end != 0, 'the time steps for annealing must larger than 0.'
         self.x = x
         self.x_ = x_
         self.interval = (x_ - x) / end
 
     def __call__(self, current: int) -> float:
-        '''
+        """
         TODO: Annotation
-        '''
+        """
         return max(self.x + self.interval * current, self.x_)
 
 

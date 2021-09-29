@@ -2,7 +2,6 @@
 # encoding: utf-8
 
 import numpy as np
-import torch as t
 import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
@@ -16,9 +15,9 @@ from rls.utils.torch_utils import n_step_return
 
 
 class DDDQN(SarlOffPolicy):
-    '''
+    """
     Dueling Double DQN, https://arxiv.org/abs/1511.06581
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -58,14 +57,14 @@ class DDDQN(SarlOffPolicy):
         self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
-            actions = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copies)
         else:
-            actions = q_values.argmax(-1)    # [B,]
+            actions = q_values.argmax(-1)  # [B,]
         return actions, Data(action=actions)
 
     @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, A]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
         next_q = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
         q_target = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
 
@@ -79,17 +78,17 @@ class DDDQN(SarlOffPolicy):
                                  BATCH.done,
                                  q_target_next_max,
                                  BATCH.begin_mask).detach()  # [T, B, 1]
-        td_error = q_target - q_eval    # [T, B, 1]
-        q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
+        td_error = q_target - q_eval  # [T, B, 1]
+        q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
         self.oplr.optimize(q_loss)
 
-        return td_error, dict([
-            ['LEARNING_RATE/lr', self.oplr.lr],
-            ['LOSS/loss', q_loss],
-            ['Statistics/q_max', q_eval.max()],
-            ['Statistics/q_min', q_eval.min()],
-            ['Statistics/q_mean', q_eval.mean()]
-        ])
+        return td_error, {
+            'LEARNING_RATE/lr': self.oplr.lr,
+            'LOSS/loss': q_loss,
+            'Statistics/q_max': q_eval.max(),
+            'Statistics/q_min': q_eval.min(),
+            'Statistics/q_mean': q_eval.mean()
+        }
 
     def _after_train(self):
         super()._after_train()

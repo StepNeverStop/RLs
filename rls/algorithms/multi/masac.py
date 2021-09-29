@@ -3,12 +3,12 @@
 
 from collections import defaultdict
 from copy import deepcopy
-from typing import Dict, List, NoReturn, Union
+from typing import Dict
 
 import numpy as np
-import torch as t
+import torch as th
+import torch.distributions as td
 import torch.nn.functional as F
-from torch import distributions as td
 
 from rls.algorithms.base.marl_off_policy import MultiAgentOffPolicy
 from rls.common.data import Data
@@ -45,9 +45,9 @@ class MASAC(MultiAgentOffPolicy):
                  critic_lr=1.0e-3,
                  alpha_lr=5.0e-4,
                  **kwargs):
-        '''
+        """
         TODO: Annotation
-        '''
+        """
         super().__init__(**kwargs)
         self.polyak = polyak
         self.discrete_tau = discrete_tau
@@ -80,14 +80,15 @@ class MASAC(MultiAgentOffPolicy):
                                           self.polyak).to(self.device)
             self.critics2[id] = deepcopy(self.critics[id])
         self.actor_oplr = OPLR(list(self.actors.values()), actor_lr, **self._oplr_params)
-        self.critic_oplr = OPLR(list(self.critics.values())+list(self.critics2.values()), critic_lr, **self._oplr_params)
+        self.critic_oplr = OPLR(list(self.critics.values()) + list(self.critics2.values()),
+                                critic_lr, **self._oplr_params)
 
         if self.auto_adaption:
-            self.log_alpha = t.tensor(0., requires_grad=True).to(self.device)
+            self.log_alpha = th.tensor(0., requires_grad=True).to(self.device)
             self.alpha_oplr = OPLR(self.log_alpha, alpha_lr, **self._oplr_params)
             self._trainer_modules.update(alpha_oplr=self.alpha_oplr)
         else:
-            self.log_alpha = t.tensor(alpha).log().to(self.device)
+            self.log_alpha = th.tensor(alpha).log().to(self.device)
             if self.annealing:
                 self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
 
@@ -115,7 +116,7 @@ class MASAC(MultiAgentOffPolicy):
                 mu.tanh_()  # squash mu  # [B, A]
             else:
                 logits = output  # [B, A]
-                mu = logits.argmax(-1)    # [B,]
+                mu = logits.argmax(-1)  # [B,]
                 cate_dist = td.Categorical(logits=logits)
                 pi = cate_dist.sample()  # [B,]
             action = pi if self._is_train_mode else mu
@@ -125,9 +126,9 @@ class MASAC(MultiAgentOffPolicy):
 
     @iton
     def _train(self, BATCH_DICT):
-        '''
+        """
         TODO: Annotation
-        '''
+        """
         summaries = defaultdict(dict)
         target_actions = {}
         target_log_pis = 1.
@@ -136,32 +137,32 @@ class MASAC(MultiAgentOffPolicy):
                 target_mu, target_log_std = self.actors[mid](BATCH_DICT[aid].obs_,
                                                              begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 dist = td.Independent(td.Normal(target_mu, target_log_std.exp()), 1)
-                target_pi = dist.sample()   # [T, B, A]
+                target_pi = dist.sample()  # [T, B, A]
                 target_pi, target_log_pi = squash_action(
-                    target_pi, dist.log_prob(target_pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
+                    target_pi, dist.log_prob(target_pi).unsqueeze(-1))  # [T, B, A], [T, B, 1]
             else:
                 target_logits = self.actors[mid](BATCH_DICT[aid].obs_,
-                                                 begin_mask=BATCH_DICT['global'].begin_mask)    # [T, B, A]
+                                                 begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
-                target_pi = target_cate_dist.sample()   # [T, B]
+                target_pi = target_cate_dist.sample()  # [T, B]
                 target_log_pi = target_cate_dist.log_prob(target_pi).unsqueeze(-1)  # [T, B, 1]
                 target_pi = F.one_hot(target_pi, self.a_dims[aid]).float()  # [T, B, A]
             target_actions[aid] = target_pi
             target_log_pis *= target_log_pi
 
-        target_log_pis += t.finfo().eps
-        target_actions = t.cat(list(target_actions.values()), -1)   # [T, B, N*A]
+        target_log_pis += th.finfo().eps
+        target_actions = th.cat(list(target_actions.values()), -1)  # [T, B, N*A]
 
         qs1, qs2, q_targets1, q_targets2 = {}, {}, {}, {}
         for mid in self.model_ids:
             qs1[mid] = self.critics[mid](
                 [BATCH_DICT[id].obs for id in self.agent_ids],
-                t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
-            )   # [T, B, 1]
+                th.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
+            )  # [T, B, 1]
             qs2[mid] = self.critics2[mid](
                 [BATCH_DICT[id].obs for id in self.agent_ids],
-                t.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
-            )   # [T, B, 1]
+                th.cat([BATCH_DICT[id].action for id in self.agent_ids], -1)
+            )  # [T, B, 1]
             q_targets1[mid] = self.critics[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
                                                   target_actions)  # [T, B, 1]
             q_targets2[mid] = self.critics2[mid].t([BATCH_DICT[id].obs_ for id in self.agent_ids],
@@ -170,23 +171,23 @@ class MASAC(MultiAgentOffPolicy):
         q_loss = {}
         td_errors = 0.
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            q_target = t.minimum(q_targets1[mid], q_targets2[mid])  # [T, B, 1]
+            q_target = th.minimum(q_targets1[mid], q_targets2[mid])  # [T, B, 1]
             dc_r = n_step_return(BATCH_DICT[aid].reward,
                                  self.gamma,
                                  BATCH_DICT[aid].done,
                                  q_target - self.alpha * target_log_pis,
                                  BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
-            td_error1 = qs1[mid] - dc_r   # [T, B, 1]
-            td_error2 = qs2[mid] - dc_r   # [T, B, 1]
+            td_error1 = qs1[mid] - dc_r  # [T, B, 1]
+            td_error2 = qs2[mid] - dc_r  # [T, B, 1]
             td_errors += (td_error1 + td_error2) / 2
-            q1_loss = td_error1.square().mean()    # 1
-            q2_loss = td_error2.square().mean()    # 1
+            q1_loss = td_error1.square().mean()  # 1
+            q2_loss = td_error2.square().mean()  # 1
             q_loss[aid] = 0.5 * q1_loss + 0.5 * q2_loss
-        summaries[aid].update(dict([
-            ['Statistics/q_min', qs1[mid].min()],
-            ['Statistics/q_mean', qs1[mid].mean()],
-            ['Statistics/q_max', qs1[mid].max()]
-        ]))
+            summaries[aid].update({
+                'Statistics/q_min': qs1[mid].min(),
+                'Statistics/q_mean': qs1[mid].mean(),
+                'Statistics/q_max': qs1[mid].max()
+            })
         self.critic_oplr.optimize(sum(q_loss.values()))
 
         log_pi_actions = {}
@@ -198,20 +199,21 @@ class MASAC(MultiAgentOffPolicy):
                                                begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
                 dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
                 pi = dist.rsample()  # [T, B, A]
-                pi, log_pi = squash_action(pi, dist.log_prob(pi).unsqueeze(-1))   # [T, B, A], [T, B, 1]
+                pi, log_pi = squash_action(pi, dist.log_prob(pi).unsqueeze(-1))  # [T, B, A], [T, B, 1]
                 pi_action = BATCH_DICT[aid].action.arctanh()
-                _, log_pi_action = squash_action(pi_action, dist.log_prob(pi_action).unsqueeze(-1))    # [T, B, A], [T, B, 1]
+                _, log_pi_action = squash_action(pi_action, dist.log_prob(
+                    pi_action).unsqueeze(-1))  # [T, B, A], [T, B, 1]
             else:
                 logits = self.actors[mid](BATCH_DICT[aid].obs,
                                           begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
-                logp_all = logits.log_softmax(-1)   # [T, B, A]
-                gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)   # [T, B, A]
-                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)   # [T, B, A]
+                logp_all = logits.log_softmax(-1)  # [T, B, A]
+                gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)  # [T, B, A]
+                _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)  # [T, B, A]
                 _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dims[aid]).float()  # [T, B, A]
-                _pi_diff = (_pi_true_one_hot - _pi).detach()    # [T, B, A]
+                _pi_diff = (_pi_true_one_hot - _pi).detach()  # [T, B, A]
                 pi = _pi_diff + _pi  # [T, B, A]
-                log_pi = (logp_all * pi).sum(-1, keepdim=True)   # [T, B, 1]
-                log_pi_action = (logp_all * BATCH_DICT[aid].action).sum(-1, keepdim=True)   # [T, B, 1]
+                log_pi = (logp_all * pi).sum(-1, keepdim=True)  # [T, B, 1]
+                log_pi_action = (logp_all * BATCH_DICT[aid].action).sum(-1, keepdim=True)  # [T, B, 1]
             log_pi_actions[aid] = log_pi_action
             log_pis[aid] = log_pi
             sample_pis[aid] = pi
@@ -223,46 +225,45 @@ class MASAC(MultiAgentOffPolicy):
             all_log_pis = {id: log_pi_actions[id] for id in self.agent_ids}
             all_log_pis[aid] = log_pis[aid]
 
-            q_s_pi = t.minimum(self.critics[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
-                                                 t.cat(list(all_actions.values()), -1),
-                                                 begin_mask=BATCH_DICT['global'].begin_mask),
-                               self.critics2[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
-                                                  t.cat(list(all_actions.values()), -1),
-                                                  begin_mask=BATCH_DICT['global'].begin_mask))  # [T, B, 1]
+            q_s_pi = th.minimum(self.critics[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
+                                                  th.cat(list(all_actions.values()), -1),
+                                                  begin_mask=BATCH_DICT['global'].begin_mask),
+                                self.critics2[mid]([BATCH_DICT[id].obs for id in self.agent_ids],
+                                                   th.cat(list(all_actions.values()), -1),
+                                                   begin_mask=BATCH_DICT['global'].begin_mask))  # [T, B, 1]
 
             _log_pis = 1.
             for _log_pi in all_log_pis.values():
                 _log_pis *= _log_pi
-            _log_pis += t.finfo().eps
+            _log_pis += th.finfo().eps
             actor_loss[aid] = -(q_s_pi - self.alpha * _log_pis).mean()  # 1
 
         self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
-            summaries[aid].update(dict([
-                ['LOSS/actor_loss', actor_loss[aid]],
-                ['LOSS/critic_loss', q_loss[aid]]
-            ]))
-        summaries['model'].update(dict([
-            ['LOSS/actor_loss', sum(actor_loss.values())],
-            ['LOSS/critic_loss', sum(q_loss.values())]
-        ]))
+            summaries[aid].update({
+                'LOSS/actor_loss': actor_loss[aid],
+                'LOSS/critic_loss': q_loss[aid]
+            })
+        summaries['model'].update({
+            'LOSS/actor_loss': sum(actor_loss.values()),
+            'LOSS/critic_loss': sum(q_loss.values())
+        })
 
         if self.auto_adaption:
             _log_pis = 1.
             _log_pis = 1.
             for _log_pi in log_pis.values():
                 _log_pis *= _log_pi
-            _log_pis += t.finfo().eps
+            _log_pis += th.finfo().eps
 
-            alpha_loss = - \
-                (self.alpha * (_log_pis + self.target_entropy).detach()).mean()  # 1
+            alpha_loss = -(self.alpha * (_log_pis + self.target_entropy).detach()).mean()  # 1
 
             self.alpha_oplr.optimize(alpha_loss)
-            summaries['model'].update([
-                ['LOSS/alpha_loss', alpha_loss],
-                ['LEARNING_RATE/alpha_lr', self.alpha_oplr.lr]
-            ])
+            summaries['model'].update({
+                'LOSS/alpha_loss': alpha_loss,
+                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
+            })
         return td_errors / self.n_agents_percopy, summaries
 
     def _after_train(self):
