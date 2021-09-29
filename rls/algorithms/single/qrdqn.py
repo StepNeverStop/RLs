@@ -2,12 +2,12 @@
 # encoding: utf-8
 
 import numpy as np
-import torch as t
+import torch as th
 import torch.nn.functional as F
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import QrdqnDistributional
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
@@ -16,11 +16,11 @@ from rls.utils.torch_utils import n_step_return
 
 
 class QRDQN(SarlOffPolicy):
-    '''
+    """
     Quantile Regression DQN
     Distributional Reinforcement Learning with Quantile Regression, https://arxiv.org/abs/1710.10044
     No double, no dueling, no noisy net.
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -39,7 +39,7 @@ class QRDQN(SarlOffPolicy):
         assert not self.is_continuous, 'qrdqn only support discrete action space'
         self.nums = nums
         self.huber_delta = huber_delta
-        self.quantiles = t.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().to(self.device)  # [N,]
+        self.quantiles = th.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().to(self.device)  # [N,]
         self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
@@ -61,7 +61,7 @@ class QRDQN(SarlOffPolicy):
         self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
-            actions = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copies)
         else:
             q = q_values.mean(-1)  # [B, A, N] => [B, A]
             actions = q.argmax(-1)  # [B,]
@@ -83,32 +83,32 @@ class QRDQN(SarlOffPolicy):
                                self.gamma,
                                BATCH.done.repeat(1, 1, self.nums),
                                target_q_dist,
-                               BATCH.begin_mask.repeat(1, 1, self.nums)).detach()    # [T, B, N]
+                               BATCH.begin_mask.repeat(1, 1, self.nums)).detach()  # [T, B, N]
 
-        q_eval = q_dist.mean(-1, keepdim=True)    # [T, B, 1]
+        q_eval = q_dist.mean(-1, keepdim=True)  # [T, B, 1]
         q_target = target.mean(-1, keepdim=True)  # [T, B, 1]
-        td_error = q_target - q_eval     # [T, B, 1], used for PER
+        td_error = q_target - q_eval  # [T, B, 1], used for PER
 
-        target = target.unsqueeze(-2)   # [T, B, 1, N]
+        target = target.unsqueeze(-2)  # [T, B, 1, N]
         q_dist = q_dist.unsqueeze(-1)  # [T, B, N, 1]
 
         # [T, B, 1, N] - [T, B, N, 1] => [T, B, N, N]
         quantile_error = target - q_dist
-        huber = F.huber_loss(target, q_dist, reduction="none", delta=self.huber_delta)    # [T, B, N, N]
+        huber = F.huber_loss(target, q_dist, reduction="none", delta=self.huber_delta)  # [T, B, N, N]
         # [N,] - [T, B, N, N] => [T, B, N, N]
         huber_abs = (self.quantiles - quantile_error.detach().le(0.).float()).abs()
         loss = (huber_abs * huber).mean(-1)  # [T, B, N, N] => [T, B, N]
         loss = loss.sum(-1, keepdim=True)  # [T, B, N] => [T, B, 1]
-        loss = (loss*BATCH.get('isw', 1.0)).mean()   # 1
+        loss = (loss * BATCH.get('isw', 1.0)).mean()  # 1
 
         self.oplr.optimize(loss)
-        return td_error, dict([
-            ['LEARNING_RATE/lr', self.oplr.lr],
-            ['LOSS/loss', loss],
-            ['Statistics/q_max', q_eval.max()],
-            ['Statistics/q_min', q_eval.min()],
-            ['Statistics/q_mean', q_eval.mean()]
-        ])
+        return td_error, {
+            'LEARNING_RATE/lr': self.oplr.lr,
+            'LOSS/loss': loss,
+            'Statistics/q_max': q_eval.max(),
+            'Statistics/q_min': q_eval.min(),
+            'Statistics/q_mean': q_eval.mean()
+        }
 
     def _after_train(self):
         super()._after_train()

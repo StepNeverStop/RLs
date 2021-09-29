@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from typing import Any, Dict, List, NoReturn, Union
-
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
-from rls.common.specs import Data
+from rls.common.data import Data
+from rls.common.decorator import iton
+from rls.utils.converter import to_tensor, to_numpy
 from rls.utils.np_utils import int2one_hot
 
 
@@ -28,7 +27,7 @@ class SarlOnPolicy(SarlPolicy):
         super().__init__(**kwargs)
 
     def learn(self, BATCH: Data):
-        BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
+        BATCH = self._preprocess_BATCH(BATCH)  # [T, B, *]
         for _ in range(self._epochs):
             for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
@@ -47,7 +46,7 @@ class SarlOnPolicy(SarlPolicy):
 
     def _build_buffer(self):
         from rls.memories import DataBuffer
-        buffer = DataBuffer(n_copys=self.n_copys,
+        buffer = DataBuffer(n_copies=self.n_copies,
                             batch_size=self.batch_size,
                             buffer_size=self.buffer_size,
                             chunk_length=self._chunk_length)
@@ -60,7 +59,7 @@ class SarlOnPolicy(SarlPolicy):
                 BATCH.action, self.a_dim)
         if self._obs_with_pre_action:
             BATCH.obs.update(other=np.concatenate((
-                np.zeros_like(BATCH.action[:1]),    # TODO: improve
+                np.zeros_like(BATCH.action[:1]),  # TODO: improve
                 BATCH.action[:-1]
             ), 0))
             BATCH.obs_.update(other=BATCH.action)
@@ -69,18 +68,18 @@ class SarlOnPolicy(SarlPolicy):
     def _before_train(self, BATCH):
         self.summaries = {}
         if self.use_curiosity:
-            crsty_r, crsty_summaries = self.curiosity_model(
-                to_tensor(BATCH, device=self.device))
-            BATCH.reward += to_numpy(crsty_r)   # [T, B, 1]
+            crsty_r, crsty_summaries = self.curiosity_model(to_tensor(BATCH, device=self.device))
+            BATCH.reward += to_numpy(crsty_r)  # [T, B, 1]
             self.summaries.update(crsty_summaries)
         return BATCH
 
+    @iton
     def _train(self, BATCH):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(
-            self._cur_train_step, self.summaries, self.writer)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

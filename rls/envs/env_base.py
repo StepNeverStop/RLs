@@ -1,17 +1,16 @@
-
-
 from abc import ABC, abstractmethod
 from typing import Dict, List, NoReturn
 
 import numpy as np
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 
 
 class EnvBase(ABC):
 
     def __init__(self):
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def reset(self, **kwargs) -> Dict[str, Data]:
@@ -31,7 +30,7 @@ class EnvBase(ABC):
 
     @property
     @abstractmethod
-    def n_copys(self) -> int:
+    def n_copies(self) -> int:
         raise NotImplementedError
 
     @property

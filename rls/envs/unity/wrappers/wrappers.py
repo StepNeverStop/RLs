@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import os
 from collections import defaultdict
 from copy import deepcopy
 from typing import Dict, List
@@ -13,9 +12,10 @@ from mlagents_envs.side_channel.engine_configuration_channel import \
 from mlagents_envs.side_channel.environment_parameters_channel import \
     EnvironmentParametersChannel
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.common.yaml_ops import load_config
-from rls.envs.unity.wrappers.core import ActionWrapper, ObservationWrapper
+from rls.envs.unity.wrappers.core import ObservationWrapper
 from rls.utils.np_utils import get_discrete_action_list
 
 
@@ -28,7 +28,7 @@ class BasicUnityEnvironment(object):
                  render=False,
                  seed=42,
                  timeout_wait=60,
-                 env_copys=12,
+                 env_copies=12,
                  env_name='3DBall',
                  real_done=True,
                  initialize_config={},
@@ -41,7 +41,7 @@ class BasicUnityEnvironment(object):
                      'capture_frame_rate': 60
                  },
                  **kwargs):
-        self._n_copys = env_copys
+        self._n_copies = env_copies
         self._real_done = real_done
 
         self._side_channels = self.initialize_all_side_channels(
@@ -49,7 +49,7 @@ class BasicUnityEnvironment(object):
         env_kwargs = dict(seed=seed,
                           worker_id=worker_id,
                           timeout_wait=timeout_wait,
-                          side_channels=list(self._side_channels.values()))    # 注册所有初始化后的通讯频道
+                          side_channels=list(self._side_channels.values()))  # 注册所有初始化后的通讯频道
         if file_name is not None:
             env_dict = load_config('rls/configs/unity/env_dict.yaml')
             env_kwargs.update(file_name=file_name,
@@ -63,24 +63,22 @@ class BasicUnityEnvironment(object):
         self.initialize_environment()
 
     def initialize_all_side_channels(self, initialize_config, engine_config):
-        '''
+        """
         初始化所有的通讯频道
-        '''
+        """
         engine_configuration_channel = EngineConfigurationChannel()
-        engine_configuration_channel.set_configuration_parameters(
-            **engine_config)
+        engine_configuration_channel.set_configuration_parameters(**engine_config)
         float_properties_channel = EnvironmentParametersChannel()
-        float_properties_channel.set_float_parameter(
-            'env_copys', self._n_copys)
+        float_properties_channel.set_float_parameter('env_copies', self._n_copies)
         for k, v in initialize_config.items():
             float_properties_channel.set_float_parameter(k, v)
         return dict(engine_configuration_channel=engine_configuration_channel,
                     float_properties_channel=float_properties_channel)
 
     def initialize_environment(self):
-        '''
+        """
         初始化环境，获取必要的信息，如状态、动作维度等等
-        '''
+        """
 
         self.behavior_names = list(self.env.behavior_specs.keys())
 
@@ -95,7 +93,7 @@ class BasicUnityEnvironment(object):
 
         self.env.reset()
         for bn, spec in self.env.behavior_specs.items():
-            for i, obs_spec in enumerate(spec.observation_specs):   # TODO: optimize
+            for i, obs_spec in enumerate(spec.observation_specs):  # TODO: optimize
                 if len(obs_spec.shape) == 1:
                     self._vector_idxs[bn].append(i)
                     self._vector_dims[bn].append(obs_spec.shape[0])
@@ -122,7 +120,7 @@ class BasicUnityEnvironment(object):
                     "doesn't support continuous and discrete actions simultaneously for now.")
 
             self._actiontuples[bn] = action_spec.empty_action(
-                n_agents=self._n_copys)
+                n_agents=self._n_copies)
 
     def reset(self, reset_config):
         for k, v in reset_config.items():
@@ -132,10 +130,10 @@ class BasicUnityEnvironment(object):
         return self.get_obs(only_obs=True)
 
     def step(self, actions, step_config):
-        '''
+        """
         params: actions, type of dict or np.ndarray, if the type of actions is
                 not dict, then set those actions for the first behavior controller.
-        '''
+        """
         for k, v in step_config.items():
             self._side_channels['float_properties_channel'].set_float_parameter(
                 k, v)
@@ -148,7 +146,7 @@ class BasicUnityEnvironment(object):
                 self._actiontuples[bn].add_continuous(actions[bn])
             else:
                 self._actiontuples[bn].add_discrete(
-                    self._discrete_action_lists[bn][actions[bn]].reshape(self._n_copys, -1))
+                    self._discrete_action_lists[bn][actions[bn]].reshape(self._n_copies, -1))
             self.env.set_actions(bn, self._actiontuples[bn])
 
         self.env.step()
@@ -176,13 +174,13 @@ class BasicUnityEnvironment(object):
         return self.behavior_names
 
     def get_obs(self, behavior_names=None, only_obs=False):
-        '''
+        """
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
-        '''
+        """
         behavior_names = behavior_names or self.behavior_names
 
-        whole_done = np.full(self._n_copys, False)
-        whole_info_max_step = np.full(self._n_copys, False)
+        whole_done = np.full(self._n_copies, False)
+        whole_info_max_step = np.full(self._n_copies, False)
         all_obs_fa, all_obs_fs = {}, {}
         all_reward = {}
 
@@ -194,25 +192,25 @@ class BasicUnityEnvironment(object):
                 ds, ts = self.env.get_steps(bn)
                 if len(ts):
                     ps.append(ts)
-                if len(ds) == self._n_copys:
+                if len(ds) == self._n_copies:
                     break
                 elif len(ds) == 0:
                     self.env.step()  # some of environments done, but some of not
                 else:
                     raise ValueError(
-                        f'agents number error. Expected 0 or {self._n_copys}, received {len(ds)}')
+                        f'agents number error. Expected 0 or {self._n_copies}, received {len(ds)}')
 
             obs_fs, reward = ds.obs, ds.reward
             obs_fa = deepcopy(obs_fs)
-            done = np.full(self._n_copys, False)
-            begin_mask = np.full(self._n_copys, False)
-            info_max_step = np.full(self._n_copys, False)
-            info_real_done = np.full(self._n_copys, False)
+            done = np.full(self._n_copies, False)
+            begin_mask = np.full(self._n_copies, False)
+            info_max_step = np.full(self._n_copies, False)
+            info_real_done = np.full(self._n_copies, False)
 
-            for ts in ps:    # TODO: 有待优化
+            for ts in ps:  # TODO: 有待优化
                 _ids = ts.agent_id
                 reward[_ids] = ts.reward
-                info_max_step[_ids] = ts.interrupted    # 因为达到episode最大步数而终止的
+                info_max_step[_ids] = ts.interrupted  # 因为达到episode最大步数而终止的
                 # 去掉因为max_step而done的，只记录因为失败/成功而done的
                 info_real_done[_ids[~ts.interrupted]] = True
                 done[_ids] = True
@@ -243,7 +241,7 @@ class BasicUnityEnvironment(object):
 
         if only_obs:
             all_obs_fa.update(
-                {'global': Data(begin_mask=np.full((self._n_copys, 1), True))})
+                {'global': Data(begin_mask=np.full((self._n_copies, 1), True))})
             return all_obs_fa
         else:
             rets = {}
@@ -258,9 +256,9 @@ class BasicUnityEnvironment(object):
             return rets
 
     def __getattr__(self, name):
-        '''
+        """
         不允许获取BasicUnityEnvironment中以'_'开头的属性
-        '''
+        """
         if name.startswith('_'):
             raise AttributeError(
                 "attempted to get missing private attribute '{}'".format(name))
@@ -270,7 +268,6 @@ class BasicUnityEnvironment(object):
 class ScaleVisualWrapper(ObservationWrapper):
 
     def observation(self, observation: Dict[str, Data]):
-
         def func(x): return np.asarray(x * 255).astype(np.uint8)
 
         for k in observation.keys():

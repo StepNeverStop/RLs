@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from abc import abstractmethod
-from typing import Dict, List, NoReturn, Union
+from typing import Dict
 
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.marl_policy import MarlPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.common.when import Every
 from rls.common.yaml_ops import load_config
 from rls.utils.np_utils import int2one_hot
@@ -34,17 +32,18 @@ class MultiAgentOffPolicy(MarlPolicy):
         super().__init__(**kwargs)
 
     def _build_buffer(self):
-        if self.use_priority == True:
+        if self.use_priority:
             from rls.memories.per_buffer import PrioritizedDataBuffer
-            buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
+            buffer = PrioritizedDataBuffer(n_copies=self.n_copies,
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
                                            chunk_length=self._chunk_length,
                                            max_train_step=self._max_train_step,
-                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
+                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')[
+                                               'PrioritizedDataBuffer'])
         else:
             from rls.memories.er_buffer import DataBuffer
-            buffer = DataBuffer(n_copys=self.n_copys,
+            buffer = DataBuffer(n_copies=self.n_copies,
                                 batch_size=self.batch_size,
                                 buffer_size=self.buffer_size,
                                 chunk_length=self._chunk_length)
@@ -67,7 +66,7 @@ class MultiAgentOffPolicy(MarlPolicy):
             td_errors += td_error  # [T, B, 1]
             self.summaries.update(summaries)
             self._after_train()
-        return td_errors/self._epochs
+        return td_errors / self._epochs
 
     # customed
 
@@ -114,7 +113,8 @@ class MultiAgentOffPolicy(MarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(self._cur_train_step, self.summaries)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

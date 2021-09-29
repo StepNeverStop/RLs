@@ -1,12 +1,11 @@
-
-
 from copy import deepcopy
 from typing import Dict, List, NoReturn
 
 import numpy as np
 from gym.spaces import Box, Discrete, Tuple
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.gym.make_env import make_env
 from rls.envs.wrappers import MPIEnv, VECEnv
@@ -41,30 +40,32 @@ try:
     import highway_env
 except ImportError:
     logger.warning(colorize(
-        "import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.", color='yellow'))
+        "import highway_env failed, using 'pip install --user git+https://github.com/eleurent/highway-env' install it.",
+        color='yellow'))
     pass
 
 
 class GymEnv(EnvBase):
 
     def __init__(self,
-                 env_copys=1,
+                 env_copies=1,
                  multiprocessing=True,
                  seed=42,
                  inference=False,
                  **kwargs):
-        '''
+        """
         Input:
-            env_copys: environment number
-        '''
-        self._n_copys = env_copys   # environments number
+            env_copies: environment number
+        """
+        super().__init__()
+        self._n_copies = env_copies  # environments number
         self._initialize(env=make_env(**kwargs))
         _env_wrapper = MPIEnv if multiprocessing else VECEnv
-        self._envs = _env_wrapper(n=self._n_copys, env_fn=make_env, config=kwargs)
+        self._envs = _env_wrapper(n=self._n_copies, env_fn=make_env, config=kwargs)
 
         params = []
-        for i in range(self._n_copys):
-            params.append(dict(args=(seed+i,)))
+        for i in range(self._n_copies):
+            params.append(dict(args=(seed + i,)))
         self._envs.run('seed', params)
 
     def reset(self, **kwargs) -> Dict[str, Data]:
@@ -75,13 +76,13 @@ class GymEnv(EnvBase):
         else:
             ret = Data(vector={'vector_0': obs})
         return {'single': ret,
-                'global': Data(begin_mask=np.full((self._n_copys, 1), True))}
+                'global': Data(begin_mask=np.full((self._n_copies, 1), True))}
 
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
         # choose the first agents' actions
         actions = deepcopy(actions['single'])
         params = []
-        for i in range(self._n_copys):
+        for i in range(self._n_copies):
             params.append(dict(args=(actions[i],)))
         rets = self._envs.run('step', params)
         obs_fs, reward, done, info = zip(*rets)
@@ -90,7 +91,7 @@ class GymEnv(EnvBase):
         done = np.stack(done, 0)
         # TODO: info
 
-        obs_fa = deepcopy(obs_fs)   # obs for next action choosing.
+        obs_fa = deepcopy(obs_fs)  # obs for next action choosing.
 
         idxs = np.where(done)[0]
         if len(idxs) > 0:
@@ -111,20 +112,20 @@ class GymEnv(EnvBase):
                 'global': Data(begin_mask=done[:, np.newaxis])}
 
     def close(self, **kwargs) -> NoReturn:
-        '''
+        """
         close all environments.
-        '''
+        """
         self._envs.run('close')
 
     def render(self, **kwargs) -> NoReturn:
-        '''
+        """
         render game windows.
-        '''
+        """
         self._envs.run('render', idxs=0)
 
     @property
-    def n_copys(self) -> int:
-        return int(self._n_copys)
+    def n_copies(self) -> int:
+        return int(self._n_copies)
 
     @property
     def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:

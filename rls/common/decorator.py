@@ -3,7 +3,7 @@
 
 import functools
 
-import torch as t
+import torch as th
 
 from rls.utils.converter import to_numpy, to_tensor
 
@@ -18,16 +18,16 @@ def lazy_property(func):
         if not hasattr(self, attribute):
             setattr(self, attribute, func(self))
         return getattr(self, attribute)
+
     return wrapper
 
 
-def iton(func, dtype=t.float32, device='cpu'):
-
+def iton(func, dtype=th.float32, device='cpu'):
     def wrapper(*args, **kwargs):
         if args and hasattr(args[0], 'device'):
-            device = getattr(args[0], 'device')
+            _device = getattr(args[0], 'device')
             args = [args[0]] + \
-                [to_tensor(x, dtype=dtype, device=device) for x in args[1:]]
+                   [to_tensor(x, dtype=dtype, device=_device) for x in args[1:]]
         else:
             args = [to_tensor(x, dtype=dtype, device=device) for x in args]
         kwargs = {k: to_tensor(v, dtype=dtype, device=device)

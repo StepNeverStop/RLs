@@ -14,7 +14,7 @@ from rls.algorithms.single import *
 #     path='single.pg',
 #     is_multi=False,
 #     class_name='PG',
-#     logo='''
+#     logo="""
 #     　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯ　Ｏ　　　　
 # 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
 # 　　　　　　　ＯＯ　　ＯＯＯＯ　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -27,5 +27,5 @@ from rls.algorithms.single import *
 # 　　　　　　　ＯＯ　　　　　　　　　　　　　ＯＯＯ　　　　　ＯＯ　　　　
 # 　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯ　ＯＯＯＯ　　　　
 # 　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　
-#     '''
+#     """
 # )

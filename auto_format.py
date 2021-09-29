@@ -22,7 +22,7 @@ def autopep8(file_path, ignore_pep):
     isort.file(file_path)
     print(f'isort file: {file_path} SUCCESSFULLY.')
     if not ignore_pep:
-        os.system(f"autopep8 -j 0 -i {file_path} --max-line-length 200")
+        os.system(f"autopep8 -j 0 -i {file_path} --max-line-length 120")
         print(f'autopep8 file: {file_path} SUCCESSFULLY.')
 
 

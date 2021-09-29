@@ -1,5 +1,4 @@
-import numpy as np
-import torch as t
+import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -32,33 +31,33 @@ class QMixer(nn.Module):
                      layer='linear', act_fn='relu', output_shape=1)
 
     def forward(self, q_values, state, **kwargs):
-        '''
+        """
         params:
             q_values: [T, B, 1, N]
             state: [T, B, *]
-        '''
+        """
         # q_values: List[Tensor(T*B, 1)]
-        time_step = q_values.shape[0]    # T
-        batch_size = q_values.shape[1]   # B
+        time_step = q_values.shape[0]  # T
+        batch_size = q_values.shape[1]  # B
 
         # state: [T, B, *]
-        state_feat, _ = self.rep_net(state, **kwargs)    # [T, B, *]
+        state_feat, _ = self.rep_net(state, **kwargs)  # [T, B, *]
         # First layer
-        w1 = t.abs(self.hyper_w_1(state_feat))   # [T, B, **N]
+        w1 = th.abs(self.hyper_w_1(state_feat))  # [T, B, **N]
         b1 = self.hyper_b_1(state_feat)  # [T, B, *]
         w1 = w1.view(time_step, batch_size, -1, self.embed_dim)  # [T, B, N, *]
         b1 = b1.view(time_step, batch_size, 1, self.embed_dim)  # [T, B, 1, *]
         hidden = F.elu(q_values @ w1 + b1)  # [T, B, 1, *]
         # Second layer
-        w_final = t.abs(self.hyper_w_final(state_feat))  # [T, B, *]
+        w_final = th.abs(self.hyper_w_final(state_feat))  # [T, B, *]
         w_final = w_final.view(time_step, batch_size,
-                               self.embed_dim, 1)   # [T, B, *, 1]
+                               self.embed_dim, 1)  # [T, B, *, 1]
         # State-dependent bias
         v = self.V(state_feat).view(
-            time_step, batch_size, 1, 1)   # [T, B, 1, 1]
+            time_step, batch_size, 1, 1)  # [T, B, 1, 1]
         # Compute final output
         y = hidden @ w_final + v  # [T, B, 1, 1]
         # Reshape and return
-        q_tot = y.view(time_step, batch_size, 1)   # [T, B, 1]
+        q_tot = y.view(time_step, batch_size, 1)  # [T, B, 1]
         # q_tot = y.squeeze(-1)  # [T, B, 1]
         return q_tot

@@ -4,9 +4,8 @@
 # algorithms based on PyTorch
 
 import importlib
-from typing import Callable, Dict, Tuple
+from typing import Tuple, Any
 
-from rls.common.yaml_ops import load_config
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
@@ -36,14 +35,14 @@ def register(name, **attrs):
     registry.register(name, **attrs)
 
 
-def get_model_info(name: str) -> Tuple[Callable, Dict, str, str]:
-    '''
+def get_model_info(name: str) -> Tuple[Any, Any]:
+    """
     Args:
         name: name of algorithms
     Return:
         class of the algorithm model
         whether algorithm is sarl or marl
-    '''
+    """
     algo_info = registry.get_model_info(name)
     logger.info(colorize(algo_info.get('logo', ''), color='green'))
     model_class = getattr(importlib.import_module(

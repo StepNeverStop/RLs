@@ -1,5 +1,3 @@
-
-
 import torch.nn as nn
 
 from rls.nn.activations import Act_REGISTER, default_act

@@ -1,6 +1,6 @@
 from typing import Iterable
 
-import torch as t
+import torch as th
 import torch.nn as nn
 
 
@@ -14,7 +14,6 @@ class FreezeParameters:
         with FreezeParameters([module]):
             output_tensor = module(input_tensor)
         ```
-        :param modules: iterable of modules. used to call .parameters() to freeze gradients.
         """
         self.params = params
         self.param_states = [p.requires_grad for p in self.params]
@@ -28,25 +27,25 @@ class FreezeParameters:
             param.requires_grad = self.param_states[i]
 
 
-def compute_return(reward: t.Tensor,
-                   value: t.Tensor,
-                   discount: t.Tensor,
-                   bootstrap: t.Tensor,
+def compute_return(reward: th.Tensor,
+                   value: th.Tensor,
+                   discount: th.Tensor,
+                   bootstrap: th.Tensor,
                    lambda_: float):
     """
     Compute the discounted reward for a batch of data.
     reward, value, and discount are all shape [horizon - 1, batch, 1] (last element is cut off)
     Bootstrap is [batch, 1]
     """
-    next_values = t.cat([value[1:], bootstrap[None]], 0)
+    next_values = th.cat([value[1:], bootstrap[None]], 0)
     target = reward + discount * next_values * (1 - lambda_)
     timesteps = list(range(reward.shape[0] - 1, -1, -1))
     outputs = []
     accumulated_reward = bootstrap
-    for _t in timesteps:
-        inp = target[_t]
-        discount_factor = discount[_t]
+    for t in timesteps:
+        inp = target[t]
+        discount_factor = discount[t]
         accumulated_reward = inp + discount_factor * lambda_ * accumulated_reward
         outputs.append(accumulated_reward)
-    returns = t.flip(t.stack(outputs), [0])
+    returns = th.flip(th.stack(outputs), [0])
     return returns

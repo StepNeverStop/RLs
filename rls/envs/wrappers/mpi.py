@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 import multiprocessing
-from typing import Any, Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 
 class CloudpickleWrapper(object):
@@ -45,7 +45,7 @@ def _worker(idx, env_fn, config, conn):
 class MPIEnv:
 
     def __init__(self, n, env_fn, config: Dict = {}):
-        multiprocessing.set_start_method("fork")
+        # multiprocessing.set_start_method("fork")  # TODO:
         self.idxs = list(range(n))
         self.parent_conns = []
         for idx in range(n):
@@ -74,10 +74,12 @@ if __name__ == '__main__':
 
     import gym
 
+
     def env_fn(idx, **config):
         _env = gym.make(**config)
         _env.seed(idx)
         return _env
+
 
     config = {'id': 'CartPole-v0'}
 

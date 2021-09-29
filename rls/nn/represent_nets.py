@@ -1,8 +1,6 @@
-
-
 from typing import Dict, List
 
-import torch as t
+import torch as th
 import torch.nn as nn
 
 from rls.common.specs import SensorSpec
@@ -16,12 +14,12 @@ Rep_REGISTER = {}
 
 
 class RepresentationNetwork(nn.Module):
-    '''
+    """
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
       vector -> vector_net -> feat ↗                             -> memory_net ->
                                                       rnncs ↗                ↘ rnncs
-    '''
+    """
 
     def __init__(self,
                  obs_spec: SensorSpec,
@@ -68,12 +66,12 @@ class RepresentationNetwork(nn.Module):
         self.h_dim = self.memory_net.h_dim
 
     def forward(self, obs, rnncs=None, begin_mask=None):
-        '''
+        """
         params:
             obs: [T, B, *] or [B, *]
         return:
             feat: [T, B, *] or [B, *]
-        '''
+        """
         feat_list = []
 
         if self.obs_spec.has_vector_observation:
@@ -82,25 +80,24 @@ class RepresentationNetwork(nn.Module):
         if self.obs_spec.has_visual_observation:
             feat_list.append(self.visual_net(*obs.visual.values()))
 
-        feat = t.cat(feat_list, -1)  # [T, B, *] or [B, *]
+        feat = th.cat(feat_list, -1)  # [T, B, *] or [B, *]
 
         if self.use_other_info:
-            feat = t.cat([feat, obs.other], -1)
+            feat = th.cat([feat, obs.other], -1)
 
         feat = self.encoder_net(feat)  # [T, B, *] or [B, *]
 
-        feat, rnncs = self.memory_net(
-            feat, rnncs, begin_mask)    # [T, B, *] or [B, *]
+        feat, rnncs = self.memory_net(feat, rnncs, begin_mask)  # [T, B, *] or [B, *]
         return feat, rnncs
 
 
 class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
-    '''
+    """
       visual -> visual_net -> feat ↘
                                      feat -> encoder_net -> feat ↘                ↗ feat
       vector -> vector_net -> feat ↗                             -> memory_net ->
                                                       rnncs ↗                ↘ rnncs
-    '''
+    """
 
     def __init__(self,
                  obs_spec_list: List[SensorSpec],
@@ -122,7 +119,7 @@ class MultiAgentCentralCriticRepresentationNetwork(RepresentationNetwork):
         output = []
         for obs, rep_net in zip(obss, self.representation_nets):
             output.append(rep_net(obs, rnncs=rnncs)[0])
-        feats = t.cat(output, -1)
+        feats = th.cat(output, -1)
         return feats, rnncs
 
 

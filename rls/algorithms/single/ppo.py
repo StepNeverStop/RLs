@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from typing import Dict, List, NoReturn, Union
+from typing import Dict, List
 
 import numpy as np
-import torch as t
-from torch import distributions as td
+import torch as th
+import torch.distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import (ActorCriticValueCts, ActorCriticValueDct, ActorDct,
                            ActorMuLogstd, CriticValue)
 from rls.nn.utils import OPLR
@@ -17,10 +17,10 @@ from rls.utils.np_utils import calculate_td_error, discounted_sum
 
 
 class PPO(SarlOnPolicy):
-    '''
+    """
     Proximal Policy Optimization, https://arxiv.org/abs/1707.06347
     Emergence of Locomotion Behaviours in Rich Environments, http://arxiv.org/abs/1707.02286, DPPO
-    '''
+    """
     policy_mode = 'on-policy'
 
     def __init__(self,
@@ -91,7 +91,8 @@ class PPO(SarlOnPolicy):
         self._use_duel_clip = use_duel_clip
         self._duel_epsilon = duel_epsilon
         if self._use_duel_clip:
-            assert -self._epsilon < self._duel_epsilon < self._epsilon, "duel_epsilon should be set in the range of (-epsilon, epsilon)."
+            assert - \
+                       self._epsilon < self._duel_epsilon < self._epsilon, "duel_epsilon should be set in the range of (-epsilon, epsilon)."
 
         self._kl_cutoff = kl_target * kl_target_cutoff
         self._kl_stop = kl_target * kl_target_earlystop
@@ -144,27 +145,27 @@ class PPO(SarlOnPolicy):
                 mu, log_std, value = self.net(obs, rnncs=self.rnncs)  # [B, A]
                 self.rnncs_ = self.net.get_rnncs()
             else:
-                mu, log_std = self.actor(obs, rnncs=self.rnncs)    # [B, A]
+                mu, log_std = self.actor(obs, rnncs=self.rnncs)  # [B, A]
                 self.rnncs_ = self.actor.get_rnncs()
                 value = self.critic(obs, rnncs=self.rnncs)  # [B, 1]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            action = dist.sample().clamp(-1, 1)   # [B, A]
-            log_prob = dist.log_prob(action).unsqueeze(-1)    # [B, 1]
+            action = dist.sample().clamp(-1, 1)  # [B, A]
+            log_prob = dist.log_prob(action).unsqueeze(-1)  # [B, 1]
         else:
             if self._share_net:
-                logits, value = self.net(obs, rnncs=self.rnncs)    # [B, A], [B, 1]
+                logits, value = self.net(obs, rnncs=self.rnncs)  # [B, A], [B, 1]
                 self.rnncs_ = self.net.get_rnncs()
             else:
-                logits = self.actor(obs, rnncs=self.rnncs)     # [B, A]
+                logits = self.actor(obs, rnncs=self.rnncs)  # [B, A]
                 self.rnncs_ = self.actor.get_rnncs()
-                value = self.critic(obs, rnncs=self.rnncs)     # [B, 1]
+                value = self.critic(obs, rnncs=self.rnncs)  # [B, 1]
             norm_dist = td.Categorical(logits=logits)
-            action = norm_dist.sample()   # [B,]
-            log_prob = norm_dist.log_prob(action).unsqueeze(-1)    # [B, 1]
+            action = norm_dist.sample()  # [B,]
+            log_prob = norm_dist.log_prob(action).unsqueeze(-1)  # [B, 1]
 
         acts_info = Data(action=action,
                          value=value,
-                         log_prob=log_prob+t.finfo().eps)
+                         log_prob=log_prob + th.finfo().eps)
         if self.use_rnn:
             acts_info.update(rnncs=self.rnncs)
         return action, acts_info
@@ -175,9 +176,9 @@ class PPO(SarlOnPolicy):
             if self.is_continuous:
                 _, _, value = self.net(obs, rnncs=rnncs)  # [B, 1]
             else:
-                _, value = self.net(obs, rnncs=rnncs)    # [B, 1]
+                _, value = self.net(obs, rnncs=rnncs)  # [B, 1]
         else:
-            value = self.critic(obs, rnncs=rnncs)    # [B, 1]
+            value = self.critic(obs, rnncs=rnncs)  # [B, 1]
         return value
 
     def _preprocess_BATCH(self, BATCH):  # [T, B, *]
@@ -194,7 +195,7 @@ class PPO(SarlOnPolicy):
                                       value=BATCH.value,
                                       next_value=np.concatenate((BATCH.value[1:], value[np.newaxis, :]), 0))
         BATCH.gae_adv = discounted_sum(td_error,
-                                       self.lambda_*self.gamma,
+                                       self.lambda_ * self.gamma,
                                        BATCH.done,
                                        BATCH.begin_mask,
                                        init_value=0.,
@@ -202,7 +203,7 @@ class PPO(SarlOnPolicy):
         return BATCH
 
     def learn(self, BATCH: Data):
-        BATCH = self._preprocess_BATCH(BATCH)   # [T, B, *]
+        BATCH = self._preprocess_BATCH(BATCH)  # [T, B, *]
         for _ in range(self._epochs):
             kls = []
             for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
@@ -211,7 +212,7 @@ class PPO(SarlOnPolicy):
                 kls.append(kl)
                 self.summaries.update(summaries)
                 self._after_train()
-            if self._use_early_stop and sum(kls)/len(kls) > self._kl_stop:
+            if self._use_early_stop and sum(kls) / len(kls) > self._kl_stop:
                 break
 
     def _train(self, BATCH):
@@ -230,9 +231,9 @@ class PPO(SarlOnPolicy):
                 self._kl_coef *= self._kl_alpha
             elif kl < self._kl_low:
                 self._kl_coef /= self._kl_alpha
-            summaries.update(dict([
-                ['Statistics/kl_coef', self._kl_coef]
-            ]))
+            summaries.update({
+                'Statistics/kl_coef': self._kl_coef
+            })
 
         return summaries, kl
 
@@ -242,33 +243,33 @@ class PPO(SarlOnPolicy):
             # [T, B, A], [T, B, A], [T, B, 1]
             mu, log_std, value = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)  # [T, B, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
             # [T, B, A], [T, B, 1]
             logits, value = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)
-            logp_all = logits.log_softmax(-1)   # [T, B, 1]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
+            logp_all = logits.log_softmax(-1)  # [T, B, 1]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
-        ratio = (new_log_prob - BATCH.log_prob).exp()     # [T, B, 1]
-        surrogate = ratio * BATCH.gae_adv     # [T, B, 1]
-        clipped_surrogate = t.minimum(
+        ratio = (new_log_prob - BATCH.log_prob).exp()  # [T, B, 1]
+        surrogate = ratio * BATCH.gae_adv  # [T, B, 1]
+        clipped_surrogate = th.minimum(
             surrogate,
             ratio.clamp(1.0 - self._epsilon, 1.0 + self._epsilon) * BATCH.gae_adv
-        )     # [T, B, 1]
+        )  # [T, B, 1]
         # ref: https://github.com/thu-ml/tianshou/blob/c97aa4065ee8464bd5897bb86f1f81abd8e2cff9/tianshou/policy/modelfree/ppo.py#L159
         if self._use_duel_clip:
-            clipped_surrogate2 = t.maximum(
+            clipped_surrogate2 = th.maximum(
                 clipped_surrogate,
                 (1.0 + self._duel_epsilon) * BATCH.gae_adv
-            )     # [T, B, 1]
-            clipped_surrogate = t.where(BATCH.gae_adv < 0, clipped_surrogate2, clipped_surrogate)    # [T, B, 1]
-        actor_loss = -(clipped_surrogate + self._ent_coef * entropy).mean()   # 1
+            )  # [T, B, 1]
+            clipped_surrogate = th.where(BATCH.gae_adv < 0, clipped_surrogate2, clipped_surrogate)  # [T, B, 1]
+        actor_loss = -(clipped_surrogate + self._ent_coef * entropy).mean()  # 1
 
         # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L40
         # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L185
         if self._kl_reverse:  # TODO:
-            kl = .5 * (new_log_prob - BATCH.log_prob).square().mean()    # 1
+            kl = .5 * (new_log_prob - BATCH.log_prob).square().mean()  # 1
         else:
             # a sample estimate for KL-divergence, easy to compute
             kl = .5 * (BATCH.log_prob - new_log_prob).square().mean()
@@ -278,29 +279,30 @@ class PPO(SarlOnPolicy):
             actor_loss += kl_loss
 
         if self._use_extra_loss:
-            extra_loss = self._extra_coef * t.maximum(t.zeros_like(kl), kl - self._kl_cutoff).square().mean()  # 1
+            extra_loss = self._extra_coef * th.maximum(th.zeros_like(kl), kl - self._kl_cutoff).square().mean()  # 1
             actor_loss += extra_loss
 
         td_error = BATCH.discounted_reward - value  # [T, B, 1]
         if self._use_vclip:
             # ref: https://github.com/llSourcell/OpenAI_Five_vs_Dota2_Explained/blob/c5def7e57aa70785c2394ea2eeb3e5f66ad59a53/train.py#L154
             # ref: https://github.com/hill-a/stable-baselines/blob/b3f414f4f2900403107357a2206f80868af16da3/stable_baselines/ppo2/ppo2.py#L172
-            value_clip = BATCH.value + (value - BATCH.value).clamp(-self._value_epsilon, self._value_epsilon)  # [T, B, 1]
-            td_error_clip = BATCH.discounted_reward - value_clip    # [T, B, 1]
-            td_square = t.maximum(td_error.square(), td_error_clip.square())    # [T, B, 1]
+            value_clip = BATCH.value + (value - BATCH.value).clamp(-self._value_epsilon,
+                                                                   self._value_epsilon)  # [T, B, 1]
+            td_error_clip = BATCH.discounted_reward - value_clip  # [T, B, 1]
+            td_square = th.maximum(td_error.square(), td_error_clip.square())  # [T, B, 1]
         else:
-            td_square = td_error.square()   # [T, B, 1]
+            td_square = td_error.square()  # [T, B, 1]
 
         critic_loss = 0.5 * td_square.mean()  # 1
         loss = actor_loss + self._vf_coef * critic_loss  # 1
         self.oplr.optimize(loss)
-        return dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['LOSS/critic_loss', critic_loss],
-            ['Statistics/kl', kl],
-            ['Statistics/entropy', entropy.mean()],
-            ['LEARNING_RATE/lr', self.oplr.lr]
-        ]), kl
+        return {
+                   'LOSS/actor_loss': actor_loss,
+                   'LOSS/critic_loss': critic_loss,
+                   'Statistics/kl': kl,
+                   'Statistics/entropy': entropy.mean(),
+                   'LEARNING_RATE/lr': self.oplr.lr
+               }, kl
 
     @iton
     def train_actor(self, BATCH):
@@ -308,26 +310,26 @@ class PPO(SarlOnPolicy):
             # [T, B, A], [T, B, A]
             mu, log_std = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [T, B, 1]
-            entropy = dist.entropy().unsqueeze(-1)    # [T, B, 1]
+            new_log_prob = dist.log_prob(BATCH.action).unsqueeze(-1)  # [T, B, 1]
+            entropy = dist.entropy().unsqueeze(-1)  # [T, B, 1]
         else:
             logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            logp_all = logits.log_softmax(-1)    # [T, B, A]
-            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)   # [T, B, 1]
+            logp_all = logits.log_softmax(-1)  # [T, B, A]
+            new_log_prob = (BATCH.action * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
             entropy = -(logp_all.exp() * logp_all).sum(-1, keepdim=True)  # [T, B, 1]
-        ratio = (new_log_prob - BATCH.log_prob).exp()    # [T, B, 1]
-        kl = (BATCH.log_prob - new_log_prob).square().mean()     # 1
-        surrogate = ratio * BATCH.gae_adv    # [T, B, 1]
-        clipped_surrogate = t.minimum(
+        ratio = (new_log_prob - BATCH.log_prob).exp()  # [T, B, 1]
+        kl = (BATCH.log_prob - new_log_prob).square().mean()  # 1
+        surrogate = ratio * BATCH.gae_adv  # [T, B, 1]
+        clipped_surrogate = th.minimum(
             surrogate,
-            t.where(BATCH.gae_adv > 0, (1 + self._epsilon) *
-                    BATCH.gae_adv, (1 - self._epsilon) * BATCH.gae_adv)
-        )    # [T, B, 1]
+            th.where(BATCH.gae_adv > 0, (1 + self._epsilon) *
+                     BATCH.gae_adv, (1 - self._epsilon) * BATCH.gae_adv)
+        )  # [T, B, 1]
         if self._use_duel_clip:
-            clipped_surrogate = t.maximum(
+            clipped_surrogate = th.maximum(
                 clipped_surrogate,
                 (1.0 + self._duel_epsilon) * BATCH.gae_adv
-            )    # [T, B, 1]
+            )  # [T, B, 1]
 
         actor_loss = -(clipped_surrogate + self._ent_coef * entropy).mean()  # 1
 
@@ -335,33 +337,33 @@ class PPO(SarlOnPolicy):
             kl_loss = self._kl_coef * kl  # 1
             actor_loss += kl_loss
         if self._use_extra_loss:
-            extra_loss = self._extra_coef * t.maximum(t.zeros_like(kl), kl - self._kl_cutoff).square().mean()    # 1
+            extra_loss = self._extra_coef * th.maximum(th.zeros_like(kl), kl - self._kl_cutoff).square().mean()  # 1
             actor_loss += extra_loss
 
         self.actor_oplr.optimize(actor_loss)
-        return dict([
-            ['LOSS/actor_loss', actor_loss],
-            ['Statistics/kl', kl],
-            ['Statistics/entropy', entropy.mean()],
-            ['LEARNING_RATE/actor_lr', self.actor_oplr.lr]
-        ]), kl
+        return {
+                   'LOSS/actor_loss': actor_loss,
+                   'Statistics/kl': kl,
+                   'Statistics/entropy': entropy.mean(),
+                   'LEARNING_RATE/actor_lr': self.actor_oplr.lr
+               }, kl
 
     @iton
     def train_critic(self, BATCH):
         value = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
 
-        td_error = BATCH.discounted_reward - value    # [T, B, 1]
+        td_error = BATCH.discounted_reward - value  # [T, B, 1]
         if self._use_vclip:
             value_clip = BATCH.value + (value - BATCH.value).clamp(-self._value_epsilon,
-                                                                   self._value_epsilon)   # [T, B, 1]
-            td_error_clip = BATCH.discounted_reward - value_clip      # [T, B, 1]
-            td_square = t.maximum(td_error.square(), td_error_clip.square())      # [T, B, 1]
+                                                                   self._value_epsilon)  # [T, B, 1]
+            td_error_clip = BATCH.discounted_reward - value_clip  # [T, B, 1]
+            td_square = th.maximum(td_error.square(), td_error_clip.square())  # [T, B, 1]
         else:
-            td_square = td_error.square()     # [T, B, 1]
+            td_square = td_error.square()  # [T, B, 1]
 
-        critic_loss = 0.5 * td_square.mean()      # 1
+        critic_loss = 0.5 * td_square.mean()  # 1
         self.critic_oplr.optimize(critic_loss)
-        return dict([
-            ['LOSS/critic_loss', critic_loss],
-            ['LEARNING_RATE/critic_lr', self.critic_oplr.lr]
-        ])
+        return {
+            'LOSS/critic_loss': critic_loss,
+            'LEARNING_RATE/critic_lr': self.critic_oplr.lr
+        }

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import numpy as np
-import torch as t
-from torch import distributions as td
+import torch.distributions as td
 
 from rls.algorithms.base.sarl_on_policy import SarlOnPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.nn.models import ActorDct, ActorMuLogstd
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import discounted_sum
@@ -52,7 +50,7 @@ class PG(SarlOnPolicy):
         output = self.net(obs, rnncs=self.rnncs)  # [B, A]
         self.rnncs_ = self.net.get_rnncs()
         if self.is_continuous:
-            mu, log_std = output    # [B, A]
+            mu, log_std = output  # [B, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
             action = dist.sample().clamp(-1, 1)  # [B, A]
         else:
@@ -76,22 +74,22 @@ class PG(SarlOnPolicy):
         return BATCH
 
     @iton
-    def _train(self, BATCH):     # [B, T, *]
-        output = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)    # [B, T, A]
+    def _train(self, BATCH):  # [B, T, *]
+        output = self.net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [B, T, A]
         if self.is_continuous:
-            mu, log_std = output    # [B, T, A]
+            mu, log_std = output  # [B, T, A]
             dist = td.Independent(td.Normal(mu, log_std.exp()), 1)
-            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)    # [B, T, 1]
+            log_act_prob = dist.log_prob(BATCH.action).unsqueeze(-1)  # [B, T, 1]
             entropy = dist.entropy().unsqueeze(-1)  # [B, T, 1]
         else:
             logits = output  # [B, T, A]
-            logp_all = logits.log_softmax(-1)   # [B, T, A]
-            log_act_prob = (logp_all * BATCH.action).sum(-1,                                                         keepdim=True)  # [B, T, 1]
-            entropy = -(logp_all.exp() * logp_all).sum(1,                                                       keepdim=True)  # [B, T, 1]
+            logp_all = logits.log_softmax(-1)  # [B, T, A]
+            log_act_prob = (logp_all * BATCH.action).sum(-1, keepdim=True)  # [B, T, 1]
+            entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)  # [B, T, 1]
         loss = -(log_act_prob * BATCH.discounted_reward).mean()
         self.oplr.optimize(loss)
-        return dict([
-            ['LOSS/loss', loss],
-            ['Statistics/entropy', entropy.mean()],
-            ['LEARNING_RATE/lr', self.oplr.lr]
-        ])
+        return {
+            'LOSS/loss': loss,
+            'Statistics/entropy': entropy.mean(),
+            'LEARNING_RATE/lr': self.oplr.lr
+        }

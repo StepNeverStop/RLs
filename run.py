@@ -1,17 +1,14 @@
-
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 # encoding: utf-8
 import argparse
 import logging
 import os
-import platform
 import sys
 import time
 from copy import deepcopy
 from multiprocessing import Process
-from typing import Dict
 
-import torch as t
+import torch as th
 from easydict import EasyDict
 
 from rls.algorithms.register import registry as algo_registry
@@ -26,13 +23,13 @@ set_log_level(logging.INFO)
 
 
 def get_args():
-    '''
+    """
     Resolves command-line arguments
-    '''
+    """
     parser = argparse.ArgumentParser()
     # train and env
-    parser.add_argument('-c', '--copys', type=int, default=1,
-                        help='nums of environment copys that collect data in parallel')
+    parser.add_argument('-c', '--copies', type=int, default=1,
+                        help='nums of environment copies that collect data in parallel')
     parser.add_argument('--seed', type=int, default=42,
                         help='specify the random seed of module random, numpy and pytorch')
     parser.add_argument('-r', '--render', default=False, action='store_true',
@@ -48,12 +45,13 @@ def get_args():
                         help='specify the name of pre-trained model that need to load')
     parser.add_argument('-m', '--models', type=int, default=1,
                         help='specify the number of trails that using different random seeds')
-    parser.add_argument('-n', '--name', type=str, default=time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
+    parser.add_argument('-n', '--name', type=str,
+                        default=time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
                         help='specify the name of this training task')
     parser.add_argument('--config-file', type=str, default=None,
                         help='specify the path of training configuration file')
     parser.add_argument('--store-dir', type=str, default='./data',
-                        help='specify the directory that store model, log and others')  # TODO
+                        help='specify the directory that store model, log and others')
     parser.add_argument('--episode-length', type=int, default=1000,
                         help='specify the maximum step per episode')
     parser.add_argument('--hostname', default=False, action='store_true',
@@ -66,7 +64,7 @@ def get_args():
     # algo
     parser.add_argument('-s', '--save', default=False, action='store_true',
                         help='specify whether save models/logs/summaries while training or not')
-    parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
+    parser.add_argument('-d', '--device', type=str, default="cuda" if th.cuda.is_available() else "cpu",
                         help='specify the device that operate Torch.Tensor')
     parser.add_argument('-t', '--max-train-step', type=int, default=sys.maxsize,
                         help='specify the maximum training steps')
@@ -91,23 +89,20 @@ def main():
         custome_config = load_config(args.config_file)
         train_args.update(custome_config['train'])
         env_args.update(custome_config['environment'])
-        algo_args.update(load_config(
-            f'rls/configs/algorithms.yaml')[train_args.algorithm])
+        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
         algo_args.update(custome_config['algorithm'])
     else:
         train_args.update(args.__dict__)
-        algo_args.update(load_config(
-            f'rls/configs/algorithms.yaml')[args.algorithm])
-        algo_args.update(n_copys=args.copys)
+        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
+        algo_args.update(n_copies=args.copies)
         # env config
         env_args.update(platform=args.platform,
                         # Environmental copies of vectorized training.
-                        env_copys=args.copys,
+                        env_copies=args.copies,
                         seed=args.seed,
                         inference=args.inference,
                         env_name=args.env_name)
-        env_args.update(load_config(
-            f'rls/configs/{args.platform}/{args.env_name}.yaml', not_find_error=False))
+        env_args.update(load_config(f'rls/configs/{args.platform}/{args.env_name}.yaml', not_find_error=False))
 
         if env_args.platform == 'unity':
             env_args.env_name = 'UnityEditor'
@@ -122,8 +117,7 @@ def main():
                 else:
                     raise Exception('can not find the executable file.')
             # if traing with visual input but do not render the environment, all 0 obs will be passed.
-            env_args.render = args.render or args.inference or (
-                'visual' in env_args.env_name.lower())
+            env_args.render = args.render or args.inference or ('visual' in env_args.env_name.lower())
 
         # train config
         if args.hostname:
@@ -136,8 +130,7 @@ def main():
                                            train_args.name)
         # 如果不是绝对路径，就拼接load的训练相对路径
         if train_args.load_path is not None and not os.path.exists(train_args.load_path):
-            train_args.load_path = os.path.join(
-                train_args.base_dir, train_args.load_path)
+            train_args.load_path = os.path.join(train_args.base_dir, train_args.load_path)
         # algo config
         algo_args.update({'is_save': args.save,
                           'device': args.device,
@@ -165,16 +158,14 @@ def main():
         elif trails > 1:
             processes = []
             for i in range(trails):
-                _env_args, _train_args, _algo_args = map(
-                    deepcopy, [env_args, train_args, algo_args])
+                _env_args, _train_args, _algo_args = map(deepcopy, [env_args, train_args, algo_args])
                 _train_args.seed += i * 10
                 _train_args.name += f'/{_train_args.seed}'
                 # NOTE: set this could block other processes' print function
                 _train_args.allow_print = True
                 if args.platform == 'unity':
                     _env_args.worker_id = env_args.worker_id + i
-                p = Process(target=agent_run, args=(
-                    _env_args, _train_args, _algo_args))
+                p = Process(target=agent_run, args=(_env_args, _train_args, _algo_args))
                 p.start()
                 time.sleep(10)
                 processes.append(p)
@@ -182,9 +173,9 @@ def main():
 
 
 def agent_run(*args):
-    '''
+    """
     Start a training task
-    '''
+    """
     Trainer(*args)()
 
 
@@ -193,23 +184,25 @@ if __name__ == "__main__":
     if sys.platform.startswith('win'):
         import _thread
 
-        import pywintypes  # necessary when using python 3.8+
         import win32api
-        import win32con
+
 
         def _win_handler(event, hook_sigint=_thread.interrupt_main):
-            '''
+            """
             handle the event of 'Ctrl+c' in windows operating system.
-            '''
+            """
             if event == 0:
                 hook_sigint()
                 return 1
             return 0
+
+
         # Add the _win_handler function to the windows console's handler function list
         win32api.SetConsoleCtrlHandler(_win_handler, 1)
 
     try:
         import colored_traceback
+
         colored_traceback.add_hook()
     except ImportError:
         pass

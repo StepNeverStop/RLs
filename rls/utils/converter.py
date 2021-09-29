@@ -1,12 +1,9 @@
-
-
 from numbers import Number
 
 import numpy as np
-import torch as t
+import torch as th
 
-from rls.common.specs import Data
-from rls.utils.display import colorize
+from rls.common.data import Data
 from rls.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -16,7 +13,7 @@ def to_numpy(x):
     try:
         if isinstance(x, Data):
             return x.convert(func=lambda y: to_numpy(y))
-        elif isinstance(x, t.Tensor):  # tensor -> numpy
+        elif isinstance(x, th.Tensor):  # tensor -> numpy
             return x.detach().cpu().numpy()
         elif isinstance(x, np.ndarray) or x is None:  # second often case
             return x
@@ -34,15 +31,16 @@ def to_numpy(x):
         logger.error(e)
 
 
-def to_tensor(x, dtype=t.float32, device='cpu'):
+# noinspection PyTypeChecker
+def to_tensor(x, dtype=th.float32, device: str = 'cpu'):
     if x is None or isinstance(x, Number):
         return x
     try:
         if isinstance(x, Data):
-            return x.convert(func=lambda y: t.as_tensor(y, dtype=dtype, device=device))
+            return x.convert(func=lambda y: th.as_tensor(y, dtype=dtype, device=device))
         elif isinstance(x, np.ndarray):
-            return t.from_numpy(x).type(dtype).to(device)
-        elif isinstance(x, t.Tensor):
+            return th.from_numpy(x).type(dtype).to(device)
+        elif isinstance(x, th.Tensor):
             return x.type(dtype).to(device)
         elif isinstance(x, dict):
             return {k: to_tensor(v, dtype=dtype, device=device) for k, v in x.items()}

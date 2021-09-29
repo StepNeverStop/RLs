@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from typing import Dict, List, NoReturn, Tuple, Union
-
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.sarl_policy import SarlPolicy
+from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.common.specs import Data
 from rls.common.when import Every
 from rls.common.yaml_ops import load_config
 from rls.utils.converter import to_numpy, to_tensor
@@ -41,7 +38,7 @@ class SarlOffPolicy(SarlPolicy):
         for _ in range(self._epochs):
             BATCH = self._before_train(BATCH)
             td_error, summaries = self._train(BATCH)
-            td_errors += td_error   # [T, B, 1]
+            td_errors += td_error  # [T, B, 1]
             self.summaries.update(summaries)
             self._after_train()
         return td_errors / self._epochs
@@ -61,17 +58,18 @@ class SarlOffPolicy(SarlPolicy):
     # customed
 
     def _build_buffer(self):
-        if self.use_priority == True:
+        if self.use_priority:
             from rls.memories.per_buffer import PrioritizedDataBuffer
-            buffer = PrioritizedDataBuffer(n_copys=self.n_copys,
+            buffer = PrioritizedDataBuffer(n_copies=self.n_copies,
                                            batch_size=self.batch_size,
                                            buffer_size=self.buffer_size,
                                            chunk_length=self._chunk_length,
                                            max_train_step=self._max_train_step,
-                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')['PrioritizedDataBuffer'])
+                                           **load_config(f'rls/configs/buffer/off_policy_buffer.yaml')[
+                                               'PrioritizedDataBuffer'])
         else:
             from rls.memories.er_buffer import DataBuffer
-            buffer = DataBuffer(n_copys=self.n_copys,
+            buffer = DataBuffer(n_copies=self.n_copies,
                                 batch_size=self.batch_size,
                                 buffer_size=self.buffer_size,
                                 chunk_length=self._chunk_length)
@@ -83,7 +81,7 @@ class SarlOffPolicy(SarlPolicy):
             BATCH.action = int2one_hot(BATCH.action, self.a_dim)
         if self._obs_with_pre_action:
             BATCH.obs.update(other=np.concatenate((
-                np.zeros_like(BATCH.action[:1]),    # TODO: improve
+                np.zeros_like(BATCH.action[:1]),  # TODO: improve
                 BATCH.action[:-1]
             ), 0))
             BATCH.obs_.update(other=BATCH.action)
@@ -103,8 +101,8 @@ class SarlOffPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_train_summaries(
-            self._cur_train_step, self.summaries, self.writer)
+        self._write_log(summaries=self.summaries,
+                        step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

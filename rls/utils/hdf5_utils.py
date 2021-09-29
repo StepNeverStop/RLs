@@ -3,6 +3,7 @@ from typing import NamedTuple
 import h5py
 import numpy as np
 
+
 # TODO:
 
 
@@ -14,6 +15,7 @@ def namedtuple2hdf5(path: str, data: NamedTuple):
                 save(hfk, v)
             else:
                 hf.create_dataset(k, data=v)
+
     with h5py.File(path, 'w') as hf:
         save(hf, data)
 
@@ -27,6 +29,7 @@ def hdf52namedtuple(path: str, data_type: type):
             else:
                 x[k] = v[:]
         return data_type(**x)
+
     with h5py.File(path, 'r') as hf:
         data = load(hf, data_type)
     return data
@@ -41,19 +44,21 @@ def hdf52dict(path: str):
             else:
                 x[k] = v[:]
         return x
+
     with h5py.File(path, 'r') as hf:
         data = load(hf)
     return data
 
 
 if __name__ == '__main__':
-
     class Test2(NamedTuple):
         c: np.ndarray
+
 
     class Test(NamedTuple):
         a: Test2
         b: np.ndarray
+
 
     data_to_write = Test(a=Test2(c=np.random.random(size=(100, 100))),
                          b=np.random.random(size=(100, 100)))

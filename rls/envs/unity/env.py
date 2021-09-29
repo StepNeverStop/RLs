@@ -1,9 +1,9 @@
-
 from typing import Dict, List, NoReturn
 
 import numpy as np
 
-from rls.common.specs import Data, EnvAgentSpec, SensorSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec, SensorSpec
 from rls.envs.env_base import EnvBase
 from rls.envs.unity.wrappers import BasicUnityEnvironment, ScaleVisualWrapper
 
@@ -13,9 +13,10 @@ class UnityEnv(EnvBase):
     def __init__(self,
                  obs_scale=False,
                  **kwargs):
+        super().__init__()
         self.env = BasicUnityEnvironment(**kwargs)
         if obs_scale:
-            self.env = ScaleVisualWrapper(env)
+            self.env = ScaleVisualWrapper(self.env)
 
     def reset(self, reset_config={}, **kwargs) -> Dict[str, Data]:
         return self.env.reset(reset_config)
@@ -30,8 +31,8 @@ class UnityEnv(EnvBase):
         pass
 
     @property
-    def n_copys(self) -> int:
-        return int(self.env._n_copys)
+    def n_copies(self) -> int:
+        return int(self.env._n_copies)
 
     @property
     def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:

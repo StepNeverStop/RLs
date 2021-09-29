@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from abc import abstractmethod
-from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
 
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.policy import Policy
-from rls.common.specs import Data, EnvAgentSpec
+from rls.common.data import Data
+from rls.common.specs import EnvAgentSpec
 from rls.nn.modules import CuriosityModel
 from rls.utils.converter import to_tensor
+from rls.utils.loggers import Log_REGISTER
 from rls.utils.np_utils import int2one_hot
-from rls.utils.vector_runing_average import (DefaultRunningAverage,
-                                             SimpleRunningAverage)
 
 
 class SarlPolicy(Policy):
@@ -74,21 +70,21 @@ class SarlPolicy(Policy):
 
     def random_action(self):
         if self.is_continuous:
-            actions = np.random.uniform(-1.0, 1.0, (self.n_copys, self.a_dim))
+            actions = np.random.uniform(-1.0, 1.0, (self.n_copies, self.a_dim))
         else:
-            actions = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copies)
         self._pre_act = actions
         self._acts_info = Data(action=actions)
         return actions
 
     def episode_reset(self):
-        '''reset model for each new episode.'''
+        """reset model for each new episode."""
         self._pre_act = np.zeros(
-            (self.n_copys, self.a_dim)) if self.is_continuous else np.zeros(self.n_copys)
+            (self.n_copies, self.a_dim)) if self.is_continuous else np.zeros(self.n_copies)
         self.rnncs = to_tensor(self._initial_rnncs(
-            batch=self.n_copys), device=self.device)
+            batch=self.n_copies), device=self.device)
         self.rnncs_ = to_tensor(self._initial_rnncs(
-            batch=self.n_copys), device=self.device)
+            batch=self.n_copies), device=self.device)
 
     def episode_step(self,
                      obs: Data,
@@ -115,10 +111,16 @@ class SarlPolicy(Policy):
     def learn(self, BATCH: Data):
         raise NotImplementedError
 
-    def write_recorder_summaries(self, summaries):
-        self._write_train_summaries(self._cur_episode, summaries, self.writer)
-
     # customed
 
     def _train(self, BATCH):
         raise NotImplementedError
+
+    def _build_loggers(self):
+        return [
+            Log_REGISTER[logger_type](
+                log_dir=self.log_dir,
+                training_name=self._training_name,  # wandb
+            )
+            for logger_type in self._logger_types
+        ]

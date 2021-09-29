@@ -1,9 +1,9 @@
 from typing import Union
 
 import numpy as np
-import torch as t
+import torch as th
+import torch.distributions as td
 import torch.nn.functional as F
-from torch import distributions as td
 from torch import nn
 
 from rls.nn.activations import Act_REGISTER
@@ -23,28 +23,28 @@ class VisualDecoder(nn.Module):
         super().__init__()
         self._depth = depth
         self.visual_dim = visual_dim
-        self.fc = nn.Linear(feat_dim, 32*depth)
+        self.fc = nn.Linear(feat_dim, 32 * depth)
         self.net = nn.Sequential(
-            nn.ConvTranspose2d(32*depth, 4*depth, kernel_size=5, stride=2),
+            nn.ConvTranspose2d(32 * depth, 4 * depth, kernel_size=5, stride=2),
             Act_REGISTER[act](),
-            nn.ConvTranspose2d(4*depth, 2*depth, kernel_size=5, stride=2),
+            nn.ConvTranspose2d(4 * depth, 2 * depth, kernel_size=5, stride=2),
             Act_REGISTER[act](),
-            nn.ConvTranspose2d(2*depth, 1*depth, kernel_size=6, stride=2),
+            nn.ConvTranspose2d(2 * depth, 1 * depth, kernel_size=6, stride=2),
             Act_REGISTER[act](),
             nn.ConvTranspose2d(
-                1*depth, visual_dim[-1], kernel_size=6, stride=2)
+                1 * depth, visual_dim[-1], kernel_size=6, stride=2)
         )
 
     def forward(self, feat):
-        '''
+        """
         feat: [T, B, *] or [B, *]
-        '''
+        """
         tb = feat.shape[:-1]
         hidden = self.fc(feat)  # [T, B, 32*depth]
-        hidden = hidden.view(t.prod(tb), 32*self._depth, 1, 1)    # [T*B, 32*depth, 1, 1]
+        hidden = hidden.view(th.prod(tb), 32 * self._depth, 1, 1)  # [T*B, 32*depth, 1, 1]
         obs = self.net(hidden)  # [T*B, c, h, w]
-        obs = obs.view(tb+obs[-3:])  # [T, B, c, h, w]
-        obs = obs.swapaxes(-2, -3).swapaxes(-1, -2)   # [T, B, h, w, c]
+        obs = obs.view(tb + obs[-3:])  # [T, B, c, h, w]
+        obs = obs.swapaxes(-2, -3).swapaxes(-1, -2)  # [T, B, h, w, c]
         obs_dist = td.Independent(td.Normal(obs, 1), len(self.visual_dim))
         return obs_dist
 
@@ -79,18 +79,18 @@ class DenseModel(nn.Module):
             model += [Layer_REGISTER[self._layer](self._hidden_units, self._hidden_units),
                       Act_REGISTER[self._activation]()]
 
-        model += [Layer_REGISTER[self._layer](self._hidden_units,
-                                              int(np.prod(self._output_shape)))]
+        model += [Layer_REGISTER[self._layer](self._hidden_units, int(np.prod(self._output_shape)))]
         return nn.Sequential(*model)
 
     def forward(self, features):
         dist_inputs = self.model(features)
-        reshaped_inputs = t.reshape(
+        reshaped_inputs = th.reshape(
             dist_inputs, features.shape[:-1] + self._output_shape)
         if self._dist == 'mse':
             return td.independent.Independent(td.Normal(reshaped_inputs, 1), len(self._output_shape))
         elif self._dist == 'binary':
-            return td.independent.Independent(td.Bernoulli(logits=reshaped_inputs, validate_args=False), len(self._output_shape))
+            return td.independent.Independent(td.Bernoulli(logits=reshaped_inputs, validate_args=False),
+                                              len(self._output_shape))
         elif self._dist == 'none':
             return reshaped_inputs
         else:
@@ -118,7 +118,7 @@ class ActionDecoder(nn.Module):
     def build_model(self):
         model = [Layer_REGISTER[self._layer](self.feature_size, self.hidden_units),
                  Act_REGISTER[self._activation]()]
-        for i in range(self.layers-1):
+        for i in range(self.layers - 1):
             model += [Layer_REGISTER[self._layer](self.hidden_units, self.hidden_units),
                       Act_REGISTER[self._activation]()]
         if self.dist in ['tanh_normal', 'trunc_normal']:
@@ -132,8 +132,8 @@ class ActionDecoder(nn.Module):
     def forward(self, state_features):
         x = self.feedforward_model(state_features)
         if self.dist == 'tanh_normal':
-            mean, std = t.chunk(x, 2, -1)
-            mean = self.mean_scale * t.tanh(mean / self.mean_scale)
+            mean, std = th.chunk(x, 2, -1)
+            mean = self.mean_scale * th.tanh(mean / self.mean_scale)
             std = F.softplus(std + self.raw_init_std) + self.min_std
             dist = td.Normal(mean, std)
             # TODO: fix nan problem
@@ -142,16 +142,18 @@ class ActionDecoder(nn.Module):
             dist = td.Independent(dist, 1)
             dist = SampleDist(dist)
         elif self.dist == 'trunc_normal':
-            mean, std = t.chunk(x, 2, -1)
-            std = 2 * t.sigmoid((std + self.raw_init_std) / 2) + self.min_std
+            mean, std = th.chunk(x, 2, -1)
+            std = 2 * th.sigmoid((std + self.raw_init_std) / 2) + self.min_std
             from rls.nn.dists.TruncatedNormal import \
                 TruncatedNormal as TruncNormalDist
-            dist = TruncNormalDist(t.tanh(mean), std, -1, 1)
+            dist = TruncNormalDist(th.tanh(mean), std, -1, 1)
             dist = td.Independent(dist, 1)
         elif self.dist == 'one_hot':
             dist = td.OneHotCategoricalStraightThrough(logits=x)
         elif self.dist == 'relaxed_one_hot':
-            dist = td.RelaxedOneHotCategorical(t.tensor(0.1), logits=x)
+            dist = td.RelaxedOneHotCategorical(th.tensor(0.1), logits=x)
+        else:
+            raise NotImplementedError(f"{self.dist} is not implemented.")
         return dist
 
     def sample_actions(self, state_features, is_train=True):
