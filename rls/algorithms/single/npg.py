@@ -11,6 +11,7 @@ from rls.common.decorator import iton
 from rls.nn.models import ActorDct, ActorMuLogstd, CriticValue
 from rls.nn.utils import OPLR
 from rls.utils.np_utils import calculate_td_error, discounted_sum
+from rls.utils.torch_utils import grads_flatten, set_from_flat_params
 
 
 class NPG(SarlOnPolicy):
@@ -140,7 +141,7 @@ class NPG(SarlOnPolicy):
         ratio = (new_log_prob - BATCH.log_prob).exp()  # [T, B, 1]
         actor_loss = -(ratio * BATCH.gae_adv).mean()  # 1
 
-        flat_grads = self._get_flat_grad(actor_loss, self.actor, retain_graph=True).detach()  # [1,]
+        flat_grads = grads_flatten(actor_loss, self.actor, retain_graph=True).detach()  # [1,]
 
         if self.is_continuous:
             kl = td.kl_divergence(
@@ -150,14 +151,13 @@ class NPG(SarlOnPolicy):
         else:
             kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)).sum(-1).mean()  # 1
 
-        flat_kl_grad = self._get_flat_grad(kl, self.actor, create_graph=True)
-        search_direction = - \
-            self._conjugate_gradients(flat_grads, flat_kl_grad, cg_iters=self._cg_iters)  # [1,]
+        flat_kl_grad = grads_flatten(kl, self.actor, create_graph=True)
+        search_direction = -self._conjugate_gradients(flat_grads, flat_kl_grad, cg_iters=self._cg_iters)  # [1,]
 
         with th.no_grad():
             flat_params = th.cat([param.data.view(-1) for param in self.actor.parameters()])
             new_flat_params = flat_params + self.actor_step_size * search_direction
-            self._set_from_flat_params(self.actor, new_flat_params)
+            set_from_flat_params(self.actor, new_flat_params)
 
         for _ in range(self._train_critic_iters):
             value = self.critic(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, 1]
@@ -171,10 +171,6 @@ class NPG(SarlOnPolicy):
             'Statistics/entropy': entropy.mean(),
             'LEARNING_RATE/critic_lr': self.critic_oplr.lr
         }
-
-    def _get_flat_grad(self, loss, model, **kwargs):
-        grads = th.autograd.grad(loss, model.parameters(), **kwargs)
-        return th.cat([grad.reshape(-1) for grad in grads])
 
     def _conjugate_gradients(self,
                              flat_grads,
@@ -206,14 +202,6 @@ class NPG(SarlOnPolicy):
         """Matrix vector product."""
         # caculate second order gradient of kl with respect to theta
         kl_v = (flat_kl_grad * v).sum()
-        mvp = self._get_flat_grad(kl_v, self.actor, retain_graph=True).detach()
+        mvp = grads_flatten(kl_v, self.actor, retain_graph=True).detach()
         mvp += max(0, self._damping_coeff) * v
         return mvp
-
-    def _set_from_flat_params(self, model, flat_params):
-        prev_ind = 0
-        for name, param in model.named_parameters():
-            flat_size = int(np.prod(list(param.size())))
-            param.data.copy_(flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
-            prev_ind += flat_size
-        return model
