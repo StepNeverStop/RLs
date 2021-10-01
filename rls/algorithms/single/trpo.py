@@ -6,6 +6,7 @@ import torch.distributions as td
 
 from rls.algorithms.single.npg import NPG
 from rls.common.decorator import iton
+from rls.utils.torch_utils import grads_flatten, set_from_flat_params
 
 
 class TRPO(NPG):
@@ -42,7 +43,7 @@ class TRPO(NPG):
         ratio = (new_log_prob - BATCH.log_prob).exp()  # [T, B, 1]
         actor_loss = -(ratio * BATCH.gae_adv).mean()  # 1
 
-        flat_grads = self._get_flat_grad(actor_loss, self.actor, retain_graph=True).detach()  # [1,]
+        flat_grads = grads_flatten(actor_loss, self.actor, retain_graph=True).detach()  # [1,]
 
         if self.is_continuous:
             kl = td.kl_divergence(
@@ -52,7 +53,7 @@ class TRPO(NPG):
         else:
             kl = (BATCH.logp_all.exp() * (BATCH.logp_all - logp_all)).sum(-1).mean()  # 1
 
-        flat_kl_grad = self._get_flat_grad(kl, self.actor, create_graph=True)
+        flat_kl_grad = grads_flatten(kl, self.actor, create_graph=True)
         search_direction = -self._conjugate_gradients(flat_grads, flat_kl_grad, cg_iters=self._cg_iters)  # [1,]
 
         mvp = self._MVP(search_direction, flat_kl_grad)
@@ -63,7 +64,7 @@ class TRPO(NPG):
             flat_params = th.cat([param.data.view(-1) for param in self.actor.parameters()])
             for i in range(self._backtrack_iters):
                 new_flat_params = flat_params + step_size * search_direction * (self._backtrack_coeff ** i)
-                self._set_from_flat_params(self.actor, new_flat_params)
+                set_from_flat_params(self.actor, new_flat_params)
 
                 output = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
                 if self.is_continuous:

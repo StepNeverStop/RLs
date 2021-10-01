@@ -9,6 +9,20 @@ import torch as th
 import torch.nn as nn
 
 
+def grads_flatten(loss, model, **kwargs):
+    grads = th.autograd.grad(loss, model.parameters(), **kwargs)
+    return th.cat([grad.reshape(-1) for grad in grads])
+
+
+def set_from_flat_params(model, flat_params):
+    prev_ind = 0
+    for name, param in model.named_parameters():
+        flat_size = int(np.prod(list(param.size())))
+        param.data.copy_(flat_params[prev_ind:prev_ind + flat_size].view(param.size()))
+        prev_ind += flat_size
+    return model
+
+
 def clip_nn_log_std(log_std, _min=-20, _max=2):
     """
     scale log_std from [-1, 1] to [_min, _max]

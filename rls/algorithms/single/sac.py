@@ -135,8 +135,8 @@ class SAC(SarlOffPolicy):
             target_mu, target_log_std = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             dist = td.Independent(td.Normal(target_mu, target_log_std.exp()), 1)
             target_pi = dist.sample()  # [T, B, A]
-            target_pi, target_log_pi = squash_action(target_pi, dist.log_prob(
-                target_pi).unsqueeze(-1))  # [T, B, A], [T, B, 1]
+            target_pi, target_log_pi = squash_action(target_pi,
+                                                     dist.log_prob(target_pi).unsqueeze(-1))  # [T, B, A], [T, B, 1]
         else:
             target_logits = self.actor(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
             target_cate_dist = td.Categorical(logits=target_logits)
@@ -169,8 +169,7 @@ class SAC(SarlOffPolicy):
             logp_all = logits.log_softmax(-1)  # [T, B, A]
             gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)  # [T, B, A]
             _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)  # [T, B, A]
-            _pi_true_one_hot = F.one_hot(
-                _pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
             _pi_diff = (_pi_true_one_hot - _pi).detach()  # [T, B, A]
             pi = _pi_diff + _pi  # [T, B, A]
             log_pi = (logp_all * pi).sum(-1, keepdim=True)  # [T, B, 1]
