@@ -26,7 +26,6 @@ class NPG(SarlOnPolicy):
 
                  actor_step_size=0.5,
                  beta=1.0e-3,
-                 lr=5.0e-4,
                  lambda_=0.95,
                  cg_iters=10,
                  damping_coeff=0.1,

@@ -1,0 +1,14 @@
+super_config: 'sarl_off_policy'
+
+alpha: 0.2
+beta: 0.1 # 0 <= beta < 1 when beta approaches 1 the distribution of convergence points is closer to uniform distribution means more entropy. when beta approaches 0 the final policy is more deterministic.
+use_epsilon: false
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+init2mid_annealing_step: 10000
+auto_adaption: true
+q_lr: 5.0e-4
+alpha_lr: 5.0e-4
+polyak: 0.995
+network_settings: [ 64, 64 ]

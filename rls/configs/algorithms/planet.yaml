@@ -1,0 +1,39 @@
+super_config: 'sarl_off_policy'
+
+train_times: 1
+train_interval: 1
+
+cem_horizon: 12
+cem_iter_nums: 10
+cem_candidates: 100
+# same hyperparameter as original implementation.
+chunk_length: 10 # n-step or rnn length
+batch_size: 50
+stoch_dim: 30
+deter_dim: 30
+model_lr: 1.e-3
+action_sigma: 0.3
+kl_free_nats: 3
+kl_scale: 1.0
+reward_scale: 1.0
+network_settings:
+  obs_encoder:
+    visual:
+      depth: 32
+      act: "relu"
+    vector: { }
+  obs_decoder:
+    visual:
+      depth: 32
+      act: "relu"
+    vector:
+      layers: 2
+      hidden_units: 64
+      dist: "mse"
+  rssm:
+    hidden_units: 64
+    std_act: "softplus"
+  reward:
+    layers: 2
+    hidden_units: 64
+    dist: "mse"

@@ -66,8 +66,7 @@ class IndependentMA(Base):
                      env_rets: Dict[str, Data]):
         # 3
         for id in self._agent_ids:
-            self.models[id].episode_step(
-                obs[id], env_rets[id], obs['global'].begin_mask)
+            self.models[id].episode_step(obs[id], env_rets[id], obs['global'].begin_mask)
 
     def episode_end(self):
         for id in self._agent_ids:

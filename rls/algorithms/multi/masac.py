@@ -90,7 +90,7 @@ class MASAC(MultiAgentOffPolicy):
         else:
             self.log_alpha = th.tensor(alpha).log().to(self.device)
             if self.annealing:
-                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, int(1e6))
 
         self._trainer_modules.update({f"actor_{id}": self.actors[id] for id in set(self.model_ids)})
         self._trainer_modules.update({f"critic_{id}": self.critics[id] for id in set(self.model_ids)})

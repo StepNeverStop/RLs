@@ -77,11 +77,9 @@ def main():
 
     train_args = EasyDict()
     train_args.update(load_config(f'rls/configs/train.yaml'))
-    train_args.update(load_config(f'rls/configs/{args.platform}/train.yaml'))
 
     env_args = EasyDict()
     env_args.update(load_config(f'rls/configs/env.yaml'))
-    env_args.update(load_config(f'rls/configs/{args.platform}/env.yaml'))
 
     algo_args = EasyDict()
 
@@ -89,11 +87,17 @@ def main():
         custome_config = load_config(args.config_file)
         train_args.update(custome_config['train'])
         env_args.update(custome_config['environment'])
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
+        algo_config = load_config(f"rls/configs/algorithms/{custome_config['algorithm']}.yaml")
+        super_algo_config = load_config(f'rls/configs/algorithms/general.yaml')[algo_config['super_config']]
+        algo_args.update(super_algo_config)
+        algo_args.update(algo_config)
         algo_args.update(custome_config['algorithm'])
     else:
         train_args.update(args.__dict__)
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
+        algo_config = load_config(f"rls/configs/algorithms/{args.algorithm}.yaml")
+        super_algo_config = load_config(f'rls/configs/algorithms/general.yaml')[algo_config['super_config']]
+        algo_args.update(super_algo_config)
+        algo_args.update(algo_config)
         algo_args.update(n_copies=args.copies)
         # env config
         env_args.update(platform=args.platform,

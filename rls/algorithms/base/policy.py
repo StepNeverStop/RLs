@@ -160,10 +160,9 @@ class Policy(Base):
             else:
                 for k, v in _data.items():
                     th.save(v, os.path.join(self.cp_dir, f'{k}.pth'))
-            logger.info(colorize(
-                f'Save checkpoint success. Training step: {self._cur_train_step}', color='green'))
+            logger.info(colorize(f'Save checkpoint success. Training step: {self._cur_train_step}', color='green'))
 
-    def resume(self, base_dir: Optional[str] = None) -> Dict:
+    def resume(self, base_dir: Optional[str] = None):
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """

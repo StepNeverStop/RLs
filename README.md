@@ -35,7 +35,8 @@ This project supports:
 - Only need 3 steps to implement a new algorithm:
     1. **policy** write `.py` in `rls/algorithms/{single/multi}` directory and make the policy inherit from super-class
        defined in `rls/algorithms/base`
-    2. **config** write default configuration in `rls/configs/algorithms.yaml`
+    2. **config** write `.yaml` in `rls/configs/algorithms/` directory and specify the super config type defined
+       in `rls/configs/algorithms/general.yaml`
     3. **register** register new algorithm in `rls/algorithms/__init__.py`
 - Only need 3 steps to adapt to a new training environment:
     1. **wrapper** write environment wrappers in `rls/envs/{new platform}` directory and make it inherit from

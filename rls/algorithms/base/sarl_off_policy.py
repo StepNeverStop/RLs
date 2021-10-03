@@ -90,8 +90,7 @@ class SarlOffPolicy(SarlPolicy):
     def _before_train(self, BATCH):
         self.summaries = {}
         if self.use_curiosity:
-            crsty_r, crsty_summaries = self.curiosity_model(
-                to_tensor(BATCH, device=self.device))
+            crsty_r, crsty_summaries = self.curiosity_model(to_tensor(BATCH, device=self.device))
             BATCH.reward += to_numpy(crsty_r)
             self.summaries.update(crsty_summaries)
         return BATCH

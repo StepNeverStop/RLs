@@ -98,7 +98,7 @@ class SAC_V(SarlOffPolicy):
         else:
             self.log_alpha = th.tensor(alpha).log().to(self.device)
             if self.annealing:
-                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, 1e6)
+                self.alpha_annealing = LinearAnnealing(alpha, last_alpha, int(1e6))
 
         self._trainer_modules.update(actor=self.actor,
                                      v_net=self.v_net,

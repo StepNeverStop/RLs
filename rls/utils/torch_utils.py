@@ -74,7 +74,7 @@ def squash_action(pi, log_pi, *, is_independent=True):
         sample range of [-1, 1] after squashed.
         the corrected log probability of squashed sample.
     """
-    pi.tanh_()
+    pi = th.tanh(pi)
     sub = (clip_but_pass_gradient(1 - pi ** 2, l=0, h=1) + th.finfo().eps).log()
     log_pi = log_pi - sub
     if is_independent:

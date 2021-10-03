@@ -1,0 +1,22 @@
+super_config: 'sarl_off_policy'
+lr: 5.0e-4
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+init2mid_annealing_step: 10000
+assign_interval: 1000
+network_settings: [ 64, 64 ]
+rep_net_params:
+  vector_net_params:
+    h_dim: 16
+    network_type: "adaptive" # rls.nn.represents.vectors
+  visual_net_params:
+    h_dim: 128
+    network_type: "nature" # rls.nn.represents.visuals
+  encoder_net_params:
+    h_dim: 16
+    network_type: "identity" # rls.nn.represents.encoders
+  memory_net_params:
+    rnn_units: 16
+    network_type: "identity" # rls.nn.represents.memories
+head_num: 4

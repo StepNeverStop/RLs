@@ -1,0 +1,21 @@
+super_config: 'sarl_off_policy'
+
+alpha: 0.2
+auto_adaption: true
+annealing: true
+last_alpha: 0.01
+actor_lr: 5.0e-4
+critic_lr: 1.0e-3
+alpha_lr: 5.0e-4
+polyak: 0.995
+use_gumbel: false
+discrete_tau: 1.0
+network_settings:
+  actor_continuous:
+    share: [ 64, 64 ]
+    mu: [ 64 ]
+    log_std: [ 64 ]
+    soft_clip: false
+    log_std_bound: [ -20, 2 ]
+  actor_discrete: [ 64, 64 ]
+  q: [ 64, 64 ]

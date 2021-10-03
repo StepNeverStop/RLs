@@ -1,0 +1,14 @@
+super_config: 'sarl_off_policy'
+v_min: -100
+v_max: 100
+atoms: 51
+lr: 5.0e-4
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+init2mid_annealing_step: 10000
+assign_interval: 1000
+network_settings:
+  share: [ 128 ]
+  v: [ 128, 128 ]
+  adv: [ 128, 128 ]

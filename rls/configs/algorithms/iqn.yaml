@@ -1,0 +1,16 @@
+super_config: 'sarl_off_policy'
+online_quantiles: 8 # quantile number of online network
+target_quantiles: 8 # quantile number of target network
+select_quantiles: 32 # quantile number for selecting actions
+quantiles_idx: 64 # trails
+huber_delta: 1. # delta for huber loss
+lr: 5.0e-4
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+init2mid_annealing_step: 10000
+assign_interval: 1000
+network_settings:
+  q_net: [ 128, &iqn_hm 64 ]
+  quantile: [ 128, *iqn_hm ]
+  tile: [ 64 ]

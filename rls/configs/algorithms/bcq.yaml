@@ -1,0 +1,27 @@
+super_config: 'sarl_off_policy'
+
+polyak: 0.995
+
+discrete:
+  threshold: 0.3
+  lr: 5.0e-4
+  eps_init: 1
+  eps_mid: 0.2
+  eps_final: 0.01
+  init2mid_annealing_step: 10000
+  assign_interval: 1000
+  network_settings: [ 64, 64 ]
+continuous:
+  phi: 0.05
+  lmbda: 0.75
+  select_samples: 100
+  train_samples: 10
+  actor_lr: 1.e-3
+  critic_lr: 1.e-3
+  vae_lr: 1.e-3
+  network_settings:
+    actor: [ 32, 32 ]
+    critic: [ 32, 32 ]
+    vae:
+      encoder: [ 750, 750 ]
+      decoder: [ 750, 750 ]
