@@ -17,23 +17,22 @@ logger = get_logger(__name__)
 try:
     import gym_minigrid
 except ImportError:
-    logger.warning(colorize(
-        "import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
+    logger.warning(
+        colorize("import gym_minigrid failed, using 'pip3 install gym-minigrid' install it.", color='yellow'))
     pass
 
 try:
     # if wanna render, added 'renders=True' or(depends on env) 'render=True' in gym.make() function manually.
     import pybullet_envs
 except ImportError:
-    logger.warning(colorize(
-        "import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
+    logger.warning(colorize("import pybullet_envs failed, using 'pip3 install PyBullet' install it.", color='yellow'))
     pass
 
 try:
     import gym_donkeycar
 except ImportError:
-    logger.warning(colorize(
-        "import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
+    logger.warning(
+        colorize("import gym_minigrid failed, using 'pip install gym_donkeycar' install it.", color='yellow'))
     pass
 
 try:
@@ -151,8 +150,8 @@ class GymEnv(EnvBase):
     # --- custom
 
     def _initialize(self, env):
-        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(
-            env.action_space, (Box, Discrete)), 'action_space and observation_space must be one of available_type'
+        assert isinstance(env.observation_space, (Box, Discrete)) and isinstance(env.action_space, (
+            Box, Discrete)), 'action_space and observation_space must be one of available_type'
         # process observation
         ObsSpace = env.observation_space
 
@@ -180,8 +179,8 @@ class GymEnv(EnvBase):
             self._is_continuous = True
             self.a_dim = ActSpace.shape[0]
         elif isinstance(ActSpace, Tuple):
-            assert all([isinstance(i, Discrete) for i in ActSpace]
-                       ) == True, 'if action space is Tuple, each item in it must have type Discrete'
+            assert all([isinstance(i, Discrete) for i in
+                        ActSpace]) == True, 'if action space is Tuple, each item in it must have type Discrete'
             self._is_continuous = False
             self.a_dim = int(np.asarray([i.n for i in ActSpace]).prod())
         else:

@@ -164,19 +164,49 @@ For now, these algorithms are available:
             - Benchmarking Batch Deep Reinforcement Learning Algorithms, [Discrete](http://arxiv.org/abs/1910.01708)
             - Off-Policy Deep Reinforcement Learning without Exploration, [Continuous](http://arxiv.org/abs/1812.02900)
 
-| Algorithms | Discrete | Continuous | Image | RNN | Command parameter | | :-----------------------------: | :------:
-| :--------: | :---: | :--: | :---------------: | | PG | ✓ | ✓ | ✓ | ✓ | pg | | AC | ✓ | ✓ | ✓ | ✓ | ac | | A2C | ✓ | ✓
-| ✓ | ✓ | a2c | | NPG | ✓ | ✓ | ✓ | ✓ | npg | | TRPO | ✓ | ✓ | ✓ | ✓ | trpo | | PPO | ✓ | ✓ | ✓ | ✓ | ppo | | DQN | ✓ |
-| ✓ | ✓ | dqn | | Double DQN | ✓ | | ✓ | ✓ | ddqn | | Dueling Double DQN | ✓ | | ✓ | ✓ | dddqn | | Averaged DQN | ✓ | |
-✓ | ✓ | averaged_dqn | | Bootstrapped DQN | ✓ | | ✓ | ✓ | bootstrappeddqn | | Soft Q-Learning | ✓ | | ✓ | ✓ | sql | |
-C51 | ✓ | | ✓ | ✓ | c51 | | QR-DQN | ✓ | | ✓ | ✓ | qrdqn | | IQN | ✓ | | ✓ | ✓ | iqn | | Rainbow | ✓ | | ✓ | ✓ | rainbow
-| | DPG | ✓ | ✓ | ✓ | ✓ | dpg | | DDPG | ✓ | ✓ | ✓ | ✓ | ddpg | | TD3 | ✓ | ✓ | ✓ | ✓ | td3 | | SAC(has V network)
-| ✓ | ✓ | ✓ | ✓ | sac_v | | SAC | ✓ | ✓ | ✓ | ✓ | sac | | TAC | sac | ✓ | ✓ | ✓ | tac | | MaxSQN | ✓ | | ✓ | ✓ | maxsqn
-| | OC | ✓ | ✓ | ✓ | ✓ | oc | | AOC | ✓ | ✓ | ✓ | ✓ | aoc | | PPOC | ✓ | ✓ | ✓ | ✓ | ppoc | | IOC | ✓ | ✓ | ✓ | ✓ | ioc
-| | PlaNet | ✓ | | ✓ | 1 | planet | | Dreamer | ✓ | ✓ | ✓ | 1 | dreamer | | DreamerV2 | ✓ | ✓ | ✓ | 1 | dreamerv2 | |
-MVE | ✓ | ✓ | | | mve | | VDN | ✓ | | ✓ | ✓ | vdn | | QMIX | ✓ | | ✓ | ✓ | qmix | | Qatten | ✓ | | ✓ | ✓ | qatten | |
-QPLEX | ✓ | | ✓ | ✓ | qplex | | QTRAN | ✓ | | ✓ | ✓ | qtran | | MADDPG | ✓ | ✓ | ✓ | ✓ | maddpg | | MASAC | ✓ | ✓ | ✓ |
-✓ | masac | | CQL | ✓ | | ✓ | ✓ | cql_dqn | | BCQ | ✓ | ✓ | ✓ | ✓ | bcq |
+
+|           Algorithms            | Discrete | Continuous | Image | RNN  | Command parameter |
+| :-----------------------------: | :------: | :--------: | :---: | :--: | :---------------: |
+|               PG                |    ✓     |     ✓      |   ✓   |  ✓   |        pg         |
+|               AC                |    ✓     |     ✓      |   ✓   |  ✓   |        ac         |
+|               A2C               |    ✓     |     ✓      |   ✓   |  ✓   |        a2c        |
+|               NPG               |    ✓     |     ✓      |   ✓   |  ✓   |        npg        |
+|              TRPO               |    ✓     |     ✓      |   ✓   |  ✓   |       trpo        |
+|               PPO               |    ✓     |     ✓      |   ✓   |  ✓   |        ppo        |
+|               DQN               |    ✓     |            |   ✓   |  ✓   |        dqn        |
+|           Double DQN            |    ✓     |            |   ✓   |  ✓   |       ddqn        |
+|       Dueling Double DQN        |    ✓     |            |   ✓   |  ✓   |       dddqn       |
+|          Averaged DQN           |    ✓     |            |   ✓   |  ✓   |    averaged_dqn   |
+|        Bootstrapped DQN         |    ✓     |            |   ✓   |  ✓   |  bootstrappeddqn  |
+|         Soft Q-Learning         |    ✓     |            |   ✓   |  ✓   |        sql        |
+|               C51               |    ✓     |            |   ✓   |  ✓   |        c51        |
+|             QR-DQN              |    ✓     |            |   ✓   |  ✓   |       qrdqn       |
+|               IQN               |    ✓     |            |   ✓   |  ✓   |        iqn        |
+|             Rainbow             |    ✓     |            |   ✓   |  ✓   |      rainbow      |
+|               DPG               |    ✓     |     ✓      |   ✓   |  ✓   |        dpg        |
+|              DDPG               |    ✓     |     ✓      |   ✓   |  ✓   |       ddpg        |
+|               TD3               |    ✓     |     ✓      |   ✓   |  ✓   |        td3        |
+|       SAC(has V network)        |    ✓     |     ✓      |   ✓   |  ✓   |       sac_v       |
+|               SAC               |    ✓     |     ✓      |   ✓   |  ✓   |        sac        |
+|               TAC               |   sac    |     ✓      |   ✓   |  ✓   |        tac        |
+|             MaxSQN              |    ✓     |            |   ✓   |  ✓   |      maxsqn       |
+|               OC                |    ✓     |     ✓      |   ✓   |  ✓   |        oc         |
+|               AOC               |    ✓     |     ✓      |   ✓   |  ✓   |        aoc        |
+|              PPOC               |    ✓     |     ✓      |   ✓   |  ✓   |       ppoc        |
+|               IOC               |    ✓     |     ✓      |   ✓   |  ✓   |        ioc        |
+|             PlaNet              |    ✓     |            |   ✓   |  1   |      planet       |
+|             Dreamer             |    ✓     |     ✓      |   ✓   |  1   |      dreamer      |
+|            DreamerV2            |    ✓     |     ✓      |   ✓   |  1   |     dreamerv2     |
+|               VDN               |    ✓     |            |   ✓   |  ✓   |        vdn        |
+|              QMIX               |    ✓     |            |   ✓   |  ✓   |       qmix        |
+|             Qatten              |    ✓     |            |   ✓   |  ✓   |      qatten       |
+|              QPLEX              |    ✓     |            |   ✓   |  ✓   |       qplex       |
+|              QTRAN              |    ✓     |            |   ✓   |  ✓   |       qtran       |
+|             MADDPG              |    ✓     |     ✓      |   ✓   |  ✓   |      maddpg       |
+|              MASAC              |    ✓     |     ✓      |   ✓   |  ✓   |       masac       |
+|               CQL               |    ✓     |            |   ✓   |  ✓   |      cql_dqn      |
+|               BCQ               |    ✓     |     ✓      |   ✓   |  ✓   |        bcq        |
+|               MVE               |    ✓     |     ✓      |       |      |        mve        |
 
 *1 means must use rnn or rnn is used by default.*
 
