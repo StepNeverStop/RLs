@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from rls.algorithms.register import get_model_info, register
+from rls.algorithms.register import register
 
 # logo: font-size: 12, foreground character: 'O', font: 幼圆
 # http://life.chacuo.net/convertfont2char
 
-register(   # font 8
+register(  # font 8
     name='maddpg',
     path='multi.maddpg',
     is_multi=True,
     class_name='MADDPG',
-    logo='''
+    logo="""
 　　　　　　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯ　　
 　ＯＯＯＯ　　　ＯＯＯＯ　　　　　　ＯＯ　　　　　　ＯＯＯＯＯＯＯＯ　　　　ＯＯＯＯＯＯＯＯ　　　　　ＯＯＯＯＯＯＯ　　　　　ＯＯＯＯＯＯＯ　　
 　　　ＯＯＯ　　ＯＯＯ　　　　　　ＯＯＯＯ　　　　　　ＯＯ　　ＯＯＯ　　　　　ＯＯ　　ＯＯＯ　　　　　　ＯＯ　　ＯＯ　　　　　ＯＯＯ　　　Ｏ　　
@@ -21,15 +21,15 @@ register(   # font 8
 　　　Ｏ　ＯＯＯ　ＯＯ　　　　　ＯＯ　　ＯＯ　　　　　ＯＯ　　　ＯＯＯ　　　　ＯＯ　　　ＯＯＯ　　　　　ＯＯ　　　　　　　　　ＯＯＯ　　ＯＯ　　
 　　ＯＯＯＯＯ　ＯＯＯ　　　　ＯＯ　　　ＯＯＯ　　　　ＯＯＯＯＯＯＯ　　　　　ＯＯＯＯＯＯＯ　　　　　　ＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯ　　
 　ＯＯＯＯ　Ｏ　ＯＯＯ　　　　ＯＯ　　　ＯＯＯ　　　ＯＯＯＯＯＯＯ　　　　　ＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯ　　　　　　　　　　ＯＯＯＯ
-    '''
+    """
 )
 
-register(   # font 8
+register(  # font 8
     name='masac',
     path='multi.masac',
     is_multi=True,
     class_name='MASAC',
-    logo='''
+    logo="""
 　　　　　　　　　　　　　　　　　　ＯＯ　　　　　　　　　ＯＯＯＯ　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　　
 　ＯＯＯＯ　　　ＯＯＯＯ　　　　　　ＯＯ　　　　　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯ　　　　　　　　ＯＯＯＯＯＯ　　
 　　　ＯＯＯ　　ＯＯＯ　　　　　　ＯＯＯＯ　　　　　　　ＯＯ　ＯＯ　　　　　　　　ＯＯＯＯ　　　　　　ＯＯＯ　　ＯＯ　　
@@ -39,7 +39,7 @@ register(   # font 8
 　　　Ｏ　ＯＯＯ　ＯＯ　　　　　ＯＯ　　ＯＯ　　　　　　Ｏ　　ＯＯ　　　　　　　ＯＯ　　ＯＯ　　　　　ＯＯ　　　　　　　
 　　ＯＯＯＯＯ　ＯＯＯ　　　　ＯＯ　　　ＯＯＯ　　　　　ＯＯＯＯＯ　　　　　　ＯＯ　　　ＯＯＯ　　　　ＯＯＯＯ　ＯＯ　　
 　ＯＯＯＯ　Ｏ　ＯＯＯ　　　　ＯＯ　　　ＯＯＯ　　　　　ＯＯＯＯＯ　　　　　　ＯＯ　　　ＯＯＯ　　　　　ＯＯＯＯＯ
-    '''
+    """
 )
 
 register(
@@ -47,7 +47,7 @@ register(
     path='multi.vdn',
     is_multi=True,
     class_name='VDN',
-    logo='''
+    logo="""
 　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　ＯＯＯＯＯ　　　ＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
 　　　　　ＯＯＯ　　　　ＯＯ　　　　　　　　　ＯＯ　　　　ＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　Ｏ　　　　
@@ -60,7 +60,7 @@ register(
 　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯ　　　ＯＯＯＯＯ　　　　　　　　Ｏ　　　　　ＯＯＯ　　　　
 　　　　　　　　　ＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　　　　ＯＯ　　　　
 　　　　　　　　　ＯＯ
-    '''
+    """
 )
 
 register(
@@ -68,7 +68,7 @@ register(
     path='multi.vdn',
     is_multi=True,
     class_name='VDN',
-    logo='''
+    logo="""
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　　　ＯＯＯＯ　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　ＯＯＯＯ　　　　　ＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯ　　　ＯＯ　　　　
 　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　ＯＯＯＯ　　ＯＯＯ　　　　
@@ -83,15 +83,15 @@ register(
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　　ＯＯＯＯ
-    '''
+    """
 )
 
-register(   # font-10
+register(  # font-10
     name='qatten',
     path='multi.vdn',
     is_multi=True,
     class_name='VDN',
-    logo='''
+    logo="""
 　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　ＯＯＯＯ　　　ＯＯＯＯ　　
 　　　　ＯＯＯ　ＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　ＯＯ　　ＯＯ　ＯＯ　　　　　　ＯＯ　　ＯＯ　ＯＯ　　　　　　　ＯＯＯ　　ＯＯ　　　　　　　　ＯＯＯ　　　　Ｏ　　　
 　　　ＯＯＯ　　　ＯＯＯＯ　　　　　　　　ＯＯＯＯ　　　　　　　　Ｏ　　　ＯＯ　　Ｏ　　　　　　Ｏ　　　ＯＯ　　Ｏ　　　　　　　ＯＯＯ　　　Ｏ　　　　　　　　ＯＯＯＯ　　　Ｏ　　　
@@ -104,7 +104,7 @@ register(   # font-10
 　　　　　ＯＯＯＯＯ　　　　　　　　ＯＯＯ　　　ＯＯＯＯ　　　　　　　ＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　ＯＯＯ
-    '''
+    """
 )
 
 register(
@@ -112,7 +112,7 @@ register(
     path='multi.qtran',
     is_multi=True,
     class_name='QTRAN',
-    logo='''
+    logo="""
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　　　　ＯＯ　　　　　　　　　　ＯＯＯＯＯ　　　　ＯＯＯＯ　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
 　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　ＯＯ　　ＯＯ　　ＯＯ　　　　　　　　　ＯＯ　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯ　　　　Ｏ　　　　
@@ -127,7 +127,7 @@ register(
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　　　　ＯＯＯ　　　　ＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　　ＯＯＯＯ
-    '''
+    """
 )
 
 register(
@@ -135,7 +135,7 @@ register(
     path='multi.qplex',
     is_multi=True,
     class_name='QPLEX',
-    logo='''
+    logo="""
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯ　　ＯＯＯＯ　　　
 　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯ　　　　　　　　　　　　　　ＯＯＯ　　　ＯＯＯ　　　　　　　　　　ＯＯＯＯ　　　ＯＯ　　　　
 　　　　ＯＯＯＯ　　　ＯＯＯ　　　　　　　　　　　ＯＯ　　ＯＯＯＯ　　　　　　　　　ＯＯ　　　　　　　　　　　　　　　ＯＯ　　　　ＯＯ　　　　　　　　　　ＯＯＯＯ　　ＯＯＯ　　　　
@@ -150,5 +150,5 @@ register(
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　ＯＯＯＯ　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　
 　　　　　　　　　　ＯＯＯＯ
-    '''
+    """
 )

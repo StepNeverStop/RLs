@@ -2,8 +2,7 @@
 # encoding: utf-8
 
 import numpy as np
-import torch as t
-from torch import distributions as td
+import torch as th
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.data import Data
@@ -16,9 +15,9 @@ from rls.utils.torch_utils import n_step_return
 
 
 class BootstrappedDQN(SarlOffPolicy):
-    '''
+    """
     Deep Exploration via Bootstrapped DQN, http://arxiv.org/abs/1602.04621
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -40,7 +39,7 @@ class BootstrappedDQN(SarlOffPolicy):
                                                           max_step=self._max_train_step)
         self.assign_interval = assign_interval
         self.head_num = head_num
-        self._probs = t.FloatTensor([1. / head_num for _ in range(head_num)])
+        self._probs = th.FloatTensor([1. / head_num for _ in range(head_num)])
         self.now_head = 0
 
         self.q_net = TargetTwin(CriticQvalueBootstrap(self.obs_spec,
@@ -63,7 +62,7 @@ class BootstrappedDQN(SarlOffPolicy):
         self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
-            actions = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copies)
         else:
             # [H, B, A] => [B, A] => [B, ]
             actions = q_values[self.now_head].argmax(-1)
@@ -71,8 +70,8 @@ class BootstrappedDQN(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask).mean(0)   # [H, T, B, A] => [T, B, A]
-        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask).mean(0)    # [H, T, B, A] => [T, B, A]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask).mean(0)  # [H, T, B, A] => [T, B, A]
+        q_next = self.q_net.t(BATCH.obs_, begin_mask=BATCH.begin_mask).mean(0)  # [H, T, B, A] => [T, B, A]
         # [T, B, A] * [T, B, A] => [T, B, 1]
         q_eval = (q * BATCH.action).sum(-1, keepdim=True)
         q_target = n_step_return(BATCH.reward,
@@ -81,19 +80,19 @@ class BootstrappedDQN(SarlOffPolicy):
                                  # [T, B, A] => [T, B, 1]
                                  q_next.max(-1, keepdim=True)[0],
                                  BATCH.begin_mask).detach()  # [T, B, 1]
-        td_error = q_target - q_eval    # [T, B, 1]
-        q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
+        td_error = q_target - q_eval  # [T, B, 1]
+        q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
 
         # mask_dist = td.Bernoulli(probs=self._probs)  # TODO:
         # mask = mask_dist.sample([batch_size]).T   # [H, B]
         self.oplr.optimize(q_loss)
-        return td_error, dict([
-            ['LEARNING_RATE/lr', self.oplr.lr],
-            ['LOSS/loss', q_loss],
-            ['Statistics/q_max', q_eval.max()],
-            ['Statistics/q_min', q_eval.min()],
-            ['Statistics/q_mean', q_eval.mean()]
-        ])
+        return td_error, {
+            'LEARNING_RATE/lr': self.oplr.lr,
+            'LOSS/loss': q_loss,
+            'Statistics/q_max': q_eval.max(),
+            'Statistics/q_min': q_eval.min(),
+            'Statistics/q_mean': q_eval.mean()
+        }
 
     def _after_train(self):
         super()._after_train()

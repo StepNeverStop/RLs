@@ -2,13 +2,10 @@
 # encoding: utf-8
 
 import sys
-from copy import deepcopy
-from typing import Callable, List, NoReturn, Tuple
+from typing import Callable, NoReturn
 
-import numpy as np
 from tqdm import trange
 
-from rls.common.data import Data
 from rls.common.recorder import SimpleMovingAverageRecoder
 from rls.utils.logging_utils import get_logger
 
@@ -31,7 +28,7 @@ def train(env, agent,
         agent:                  all agent for this training task.
         episode_length:         maximum number of steps for an episode.
     """
-    recorder = SimpleMovingAverageRecoder(n_copys=env.n_copys,
+    recorder = SimpleMovingAverageRecoder(n_copies=env.n_copies,
                                           agent_ids=env.agent_ids,
                                           gamma=0.99,
                                           verbose=True,
@@ -70,9 +67,8 @@ def prefill(env, agent,
             reset_config: dict,
             step_config: dict,
             desc: str = 'Pre-filling') -> NoReturn:
-
     assert isinstance(prefill_steps, int) \
-        and prefill_steps >= 0, 'prefill.steps must have type of int and larger than/equal 0'
+           and prefill_steps >= 0, 'prefill.steps must have type of int and larger than/equal 0'
 
     if agent.policy_mode == 'on-policy':
         return
@@ -82,7 +78,8 @@ def prefill(env, agent,
     agent.episode_reset()
     obs = env.reset(reset_config={})
 
-    for _ in trange(0, prefill_steps, env.n_copys, unit_scale=env.n_copys, ncols=80, desc=desc, bar_format=bar_format):
+    for _ in trange(0, prefill_steps, env.n_copies, unit_scale=env.n_copies, ncols=80, desc=desc,
+                    bar_format=bar_format):
         env_rets = env.step(agent.random_action(), step_config={})
         agent.episode_step(obs, env_rets)
         obs = {id: env_rets[id].obs_fa for id in env.agent_ids}
@@ -100,7 +97,7 @@ def inference(env, agent,
     """
 
     episodes = episodes or sys.maxsize
-    recorder = SimpleMovingAverageRecoder(n_copys=env.n_copys,
+    recorder = SimpleMovingAverageRecoder(n_copies=env.n_copies,
                                           agent_ids=env.agent_ids,
                                           gamma=0.99,
                                           verbose=True,
@@ -132,10 +129,10 @@ def evaluate(env, agent,
              step_config: dict,
              episodes_num: int,
              episode_length: int) -> NoReturn:
-    '''
+    """
     TODO: fix bugs
-    '''
-    recorder = SimpleMovingAverageRecoder(n_copys=env.n_copys,
+    """
+    recorder = SimpleMovingAverageRecoder(n_copies=env.n_copies,
                                           agent_ids=env.agent_ids,
                                           gamma=0.99,
                                           verbose=True,

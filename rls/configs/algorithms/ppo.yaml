@@ -1,0 +1,54 @@
+super_config: 'sarl_on_policy'
+
+share_net: true
+epsilon: 0.2
+ent_coef: 0.005
+vf_coef: 0.5
+lr: 0.0003
+lambda_: 0.97
+actor_lr: 3.0e-4
+critic_lr: 1.0e-3
+
+# duel clip
+use_duel_clip: false
+duel_epsilon: 0.1
+
+# value function clip
+use_vclip: false
+value_epsilon: 0.2
+
+# kl loss
+use_kl_loss: false
+kl_reverse: false
+kl_target: 0.02
+kl_beta: [ 0.7, 1.3 ]
+kl_alpha: 1.5
+kl_coef: 1.0
+
+# extra loss
+use_extra_loss: false
+extra_coef: 1000.0
+kl_target_cutoff: 2
+
+# early stopping
+use_early_stop: true
+kl_target_earlystop: 4
+
+network_settings:
+  share:
+    continuous:
+      condition_sigma: false # not recommended
+      log_std_bound: [ -20, 2 ]
+      share: [ 64, 64 ]
+      mu: [ 64, 64 ]
+      v: [ 64, 64 ]
+    discrete:
+      share: [ 64, 64 ]
+      logits: [ 64, 64 ]
+      v: [ 64, 64 ]
+  actor_continuous:
+    hidden_units: [ 64, 64 ]
+    condition_sigma: false # not recommended
+    log_std_bound: [ -20, 2 ]
+  actor_discrete: [ 64, 64 ]
+  critic: [ 64, 64 ]

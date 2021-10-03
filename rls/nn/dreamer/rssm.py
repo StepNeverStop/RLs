@@ -1,8 +1,6 @@
-
-import numpy as np
-import torch as t
+import torch as th
+import torch.distributions as td
 import torch.nn.functional as F
-from torch import distributions as td
 from torch import nn
 
 from rls.nn.activations import Act_REGISTER
@@ -68,7 +66,7 @@ class RecurrentStateSpaceModel(nn.Module):
         for model training
         """
         next_state_prior, deter_state = self.prior(
-            stoch_state, action, deter_state)     # [B, *]
+            stoch_state, action, deter_state)  # [B, *]
         next_state_posterior = self.posterior(
             deter_state, embedded_next_obs)
         return next_state_prior, next_state_posterior, deter_state
@@ -78,8 +76,8 @@ class RecurrentStateSpaceModel(nn.Module):
         h_t+1 = f(h_t, s_t, a_t)
         Compute prior p(s_t+1 | h_t+1)
         """
-        hidden = self.fc_state_action(t.cat([stoch_state, action], dim=-1))  # [B, *]
-        deter_state = self.rnn(hidden, deter_state)    # [B, *]
+        hidden = self.fc_state_action(th.cat([stoch_state, action], dim=-1))  # [B, *]
+        deter_state = self.rnn(hidden, deter_state)  # [B, *]
         output = self.fc_output_prior(deter_state)  # [B, *]
         return self._build_dist(output), deter_state
 
@@ -88,22 +86,22 @@ class RecurrentStateSpaceModel(nn.Module):
         Compute posterior q(s_t | h_t, o_t)
         """
         output = self.fc_output_posterior(
-            t.cat([deter_state, embedded_obs], dim=-1))
+            th.cat([deter_state, embedded_obs], dim=-1))
         return self._build_dist(output)
 
     def _build_dist(self, output):
         if self._rssm_type == 'discrete':
             logits = output.view(
-                output.shape[:-1]+(self.stoch_dim, self._discretes))   # [B, s, d]
+                output.shape[:-1] + (self.stoch_dim, self._discretes))  # [B, s, d]
             return td.Independent(OneHotDistFlattenSample(logits=logits), 1)
         else:
-            mean, stddev = t.chunk(output, 2, -1)   # [B, *]
+            mean, stddev = th.chunk(output, 2, -1)  # [B, *]
             if self._std_act == 'softplus':
                 stddev = F.softplus(stddev)
             elif self._std_act == 'sigmoid':
-                stddev = t.sigmoid(stddev)
+                stddev = th.sigmoid(stddev)
             elif self._std_act == 'sigmoid2':
-                stddev = 2. * t.sigmoid(stddev / 2.)
+                stddev = 2. * th.sigmoid(stddev / 2.)
             stddev = stddev + self._min_stddev  # [B, *]
             return td.Independent(td.Normal(mean, stddev), 1)
 
@@ -111,15 +109,15 @@ class RecurrentStateSpaceModel(nn.Module):
         if self._rssm_type == 'discrete':
             mean = dist.mean
             if detach:
-                mean = t.detach(mean)
+                mean = th.detach(mean)
             return td.Independent(OneHotDistFlattenSample(mean), 1)
         else:
             mean, stddev = dist.mean, dist.stddev
             if detach:
-                mean, stddev = t.detach(mean), t.detach(stddev)
+                mean, stddev = th.detach(mean), th.detach(stddev)
             return td.Independent(td.Normal(mean, stddev), 1)
 
     def init_state(self, shape):
         if not hasattr(shape, '__len__'):
             shape = (shape,)
-        return t.zeros(shape+(self._input_dim,)), t.zeros(shape+(self.deter_dim,))
+        return th.zeros(shape + (self._input_dim,)), th.zeros(shape + (self.deter_dim,))

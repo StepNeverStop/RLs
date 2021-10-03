@@ -1,17 +1,15 @@
 from copy import deepcopy
 
-import torch as t
-
 from rls.utils.torch_utils import sync_params
 
 
 class TargetTwin:
 
-    def __init__(self, module, ployak=0.):
+    def __init__(self, module, polyak=0.):
         self._module = module
         self._target_module = deepcopy(module)
         self._target_module.eval()
-        self.ployak = ployak
+        self.polyak = polyak
 
         self.sync()
         self.sync()
@@ -35,7 +33,7 @@ class TargetTwin:
         return self
 
     def sync(self):
-        sync_params(self._target_module, self._module, self.ployak)
+        sync_params(self._target_module, self._module, self.polyak)
 
     def __getattr__(self, attr):
         # https://github.com/python-babel/flask-babel/commit/8319a7f44f4a0b97298d20ad702f7618e6bdab6a

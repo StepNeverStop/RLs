@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from rls.algorithms.register import get_model_info, register
+from rls.algorithms.register import register
 
 # logo: font-size: 12, foreground character: 'O', font: 幼圆
 # http://life.chacuo.net/convertfont2char
@@ -11,7 +11,7 @@ register(
     path='single.hierarchical.aoc',
     is_multi=False,
     class_name='AOC',
-    logo='''
+    logo="""
 　　　　　　　　ＯＯ　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -24,7 +24,7 @@ register(
 　　　　ＯＯ　　　　ＯＯＯ　　　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　
 　　　ＯＯＯ　　　　ＯＯＯＯ　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　
 　　　ＯＯＯ　　　　ＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯ
-    '''
+    """
 )
 
 register(
@@ -32,7 +32,7 @@ register(
     path='single.hierarchical.ppoc',
     is_multi=False,
     class_name='PPOC',
-    logo='''
+    logo="""
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯ　　ＯＯＯＯ　　　　　　　　　　ＯＯ　　ＯＯＯＯ　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -45,14 +45,14 @@ register(
 　　　　　　　ＯＯ　　　　　　　　　　　　　　　　ＯＯ　　　　　　　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　
 　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯ　
-    '''
+    """
 )
 register(
     name='oc',
     path='single.hierarchical.oc',
     is_multi=False,
     class_name='OC',
-    logo='''
+    logo="""
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
 　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -65,7 +65,7 @@ register(
 　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　
 　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　
 　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯ
-    '''
+    """
 )
 
 register(
@@ -73,7 +73,7 @@ register(
     path='single.hierarchical.ioc',
     is_multi=False,
     class_name='IOC',
-    logo='''
+    logo="""
 　　　　　　ＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯ　　　　
 　　　　　　　ＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　
 　　　　　　　　ＯＯ　　　　　　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　ＯＯＯＯ　　　　ＯＯ　　　　
@@ -86,5 +86,5 @@ register(
 　　　　　　　　ＯＯ　　　　　　　　　　　　ＯＯＯ　　　　ＯＯＯ　　　　　　　　　ＯＯＯＯ　　　ＯＯＯ　　　
 　　　　　　ＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯＯ　　　　　　　　　　　ＯＯＯＯＯＯＯＯ　　　　
 　　　　　　　　　　　　　　　　　　　　　　　　ＯＯＯＯＯＯ　　　　　　　　　　　　　ＯＯＯＯＯ
-    '''
+    """
 )

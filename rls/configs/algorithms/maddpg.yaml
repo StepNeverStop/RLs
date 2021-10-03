@@ -1,0 +1,13 @@
+super_config: 'marl_off_policy'
+
+polyak: 0.995
+actor_lr: 5.0e-4
+critic_lr: 1.0e-3
+discrete_tau: 1.0
+noise_action: "ou"
+noise_params:
+  sigma: 0.2
+network_settings:
+  actor_continuous: [ 64, 64 ]
+  actor_discrete: [ 64, 64 ]
+  q: [ 64, 64 ]

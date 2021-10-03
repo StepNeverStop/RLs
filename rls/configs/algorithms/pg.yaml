@@ -1,0 +1,8 @@
+super_config: 'sarl_on_policy'
+lr: 5.0e-4
+network_settings:
+  actor_continuous:
+    hidden_units: [ 64, 64 ]
+    condition_sigma: false
+    log_std_bound: [ -20, 2 ]
+  actor_discrete: [ 64, 64 ]

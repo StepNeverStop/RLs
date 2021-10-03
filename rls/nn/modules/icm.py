@@ -1,19 +1,17 @@
-
-import torch as t
+import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from rls.common.decorator import iton
 from rls.nn.activations import Act_REGISTER, default_act
 from rls.nn.represent_nets import RepresentationNetwork
 from rls.nn.utils import OPLR
 
 
 class CuriosityModel(nn.Module):
-    '''
+    """
     Model of Intrinsic Curiosity Module (ICM).
     Curiosity-driven Exploration by Self-supervised Prediction, https://arxiv.org/abs/1705.05363
-    '''
+    """
 
     def __init__(self,
                  obs_spec,
@@ -22,7 +20,7 @@ class CuriosityModel(nn.Module):
                  action_dim,
                  *,
                  eta=0.2, lr=1.0e-3, beta=0.2):
-        '''
+        """
         params:
             is_continuous: sepecify whether action space is continuous(True) or discrete(False)
             action_dim: dimension of action
@@ -30,7 +28,7 @@ class CuriosityModel(nn.Module):
             eta: weight of intrinsic reward
             lr: the learning rate of curiosity model
             beta: weight factor of loss between inverse_dynamic_net and forward_net
-        '''
+        """
         super().__init__()
         self.eta = eta
         self.beta = beta
@@ -65,18 +63,18 @@ class CuriosityModel(nn.Module):
         fs, _ = self.rep_net(
             BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, *]
         fs_, _ = self.rep_net(
-            BATCH.obs_, begin_mask=BATCH.begin_mask)   # [T, B, *]
+            BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, *]
 
         # [T, B, *] <S, A> => S'
-        s_eval = self.forward_net(t.cat((fs, BATCH.action), -1))
-        LF = 0.5 * (fs_ - s_eval).square().sum(-1, keepdim=True)    # [T, B, 1]
+        s_eval = self.forward_net(th.cat((fs, BATCH.action), -1))
+        LF = 0.5 * (fs_ - s_eval).square().sum(-1, keepdim=True)  # [T, B, 1]
         intrinsic_reward = self.eta * LF
-        loss_forward = LF.mean()    # 1
+        loss_forward = LF.mean()  # 1
 
-        a_eval = self.inverse_dynamic_net(t.cat((fs, fs_), -1))  # [T, B, *]
+        a_eval = self.inverse_dynamic_net(th.cat((fs, fs_), -1))  # [T, B, *]
         if self.is_continuous:
             loss_inverse = 0.5 * \
-                (a_eval - BATCH.action).square().sum(-1).mean()
+                           (a_eval - BATCH.action).square().sum(-1).mean()
         else:
             idx = BATCH.action.argmax(-1)  # [T, B]
             loss_inverse = F.cross_entropy(
@@ -84,9 +82,9 @@ class CuriosityModel(nn.Module):
 
         loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
         self.oplr.optimize(loss)
-        summaries = dict([
-            ['LOSS/curiosity_loss', loss],
-            ['LOSS/forward_loss', loss_forward],
-            ['LOSS/inverse_loss', loss_inverse]
-        ])
+        summaries = {
+            'LOSS/curiosity_loss': loss,
+            'LOSS/forward_loss': loss_forward,
+            'LOSS/inverse_loss': loss_inverse
+        }
         return intrinsic_reward, summaries

@@ -1,11 +1,8 @@
-
 from collections import defaultdict
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
-import torch as t
+import torch as th
 import torch.nn as nn
-
-from rls.nn.activations import Act_REGISTER, default_act
 
 Rnn_REGISTER = {}
 
@@ -28,15 +25,15 @@ class GRU_RNN(nn.Module):
         self.rnn = nn.GRUCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
-    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
-        '''
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[th.Tensor]):
+        """
         params:
             feat: [T, B, *]
             rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
             rnncs_s: [T, B, *] or [B, *]
-        '''
+        """
         T, B = feat.shape[:2]
 
         output = []
@@ -45,7 +42,7 @@ class GRU_RNN(nn.Module):
         if rnncs:
             hx = rnncs['hx'][0]
         else:
-            hx = t.zeros(size=(B, self.h_dim))
+            hx = th.zeros(size=(B, self.h_dim))
         for i in range(T):  # T
             if begin_mask is not None:
                 hx *= (1 - begin_mask[i])
@@ -54,9 +51,9 @@ class GRU_RNN(nn.Module):
             output.append(hx)
             rnncs_s['hx'].append(hx)
 
-        output = t.stack(output, dim=0)  # [T, B, N]
+        output = th.stack(output, dim=0)  # [T, B, N]
         if rnncs_s:
-            rnncs_s = {k: t.stack(v, 0)
+            rnncs_s = {k: th.stack(v, 0)
                        for k, v in rnncs_s.items()}  # [T, B, N]
         return output, rnncs_s
 
@@ -69,15 +66,15 @@ class LSTM_RNN(nn.Module):
         self.rnn = nn.LSTMCell(self.in_dim, rnn_units)
         self.h_dim = rnn_units
 
-    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[t.Tensor]):
-        '''
+    def forward(self, feat, rnncs: Optional[Dict], begin_mask: Optional[th.Tensor]):
+        """
         params:
             feat: [T, B, *]
             rnncs: [T, B, *]
         returns:
             output: [T, B, *] or [B, *]
             rnncs_s: [T, B, *] or [B, *]
-        '''
+        """
         T, B = feat.shape[:2]
 
         output = []
@@ -86,7 +83,7 @@ class LSTM_RNN(nn.Module):
         if rnncs:
             hx, cx = rnncs['hx'][0], rnncs['cx'][0]
         else:
-            hx, cx = t.zeros(size=(B, self.h_dim)), t.zeros(
+            hx, cx = th.zeros(size=(B, self.h_dim)), th.zeros(
                 size=(B, self.h_dim))
         for i in range(T):  # T
             if begin_mask is not None:
@@ -98,9 +95,9 @@ class LSTM_RNN(nn.Module):
             rnncs_s['hx'].append(hx)
             rnncs_s['cx'].append(cx)
 
-        output = t.stack(output, dim=0)  # [T, B, N]
+        output = th.stack(output, dim=0)  # [T, B, N]
         if rnncs_s:
-            rnncs_s = {k: t.stack(v, 0)
+            rnncs_s = {k: th.stack(v, 0)
                        for k, v in rnncs_s.items()}  # [T, B, N]
 
         return output, rnncs_s

@@ -1,4 +1,3 @@
-
 import math
 
 import torch.nn as nn
@@ -27,7 +26,7 @@ class VectorAdaptiveNetwork(nn.Sequential):
         l = math.ceil(x) + 1 if math.ceil(x) == math.floor(x) else math.ceil(x)
         r = math.floor(y) if math.ceil(y) == math.floor(y) else math.ceil(y)
 
-        outs = list(map(lambda x: 2**x, range(l, r)[::-1]))
+        outs = list(map(lambda x: 2 ** x, range(l, r)[::-1]))
         ins = [self.in_dim] + outs[:-1]
 
         for i, (_in, _out) in enumerate(zip(ins, outs)):

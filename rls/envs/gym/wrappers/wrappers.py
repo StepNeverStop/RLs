@@ -7,23 +7,24 @@ import gym
 import numpy as np
 from gym.spaces import Box, Discrete, Tuple
 
-from rls.utils.display import colorize
 from rls.utils.LazyFrames import LazyFrames
+from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 try:
     import cv2
+
     cv2.ocl.setUseOpenCL(False)
-except:
+except ImportError:
     logger.warning(colorize(
         'opencv-python is needed to train visual-based model.', color='yellow'))
     pass
 
 try:
     import imageio
-except:
+except ImportError:
     logger.warning(colorize(
         'imageio should be installed to record vedio if needed.', color='yellow'))
     pass
@@ -53,7 +54,7 @@ class BaseEnv(gym.Wrapper):
 
 
 class NoopResetEnv(gym.Wrapper):
-    '''Execute no-op actions before take real actions.'''
+    """Execute no-op actions before take real actions."""
 
     def __init__(self, env, noop_max=30):
         """ From baselines
@@ -87,9 +88,9 @@ class NoopResetEnv(gym.Wrapper):
 
 
 class SkipEnv(gym.Wrapper):
-    '''
+    """
     底层，因为这样可以减少对状态的数据处理
-    '''
+    """
 
     def __init__(self, env, skip=4):
         super().__init__(env)
@@ -156,9 +157,9 @@ class ScaleEnv(gym.ObservationWrapper):
 
 
 class StackEnv(gym.Wrapper):
-    '''
+    """
     上层，因为这样不必在得到状态后还需要对其进行处理
-    '''
+    """
 
     def __init__(self, env, stack=4):
         super().__init__(env)
@@ -189,7 +190,7 @@ class OneHotObsEnv(gym.ObservationWrapper):
         super().__init__(env)
         sh = env.observation_space
         if hasattr(sh, '__len__'):
-            obs_dim = list(sh.n)    # 在CliffWalking-v0环境其类型为numpy.int32
+            obs_dim = list(sh.n)  # 在CliffWalking-v0环境其类型为numpy.int32
             self._obs_dim = obs_dim
         else:
             obs_dim = [int(sh.n)]
@@ -259,7 +260,7 @@ class DiscreteActEnv(gym.ActionWrapper):
 
 
 class TimeLimit(gym.Wrapper):
-    '''Set max episode steps for tasks.'''
+    """Set max episode steps for tasks."""
 
     def __init__(self, env, max_episode_steps=None):
         super().__init__(env)
@@ -309,10 +310,10 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 class MaxAndSkipEnv(gym.Wrapper):
-    '''
+    """
     Execute same action several times.
     底层，因为这样可以减少对状态的数据处理
-    '''
+    """
 
     def __init__(self, env, skip=4, use_max=False):
         """Return only every `skip`-th frame"""
@@ -333,7 +334,7 @@ class MaxAndSkipEnv(gym.Wrapper):
             self._obs_buffer[i] = obs
             total_reward += reward
             if done:
-                for j in range(i+1, self._skip):
+                for j in range(i + 1, self._skip):
                     self._obs_buffer[j] = obs
                 break
         # Note that the observation on the done=True frame
@@ -363,7 +364,7 @@ class EpisodicLifeEnv(gym.Wrapper):
         # check current lives, make loss of life terminal,
         # then update lives to handle bonus lives
         lives = self.env.unwrapped.ale.lives()
-        if lives < self.lives and lives > 0:
+        if self.lives > lives > 0:
             # for Qbert sometimes we stay in lives == 0 condition for a few frames
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.

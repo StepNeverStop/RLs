@@ -21,7 +21,7 @@ class WandbLogger:
             _summaries = {}
             for k, v in summaries.items():
                 for _k, _v in v.items():
-                    _summaries[k+'_'+_k] = _v
+                    _summaries[k + '_' + _k] = _v
         else:
             _summaries = summaries
         self._check_is_registered(_summaries)

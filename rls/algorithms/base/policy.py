@@ -3,11 +3,10 @@
 
 import os
 import sys
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+from typing import Dict, List, NoReturn, Optional, Union
 
 import numpy as np
-import torch as t
-from torch.utils.tensorboard import SummaryWriter
+import torch as th
 
 from rls.algorithms.base.base import Base
 from rls.common.data import Data
@@ -22,10 +21,10 @@ logger = get_logger(__name__)
 class Policy(Base):
 
     def __init__(self,
-                 n_copys=1,
+                 n_copies=1,
                  is_save=True,
                  base_dir='',
-                 device='cpu',
+                 device: str = 'cpu',
                  max_train_step=sys.maxsize,
 
                  max_frame_step=sys.maxsize,
@@ -57,12 +56,12 @@ class Policy(Base):
                          'network_type': 'lstm'
                      }},
                  **kwargs):
-        '''
+        """
         inputs:
             a_dim: action spaces
             base_dir: the directory that store data, like model, logs, and other data
-        '''
-        self.n_copys = n_copys
+        """
+        self.n_copies = n_copies
         self._is_save = is_save
         self._base_dir = base_dir
         self._training_name = os.path.split(self._base_dir)[-1]
@@ -79,8 +78,8 @@ class Policy(Base):
         self.gamma = gamma
         self._logger_types = logger_types
         self._n_step_value = n_step_value
-        self._decay_lr = decay_lr    # TODO: implement
-        self._normalize_vector_obs = normalize_vector_obs    # TODO: implement
+        self._decay_lr = decay_lr  # TODO: implement
+        self._normalize_vector_obs = normalize_vector_obs  # TODO: implement
         self._obs_with_pre_action = obs_with_pre_action
         self._rep_net_params = dict(rep_net_params)
         self._oplr_params = dict(oplr_params)
@@ -100,13 +99,12 @@ class Policy(Base):
         if self._is_save:
             check_or_create(self.cp_dir, 'checkpoints(models)')
 
-        self._cur_interact_step = t.tensor(0).long().to(self.device)
-        self._cur_train_step = t.tensor(0).long().to(self.device)
-        self._cur_frame_step = t.tensor(0).long().to(self.device)
-        self._cur_episode = t.tensor(0).long().to(self.device)
+        self._cur_interact_step = th.tensor(0).long().to(self.device)
+        self._cur_train_step = th.tensor(0).long().to(self.device)
+        self._cur_frame_step = th.tensor(0).long().to(self.device)
+        self._cur_episode = th.tensor(0).long().to(self.device)
 
         self._trainer_modules = {
-            '_cur_train_step': self._cur_train_step,
             '_cur_train_step': self._cur_train_step,
             '_cur_frame_step': self._cur_frame_step,
             '_cur_episode': self._cur_episode
@@ -134,7 +132,7 @@ class Policy(Base):
     def episode_step(self):
         if self._is_train_mode:
             self._cur_interact_step += 1
-            self._cur_frame_step += self.n_copys
+            self._cur_frame_step += self.n_copies
 
     def episode_end(self):
         if self._is_train_mode:
@@ -158,14 +156,13 @@ class Policy(Base):
                 else:
                     _data[k] = v  # tensor/Number
             if self._save2single_file:
-                t.save(_data, os.path.join(self.cp_dir, 'checkpoint.pth'))
+                th.save(_data, os.path.join(self.cp_dir, 'checkpoint.pth'))
             else:
                 for k, v in _data.items():
-                    t.save(v, os.path.join(self.cp_dir, f'{k}.pth'))
-            logger.info(colorize(
-                f'Save checkpoint success. Training step: {self._cur_train_step}', color='green'))
+                    th.save(v, os.path.join(self.cp_dir, f'{k}.pth'))
+            logger.info(colorize(f'Save checkpoint success. Training step: {self._cur_train_step}', color='green'))
 
-    def resume(self, base_dir: Optional[str] = None) -> Dict:
+    def resume(self, base_dir: Optional[str] = None):
         """
         check whether chekpoint and model be within cp_dir, if in it, restore otherwise initialize randomly.
         """
@@ -173,7 +170,7 @@ class Policy(Base):
         if self._save2single_file:
             ckpt_path = os.path.join(cp_dir, 'checkpoint.pth')
             if os.path.exists(ckpt_path):
-                checkpoint = t.load(ckpt_path)
+                checkpoint = th.load(ckpt_path, map_location=self.device)
                 for k, v in self._trainer_modules.items():
                     if hasattr(v, 'load_state_dict'):
                         self._trainer_modules[k].load_state_dict(checkpoint[k])
@@ -186,19 +183,19 @@ class Policy(Base):
                 model_path = os.path.join(cp_dir, f'{k}.pth')
                 if os.path.exists(model_path):
                     if hasattr(v, 'load_state_dict'):
-                        self._trainer_modules[k].load_state_dict(t.load(model_path))
+                        self._trainer_modules[k].load_state_dict(th.load(model_path, map_location=self.device))
                     else:
-                        getattr(self, k).fill_(t.load(model_path))
+                        getattr(self, k).fill_(th.load(model_path, map_location=self.device))
                     logger.info(colorize(f'Resume model from {model_path} SUCCESSFULLY.', color='green'))
 
     @property
     def still_learn(self):
         return self._should_learn_cond_train_step(self._cur_train_step) \
-            and self._should_learn_cond_frame_step(self._cur_frame_step) \
-            and self._should_learn_cond_train_episode(self._cur_episode)
+               and self._should_learn_cond_frame_step(self._cur_frame_step) \
+               and self._should_learn_cond_train_episode(self._cur_episode)
 
     def write_log(self,
-                  log_step: Union[int, t.Tensor] = None,
+                  log_step: Union[int, th.Tensor] = None,
                   summaries: Dict = {},
                   step_type: str = None):
         self._write_log(log_step, summaries, step_type)
@@ -212,7 +209,7 @@ class Policy(Base):
         raise NotImplementedError
 
     def _write_log(self,
-                   log_step: Union[int, t.Tensor] = None,
+                   log_step: Union[int, th.Tensor] = None,
                    summaries: Dict = {},
                    step_type: str = None):
         assert step_type is not None or log_step is not None, 'assert step_type is not None or log_step is not None'
@@ -228,7 +225,8 @@ class Policy(Base):
         for logger in self._loggers:
             logger.write(summaries=summaries, step=log_step)
 
-    def _initial_rnncs(self, batch: int, rnn_units: int = None, keys: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
+    def _initial_rnncs(self, batch: int, rnn_units: int = None, keys: Optional[List[str]] = None) -> Dict[
+        str, np.ndarray]:
         rnn_units = rnn_units or self.memory_net_params['rnn_units']
         keys = keys or (
             ['hx', 'cx'] if self.memory_net_params['network_type'] == 'lstm' else ['hx'])

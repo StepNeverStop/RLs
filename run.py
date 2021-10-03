@@ -1,17 +1,14 @@
-
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 # encoding: utf-8
 import argparse
 import logging
 import os
-import platform
 import sys
 import time
 from copy import deepcopy
 from multiprocessing import Process
-from typing import Dict
 
-import torch as t
+import torch as th
 from easydict import EasyDict
 
 from rls.algorithms.register import registry as algo_registry
@@ -26,13 +23,13 @@ set_log_level(logging.INFO)
 
 
 def get_args():
-    '''
+    """
     Resolves command-line arguments
-    '''
+    """
     parser = argparse.ArgumentParser()
     # train and env
-    parser.add_argument('-c', '--copys', type=int, default=1,
-                        help='nums of environment copys that collect data in parallel')
+    parser.add_argument('-c', '--copies', type=int, default=1,
+                        help='nums of environment copies that collect data in parallel')
     parser.add_argument('--seed', type=int, default=42,
                         help='specify the random seed of module random, numpy and pytorch')
     parser.add_argument('-r', '--render', default=False, action='store_true',
@@ -48,12 +45,13 @@ def get_args():
                         help='specify the name of pre-trained model that need to load')
     parser.add_argument('-m', '--models', type=int, default=1,
                         help='specify the number of trails that using different random seeds')
-    parser.add_argument('-n', '--name', type=str, default=time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
+    parser.add_argument('-n', '--name', type=str,
+                        default=time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time())),
                         help='specify the name of this training task')
     parser.add_argument('--config-file', type=str, default=None,
                         help='specify the path of training configuration file')
     parser.add_argument('--store-dir', type=str, default='./data',
-                        help='specify the directory that store model, log and others')  # TODO
+                        help='specify the directory that store model, log and others')
     parser.add_argument('--episode-length', type=int, default=1000,
                         help='specify the maximum step per episode')
     parser.add_argument('--hostname', default=False, action='store_true',
@@ -66,7 +64,7 @@ def get_args():
     # algo
     parser.add_argument('-s', '--save', default=False, action='store_true',
                         help='specify whether save models/logs/summaries while training or not')
-    parser.add_argument('-d', '--device', type=str, default="cuda" if t.cuda.is_available() else "cpu",
+    parser.add_argument('-d', '--device', type=str, default="cuda" if th.cuda.is_available() else "cpu",
                         help='specify the device that operate Torch.Tensor')
     parser.add_argument('-t', '--max-train-step', type=int, default=sys.maxsize,
                         help='specify the maximum training steps')
@@ -79,11 +77,9 @@ def main():
 
     train_args = EasyDict()
     train_args.update(load_config(f'rls/configs/train.yaml'))
-    train_args.update(load_config(f'rls/configs/{args.platform}/train.yaml'))
 
     env_args = EasyDict()
     env_args.update(load_config(f'rls/configs/env.yaml'))
-    env_args.update(load_config(f'rls/configs/{args.platform}/env.yaml'))
 
     algo_args = EasyDict()
 
@@ -91,16 +87,22 @@ def main():
         custome_config = load_config(args.config_file)
         train_args.update(custome_config['train'])
         env_args.update(custome_config['environment'])
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[train_args.algorithm])
+        algo_config = load_config(f"rls/configs/algorithms/{custome_config['algorithm']}.yaml")
+        super_algo_config = load_config(f'rls/configs/algorithms/general.yaml')[algo_config['super_config']]
+        algo_args.update(super_algo_config)
+        algo_args.update(algo_config)
         algo_args.update(custome_config['algorithm'])
     else:
         train_args.update(args.__dict__)
-        algo_args.update(load_config(f'rls/configs/algorithms.yaml')[args.algorithm])
-        algo_args.update(n_copys=args.copys)
+        algo_config = load_config(f"rls/configs/algorithms/{args.algorithm}.yaml")
+        super_algo_config = load_config(f'rls/configs/algorithms/general.yaml')[algo_config['super_config']]
+        algo_args.update(super_algo_config)
+        algo_args.update(algo_config)
+        algo_args.update(n_copies=args.copies)
         # env config
         env_args.update(platform=args.platform,
                         # Environmental copies of vectorized training.
-                        env_copys=args.copys,
+                        env_copies=args.copies,
                         seed=args.seed,
                         inference=args.inference,
                         env_name=args.env_name)
@@ -114,7 +116,8 @@ def main():
                 env_args.engine_config.time_scale = 1
             if env_args.file_name is not None:
                 if os.path.exists(env_args.file_name):
-                    env_args.env_name = args.env_name or os.path.join(*os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
+                    env_args.env_name = args.env_name or os.path.join(
+                        *os.path.split(env_args.file_name)[0].replace('\\', '/').replace(r'//', r'/').split('/')[-2:])
                 else:
                     raise Exception('can not find the executable file.')
             # if traing with visual input but do not render the environment, all 0 obs will be passed.
@@ -174,9 +177,9 @@ def main():
 
 
 def agent_run(*args):
-    '''
+    """
     Start a training task
-    '''
+    """
     Trainer(*args)()
 
 
@@ -185,23 +188,25 @@ if __name__ == "__main__":
     if sys.platform.startswith('win'):
         import _thread
 
-        import pywintypes  # necessary when using python 3.8+
         import win32api
-        import win32con
+
 
         def _win_handler(event, hook_sigint=_thread.interrupt_main):
-            '''
+            """
             handle the event of 'Ctrl+c' in windows operating system.
-            '''
+            """
             if event == 0:
                 hook_sigint()
                 return 1
             return 0
+
+
         # Add the _win_handler function to the windows console's handler function list
         win32api.SetConsoleCtrlHandler(_win_handler, 1)
 
     try:
         import colored_traceback
+
         colored_traceback.add_hook()
     except ImportError:
         pass

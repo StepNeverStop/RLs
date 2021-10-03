@@ -1,7 +1,5 @@
-from collections import defaultdict
-
 import numpy as np
-from gym.spaces import Box, Discrete, Tuple
+from gym.spaces import Box, Discrete
 
 from rls.utils.np_utils import get_discrete_action_list
 
@@ -45,7 +43,7 @@ class BasicWrapper:
 
     def action(self, actions):
         for k, v in actions.items():
-            if self.env.aec_env.dones[k]:   # TODO
+            if self.env.aec_env.dones[k]:  # TODO
                 actions[k] = None
             else:
                 if self._is_continuous[k]:

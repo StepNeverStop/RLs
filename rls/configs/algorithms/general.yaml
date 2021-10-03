@@ -1,0 +1,77 @@
+policy: &policy
+  max_frame_step: 0
+  max_train_episode: 0
+  save_frequency: 1000
+  save2single_file: false
+  n_step_value: 4
+  gamma: 0.99
+  logger_types:
+    # - "none"
+    - "tensorboard"
+    # - "wandb"
+  decay_lr: false
+  normalize_vector_obs: false
+
+  obs_with_pre_action: false
+
+  oplr_params:
+    optim_params:
+      eps: 1.e-4
+    grad_params:
+      grad_max_norm: 100.
+      grad_clip_value: 100.
+
+  # ----- could be overrided in specific algorithms, i.e. dqn, to using different type of visual net, memory net.
+  rep_net_params: &rep_net_params
+    vector_net_params:
+      h_dim: 16
+      network_type: "adaptive" # rls.nn.represents.vectors
+    visual_net_params:
+      h_dim: 128
+      network_type: "simple" # rls.nn.represents.visuals
+    encoder_net_params:
+      h_dim: 16
+      network_type: "identity" # rls.nn.represents.encoders
+    memory_net_params:
+      rnn_units: 16
+      network_type: "identity" # rls.nn.represents.memories
+  # -----
+
+sarl_policy: &sarl_policy
+  <<: *policy
+  use_curiosity: false # whether to use ICM or not
+  curiosity_lr: 1.0e-3 # the learning rate for ICM
+  curiosity_reward_eta: 0.01 # scale the forward loss of ICM to shape intrinsic reward. It depends on the range of reward of specific environment.
+  curiosity_beta: 0.2 # weight that scale the forward loss and inverse loss of ICM
+
+marl_policy: &marl_policy
+  <<: *policy
+  obs_with_pre_action: true
+  obs_with_agent_id: true
+  share_params: true
+
+sarl_on_policy: &sarl_on_policy
+  <<: *sarl_policy
+  epochs: 4 # train multiple times per agent step
+  chunk_length: 4 # rnn length
+  batch_size: 64
+  sample_allow_repeat: true
+
+sarl_off_policy: &sarl_off_policy
+  <<: *sarl_policy
+  chunk_length: 4 # rnn length
+  epochs: 1 # train multiple times per agent step
+  train_times: 1
+  batch_size: 64
+  buffer_size: 100000
+  use_priority: false
+  train_interval: 1
+
+marl_off_policy: &marl_off_policy
+  <<: *marl_policy
+  chunk_length: 4
+  epochs: 1
+  batch_size: 64
+  buffer_size: 100000
+  use_priority: false
+  train_interval: 1

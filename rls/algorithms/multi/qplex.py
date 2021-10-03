@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import torch as t
+import torch as th
 import torch.nn.functional as F
 
 from rls.algorithms.multi.vdn import VDN
@@ -12,9 +12,9 @@ from rls.utils.torch_utils import n_step_return
 
 
 class QPLEX(VDN):
-    '''
+    """
     QPLEX: Duplex Dueling Multi-Agent Q-Learning, http://arxiv.org/abs/2008.01062
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -39,7 +39,7 @@ class QPLEX(VDN):
     @iton
     def _train(self, BATCH_DICT):
         summaries = {}
-        reward = BATCH_DICT[self.agent_ids[0]].reward    # [T, B, 1]
+        reward = BATCH_DICT[self.agent_ids[0]].reward  # [T, B, 1]
         done = 0.
 
         q_evals = []
@@ -51,14 +51,14 @@ class QPLEX(VDN):
         q_target_next_maxs = []
 
         for aid, mid in zip(self.agent_ids, self.model_ids):
-            done += BATCH_DICT[aid].done    # [T, B, 1]
+            done += BATCH_DICT[aid].done  # [T, B, 1]
 
             q = self.q_nets[mid](BATCH_DICT[aid].obs,
-                                 begin_mask=BATCH_DICT['global'].begin_mask)   # [T, B, A]
+                                 begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
             q_eval = (q * BATCH_DICT[aid].action).sum(-1, keepdim=True)  # [T, B, 1]
             q_evals.append(q_eval)  # N * [T, B, 1]
-            q_actions.append(BATCH_DICT[aid].action)    # N * [T, B, A]
-            q_maxs.append(q.max(-1, keepdim=True)[0])   # [T, B, 1]
+            q_actions.append(BATCH_DICT[aid].action)  # N * [T, B, A]
+            q_maxs.append(q.max(-1, keepdim=True)[0])  # [T, B, 1]
 
             q_target = self.q_nets[mid].t(BATCH_DICT[aid].obs_,
                                           begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
@@ -68,18 +68,18 @@ class QPLEX(VDN):
                                       begin_mask=BATCH_DICT['global'].begin_mask)  # [T, B, A]
 
             next_max_action = next_q.argmax(-1)  # [T, B]
-            next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()   # [T, B, A]
+            next_max_action_one_hot = F.one_hot(next_max_action, self.a_dims[aid]).float()  # [T, B, A]
 
             q_target_next_max = (q_target * next_max_action_one_hot).sum(-1, keepdim=True)  # [T, B, 1]
 
-            q_target_next_choose_maxs.append(q_target_next_max)    # N * [T, B, 1]
-            q_target_actions.append(next_max_action_one_hot)    # N * [T, B, A]
-            q_target_next_maxs.append(q_target.max(-1, keepdim=True)[0])   # N * [T, B, 1]
+            q_target_next_choose_maxs.append(q_target_next_max)  # N * [T, B, 1]
+            q_target_actions.append(next_max_action_one_hot)  # N * [T, B, A]
+            q_target_next_maxs.append(q_target.max(-1, keepdim=True)[0])  # N * [T, B, 1]
 
-        q_evals = t.stack(q_evals, -1)  # [T, B, 1, N]
-        q_maxs = t.stack(q_maxs, -1)  # [T, B, 1, N]
-        q_target_next_choose_maxs = t.stack(q_target_next_choose_maxs, -1)  # [T, B, 1, N]
-        q_target_next_maxs = t.stack(q_target_next_maxs, -1)  # [T, B, 1, N]
+        q_evals = th.stack(q_evals, -1)  # [T, B, 1, N]
+        q_maxs = th.stack(q_maxs, -1)  # [T, B, 1, N]
+        q_target_next_choose_maxs = th.stack(q_target_next_choose_maxs, -1)  # [T, B, 1, N]
+        q_target_next_maxs = th.stack(q_target_next_maxs, -1)  # [T, B, 1, N]
 
         q_eval_tot = self.mixer(BATCH_DICT['global'].obs,
                                 q_evals,
@@ -96,15 +96,15 @@ class QPLEX(VDN):
                                      self.gamma,
                                      (done > 0.).float(),
                                      q_target_next_max_tot,
-                                     BATCH_DICT['global'].begin_mask).detach()   # [T, B, 1]
-        td_error = q_target_tot - q_eval_tot     # [T, B, 1]
-        q_loss = td_error.square().mean()   # 1
+                                     BATCH_DICT['global'].begin_mask).detach()  # [T, B, 1]
+        td_error = q_target_tot - q_eval_tot  # [T, B, 1]
+        q_loss = td_error.square().mean()  # 1
         self.oplr.optimize(q_loss)
 
-        summaries['model'] = dict([
-            ['LOSS/q_loss', q_loss],
-            ['Statistics/q_max', q_eval_tot.max()],
-            ['Statistics/q_min', q_eval_tot.min()],
-            ['Statistics/q_mean', q_eval_tot.mean()]
-        ])
+        summaries['model'] = {
+            'LOSS/q_loss': q_loss,
+            'Statistics/q_max': q_eval_tot.max(),
+            'Statistics/q_min': q_eval_tot.min(),
+            'Statistics/q_mean': q_eval_tot.mean()
+        }
         return td_error, summaries

@@ -1,0 +1,23 @@
+super_config: 'sarl_on_policy'
+
+options_num: 4
+dc: 0.01
+terminal_mask: false
+eps: 0.1
+epsilon: 0.2
+value_epsilon: 0.2
+pi_beta: 1.0e-3
+lr: 5.0e-4
+lambda_: 0.97
+kl_reverse: false
+kl_target: 0.02
+kl_target_cutoff: 2
+kl_target_earlystop: 4
+kl_beta: [ 0.7, 1.3 ]
+kl_alpha: 1.5
+kl_coef: 1.0
+network_settings:
+  share: [ 32, 32 ]
+  q: [ 32, 32 ]
+  intra_option: [ 32, 32 ]
+  termination: [ 32, 32 ]

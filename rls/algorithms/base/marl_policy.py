@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from abc import abstractmethod
-from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Union
+from typing import Dict
 
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.policy import Policy
 from rls.common.data import Data
@@ -76,7 +73,7 @@ class MarlPolicy(Policy):
                 else:
                     other = self._pre_acts[id]
             if self._obs_with_agent_id:
-                _id_onehot = int2one_hot(np.full(self.n_copys, i), self.n_agents_percopy)
+                _id_onehot = int2one_hot(np.full(self.n_copies, i), self.n_agents_percopy)
                 if other is not None:
                     other = np.concatenate((
                         other,
@@ -101,9 +98,9 @@ class MarlPolicy(Policy):
         self._acts_info = {}
         for id in self.agent_ids:
             if self.is_continuouss[id]:
-                actions[id] = np.random.uniform(-1.0, 1.0, (self.n_copys, self.a_dims[id]))
+                actions[id] = np.random.uniform(-1.0, 1.0, (self.n_copies, self.a_dims[id]))
             else:
-                actions[id] = np.random.randint(0, self.a_dims[id], self.n_copys)
+                actions[id] = np.random.randint(0, self.a_dims[id], self.n_copies)
             self._acts_info[id] = Data(action=actions[id])
         self._pre_acts = actions
         return actions
@@ -111,11 +108,12 @@ class MarlPolicy(Policy):
     def episode_reset(self):
         self._pre_acts = {}
         for id in self.agent_ids:
-            self._pre_acts[id] = np.zeros((self.n_copys, self.a_dims[id])) if self.is_continuouss[id] else np.zeros(self.n_copys)
+            self._pre_acts[id] = np.zeros((self.n_copies, self.a_dims[id])
+                                          ) if self.is_continuouss[id] else np.zeros(self.n_copies)
         self.rnncs, self.rnncs_ = {}, {}
         for id in self.agent_ids:
-            self.rnncs[id] = to_tensor(self._initial_rnncs(batch=self.n_copys), device=self.device)
-            self.rnncs_[id] = to_tensor(self._initial_rnncs(batch=self.n_copys), device=self.device)
+            self.rnncs[id] = to_tensor(self._initial_rnncs(batch=self.n_copies), device=self.device)
+            self.rnncs_[id] = to_tensor(self._initial_rnncs(batch=self.n_copies), device=self.device)
 
     def episode_step(self,
                      obs,

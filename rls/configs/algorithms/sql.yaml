@@ -1,0 +1,6 @@
+super_config: 'sarl_off_policy'
+
+lr: 5.0e-4
+alpha: 2
+polyak: 0.995
+network_settings: [ 64, 64 ]

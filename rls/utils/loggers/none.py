@@ -1,4 +1,3 @@
-
 class NoneLogger:
 
     def __init__(self, *args, **kwargs):

@@ -36,7 +36,7 @@ class TruncatedStandardNormal(Distribution):
             batch_shape, validate_args=validate_args)
         if self.a.dtype != self.b.dtype:
             raise ValueError('Truncation bounds types are different')
-        if any((self.a >= self.b).view(-1,).tolist()):
+        if any((self.a >= self.b).view(-1, ).tolist()):
             raise ValueError('Incorrect truncation range')
         eps = torch.finfo(self.a.dtype).eps
         self._dtype_min_gt_0 = eps
@@ -53,7 +53,7 @@ class TruncatedStandardNormal(Distribution):
                                  self._little_phi_a * little_phi_coeff_a) / self._Z
         self._mean = -(self._little_phi_b - self._little_phi_a) / self._Z
         self._variance = 1 - self._lpbb_m_lpaa_d_Z - \
-            ((self._little_phi_b - self._little_phi_a) / self._Z) ** 2
+                         ((self._little_phi_b - self._little_phi_a) / self._Z) ** 2
         self._entropy = CONST_LOG_SQRT_2PI_E + self._log_Z - 0.5 * self._lpbb_m_lpaa_d_Z
 
     @constraints.dependent_property

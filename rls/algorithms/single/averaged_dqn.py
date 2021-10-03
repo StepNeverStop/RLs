@@ -2,10 +2,9 @@
 # encoding: utf-8
 
 from copy import deepcopy
-from typing import List, NoReturn, Union
+from typing import List
 
 import numpy as np
-import torch as t
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.data import Data
@@ -17,9 +16,9 @@ from rls.utils.torch_utils import n_step_return, sync_params
 
 
 class AveragedDQN(SarlOffPolicy):
-    '''
+    """
     Averaged-DQN, http://arxiv.org/abs/1611.01929
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -65,7 +64,7 @@ class AveragedDQN(SarlOffPolicy):
         self.rnncs_ = self.q_net.get_rnncs()
 
         if self._is_train_mode and self.expl_expt_mng.is_random(self._cur_train_step):
-            actions = np.random.randint(0, self.a_dim, self.n_copys)
+            actions = np.random.randint(0, self.a_dim, self.n_copies)
         else:
             for i in range(self.target_k):
                 target_q_values = self.target_nets[i](obs, rnncs=self.rnncs)
@@ -75,28 +74,28 @@ class AveragedDQN(SarlOffPolicy):
 
     @iton
     def _train(self, BATCH):
-        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)   # [T, B, *]
+        q = self.q_net(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, *]
         q_next = 0
         for i in range(self.target_k):
             q_next += self.target_nets[i](BATCH.obs_, begin_mask=BATCH.begin_mask)
         q_next /= self.target_k  # [T, B, *]
-        q_eval = (q * BATCH.action).sum(-1, keepdim=True)     # [T, B, 1]
+        q_eval = (q * BATCH.action).sum(-1, keepdim=True)  # [T, B, 1]
         q_target = n_step_return(BATCH.reward,
                                  self.gamma,
                                  BATCH.done,
                                  q_next.max(-1, keepdim=True)[0],
-                                 BATCH.begin_mask).detach()    # [T, B, 1]
-        td_error = q_target - q_eval      # [T, B, 1]
-        q_loss = (td_error.square()*BATCH.get('isw', 1.0)).mean()   # 1
+                                 BATCH.begin_mask).detach()  # [T, B, 1]
+        td_error = q_target - q_eval  # [T, B, 1]
+        q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
 
         self.oplr.optimize(q_loss)
-        return td_error, dict([
-            ['LEARNING_RATE/lr', self.oplr.lr],
-            ['LOSS/loss', q_loss],
-            ['Statistics/q_max', q_eval.max()],
-            ['Statistics/q_min', q_eval.min()],
-            ['Statistics/q_mean', q_eval.mean()]
-        ])
+        return td_error, {
+            'LEARNING_RATE/lr': self.oplr.lr,
+            'LOSS/loss': q_loss,
+            'Statistics/q_max': q_eval.max(),
+            'Statistics/q_min': q_eval.min(),
+            'Statistics/q_mean': q_eval.mean()
+        }
 
     def _after_train(self):
         super()._after_train()

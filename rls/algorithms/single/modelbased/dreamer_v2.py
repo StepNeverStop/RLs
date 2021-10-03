@@ -2,8 +2,7 @@
 # encoding: utf-8
 
 
-import torch as t
-from torch import distributions as td
+import torch.distributions as td
 
 from rls.algorithms.single.modelbased.dreamer_v1 import DreamerV1
 from rls.nn.dreamer import RecurrentStateSpaceModel
@@ -11,9 +10,9 @@ from rls.nn.modules.wrappers import TargetTwin
 
 
 class DreamerV2(DreamerV1):
-    '''
+    """
     Mastering Atari with Discrete World Models, http://arxiv.org/abs/2010.02193
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -88,12 +87,12 @@ class DreamerV2(DreamerV1):
             objective = returns  # [H-1, T*B, 1]
         elif self.actor_grad == 'reinforce':
             baseline = self.critic(imaginated_feats[:-1]).mean  # [H-1, T*B, 1]
-            advantage = (returns - baseline).detach()   # [H-1, T*B, 1]
-            objective = log_probs[:1] * advantage    # [H-1, T*B, 1]   # detach
+            advantage = (returns - baseline).detach()  # [H-1, T*B, 1]
+            objective = log_probs[:1] * advantage  # [H-1, T*B, 1]   # detach
         elif self.actor_grad == 'both':
             baseline = self.critic(imaginated_feats[:-1]).mean  # [H-1, T*B, 1]
-            advantage = (returns - baseline).detach()   # [H-1, T*B, 1]
-            objective = log_probs[:1] * advantage    # [H-1, T*B, 1]
+            advantage = (returns - baseline).detach()  # [H-1, T*B, 1]
+            objective = log_probs[:1] * advantage  # [H-1, T*B, 1]
             objective = self._actor_grad_mix * returns + (1. - self._actor_grad_mix) * objective
         else:
             raise NotImplementedError(self.actor_grad)

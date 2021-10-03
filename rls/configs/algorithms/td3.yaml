@@ -1,0 +1,15 @@
+super_config: 'sarl_off_policy'
+
+polyak: 0.995
+delay_num: 2
+noise_action: "clip_normal"
+noise_params:
+  sigma: 0.2 # specify the variance of gaussian distribution
+  noise_bound: 0.5 # specify the clipping bound of sampled noise, noise must in range of [-bound, bound]
+actor_lr: 5.0e-4
+critic_lr: 1.0e-3
+discrete_tau: 1.0 # discrete_tau越小，gumbel采样的越接近one_hot，但相应的梯度也越小
+network_settings:
+  actor_continuous: [ 64, 64 ]
+  actor_discrete: [ 64, 64 ]
+  q: [ 64, 64 ]

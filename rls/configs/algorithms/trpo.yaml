@@ -1,0 +1,21 @@
+super_config: 'sarl_on_policy'
+
+actor_step_size: 0.5
+epsilon: 0.2
+beta: 1.0e-3
+lambda_: 0.97
+cg_iters: 10
+damping_coeff: 0.1
+critic_lr: 1.0e-3
+train_critic_iters: 10
+network_settings:
+  actor_continuous:
+    hidden_units: [ 64, 64 ]
+    condition_sigma: false
+    log_std_bound: [ -20, 2 ]
+  actor_discrete: [ 64, 64 ]
+  critic: [ 64, 64 ]
+
+delta: 0.01
+backtrack_iters: 10
+backtrack_coeff: 0.8

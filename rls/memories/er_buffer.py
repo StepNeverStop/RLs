@@ -1,11 +1,11 @@
-from typing import Dict, List, NoReturn, Union
+from typing import Dict
 
 import numpy as np
 
 from rls.common.data import Data
 from rls.common.when import Once
 
-'''
+"""
 batch like : {
             'agent_0': {
                 'obs': {
@@ -36,24 +36,24 @@ batch like : {
                 }
             }
         }
-'''
+"""
 
 
 class DataBuffer:
 
     def __init__(self,
-                 n_copys=1,
+                 n_copies=1,
                  batch_size=1,
                  buffer_size=4,
                  chunk_length=1):
-        self.n_copys = n_copys
+        self.n_copies = n_copies
         self.batch_size = batch_size
         self.buffer_size = buffer_size
         self._chunk_length = chunk_length
-        self.max_horizon = buffer_size // n_copys
+        self.max_horizon = buffer_size // n_copies
 
         # [N, T, B, *]
-        self._buffer = dict()   # {str: Union[Dict[str, Data], Data]}
+        self._buffer = dict()  # {str: Union[Dict[str, Data], Data]}
         self._horizon_length = 0
         self._pointer = 0
         self._not_builded = Once()
@@ -68,7 +68,7 @@ class DataBuffer:
             for _k, _v in v.nested_dict().items():
                 if _k not in self._buffer[k].keys():
                     self._buffer[k][_k] = np.empty(
-                        (self.max_horizon,)+_v.shape, _v.dtype)
+                        (self.max_horizon,) + _v.shape, _v.dtype)
 
     def add(self, data: Dict[str, Data]):
         assert isinstance(data, dict), "assert isinstance(data, dict)"
@@ -80,7 +80,7 @@ class DataBuffer:
                 self._buffer[k][_k][self._pointer] = _v
 
         self._pointer = (self._pointer + 1) % self.max_horizon
-        self._horizon_length = min(self._horizon_length+1, self.max_horizon)
+        self._horizon_length = min(self._horizon_length + 1, self.max_horizon)
 
     def sample(self, batchsize=None, chunk_length=None):
         if batchsize == 0:
@@ -96,11 +96,11 @@ class DataBuffer:
             start = 0
         end = self._pointer - T + 1
 
-        x = np.random.randint(start, end, B)    # [B, ]
-        y = np.random.randint(0, self.n_copys, B)  # (B, )
+        x = np.random.randint(start, end, B)  # [B, ]
+        y = np.random.randint(0, self.n_copies, B)  # (B, )
         # (T, B) + (B, ) = (T, B)
         xs = (np.tile(np.arange(T)[:, np.newaxis],
-              B) + x) % self._horizon_length
+                      B) + x) % self._horizon_length
         sample_idxs = (xs, y)
         samples = {}
         for k, v in self._buffer.items():
@@ -123,7 +123,7 @@ class DataBuffer:
 
     @property
     def can_sample(self):
-        return (self._horizon_length - self._chunk_length) * self.n_copys >= self.batch_size
+        return (self._horizon_length - self._chunk_length) * self.n_copies >= self.batch_size
 
     @property
     def is_multi(self) -> bool:

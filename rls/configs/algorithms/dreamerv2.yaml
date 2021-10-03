@@ -1,0 +1,72 @@
+super_config: 'sarl_off_policy'
+
+train_times: 1
+train_interval: 1
+
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+init2mid_annealing_step: 10000
+# same hyperparameter as original implementation.
+chunk_length: 50 # n-step or rnn length
+batch_size: 50
+stoch_dim: 30
+deter_dim: 30
+model_lr: 3.e-4
+actor_lr: 1.e-4
+critic_lr: 1.e-4
+kl_free_nats: 3
+action_sigma: 0.3
+imagination_horizon: 10
+lambda_: 0.95
+kl_scale: 1.0
+reward_scale: 1.0
+use_pcont: true
+pcont_scale: 10.0
+
+optim_params:
+  eps: 1.e-4
+  weight_decay: 1.e-6
+discretes: 4
+kl_forward: false
+kl_balance: 0.8
+kl_free_avg: true
+# for discrete, use 'reinforce' and entropy_scale 1e-3
+# for continuous, use 'dynamics' and entropy_scale 1e-4
+actor_grad: "dynamics"
+actor_entropy_scale: 1.e-4
+actor_grad_mix: 0.
+use_double: true
+assign_interval: 1000
+network_settings:
+  obs_encoder:
+    visual:
+      depth: 32
+      act: "relu"
+    vector: { }
+  obs_decoder:
+    visual:
+      depth: 32
+      act: "relu"
+    vector:
+      layers: 2
+      hidden_units: 64
+      dist: "mse"
+  rssm:
+    hidden_units: 64
+    std_act: "sigmoid2"
+  actor:
+    layers: 2
+    hidden_units: 64
+  critic:
+    layers: 2
+    hidden_units: 64
+    dist: "mse"
+  reward:
+    layers: 2
+    hidden_units: 64
+    dist: "mse"
+  pcont:
+    layers: 2
+    hidden_units: 64
+    dist: "binary"

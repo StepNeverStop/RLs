@@ -110,3 +110,4 @@ data/
 videos/
 unitylog.txt
 wandb/
+.idea/

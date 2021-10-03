@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from typing import Dict, List, NoReturn, Union
+from typing import Dict
 
 import numpy as np
-import torch as t
-from torch import distributions as td
+import torch as th
+import torch.distributions as td
 
 from rls.algorithms.base.sarl_off_policy import SarlOffPolicy
 from rls.common.data import Data, get_first_vector, get_first_visual
@@ -15,9 +15,9 @@ from rls.nn.utils import OPLR
 
 
 class PlaNet(SarlOffPolicy):
-    '''
+    """
     Learning Latent Dynamics for Planning from Pixels, http://arxiv.org/abs/1811.04551
-    '''
+    """
     policy_mode = 'off-policy'
 
     def __init__(self,
@@ -47,14 +47,14 @@ class PlaNet(SarlOffPolicy):
         assert self.use_rnn == False, 'assert self.use_rnn == False'
 
         if self.obs_spec.has_visual_observation \
-            and len(self.obs_spec.visual_dims) == 1 \
+                and len(self.obs_spec.visual_dims) == 1 \
                 and not self.obs_spec.has_vector_observation:
             visual_dim = self.obs_spec.visual_dims[0]
             # TODO: optimize this
             assert visual_dim[0] == visual_dim[1] == 64, 'visual dimension must be [64, 64, *]'
             self._is_visual = True
         elif self.obs_spec.has_vector_observation \
-            and len(self.obs_spec.vector_dims) == 1 \
+                and len(self.obs_spec.vector_dims) == 1 \
                 and not self.obs_spec.has_visual_observation:
             self._is_visual = False
         else:
@@ -120,57 +120,62 @@ class PlaNet(SarlOffPolicy):
             obs = get_first_vector(obs)
         # Compute starting state for planning
         # while taking information from current observation (posterior)
-        embedded_obs = self.obs_encoder(obs)    # [B, *]
-        state_posterior = self.rssm.posterior(self.rnncs['hx'], embedded_obs)     # dist # [B, *]
+        embedded_obs = self.obs_encoder(obs)  # [B, *]
+        state_posterior = self.rssm.posterior(self.rnncs['hx'], embedded_obs)  # dist # [B, *]
 
         # Initialize action distribution
-        mean = t.zeros((self.cem_horizon, 1, self.n_copys, self.a_dim))    # [H, 1, B, A]
-        stddev = t.ones((self.cem_horizon, 1, self.n_copys, self.a_dim))   # [H, 1, B, A]
+        mean = th.zeros((self.cem_horizon, 1, self.n_copies, self.a_dim))  # [H, 1, B, A]
+        stddev = th.ones((self.cem_horizon, 1, self.n_copies, self.a_dim))  # [H, 1, B, A]
 
         # Iteratively improve action distribution with CEM
         for itr in range(self.cem_iter_nums):
-            action_candidates = mean + stddev * t.randn(self.cem_horizon, self.cem_candidates, self.n_copys, self.a_dim)    # [H, N, B, A]
-            action_candidates = action_candidates.reshape(self.cem_horizon, -1, self.a_dim)    # [H, N*B, A]
+            action_candidates = mean + stddev * \
+                                th.randn(self.cem_horizon, self.cem_candidates, self.n_copies,
+                                         self.a_dim)  # [H, N, B, A]
+            action_candidates = action_candidates.reshape(self.cem_horizon, -1, self.a_dim)  # [H, N*B, A]
 
             # Initialize reward, state, and rnn hidden state
             # These are for parallel exploration
-            total_predicted_reward = t.zeros((self.cem_candidates*self.n_copys, 1))    # [N*B, 1]
+            total_predicted_reward = th.zeros((self.cem_candidates * self.n_copies, 1))  # [N*B, 1]
 
-            state = state_posterior.sample((self.cem_candidates,))   # [N, B, *]
+            state = state_posterior.sample((self.cem_candidates,))  # [N, B, *]
             state = state.view(-1, state.shape[-1])  # [N*B, *]
             rnn_hidden = self.rnncs['hx'].repeat((self.cem_candidates, 1))  # [B, *] => [N*B, *]
 
             # Compute total predicted reward by open-loop prediction using pri
-            for _t in range(self.cem_horizon):
-                next_state_prior, rnn_hidden = self.rssm.prior(state, t.tanh(action_candidates[_t]), rnn_hidden)
-                state = next_state_prior.sample()   # [N*B, *]
-                post_feat = t.cat([state, rnn_hidden], -1)  # [N*B, *]
+            for t in range(self.cem_horizon):
+                next_state_prior, rnn_hidden = self.rssm.prior(state, th.tanh(action_candidates[t]), rnn_hidden)
+                state = next_state_prior.sample()  # [N*B, *]
+                post_feat = th.cat([state, rnn_hidden], -1)  # [N*B, *]
                 total_predicted_reward += self.reward_predictor(post_feat).mean  # [N*B, 1]
 
             # update action distribution using top-k samples
-            total_predicted_reward = total_predicted_reward.view(self.cem_candidates, self.n_copys, 1)    # [N, B, 1]
-            _, top_indexes = total_predicted_reward.topk(self.cem_tops, dim=0, largest=True, sorted=False)    # [N', B, 1]
-            action_candidates = action_candidates.view(self.cem_horizon, self.cem_candidates, self.n_copys, -1)   # [H, N, B, A]
-            top_action_candidates = action_candidates[:, top_indexes, t.arange(self.n_copys).reshape(self.n_copys, 1), t.arange(self.a_dim)]  # [H, N', B, A]
-            mean = top_action_candidates.mean(dim=1, keepdim=True)    # [H, 1, B, A]
+            total_predicted_reward = total_predicted_reward.view(self.cem_candidates, self.n_copies, 1)  # [N, B, 1]
+            _, top_indexes = total_predicted_reward.topk(self.cem_tops, dim=0, largest=True, sorted=False)  # [N', B, 1]
+            action_candidates = action_candidates.view(self.cem_horizon, self.cem_candidates, self.n_copies,
+                                                       -1)  # [H, N, B, A]
+            top_action_candidates = action_candidates[:, top_indexes,
+                                    th.arange(self.n_copies).reshape(self.n_copies, 1),
+                                    th.arange(self.a_dim)]  # [H, N', B, A]
+            mean = top_action_candidates.mean(dim=1, keepdim=True)  # [H, 1, B, A]
             stddev = top_action_candidates.std(dim=1, unbiased=False, keepdim=True)  # [H, 1, B, A]
 
         # Return only first action (replan each state based on new observation)
-        actions = t.tanh(mean[0].squeeze(0))    # [B, A]
+        actions = th.tanh(mean[0].squeeze(0))  # [B, A]
         actions = self._exploration(actions)
         _, self.rnncs_['hx'] = self.rssm.prior(state_posterior.sample(),
                                                actions,
                                                self.rnncs['hx'])
         return actions, Data(action=actions)
 
-    def _exploration(self, action: t.Tensor) -> t.Tensor:
+    def _exploration(self, action: th.Tensor) -> th.Tensor:
         """
         :param action: action to take, shape (1,) (if categorical), or (action dim,) (if continuous)
         :return: action of the same shape passed in, augmented with some noise
         """
         sigma = self._action_sigma if self._is_train_mode else 0.
-        noise = t.randn(*action.shape) * sigma
-        return t.clamp(action + noise, -1, 1)
+        noise = th.randn(*action.shape) * sigma
+        return th.clamp(action + noise, -1, 1)
 
     @iton
     def _train(self, BATCH):
@@ -184,7 +189,7 @@ class PlaNet(SarlOffPolicy):
         embedded_observations = self.obs_encoder(obs_)  # [T, B, *]
 
         # initialize state and rnn hidden state with 0 vector
-        state, rnn_hidden = self.rssm.init_state(shape=B)   # [B, S], [B, D]
+        state, rnn_hidden = self.rssm.init_state(shape=B)  # [B, S], [B, D]
 
         # compute state and rnn hidden sequences and kl loss
         kl_loss = 0
@@ -193,43 +198,43 @@ class PlaNet(SarlOffPolicy):
             # if the begin of this episode, then reset to 0.
             # No matther whether last episode is beened truncated of not.
             state = state * (1. - BATCH.begin_mask[l])  # [B, S]
-            rnn_hidden = rnn_hidden * (1. - BATCH.begin_mask[l])     # [B, D]
+            rnn_hidden = rnn_hidden * (1. - BATCH.begin_mask[l])  # [B, D]
 
             next_state_prior, next_state_posterior, rnn_hidden = self.rssm(state,
                                                                            BATCH.action[l],
                                                                            rnn_hidden,
-                                                                           embedded_observations[l])    # a, s_
+                                                                           embedded_observations[l])  # a, s_
             state = next_state_posterior.rsample()  # [B, S] posterior of s_
             states.append(state)  # [B, S]
-            rnn_hiddens.append(rnn_hidden)   # [B, D]
+            rnn_hiddens.append(rnn_hidden)  # [B, D]
             kl_loss += self._kl_loss(next_state_prior, next_state_posterior)
         kl_loss /= T  # 1
 
         # compute reconstructed observations and predicted rewards
-        post_feat = t.cat([t.stack(states, 0), t.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
+        post_feat = th.cat([th.stack(states, 0), th.stack(rnn_hiddens, 0)], -1)  # [T, B, *]
 
         obs_pred = self.obs_decoder(post_feat)  # [T, B, C, H, W] or [T, B, *]
         reward_pred = self.reward_predictor(post_feat)  # [T, B, 1], s_ => r
 
         # compute loss for observation and reward
-        obs_loss = -t.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
+        obs_loss = -th.mean(obs_pred.log_prob(obs_))  # [T, B] => 1
         # [T, B, 1]=>1
-        reward_loss = -t.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1))
+        reward_loss = -th.mean(reward_pred.log_prob(BATCH.reward).unsqueeze(-1))
 
         # add all losses and update model parameters with gradient descent
-        model_loss = self.kl_scale*kl_loss + obs_loss + self.reward_scale * reward_loss   # 1
+        model_loss = self.kl_scale * kl_loss + obs_loss + self.reward_scale * reward_loss  # 1
 
         self.model_oplr.optimize(model_loss)
 
-        summaries = dict([
-            ['LEARNING_RATE/model_lr', self.model_oplr.lr],
-            ['LOSS/model_loss', model_loss],
-            ['LOSS/kl_loss', kl_loss],
-            ['LOSS/obs_loss', obs_loss],
-            ['LOSS/reward_loss', reward_loss]
-        ])
+        summaries = {
+            'LEARNING_RATE/model_lr': self.model_oplr.lr,
+            'LOSS/model_loss': model_loss,
+            'LOSS/kl_loss': kl_loss,
+            'LOSS/obs_loss': obs_loss,
+            'LOSS/reward_loss': reward_loss
+        }
 
-        return t.ones_like(BATCH.reward), summaries
+        return th.ones_like(BATCH.reward), summaries
 
     def _initial_rnncs(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}

@@ -1,0 +1,7 @@
+super_config: 'sarl_on_policy'
+frac: 0.2
+init_var: 1
+extra_std: 1
+envs_per_popu: 5
+extra_var_last_multiplier: 0.2
+network_settings: [ 32, 32 ]

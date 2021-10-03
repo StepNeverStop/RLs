@@ -1,0 +1,23 @@
+super_config: 'marl_off_policy'
+
+#mixer: "vdn"
+#mixer_settings: { }
+lr: 5.0e-4
+eps_init: 1
+eps_mid: 0.2
+eps_final: 0.01
+use_double: true
+init2mid_annealing_step: 10000
+assign_interval: 1000
+network_settings:
+share: [ 64 ]
+v: [ 64 ]
+adv: [ 64 ]
+
+
+opt_loss: 1
+nopt_min_loss: 0.1
+mixer: "qtran-base"
+mixer_settings:
+  qtran_arch: "coma_critic" # "coma_critic", "qtran_paper"
+  hidden_units: [ 64, 64 ]

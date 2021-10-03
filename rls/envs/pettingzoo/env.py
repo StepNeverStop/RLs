@@ -4,7 +4,6 @@ from copy import deepcopy
 from typing import Dict, List, NoReturn
 
 import numpy as np
-import pettingzoo
 from gym.spaces import Box, Discrete, Tuple
 
 from rls.common.data import Data
@@ -17,14 +16,15 @@ from rls.envs.wrappers import MPIEnv, VECEnv
 class PettingZooEnv(EnvBase):
 
     def __init__(self,
-                 env_copys=1,
+                 env_copies=1,
                  seed=42,
                  multiprocessing=True,
                  env_name='mpe.simple_v2',
                  env_config={},
                  **kwargs):
+        super().__init__()
 
-        self._n_copys = env_copys   # environments number
+        self._n_copies = env_copies  # environments number
 
         # NOTE: env_name should be formatted like `mpe.simple_v2`
         env_module = importlib.import_module(f"pettingzoo.{env_name}")
@@ -36,11 +36,11 @@ class PettingZooEnv(EnvBase):
             return BasicWrapper(env_module(**env_config))
 
         _env_wrapper = MPIEnv if multiprocessing else VECEnv
-        self._envs = _env_wrapper(n=self._n_copys, env_fn=env_fn, config=env_config)
+        self._envs = _env_wrapper(n=self._n_copies, env_fn=env_fn, config=env_config)
 
         params = []
-        for i in range(self._n_copys):
-            params.append(dict(args=(seed+i,)))
+        for i in range(self._n_copies):
+            params.append(dict(args=(seed + i,)))
         self._envs.run('seed', params)
 
     def reset(self, **kwargs) -> Dict[str, Data]:
@@ -48,7 +48,7 @@ class PettingZooEnv(EnvBase):
         obs = self._envs.run('reset')  # list(dict)
 
         for k in self._agents:
-            obss[k] = np.stack([obs[i][k] for i in range(self._n_copys)], 0)
+            obss[k] = np.stack([obs[i][k] for i in range(self._n_copies)], 0)
 
         rets = {}
         for k in self._agents:
@@ -56,7 +56,7 @@ class PettingZooEnv(EnvBase):
                 rets[k] = Data(visual={'visual_0': obss[k]})
             else:
                 rets[k] = Data(vector={'vector_0': obss[k]})
-        rets['global'] = Data(begin_mask=np.full((self._n_copys, 1), True))
+        rets['global'] = Data(begin_mask=np.full((self._n_copies, 1), True))
 
         if self._has_global_state:
             state = self._envs.run('state')
@@ -70,25 +70,25 @@ class PettingZooEnv(EnvBase):
         return rets
 
     def step(self, actions: Dict[str, np.ndarray], **kwargs) -> Dict[str, Data]:
-        actions = deepcopy(actions)   # [N, B, *]
+        actions = deepcopy(actions)  # [N, B, *]
 
         obss_fs, rewards, dones, infos = dict(), dict(), dict(), dict()
 
         params = []
-        for i in range(self._n_copys):
+        for i in range(self._n_copies):
             action = {}
             for k in self._agents:
                 action[k] = actions[k][i]
             params.append(dict(args=(action,)))
 
-        rets = self._envs.run('step', params)   # list(tuple(dict))
+        rets = self._envs.run('step', params)  # list(tuple(dict))
         obs, reward, done, info = list(zip(*rets))  # list(list(dict))
 
         for k in self._agents:
-            obss_fs[k] = np.stack([obs[i][k] for i in range(self._n_copys)], 0)
-            rewards[k] = np.stack([reward[i][k] for i in range(self._n_copys)], 0)
-            dones[k] = np.stack([done[i][k] for i in range(self._n_copys)], 0)
-            infos[k] = np.stack([info[i][k] for i in range(self._n_copys)], 0)  # TODO: info
+            obss_fs[k] = np.stack([obs[i][k] for i in range(self._n_copies)], 0)
+            rewards[k] = np.stack([reward[i][k] for i in range(self._n_copies)], 0)
+            dones[k] = np.stack([done[i][k] for i in range(self._n_copies)], 0)
+            infos[k] = np.stack([info[i][k] for i in range(self._n_copies)], 0)  # TODO: info
 
         obss_fa = deepcopy(obss_fs)
         dones_info = sum(list(dones.values()))
@@ -134,8 +134,8 @@ class PettingZooEnv(EnvBase):
         self._envs.run('render', idxs=0)
 
     @property
-    def n_copys(self) -> int:
-        return self._n_copys
+    def n_copies(self) -> int:
+        return self._n_copies
 
     @property
     def AgentSpecs(self) -> Dict[str, EnvAgentSpec]:
