@@ -135,15 +135,12 @@ class TD3(SarlOffPolicy):
 
         actor_loss = -q1_actor.mean()  # 1
         self.actor_oplr.optimize(actor_loss)
-        return (td_error1 + td_error2) / 2, {
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/q_min': th.minimum(q1, q2).min(),
-            'Statistics/q_mean': th.minimum(q1, q2).mean(),
-            'Statistics/q_max': th.maximum(q1, q2).max()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'q', th.minimum(q1, q2))
+        return (td_error1 + td_error2) / 2
 
     def _after_train(self):
         super()._after_train()

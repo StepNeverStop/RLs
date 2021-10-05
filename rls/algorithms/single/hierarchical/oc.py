@@ -220,18 +220,15 @@ class OC(SarlOffPolicy):
         self.intra_option_oplr.optimize(pi_loss)
         self.termination_oplr.optimize(beta_loss)
 
-        return td_error, {
-            'LEARNING_RATE/q_lr': self.q_oplr.lr,
-            'LEARNING_RATE/intra_option_lr': self.intra_option_oplr.lr,
-            'LEARNING_RATE/termination_lr': self.termination_oplr.lr,
-            # 'Statistics/option': self.options[0],
-            'LOSS/q_loss': q_loss,
-            'LOSS/pi_loss': pi_loss,
-            'LOSS/beta_loss': beta_loss,
-            'Statistics/q_option_max': q_s.max(),
-            'Statistics/q_option_min': q_s.min(),
-            'Statistics/q_option_mean': q_s.mean()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'q_lr', self.q_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'intra_option_lr', self.intra_option_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'termination_lr', self.termination_oplr.lr)
+        self._summary_collector.add('LOSS', 'q_loss', q_loss)
+        self._summary_collector.add('LOSS', 'pi_loss', pi_loss)
+        self._summary_collector.add('LOSS', 'beta_loss', beta_loss)
+        self._summary_collector.add('Statistics', 'q_option', q_s)
+
+        return td_error
 
     def _after_train(self):
         super()._after_train()

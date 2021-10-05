@@ -13,6 +13,7 @@ from rls.common.data import Data
 from rls.common.when import Every, Until
 from rls.utils.display import colorize
 from rls.utils.logging_utils import get_logger
+from rls.utils.summary_collector import SummaryCollector
 from rls.utils.sundry_utils import check_or_create
 
 logger = get_logger(__name__)
@@ -112,6 +113,7 @@ class Policy(Base):
 
         self._buffer = self._build_buffer()
         self._loggers = self._build_loggers() if self._is_save else list()
+        self._summary_collector = self._build_summary_collector()
 
     def __call__(self, obs):
         raise NotImplementedError
@@ -208,9 +210,12 @@ class Policy(Base):
     def _build_loggers(self):
         raise NotImplementedError
 
+    def _build_summary_collector(self):
+        return SummaryCollector(mode=SummaryCollector.ALL)
+
     def _write_log(self,
                    log_step: Union[int, th.Tensor] = None,
-                   summaries: Dict = {},
+                   summaries: Dict = None,
                    step_type: str = None):
         assert step_type is not None or log_step is not None, 'assert step_type is not None or log_step is not None'
         if log_step is None:
@@ -222,6 +227,7 @@ class Policy(Base):
                 log_step = self._cur_frame_step
             else:
                 raise NotImplementedError("log_step must be in ['step', 'episode', 'frame'] for now.")
+        summaries = summaries or self._summary_collector.fetch()
         for logger in self._loggers:
             logger.write(summaries=summaries, step=log_step)
 

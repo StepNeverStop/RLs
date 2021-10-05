@@ -63,17 +63,14 @@ class PrioritizedDataBuffer(DataBuffer):
         x, y = didx // self.n_copies, didx % self.n_copies  # t, b
 
         # (T, B) + (B, ) = (T, B)
-        xs = (np.tile(np.arange(T)[:, np.newaxis],
-                      B) + x) % self._horizon_length
+        xs = (np.tile(np.arange(T)[:, np.newaxis], B) + x) % self._horizon_length
         sample_idxs = (xs, y)
 
         # weights of variables by using Importance Sampling
         isw = np.power(_min_p / p, self.beta).reshape(B, -1)
         samples = {}
         for k, v in self._buffer.items():
-            samples[k] = Data.from_nested_dict(
-                {_k: _v[sample_idxs] for _k, _v in v.items()}
-            )
+            samples[k] = Data.from_nested_dict({_k: _v[sample_idxs] for _k, _v in v.items()})
         if self.is_multi:  # TODO: optimize and check
             samples['global'].update(isw=isw)
         else:

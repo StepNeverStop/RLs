@@ -93,9 +93,7 @@ class TRPO(NPG):
             critic_loss = td_error.square().mean()  # 1
             self.critic_oplr.optimize(critic_loss)
 
-        return {
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/entropy': entropy.mean(),
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr
-        }
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)

@@ -36,21 +36,17 @@ class OPLR:
             else:
                 self.params.append(model)
 
-        self.optimizer = OP_REGISTER[optimizer](
-            self.params, lr, **optim_params)
-        self.lr_scheduler = LR_REGISTER[scheduler](
-            self.optimizer, **scheduler_params)
+        self.optimizer = OP_REGISTER[optimizer](self.params, lr, **optim_params)
+        self.lr_scheduler = LR_REGISTER[scheduler](self.optimizer, **scheduler_params)
 
         self._hooks = []
         if 'grad_max_norm' in grad_params.keys():
             self._hooks.append(
-                lambda: nn.utils.clip_grad_norm_(
-                    self.params, max_norm=grad_params['grad_max_norm'])
+                lambda: nn.utils.clip_grad_norm_(self.params, max_norm=grad_params['grad_max_norm'])
             )
         if 'grad_clip_value' in grad_params.keys():
             self._hooks.append(
-                lambda: nn.utils.clip_grad_value_(
-                    self.params, clip_value=grad_params['grad_clip_value'])
+                lambda: nn.utils.clip_grad_value_(self.params, clip_value=grad_params['grad_clip_value'])
             )
 
     @property

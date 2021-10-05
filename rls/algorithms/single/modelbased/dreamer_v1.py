@@ -324,21 +324,19 @@ class DreamerV1(SarlOffPolicy):
         td_error = (value_pred.mean - value_target).mean(0).detach()  # [T*B,]
         td_error = td_error.view(T, B, 1)
 
-        summaries = {
-            'LEARNING_RATE/model_lr': self.model_oplr.lr,
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/model_loss': model_loss,
-            'LOSS/kl_loss': kl_loss,
-            'LOSS/obs_loss': obs_loss,
-            'LOSS/reward_loss': reward_loss,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': critic_loss
-        }
+        self._summary_collector.add('LEARNING_RATE', 'model_lr', self.model_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'model_loss', model_loss)
+        self._summary_collector.add('LOSS', 'kl_loss', kl_loss)
+        self._summary_collector.add('LOSS', 'obs_loss', obs_loss)
+        self._summary_collector.add('LOSS', 'reward_loss', reward_loss)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
         if self.use_pcont:
-            summaries.update({'LOSS/pcont_loss', pcont_loss})
+            self._summary_collector.add('LOSS', 'pcont_loss', pcont_loss)
 
-        return td_error, summaries
+        return td_error
 
     def _initial_rnncs(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}

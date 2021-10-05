@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from collections import defaultdict
 from copy import deepcopy
 from typing import Dict
 
@@ -129,7 +128,6 @@ class MASAC(MultiAgentOffPolicy):
         """
         TODO: Annotation
         """
-        summaries = defaultdict(dict)
         target_actions = {}
         target_log_pis = 1.
         for aid, mid in zip(self.agent_ids, self.model_ids):
@@ -183,11 +181,7 @@ class MASAC(MultiAgentOffPolicy):
             q1_loss = td_error1.square().mean()  # 1
             q2_loss = td_error2.square().mean()  # 1
             q_loss[aid] = 0.5 * q1_loss + 0.5 * q2_loss
-            summaries[aid].update({
-                'Statistics/q_min': qs1[mid].min(),
-                'Statistics/q_mean': qs1[mid].mean(),
-                'Statistics/q_max': qs1[mid].max()
-            })
+            self._summary_collectors[aid].add('Statistics', 'q', qs1[mid])
         self.critic_oplr.optimize(sum(q_loss.values()))
 
         log_pi_actions = {}
@@ -241,14 +235,10 @@ class MASAC(MultiAgentOffPolicy):
         self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
-            summaries[aid].update({
-                'LOSS/actor_loss': actor_loss[aid],
-                'LOSS/critic_loss': q_loss[aid]
-            })
-        summaries['model'].update({
-            'LOSS/actor_loss': sum(actor_loss.values()),
-            'LOSS/critic_loss': sum(q_loss.values())
-        })
+            self._summary_collectors[aid].add('LOSS', 'actor_loss', actor_loss[aid])
+            self._summary_collectors[aid].add('LOSS', 'critic_loss', q_loss[aid])
+        self._summary_collectors['model'].add('LOSS', 'actor_loss', sum(actor_loss.values()))
+        self._summary_collectors['model'].add('LOSS', 'critic_loss', sum(q_loss.values()))
 
         if self.auto_adaption:
             _log_pis = 1.
@@ -260,11 +250,9 @@ class MASAC(MultiAgentOffPolicy):
             alpha_loss = -(self.alpha * (_log_pis + self.target_entropy).detach()).mean()  # 1
 
             self.alpha_oplr.optimize(alpha_loss)
-            summaries['model'].update({
-                'LOSS/alpha_loss': alpha_loss,
-                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
-            })
-        return td_errors / self.n_agents_percopy, summaries
+            self._summary_collectors['model'].add('LOSS', 'alpha_loss', alpha_loss)
+            self._summary_collectors['model'].add('LEARNING_RATE', 'alpha_lr', self.alpha_oplr.lr)
+        return td_errors / self.n_agents_percopy
 
     def _after_train(self):
         super()._after_train()

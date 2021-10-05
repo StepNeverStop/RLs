@@ -82,9 +82,8 @@ class CuriosityModel(nn.Module):
 
         loss = (1 - self.beta) * loss_inverse + self.beta * loss_forward
         self.oplr.optimize(loss)
-        summaries = {
-            'LOSS/curiosity_loss': loss,
-            'LOSS/forward_loss': loss_forward,
-            'LOSS/inverse_loss': loss_inverse
-        }
-        return intrinsic_reward, summaries
+        return intrinsic_reward, [
+            ('LOSS', 'curiosity_loss', loss),
+            ('LOSS', 'forward_loss', loss_forward),
+            ('LOSS', 'inverse_loss', loss_inverse)
+        ]

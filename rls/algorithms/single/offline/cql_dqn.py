@@ -42,12 +42,9 @@ class CQL_DQN(DQN):
         cql1_loss = (th.logsumexp(q, dim=-1, keepdim=True) - q).mean()  # 1
         loss = q_loss + self._cql_weight * cql1_loss
         self.oplr.optimize(loss)
-        return td_error, {
-            'LEARNING_RATE/lr': self.oplr.lr,
-            'LOSS/q_loss': q_loss,
-            'LOSS/cql1_loss': cql1_loss,
-            'LOSS/loss': loss,
-            'Statistics/q_max': q_eval.max(),
-            'Statistics/q_min': q_eval.min(),
-            'Statistics/q_mean': q_eval.mean()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+        self._summary_collector.add('LOSS', 'q_loss', q_loss)
+        self._summary_collector.add('LOSS', 'cql1_loss', cql1_loss)
+        self._summary_collector.add('LOSS', 'loss', loss)
+        self._summary_collector.add('Statistics', 'q', q)
+        return td_error

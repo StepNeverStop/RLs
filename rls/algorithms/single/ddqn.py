@@ -35,10 +35,7 @@ class DDQN(DQN):
         td_error = q_target - q_eval  # [T, B, 1]
         q_loss = (td_error.square() * BATCH.get('isw', 1.0)).mean()  # 1
         self.oplr.optimize(q_loss)
-        return td_error, {
-            'LEARNING_RATE/lr': self.oplr.lr,
-            'LOSS/loss': q_loss,
-            'Statistics/q_max': q_eval.max(),
-            'Statistics/q_min': q_eval.min(),
-            'Statistics/q_mean': q_eval.mean()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+        self._summary_collector.add('LOSS', 'loss', q_loss)
+        self._summary_collector.add('Statistics', 'q', q)
+        return td_error

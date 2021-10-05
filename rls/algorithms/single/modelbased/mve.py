@@ -125,14 +125,12 @@ class MVE(DDPG):
         actor_loss = -q_actor.mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
-        return th.ones_like(BATCH.reward), {
-            'LEARNING_RATE/wm_lr': self._wm_oplr.lr,
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/wm_loss': wm_loss,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': q_loss,
-            'Statistics/q_min': q.min(),
-            'Statistics/q_mean': q.mean(),
-            'Statistics/q_max': q.max()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'wm_lr', self._wm_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'wm_loss', wm_loss)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', q_loss)
+        self._summary_collector.add('Statistics', 'q', q)
+
+        return th.ones_like(BATCH.reward)

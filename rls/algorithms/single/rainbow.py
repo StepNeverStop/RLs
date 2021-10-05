@@ -110,13 +110,10 @@ class RAINBOW(SarlOffPolicy):
         loss = (_cross_entropy * BATCH.get('isw', 1.0)).mean()  # 1
 
         self.oplr.optimize(loss)
-        return _cross_entropy, {
-            'LEARNING_RATE/lr': self.oplr.lr,
-            'LOSS/loss': loss,
-            'Statistics/q_max': q_eval.max(),
-            'Statistics/q_min': q_eval.min(),
-            'Statistics/q_mean': q_eval.mean()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+        self._summary_collector.add('LOSS', 'loss', loss)
+        self._summary_collector.add('Statistics', 'q', q)
+        return _cross_entropy
 
     def _after_train(self):
         super()._after_train()

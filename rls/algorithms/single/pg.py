@@ -88,8 +88,6 @@ class PG(SarlOnPolicy):
             entropy = -(logp_all.exp() * logp_all).sum(1, keepdim=True)  # [B, T, 1]
         loss = -(log_act_prob * BATCH.discounted_reward).mean()
         self.oplr.optimize(loss)
-        return {
-            'LOSS/loss': loss,
-            'Statistics/entropy': entropy.mean(),
-            'LEARNING_RATE/lr': self.oplr.lr
-        }
+        self._summary_collector.add('LOSS', 'loss', loss)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)

@@ -177,17 +177,15 @@ class BCQ(SarlOffPolicy):
 
             self.actor_oplr.optimize(actor_loss)
 
-            return td_error, {
-                'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-                'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-                'LEARNING_RATE/vae_lr': self.vae_oplr.lr,
-                'LOSS/actor_loss': actor_loss,
-                'LOSS/critic_loss': critic_loss,
-                'LOSS/vae_loss': vae_loss,
-                'Statistics/q_min': q1.min(),
-                'Statistics/q_mean': q1.mean(),
-                'Statistics/q_max': q1.max()
-            }
+            self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+            self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+            self._summary_collector.add('LEARNING_RATE', 'vae_lr', self.vae_oplr.lr)
+            self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+            self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+            self._summary_collector.add('LOSS', 'vae_loss', vae_loss)
+            self._summary_collector.add('Statistics', 'q', q1)
+
+            return td_error
 
         else:
             q_next, i_next = self.q_net(BATCH.obs_, begin_mask=BATCH.begin_mask)  # [T, B, A]
@@ -221,15 +219,12 @@ class BCQ(SarlOffPolicy):
             loss = q_loss + i_loss + 1e-2 * i.pow(2).mean()
 
             self.oplr.optimize(loss)
-            return td_error, {
-                'LEARNING_RATE/lr': self.oplr.lr,
-                'LOSS/q_loss': q_loss,
-                'LOSS/i_loss': i_loss,
-                'LOSS/loss': loss,
-                'Statistics/q_max': q_eval.max(),
-                'Statistics/q_min': q_eval.min(),
-                'Statistics/q_mean': q_eval.mean()
-            }
+            self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+            self._summary_collector.add('LOSS', 'q_loss', q_loss)
+            self._summary_collector.add('LOSS', 'i_loss', i_loss)
+            self._summary_collector.add('LOSS', 'loss', loss)
+            self._summary_collector.add('Statistics', 'q', q)
+            return td_error
 
     def _after_train(self):
         super()._after_train()

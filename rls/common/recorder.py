@@ -6,6 +6,7 @@ from typing import Dict
 import numpy as np
 
 from rls.utils.np_utils import arrprint
+from rls.utils.summary_collector import SummaryCollector
 
 
 class Recoder(ABC):
@@ -35,100 +36,92 @@ class SimpleMovingAverageRecoder(Recoder):
                  verbose=False,
                  length=10):
         super().__init__()
-        self.n_copies = n_copies
-        self.agent_ids = agent_ids
-        self.gamma = gamma
-        self.verbose = verbose
-        self.length = length
+        self._n_copies = n_copies
+        self._agent_ids = agent_ids
+        self._gamma = gamma
+        self._verbose = verbose
+        self._length = length
 
-        self.now = 0
-        self.r_list = []
-        self.max = defaultdict(int)
-        self.min = defaultdict(int)
-        self.mean = defaultdict(int)
+        self._now = 0
+        self._r_list = []
+        self._max = defaultdict(int)
+        self._min = defaultdict(int)
+        self._mean = defaultdict(int)
 
-        self.total_step = 0
-        self.episode = 0
+        self._total_step = 0
+        self._episode = 0
 
-        self.steps = None
-        self.total_returns = None
-        self.discounted_returns = None
-        self.already_dones = None
+        self._steps = None
+        self._total_returns = None
+        self._discounted_returns = None
+        self._already_dones = None
+
+        self._summary_collectors = {id: SummaryCollector(mode=SummaryCollector.ALL) for id in self._agent_ids}
 
     def episode_reset(self):
-        self.steps = defaultdict(lambda: np.zeros((self.n_copies,), dtype=int))
-        self.total_returns = defaultdict(lambda: np.zeros((self.n_copies,), dtype=float))
-        self.discounted_returns = defaultdict(lambda: np.zeros((self.n_copies,), dtype=float))
-        self.already_dones = defaultdict(lambda: np.zeros((self.n_copies,), dtype=bool))
+        self._steps = defaultdict(lambda: np.zeros((self._n_copies,), dtype=int))
+        self._total_returns = defaultdict(lambda: np.zeros((self._n_copies,), dtype=float))
+        self._discounted_returns = defaultdict(lambda: np.zeros((self._n_copies,), dtype=float))
+        self._already_dones = defaultdict(lambda: np.zeros((self._n_copies,), dtype=bool))
 
     def episode_step(self, rewards: Dict[str, np.ndarray], dones: Dict[str, np.ndarray]):
-        for id in self.agent_ids:
-            self.total_step += 1
-            self.discounted_returns[id] += (self.gamma ** self.steps[id]) * (1 - self.already_dones[id]) * rewards[id]
-            self.steps[id] += (1 - self.already_dones[id]).astype(int)
-            self.total_returns[id] += (1 - self.already_dones[id]) * rewards[id]
-            self.already_dones[id] = np.logical_or(self.already_dones[id], dones[id])
+        for id in self._agent_ids:
+            self._total_step += 1
+            self._discounted_returns[id] += (self._gamma ** self._steps[id]) * (1 - self._already_dones[id]) * rewards[
+                id]
+            self._steps[id] += (1 - self._already_dones[id]).astype(int)
+            self._total_returns[id] += (1 - self._already_dones[id]) * rewards[id]
+            self._already_dones[id] = np.logical_or(self._already_dones[id], dones[id])
 
     def episode_end(self):
         # TODO: optimize
-        self.episode += 1
-        self.r_list.append(deepcopy(self.total_returns))
-        if self.now >= self.length:
-            r_old = self.r_list.pop(0)
-            for id in self.agent_ids:
-                self.max[id] += (self.total_returns[id].max() - r_old[id].max()) / self.length
-                self.min[id] += (self.total_returns[id].min() - r_old[id].min()) / self.length
-                self.mean[id] += (self.total_returns[id].mean() - r_old[id].mean()) / self.length
+        self._episode += 1
+        self._r_list.append(deepcopy(self._total_returns))
+        if self._now >= self._length:
+            r_old = self._r_list.pop(0)
+            for id in self._agent_ids:
+                self._max[id] += (self._total_returns[id].max() - r_old[id].max()) / self._length
+                self._min[id] += (self._total_returns[id].min() - r_old[id].min()) / self._length
+                self._mean[id] += (self._total_returns[id].mean() - r_old[id].mean()) / self._length
         else:
-            self.now = min(self.now + 1, self.length)
-            for id in self.agent_ids:
-                self.max[id] += (self.total_returns[id].max() - self.max[id]) / self.now
-                self.min[id] += (self.total_returns[id].min() - self.min[id]) / self.now
-                self.mean[id] += (self.total_returns[id].mean() - self.mean[id]) / self.now
+            self._now = min(self._now + 1, self._length)
+            for id in self._agent_ids:
+                self._max[id] += (self._total_returns[id].max() - self._max[id]) / self._now
+                self._min[id] += (self._total_returns[id].min() - self._min[id]) / self._now
+                self._mean[id] += (self._total_returns[id].mean() - self._mean[id]) / self._now
 
     @property
     def is_all_done(self):  # TODO:
-        if len(self.agent_ids) > 1:
-            return np.logical_or(*self.already_dones.values()).all()
+        if len(self._agent_ids) > 1:
+            return np.logical_or(*self._already_dones.values()).all()
         else:
-            return self.already_dones[self.agent_ids[0]].all()
+            return self._already_dones[self._agent_ids[0]].all()
 
     @property
     def has_done(self):  # TODO:
-        if len(self.agent_ids) > 1:
-            return np.logical_or(*self.already_dones.values()).any()
+        if len(self._agent_ids) > 1:
+            return np.logical_or(*self._already_dones.values()).any()
         else:
-            return self.already_dones[self.agent_ids[0]].any()
+            return self._already_dones[self._agent_ids[0]].any()
 
-    def summary_dict(self, title='Agent'):
-        _dicts = {}
-        for id in self.agent_ids:
-            _dicts[id] = {
-                f'{title}/total_rt_mean': self.total_returns[id].mean(),
-                f'{title}/total_rt_min': self.total_returns[id].min(),
-                f'{title}/total_rt_max': self.total_returns[id].max(),
-                f'{title}/discounted_rt_mean': self.discounted_returns[id].mean(),
-                f'{title}/discounted_rt_min': self.discounted_returns[id].min(),
-                f'{title}/discounted_rt_max': self.discounted_returns[id].max(),
-                f'{title}/sma_max': self.max[id],
-                f'{title}/sma_min': self.min[id],
-                f'{title}/sma_mean': self.mean[id]
-            }
-            if self.verbose:
-                _dicts[id].update({
-                    f'{title}/first_done_step': self.steps[id][
-                        self.already_dones[id] > 0].min() if self.has_done else -1,
-                    f'{title}/last_done_step': self.steps[id][
-                        self.already_dones[id] > 0].max() if self.has_done else -1
-                })
-        return _dicts
+    def summary_dict(self, scope='Agent'):
+        for id in self._agent_ids:
+            self._summary_collectors[id].add(scope, 'total_rt', self._total_returns[id])
+            self._summary_collectors[id].add(scope, 'discounted_rt', self._discounted_returns[id])
+            self._summary_collectors[id].add(scope, 'sma_rt', [self._min[id], self._mean[id], self._max[id]])
+            if self._verbose:
+                self._summary_collectors[id].add(scope, 'first_done_step', self._steps[id][
+                    self._already_dones[id] > 0].min() if self.has_done else -1)
+                self._summary_collectors[id].add(scope, 'last_done_step', self._steps[id][
+                    self._already_dones[id] > 0].max() if self.has_done else -1)
+        return {k: v.fetch() for k, v in self._summary_collectors.items()}
 
     def __str__(self):
-        _str = f'Eps: {self.episode:3d}'
-        for id in self.agent_ids:
-            _str += f'\n    Agent: {id.ljust(10)} | S: {self.steps[id].max():4d} | R: {arrprint(self.total_returns[id], 2)}'
-            if self.verbose:
-                first_done_step = self.steps[id][self.already_dones[id] > 0].min() if self.has_done else -1
-                last_done_step = self.steps[id][self.already_dones[id] > 0].max() if self.has_done else -1
+        _str = f'Eps: {self._episode:3d}'
+        for id in self._agent_ids:
+            _str += f'\n    Agent: {id.ljust(10)} | S: {self._steps[id].max():4d} | R: {arrprint(self._total_returns[id], 2)}'
+            if self._verbose:
+                first_done_step = self._steps[id][self._already_dones[id] > 0].min() if self.has_done else -1
+                last_done_step = self._steps[id][self._already_dones[id] > 0].max() if self.has_done else -1
                 _str += f' | FDS {first_done_step:4d} | LDS {last_done_step:4d}'
         return _str

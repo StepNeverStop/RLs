@@ -169,28 +169,23 @@ class TAC(SarlOffPolicy):
         actor_loss = -(q_s_pi - self.alpha * log_pi).mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
-        summaries = {
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/q1_loss': q1_loss,
-            'LOSS/q2_loss': q2_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/log_alpha': self.log_alpha,
-            'Statistics/alpha': self.alpha,
-            'Statistics/entropy': entropy,
-            'Statistics/q_min': th.minimum(q1, q2).min(),
-            'Statistics/q_mean': th.minimum(q1, q2).mean(),
-            'Statistics/q_max': th.maximum(q1, q2).max()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'q1_loss', q1_loss)
+        self._summary_collector.add('LOSS', 'q2_loss', q2_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'log_alpha', self.log_alpha)
+        self._summary_collector.add('Statistics', 'alpha', self.alpha)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('Statistics', 'q', th.minimum(q1, q2))
+
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
             self.alpha_oplr.optimize(alpha_loss)
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss,
-                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
-            })
-        return (td_error1 + td_error2) / 2, summaries
+            self._summary_collector.add('LOSS', 'alpha_loss', alpha_loss)
+            self._summary_collector.add('LEARNING_RATE', 'alpha_lr', self.alpha_oplr.lr)
+        return (td_error1 + td_error2) / 2
 
     def _after_train(self):
         super()._after_train()

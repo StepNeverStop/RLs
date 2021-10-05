@@ -124,10 +124,8 @@ class A2C(SarlOnPolicy):
         actor_loss = -(log_act_prob * BATCH.gae_adv + self.beta * entropy).mean()  # 1
         self.actor_oplr.optimize(actor_loss)
 
-        return {
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/entropy': entropy.mean(),
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr
-        }
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)

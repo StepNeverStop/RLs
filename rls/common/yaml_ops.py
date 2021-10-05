@@ -17,20 +17,17 @@ def save_config(dicpath: str, config: Dict, filename: str) -> NoReturn:
         os.makedirs(dicpath)
     with open(os.path.join(dicpath, filename), 'w', encoding='utf-8') as fw:
         yaml.dump(config, fw)
-    logger.info(
-        colorize(f'save config to {dicpath} successfully', color='green'))
+    logger.info(colorize(f'save config to {dicpath} successfully', color='green'))
 
 
 def load_config(filename: str, not_find_error=True) -> Dict:
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf-8') as f:
             x = yaml.safe_load(f.read())
-        logger.info(
-            colorize(f'load config from {filename} successfully', color='green'))
+        logger.info(colorize(f'load config from {filename} successfully', color='green'))
         return x or {}
     else:
         if not_find_error:
             raise Exception('cannot find this config.')
         else:
-            logger.info(
-                colorize(f'load config from {filename} failed, cannot find file.', color='red'))
+            logger.info(colorize(f'load config from {filename} failed, cannot find file.', color='red'))

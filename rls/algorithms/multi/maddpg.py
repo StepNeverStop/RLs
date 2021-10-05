@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-from collections import defaultdict
 from typing import Dict
 
 import torch as th
@@ -108,7 +107,6 @@ class MADDPG(MultiAgentOffPolicy):
         """
         TODO: Annotation
         """
-        summaries = defaultdict(dict)
         target_actions = {}
         for aid, mid in zip(self.agent_ids, self.model_ids):
             if self.is_continuouss[aid]:
@@ -141,11 +139,7 @@ class MADDPG(MultiAgentOffPolicy):
             td_error = dc_r - qs[mid]  # [T, B, 1]
             td_errors += td_error
             q_loss[aid] = 0.5 * td_error.square().mean()  # 1
-            summaries[aid].update({
-                'Statistics/q_min': qs[mid].min(),
-                'Statistics/q_mean': qs[mid].mean(),
-                'Statistics/q_max': qs[mid].max()
-            })
+            self._summary_collectors[aid].add('Statistics', 'q', qs[mid])
         self.critic_oplr.optimize(sum(q_loss.values()))
 
         actor_loss = {}
@@ -175,15 +169,11 @@ class MADDPG(MultiAgentOffPolicy):
         self.actor_oplr.optimize(sum(actor_loss.values()))
 
         for aid in self.agent_ids:
-            summaries[aid].update({
-                'LOSS/actor_loss': actor_loss[aid],
-                'LOSS/critic_loss': q_loss[aid]
-            })
-        summaries['model'].update({
-            'LOSS/actor_loss', sum(actor_loss.values()),
-            'LOSS/critic_loss', sum(q_loss.values())
-        })
-        return td_errors / self.n_agents_percopy, summaries
+            self._summary_collectors[aid].add('LOSS', 'actor_loss', actor_loss[aid])
+            self._summary_collectors[aid].add('LOSS', 'critic_loss', q_loss[aid])
+        self._summary_collectors['model'].add('LOSS', 'actor_loss', sum(actor_loss.values()))
+        self._summary_collectors['model'].add('LOSS', 'critic_loss', sum(q_loss.values()))
+        return td_errors / self.n_agents_percopy
 
     def _after_train(self):
         super()._after_train()

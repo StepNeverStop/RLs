@@ -122,10 +122,10 @@ class SAC(SarlOffPolicy):
 
     def _train(self, BATCH):
         if self.is_continuous or self.use_gumbel:
-            td_error, summaries = self._train_continuous(BATCH)
+            td_error = self._train_continuous(BATCH)
         else:
-            td_error, summaries = self._train_discrete(BATCH)
-        return td_error, summaries
+            td_error = self._train_discrete(BATCH)
+        return td_error
 
     @iton
     def _train_continuous(self, BATCH):
@@ -181,28 +181,23 @@ class SAC(SarlOffPolicy):
 
         self.actor_oplr.optimize(actor_loss)
 
-        summaries = {
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/q1_loss': q1_loss,
-            'LOSS/q2_loss': q2_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/log_alpha': self.log_alpha,
-            'Statistics/alpha': self.alpha,
-            'Statistics/entropy': entropy,
-            'Statistics/q_min': th.minimum(q1, q2).min(),
-            'Statistics/q_mean': th.minimum(q1, q2).mean(),
-            'Statistics/q_max': th.maximum(q1, q2).max()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'q1_loss', q1_loss)
+        self._summary_collector.add('LOSS', 'q2_loss', q2_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'log_alpha', self.log_alpha)
+        self._summary_collector.add('Statistics', 'alpha', self.alpha)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('Statistics', 'q', th.minimum(q1, q2))
+
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (log_pi + self.target_entropy).detach()).mean()  # 1
             self.alpha_oplr.optimize(alpha_loss)
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss,
-                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
-            })
-        return (td_error1 + td_error2) / 2, summaries
+            self._summary_collector.add('LOSS', 'alpha_loss', alpha_loss)
+            self._summary_collector.add('LEARNING_RATE', 'alpha_lr', self.alpha_oplr.lr)
+        return (td_error1 + td_error2) / 2
 
     @iton
     def _train_discrete(self, BATCH):
@@ -249,17 +244,16 @@ class SAC(SarlOffPolicy):
 
         self.actor_oplr.optimize(actor_loss)
 
-        summaries = {
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/q1_loss': q1_loss,
-            'LOSS/q2_loss': q2_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/log_alpha': self.log_alpha,
-            'Statistics/alpha': self.alpha,
-            'Statistics/entropy': entropy.mean()
-        }
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'q1_loss', q1_loss)
+        self._summary_collector.add('LOSS', 'q2_loss', q2_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'log_alpha', self.log_alpha)
+        self._summary_collector.add('Statistics', 'alpha', self.alpha)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+
         if self.auto_adaption:
             corr = (self.target_entropy - entropy).detach()  # [T, B, 1]
             # corr = ((logp_all - self.a_dim) * logp_all.exp()).sum(-1).detach()    #[B, A] => [B,]
@@ -268,11 +262,9 @@ class SAC(SarlOffPolicy):
             alpha_loss = -(self.alpha * corr)  # [T, B, 1]
             alpha_loss = alpha_loss.mean()  # 1
             self.alpha_oplr.optimize(alpha_loss)
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss,
-                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
-            })
-        return (td_error1 + td_error2) / 2, summaries
+            self._summary_collector.add('LOSS', 'alpha_loss', alpha_loss)
+            self._summary_collector.add('LEARNING_RATE', 'alpha_lr', self.alpha_oplr.lr)
+        return (td_error1 + td_error2) / 2
 
     def _after_train(self):
         super()._after_train()

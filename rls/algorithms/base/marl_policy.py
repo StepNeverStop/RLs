@@ -2,9 +2,10 @@
 # encoding: utf-8
 
 from copy import deepcopy
-from typing import Dict
+from typing import Dict, Union
 
 import numpy as np
+import torch as th
 
 from rls.algorithms.base.policy import Policy
 from rls.common.data import Data
@@ -53,6 +54,10 @@ class MarlPolicy(Policy):
                     if self.agent_specs[self.agent_ids[i]] == self.agent_specs[id]:
                         self.model_ids[i] = id
                         break
+
+        self._summary_collectors = {'model': self._summary_collector}
+        for id in self.agent_ids:
+            self._summary_collectors[id] = self._build_summary_collector()
 
     def _build_loggers(self):
         return [
@@ -146,3 +151,21 @@ class MarlPolicy(Policy):
 
     def _train(self, BATCH_DICT):
         raise NotImplementedError
+
+    def _write_log(self,
+                   log_step: Union[int, th.Tensor] = None,
+                   summaries: Dict = None,
+                   step_type: str = None):
+        assert step_type is not None or log_step is not None, 'assert step_type is not None or log_step is not None'
+        if log_step is None:
+            if step_type == 'step':
+                log_step = self._cur_train_step
+            elif step_type == 'episode':
+                log_step = self._cur_episode
+            elif log_step == 'frame':
+                log_step = self._cur_frame_step
+            else:
+                raise NotImplementedError("log_step must be in ['step', 'episode', 'frame'] for now.")
+        summaries = summaries or {k: v.fetch() for k, v in self._summary_collectors.items()}
+        for logger in self._loggers:
+            logger.write(summaries=summaries, step=log_step)

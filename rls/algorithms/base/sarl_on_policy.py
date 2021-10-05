@@ -6,7 +6,7 @@ import numpy as np
 from rls.algorithms.base.sarl_policy import SarlPolicy
 from rls.common.data import Data
 from rls.common.decorator import iton
-from rls.utils.converter import to_tensor, to_numpy
+from rls.utils.converter import to_tensor, to_numpy_or_number
 from rls.utils.np_utils import int2one_hot
 
 
@@ -31,8 +31,7 @@ class SarlOnPolicy(SarlPolicy):
         for _ in range(self._epochs):
             for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
-                summaries = self._train(_BATCH)
-                self.summaries.update(summaries)
+                self._train(_BATCH)
                 self._after_train()
 
     def episode_end(self):
@@ -66,11 +65,11 @@ class SarlOnPolicy(SarlPolicy):
         return BATCH
 
     def _before_train(self, BATCH):
-        self.summaries = {}
         if self.use_curiosity:
             crsty_r, crsty_summaries = self.curiosity_model(to_tensor(BATCH, device=self.device))
-            BATCH.reward += to_numpy(crsty_r)  # [T, B, 1]
-            self.summaries.update(crsty_summaries)
+            BATCH.reward += to_numpy_or_number(crsty_r)  # [T, B, 1]
+            for scope, key, value in crsty_summaries:
+                self._summary_collector.add(scope, key, value)
         return BATCH
 
     @iton
@@ -78,8 +77,7 @@ class SarlOnPolicy(SarlPolicy):
         raise NotImplementedError
 
     def _after_train(self):
-        self._write_log(summaries=self.summaries,
-                        step_type='step')
+        self._write_log(step_type='step')
         if self._should_save_model(self._cur_train_step):
             self.save()
         self._cur_train_step += 1

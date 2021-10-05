@@ -9,20 +9,24 @@ from rls.utils.logging_utils import get_logger
 logger = get_logger(__name__)
 
 
-def to_numpy(x):
+def to_numpy_or_number(x):
     try:
         if isinstance(x, Data):
-            return x.convert(func=lambda y: to_numpy(y))
+            return x.convert(func=lambda y: to_numpy_or_number(y))
         elif isinstance(x, th.Tensor):  # tensor -> numpy
-            return x.detach().cpu().numpy()
-        elif isinstance(x, np.ndarray) or x is None:  # second often case
+            x = x.detach().cpu()
+            x = x.item() if x.ndim == 0 else x.numpy()
             return x
-        elif isinstance(x, (np.number, np.bool_, Number)):
-            return np.asanyarray(x)
+        elif isinstance(x, np.ndarray):  # second often case
+            return x.item() if x.ndim == 0 else x
+        elif x is None or isinstance(x, Number):
+            return x
         elif isinstance(x, dict):
-            return {k: to_numpy(v) for k, v in x.items()}
+            return {k: to_numpy_or_number(v) for k, v in x.items()}
         elif isinstance(x, (tuple, list)):
-            return [to_numpy(_x) for _x in x]
+            return [to_numpy_or_number(_x) for _x in x]
+        elif isinstance(x, (np.number, np.bool_)):
+            return np.asanyarray(x)
         else:
             raise Exception(
                 f'Data: {x}.\n Unexpected data type when convert data to Numpy: {type(x)}')

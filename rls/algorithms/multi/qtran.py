@@ -40,7 +40,6 @@ class QTRAN(VDN):
 
     @iton
     def _train(self, BATCH_DICT):
-        summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward  # [T, B, 1]
         done = 0.
 
@@ -117,11 +116,7 @@ class QTRAN(VDN):
 
         self.oplr.optimize(loss)
 
-        summaries['model'] = {
-            'LOSS/q_loss': td_loss,
-            'LOSS/loss': loss,
-            'Statistics/q_max': joint_qs.max(),
-            'Statistics/q_min': joint_qs.min(),
-            'Statistics/q_mean': joint_qs.mean()
-        }
-        return td_error, summaries
+        self._summary_collectors['model'].add('LOSS', 'q_loss', td_loss)
+        self._summary_collectors['model'].add('LOSS', 'loss', loss)
+        self._summary_collectors['model'].add('Statistics', 'q', joint_qs)
+        return td_error

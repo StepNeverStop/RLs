@@ -97,7 +97,6 @@ class VDN(MultiAgentOffPolicy):
 
     @iton
     def _train(self, BATCH_DICT):
-        summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward  # [T, B, 1]
         done = 0.
         q_evals = []
@@ -142,14 +141,10 @@ class VDN(MultiAgentOffPolicy):
         td_error = q_target_tot - q_eval_tot  # [T, B, 1]
         q_loss = td_error.square().mean()  # 1
         self.oplr.optimize(q_loss)
+        self._summary_collectors['model'].add('LOSS', 'q_loss', q_loss)
+        self._summary_collectors['model'].add('Statistics', 'q', q_eval_tot)
 
-        summaries['model'] = {
-            'LOSS/q_loss': q_loss,
-            'Statistics/q_max': q_eval_tot.max(),
-            'Statistics/q_min': q_eval_tot.min(),
-            'Statistics/q_mean': q_eval_tot.mean()
-        }
-        return td_error, summaries
+        return td_error
 
     def _after_train(self):
         super()._after_train()

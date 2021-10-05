@@ -38,7 +38,6 @@ class QPLEX(VDN):
 
     @iton
     def _train(self, BATCH_DICT):
-        summaries = {}
         reward = BATCH_DICT[self.agent_ids[0]].reward  # [T, B, 1]
         done = 0.
 
@@ -101,10 +100,6 @@ class QPLEX(VDN):
         q_loss = td_error.square().mean()  # 1
         self.oplr.optimize(q_loss)
 
-        summaries['model'] = {
-            'LOSS/q_loss': q_loss,
-            'Statistics/q_max': q_eval_tot.max(),
-            'Statistics/q_min': q_eval_tot.min(),
-            'Statistics/q_mean': q_eval_tot.mean()
-        }
-        return td_error, summaries
+        self._summary_collectors['model'].add('LOSS', 'q_loss', q_loss)
+        self._summary_collectors['model'].add('Statistics', 'q', q_eval_tot)
+        return td_error

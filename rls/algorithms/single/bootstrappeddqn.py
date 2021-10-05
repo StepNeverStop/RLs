@@ -86,13 +86,12 @@ class BootstrappedDQN(SarlOffPolicy):
         # mask_dist = td.Bernoulli(probs=self._probs)  # TODO:
         # mask = mask_dist.sample([batch_size]).T   # [H, B]
         self.oplr.optimize(q_loss)
-        return td_error, {
-            'LEARNING_RATE/lr': self.oplr.lr,
-            'LOSS/loss': q_loss,
-            'Statistics/q_max': q_eval.max(),
-            'Statistics/q_min': q_eval.min(),
-            'Statistics/q_mean': q_eval.mean()
-        }
+
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+        self._summary_collector.add('LOSS', 'loss', q_loss)
+        self._summary_collector.add('Statistics', 'q', q)
+
+        return td_error
 
     def _after_train(self):
         super()._after_train()

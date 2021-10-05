@@ -182,9 +182,8 @@ class PPOC(SarlOnPolicy):
             kls = []
             for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
-                summaries, kl = self._train(_BATCH)
+                kl = self._train(_BATCH)
                 kls.append(kl)
-                self.summaries.update(summaries)
                 self._after_train()
             if sum(kls) / len(kls) > self._kl_stop:
                 break
@@ -256,15 +255,15 @@ class PPOC(SarlOnPolicy):
         elif kl < self._kl_low:
             self._kl_coef /= self._kl_alpha
 
-        return {
-                   'LOSS/loss': loss,
-                   'LOSS/pi_loss': pi_loss,
-                   'LOSS/q_loss': q_loss,
-                   'LOSS/o_loss': o_loss,
-                   'LOSS/beta_loss': beta_loss,
-                   'Statistics/kl': kl,
-                   'Statistics/entropy': entropy,
-                   'Statistics/o_entropy': o_entropy,
-                   'Statistics/kl_coef': self._kl_coef,
-                   'LEARNING_RATE/lr': self.oplr.lr
-               }, kl
+        self._summary_collector.add('LOSS', 'loss', loss)
+        self._summary_collector.add('LOSS', 'pi_loss', pi_loss)
+        self._summary_collector.add('LOSS', 'q_loss', q_loss)
+        self._summary_collector.add('LOSS', 'o_loss', o_loss)
+        self._summary_collector.add('LOSS', 'beta_loss', beta_loss)
+        self._summary_collector.add('Statistics', 'kl', kl)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('Statistics', 'o_entropy', o_entropy)
+        self._summary_collector.add('Statistics', 'kl_coef', self._kl_coef)
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+
+        return kl

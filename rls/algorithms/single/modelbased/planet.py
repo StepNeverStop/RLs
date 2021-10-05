@@ -226,15 +226,13 @@ class PlaNet(SarlOffPolicy):
 
         self.model_oplr.optimize(model_loss)
 
-        summaries = {
-            'LEARNING_RATE/model_lr': self.model_oplr.lr,
-            'LOSS/model_loss': model_loss,
-            'LOSS/kl_loss': kl_loss,
-            'LOSS/obs_loss': obs_loss,
-            'LOSS/reward_loss': reward_loss
-        }
+        self._summary_collector.add('LEARNING_RATE', 'model_lr', self.model_oplr.lr)
+        self._summary_collector.add('LOSS', 'model_loss', model_loss)
+        self._summary_collector.add('LOSS', 'kl_loss', kl_loss)
+        self._summary_collector.add('LOSS', 'obs_loss', obs_loss)
+        self._summary_collector.add('LOSS', 'reward_loss', reward_loss)
 
-        return th.ones_like(BATCH.reward), summaries
+        return th.ones_like(BATCH.reward)
 
     def _initial_rnncs(self, batch: int) -> Dict[str, np.ndarray]:
         return {'hx': np.zeros((batch, self.deter_dim))}

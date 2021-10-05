@@ -119,24 +119,20 @@ class MAXSQN(SarlOffPolicy):
         q2_loss = (td_error2.square() * BATCH.get('isw', 1.0)).mean()  # 1
         loss = 0.5 * (q1_loss + q2_loss)
         self.critic_oplr.optimize(loss)
-        summaries = {
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/loss': loss,
-            'Statistics/log_alpha': self.log_alpha,
-            'Statistics/alpha': self.alpha,
-            'Statistics/q1_entropy': q1_entropy,
-            'Statistics/q_min': th.minimum(q1, q2).mean(),
-            'Statistics/q_mean': q1.mean(),
-            'Statistics/q_max': th.maximum(q1, q2).mean()
-        }
+
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'loss', loss)
+        self._summary_collector.add('Statistics', 'log_alpha', self.log_alpha)
+        self._summary_collector.add('Statistics', 'alpha', self.alpha)
+        self._summary_collector.add('Statistics', 'q1_entropy', q1_entropy)
+        self._summary_collector.add('Statistics', 'q', th.minimum(q1, q2))
+
         if self.auto_adaption:
             alpha_loss = -(self.alpha * (self.target_entropy - q1_entropy).detach()).mean()
             self.alpha_oplr.optimize(alpha_loss)
-            summaries.update({
-                'LOSS/alpha_loss': alpha_loss,
-                'LEARNING_RATE/alpha_lr': self.alpha_oplr.lr
-            })
-        return (td_error1 + td_error2) / 2, summaries
+            self._summary_collector.add('LOSS', 'alpha_loss', alpha_loss)
+            self._summary_collector.add('LEARNING_RATE', 'alpha_lr', self.alpha_oplr.lr)
+        return (td_error1 + td_error2) / 2
 
     def _after_train(self):
         super()._after_train()

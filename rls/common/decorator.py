@@ -5,7 +5,7 @@ import functools
 
 import torch as th
 
-from rls.utils.converter import to_numpy, to_tensor
+from rls.utils.converter import to_numpy_or_number, to_tensor
 
 
 def lazy_property(func):
@@ -33,7 +33,7 @@ def iton(func, dtype=th.float32, device='cpu'):
         kwargs = {k: to_tensor(v, dtype=dtype, device=device)
                   for k, v in kwargs.items()}
         output = func(*args, **kwargs)
-        output = to_numpy(output)
+        output = to_numpy_or_number(output)
         return output
 
     return wrapper

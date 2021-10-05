@@ -208,22 +208,18 @@ class PPO(SarlOnPolicy):
             kls = []
             for _BATCH in BATCH.sample(self._chunk_length, self.batch_size, repeat=self._sample_allow_repeat):
                 _BATCH = self._before_train(_BATCH)
-                summaries, kl = self._train(_BATCH)
+                kl = self._train(_BATCH)
                 kls.append(kl)
-                self.summaries.update(summaries)
                 self._after_train()
             if self._use_early_stop and sum(kls) / len(kls) > self._kl_stop:
                 break
 
     def _train(self, BATCH):
         if self._share_net:
-            summaries, kl = self.train_share(BATCH)
+            kl = self.train_share(BATCH)
         else:
-            summaries = dict()
-            actor_summaries, kl = self.train_actor(BATCH)
-            critic_summaries = self.train_critic(BATCH)
-            summaries.update(actor_summaries)
-            summaries.update(critic_summaries)
+            kl = self.train_actor(BATCH)
+            self.train_critic(BATCH)
 
         if self._use_kl_loss:
             # ref: https://github.com/joschu/modular_rl/blob/6970cde3da265cf2a98537250fea5e0c0d9a7639/modular_rl/ppo.py#L93
@@ -231,11 +227,9 @@ class PPO(SarlOnPolicy):
                 self._kl_coef *= self._kl_alpha
             elif kl < self._kl_low:
                 self._kl_coef /= self._kl_alpha
-            summaries.update({
-                'Statistics/kl_coef': self._kl_coef
-            })
+            self._summary_collector.add('Statistics', 'kl_coef', self._kl_coef)
 
-        return summaries, kl
+        return kl
 
     @iton
     def train_share(self, BATCH):
@@ -296,13 +290,12 @@ class PPO(SarlOnPolicy):
         critic_loss = 0.5 * td_square.mean()  # 1
         loss = actor_loss + self._vf_coef * critic_loss  # 1
         self.oplr.optimize(loss)
-        return {
-                   'LOSS/actor_loss': actor_loss,
-                   'LOSS/critic_loss': critic_loss,
-                   'Statistics/kl': kl,
-                   'Statistics/entropy': entropy.mean(),
-                   'LEARNING_RATE/lr': self.oplr.lr
-               }, kl
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'kl', kl)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('LEARNING_RATE', 'lr', self.oplr.lr)
+        return kl
 
     @iton
     def train_actor(self, BATCH):
@@ -341,12 +334,11 @@ class PPO(SarlOnPolicy):
             actor_loss += extra_loss
 
         self.actor_oplr.optimize(actor_loss)
-        return {
-                   'LOSS/actor_loss': actor_loss,
-                   'Statistics/kl': kl,
-                   'Statistics/entropy': entropy.mean(),
-                   'LEARNING_RATE/actor_lr': self.actor_oplr.lr
-               }, kl
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('Statistics', 'kl', kl)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        return kl
 
     @iton
     def train_critic(self, BATCH):
@@ -363,7 +355,5 @@ class PPO(SarlOnPolicy):
 
         critic_loss = 0.5 * td_square.mean()  # 1
         self.critic_oplr.optimize(critic_loss)
-        return {
-            'LOSS/critic_loss': critic_loss,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr
-        }
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)

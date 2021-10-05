@@ -113,14 +113,12 @@ class AC(SarlOffPolicy):
         actor_loss = -(ratio * log_prob * q.squeeze(-1).detach()).mean()  # [T, B] => 1
         self.actor_oplr.optimize(actor_loss)
 
-        return td_error, {
-            'LEARNING_RATE/actor_lr': self.actor_oplr.lr,
-            'LEARNING_RATE/critic_lr': self.critic_oplr.lr,
-            'LOSS/actor_loss': actor_loss,
-            'LOSS/critic_loss': critic_loss,
-            'Statistics/q_max': q.max(),
-            'Statistics/q_min': q.min(),
-            'Statistics/q_mean': q.mean(),
-            'Statistics/ratio': ratio.mean(),
-            'Statistics/entropy': entropy
-        }
+        self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)
+        self._summary_collector.add('LEARNING_RATE', 'critic_lr', self.critic_oplr.lr)
+        self._summary_collector.add('LOSS', 'actor_loss', actor_loss)
+        self._summary_collector.add('LOSS', 'critic_loss', critic_loss)
+        self._summary_collector.add('Statistics', 'q', q)
+        self._summary_collector.add('Statistics', 'ratio', ratio)
+        self._summary_collector.add('Statistics', 'entropy', entropy)
+
+        return td_error
