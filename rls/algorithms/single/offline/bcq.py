@@ -12,7 +12,7 @@ from rls.nn.models import BCQ_DCT, BCQ_Act_Cts, BCQ_CriticQvalueOne
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.offline.bcq_vae import VAE
 from rls.nn.utils import OPLR
-from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.expl_expt import EpsilonLinearDecay
 from rls.utils.torch_utils import n_step_return
 
 
@@ -79,7 +79,7 @@ class BCQ(SarlOffPolicy):
                                          critic_oplr=self.critic_oplr,
                                          vae_oplr=self.vae_oplr)
         else:
-            self.expl_expt_mng = ExplorationExploitationClass(eps_init=discrete['eps_init'],
+            self.expl_expt_mng = EpsilonLinearDecay(eps_init=discrete['eps_init'],
                                                               eps_mid=discrete['eps_mid'],
                                                               eps_final=discrete['eps_final'],
                                                               init2mid_annealing_step=discrete[

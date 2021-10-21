@@ -11,7 +11,7 @@ from rls.common.decorator import iton
 from rls.nn.models import QrdqnDistributional
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
-from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.expl_expt import EpsilonLinearDecay
 from rls.utils.torch_utils import n_step_return
 
 
@@ -40,7 +40,7 @@ class QRDQN(SarlOffPolicy):
         self.nums = nums
         self.huber_delta = huber_delta
         self.quantiles = th.tensor((2 * np.arange(self.nums) + 1) / (2.0 * self.nums)).float().to(self.device)  # [N,]
-        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
+        self.expl_expt_mng = EpsilonLinearDecay(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,

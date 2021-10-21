@@ -10,7 +10,7 @@ critic_lr: 1.0e-3
 discrete_tau: 1.0
 
 wm_lr: 1.e-3
-roll_out_horizon: 15
+roll_out_horizon: 4
 network_settings:
   actor_continuous: [ 64, 64 ]
   actor_discrete: [ 64, 64 ]

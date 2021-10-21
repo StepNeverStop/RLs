@@ -7,10 +7,8 @@ from typing import Dict, List
 
 import numpy as np
 from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import \
-    EngineConfigurationChannel
-from mlagents_envs.side_channel.environment_parameters_channel import \
-    EnvironmentParametersChannel
+from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+from mlagents_envs.side_channel.environment_parameters_channel import EnvironmentParametersChannel
 
 from rls.common.data import Data
 from rls.common.specs import EnvAgentSpec, SensorSpec
@@ -44,8 +42,7 @@ class BasicUnityEnvironment(object):
         self._n_copies = env_copies
         self._real_done = real_done
 
-        self._side_channels = self.initialize_all_side_channels(
-            initialize_config, engine_config)
+        self._side_channels = self.initialize_all_side_channels(initialize_config, engine_config)
         env_kwargs = dict(seed=seed,
                           worker_id=worker_id,
                           timeout_wait=timeout_wait,
@@ -80,7 +77,7 @@ class BasicUnityEnvironment(object):
         初始化环境，获取必要的信息，如状态、动作维度等等
         """
 
-        self.behavior_names = list(self.env.behavior_specs.keys())
+        self._behavior_names = list(self.env.behavior_specs.keys())
 
         self._vector_idxs = defaultdict(list)
         self._vector_dims = defaultdict(list)
@@ -101,8 +98,7 @@ class BasicUnityEnvironment(object):
                     self._visual_idxs[bn].append(i)
                     self._visual_dims[bn].append(list(obs_spec.shape))
                 else:
-                    raise ValueError(
-                        "shape of observation cannot be understood.")
+                    raise ValueError("shape of observation cannot be understood.")
 
             action_spec = spec.action_spec
             if action_spec.is_continuous():
@@ -110,22 +106,17 @@ class BasicUnityEnvironment(object):
                 self._discrete_action_lists[bn] = None
                 self._is_continuous[bn] = True
             elif action_spec.is_discrete():
-                self._a_dim[bn] = int(np.asarray(
-                    action_spec.discrete_branches).prod())
-                self._discrete_action_lists[bn] = get_discrete_action_list(
-                    action_spec.discrete_branches)
+                self._a_dim[bn] = int(np.asarray(action_spec.discrete_branches).prod())
+                self._discrete_action_lists[bn] = get_discrete_action_list(action_spec.discrete_branches)
                 self._is_continuous[bn] = False
             else:
-                raise NotImplementedError(
-                    "doesn't support continuous and discrete actions simultaneously for now.")
+                raise NotImplementedError("doesn't support continuous and discrete actions simultaneously for now.")
 
-            self._actiontuples[bn] = action_spec.empty_action(
-                n_agents=self._n_copies)
+            self._actiontuples[bn] = action_spec.empty_action(n_agents=self._n_copies)
 
     def reset(self, reset_config):
         for k, v in reset_config.items():
-            self._side_channels['float_properties_channel'].set_float_parameter(
-                k, v)
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
         self.env.reset()
         return self.get_obs(only_obs=True)
 
@@ -135,13 +126,12 @@ class BasicUnityEnvironment(object):
                 not dict, then set those actions for the first behavior controller.
         """
         for k, v in step_config.items():
-            self._side_channels['float_properties_channel'].set_float_parameter(
-                k, v)
+            self._side_channels['float_properties_channel'].set_float_parameter(k, v)
 
         actions = deepcopy(actions)
 
         # TODO: fix this
-        for bn in self.behavior_names:
+        for bn in self._behavior_names:
             if self._is_continuous[bn]:
                 self._actiontuples[bn].add_continuous(actions[bn])
             else:
@@ -155,7 +145,7 @@ class BasicUnityEnvironment(object):
     @property
     def AgentSpecs(self):
         ret = {}
-        for bn in self.behavior_names:
+        for bn in self._behavior_names:
             ret[bn] = EnvAgentSpec(
                 obs_spec=SensorSpec(
                     vector_dims=self._vector_dims[bn],
@@ -171,13 +161,13 @@ class BasicUnityEnvironment(object):
 
     @property
     def agent_ids(self) -> List[str]:
-        return self.behavior_names
+        return self._behavior_names
 
     def get_obs(self, behavior_names=None, only_obs=False):
         """
         解析环境反馈的信息，将反馈信息分为四部分：向量、图像、奖励、done信号
         """
-        behavior_names = behavior_names or self.behavior_names
+        behavior_names = behavior_names or self._behavior_names
 
         whole_done = np.full(self._n_copies, False)
         whole_info_max_step = np.full(self._n_copies, False)
@@ -197,8 +187,7 @@ class BasicUnityEnvironment(object):
                 elif len(ds) == 0:
                     self.env.step()  # some of environments done, but some of not
                 else:
-                    raise ValueError(
-                        f'agents number error. Expected 0 or {self._n_copies}, received {len(ds)}')
+                    raise ValueError(f'agents number error. Expected 0 or {self._n_copies}, received {len(ds)}')
 
             obs_fs, reward = ds.obs, ds.reward
             obs_fa = deepcopy(obs_fs)
@@ -245,7 +234,7 @@ class BasicUnityEnvironment(object):
             return all_obs_fa
         else:
             rets = {}
-            for bn in self.behavior_names:
+            for bn in self._behavior_names:
                 rets[bn] = Data(obs_fa=all_obs_fa[bn],
                                 obs_fs=all_obs_fs[bn],
                                 reward=all_reward[bn],

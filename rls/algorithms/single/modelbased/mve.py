@@ -36,9 +36,11 @@ class MVE(DDPG):
         self._forward_dynamic_model = VectorSA2S(self.obs_spec.vector_dims[0],
                                                  self.a_dim,
                                                  hidden_units=network_settings['forward_model'])
+        # NOTE: condition on tuple of <state, action, state`> in STEVE
         self._reward_model = VectorSA2R(self.obs_spec.vector_dims[0],
                                         self.a_dim,
                                         hidden_units=network_settings['reward_model'])
+        # NOTE: condition on state only in STEVE
         self._done_model = VectorSA2D(self.obs_spec.vector_dims[0],
                                       self.a_dim,
                                       hidden_units=network_settings['done_model'])
@@ -65,6 +67,22 @@ class MVE(DDPG):
         wm_loss = _obs_loss + _reward_loss + _done_loss
         self._wm_oplr.optimize(wm_loss)
 
+        # train actor
+        if self.is_continuous:
+            mu = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+        else:
+            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
+            logp_all = logits.log_softmax(-1)  # [T, B, A]
+            gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)  # [T, B, A]
+            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)  # [T, B, A]
+            _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
+            _pi_diff = (_pi_true_one_hot - _pi).detach()  # [T, B, A]
+            mu = _pi_diff + _pi  # [T, B, A]
+        q_actor = self.critic(BATCH.obs, mu, begin_mask=BATCH.begin_mask)  # [T, B, 1]
+        actor_loss = -q_actor.mean()  # 1
+        self.actor_oplr.optimize(actor_loss)
+
+        # train critic
         obs = th.reshape(obs, (_timestep * _batchsize, -1))  # [T*B, S]
         obs_ = th.reshape(obs_, (_timestep * _batchsize, -1))  # [T*B, S]
         actions = th.reshape(BATCH.action, (_timestep * _batchsize, -1))  # [T*B, A]
@@ -82,9 +100,9 @@ class MVE(DDPG):
             r_obs = r_obs_
             _r_obs.vector.vector_0 = r_obs
             if self.is_continuous:
-                action_target = self.actor.t(_r_obs)  # [T*B, A]
+                r_action = self.actor.t(_r_obs)  # [T*B, A]
                 if self.use_target_action_noise:
-                    r_action = self.target_noised_action(action_target)  # [T*B, A]
+                    r_action = self.target_noised_action(r_action)  # [T*B, A]
             else:
                 target_logits = self.actor.t(_r_obs)  # [T*B, A]
                 target_cate_dist = td.Categorical(logits=target_logits)
@@ -109,21 +127,6 @@ class MVE(DDPG):
         td_error = dc_r - q  # [T*B, 1]
         q_loss = td_error.square().mean()  # 1
         self.critic_oplr.optimize(q_loss)
-
-        # train actor
-        if self.is_continuous:
-            mu = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-        else:
-            logits = self.actor(BATCH.obs, begin_mask=BATCH.begin_mask)  # [T, B, A]
-            logp_all = logits.log_softmax(-1)  # [T, B, A]
-            gumbel_noise = td.Gumbel(0, 1).sample(logp_all.shape)  # [T, B, A]
-            _pi = ((logp_all + gumbel_noise) / self.discrete_tau).softmax(-1)  # [T, B, A]
-            _pi_true_one_hot = F.one_hot(_pi.argmax(-1), self.a_dim).float()  # [T, B, A]
-            _pi_diff = (_pi_true_one_hot - _pi).detach()  # [T, B, A]
-            mu = _pi_diff + _pi  # [T, B, A]
-        q_actor = self.critic(BATCH.obs, mu, begin_mask=BATCH.begin_mask)  # [T, B, 1]
-        actor_loss = -q_actor.mean()  # 1
-        self.actor_oplr.optimize(actor_loss)
 
         self._summary_collector.add('LEARNING_RATE', 'wm_lr', self._wm_oplr.lr)
         self._summary_collector.add('LEARNING_RATE', 'actor_lr', self.actor_oplr.lr)

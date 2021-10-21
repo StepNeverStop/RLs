@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
+# !/usr/bin/env python3
 # encoding: utf-8
+
 import platform
 from importlib import util as import_util
 
@@ -18,7 +19,8 @@ systembased_extras = {
         # 'swig',   # install it with conda.
         # 'box2d-py',   # install it manually.
         'cmake',
-        'pywin32'
+        'pywin32'  # NOTE: if encounter error:  ImportError: DLL load failed while importing win32api, then please use
+        # conda to install this package.
     ],
     'nowindows': []
 }

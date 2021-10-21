@@ -11,7 +11,7 @@ from rls.common.decorator import iton
 from rls.nn.models import C51Distributional
 from rls.nn.modules.wrappers import TargetTwin
 from rls.nn.utils import OPLR
-from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.expl_expt import EpsilonLinearDecay
 from rls.utils.torch_utils import n_step_return
 
 
@@ -41,7 +41,7 @@ class C51(SarlOffPolicy):
         self._atoms = atoms
         self._delta_z = (self._v_max - self._v_min) / (self._atoms - 1)
         self._z = th.linspace(self._v_min, self._v_max, self._atoms).float().to(self.device)  # [N,]
-        self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
+        self.expl_expt_mng = EpsilonLinearDecay(eps_init=eps_init,
                                                           eps_mid=eps_mid,
                                                           eps_final=eps_final,
                                                           init2mid_annealing_step=init2mid_annealing_step,

@@ -74,9 +74,9 @@ class DataBuffer:
         if self._not_builded():
             self._build_buffer(data)
 
-        for k, v in data.items():
+        for agent_id, v in data.items():
             for _k, _v in v.nested_dict().items():
-                self._buffer[k][_k][self._pointer] = _v
+                self._buffer[agent_id][_k][self._pointer] = _v
 
         self._pointer = (self._pointer + 1) % self.max_horizon
         self._horizon_length = min(self._horizon_length + 1, self.max_horizon)

@@ -13,7 +13,7 @@ from rls.common.decorator import iton
 from rls.nn.dreamer import ActionDecoder, DenseModel, RecurrentStateSpaceModel
 from rls.nn.dreamer.utils import FreezeParameters, compute_return
 from rls.nn.utils import OPLR
-from rls.utils.expl_expt import ExplorationExploitationClass
+from rls.utils.expl_expt import EpsilonLinearDecay
 
 
 class DreamerV1(SarlOffPolicy):
@@ -75,7 +75,7 @@ class DreamerV1(SarlOffPolicy):
         self._network_settings = network_settings
 
         if not self.is_continuous:
-            self.expl_expt_mng = ExplorationExploitationClass(eps_init=eps_init,
+            self.expl_expt_mng = EpsilonLinearDecay(eps_init=eps_init,
                                                               eps_mid=eps_mid,
                                                               eps_final=eps_final,
                                                               init2mid_annealing_step=init2mid_annealing_step,
